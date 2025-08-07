@@ -1,6 +1,5 @@
 import { supabase } from '../config/supabase';
-import { createClient } from '@supabase/supabase-js';
-import { SITE_URL, RESEND_API_KEY, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_URL } from '../config/env';
+import { SUPABASE_URL } from '../config/env';
 
 export interface EmailRequest {
   to: string | string[];
@@ -20,63 +19,14 @@ export interface EmailResponse {
 export const emailService = {
   async sendPasswordResetEmail(to: string, subject = 'Reset your password'): Promise<EmailResponse> {
     try {
-      if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
-        throw new Error('Supabase admin credentials not configured');
-      }
-      if (!RESEND_API_KEY) {
-        throw new Error('Resend API key not configured');
-      }
-
-      const adminClient = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-
-      const { data, error } = await adminClient.auth.admin.generateLink({
-        type: 'recovery',
-        email: to,
-        options: {
-          redirectTo: `${SITE_URL}/auth`,
+      const response = await fetch(
+        `${SUPABASE_URL}/functions/v1/send-password-reset`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ to, subject }),
         },
-      });
-
-      const linkData = data as { properties?: { action_link?: string }; action_link?: string } | null;
-      const resetLink = linkData?.properties?.action_link || linkData?.action_link;
-
-      if (error || !resetLink) {
-        throw error || new Error('Failed to generate reset link');
-      }
-
-      const html = `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-          <div style="background-color: #4E4B43; color: white; padding: 20px; text-align: center;">
-            <h1 style="margin: 0;">HaDirot</h1>
-          </div>
-          <div style="padding: 20px; background-color: #f9f9f9;">
-            <div style="background-color: white; padding: 20px; border-radius: 8px;">
-              <p style="color: #333; line-height: 1.6;">You requested a password reset. Click the button below to reset your password:</p>
-              <div style="text-align: center; margin: 30px 0;">
-                <a href="${resetLink}" style="background-color: #4E4B43; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">Reset Password</a>
-              </div>
-              <p style="color: #666; font-size: 14px;">If you did not request this, please ignore this email.</p>
-            </div>
-          </div>
-          <div style="background-color: #4E4B43; color: #E5D8C1; padding: 15px; text-align: center; font-size: 12px;">
-            <p style="margin: 0;">© 2025 HaDirot. All rights reserved.</p>
-          </div>
-        </div>
-      `;
-
-      const response = await fetch('https://api.resend.com/emails', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${RESEND_API_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          from: 'HaDirot <noreply@hadirot.com>',
-          to,
-          subject,
-          html,
-        }),
-      });
+      );
 
       const result = await response.json();
 
@@ -88,7 +38,7 @@ export const emailService = {
         };
       }
 
-      return { success: true, id: result.id };
+      return result;
     } catch (error) {
       console.error('Error sending password reset email:', error);
       return {
