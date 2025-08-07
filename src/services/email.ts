@@ -1,4 +1,6 @@
 import { supabase } from '../config/supabase';
+import { createClient } from '@supabase/supabase-js';
+import { SITE_URL, RESEND_API_KEY, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_URL } from '../config/env';
 
 export interface EmailRequest {
   to: string | string[];
@@ -16,40 +18,107 @@ export interface EmailResponse {
 }
 
 export const emailService = {
+  async sendPasswordResetEmail(to: string, subject = 'Reset your password'): Promise<EmailResponse> {
+    try {
+      if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+        throw new Error('Supabase admin credentials not configured');
+      }
+      if (!RESEND_API_KEY) {
+        throw new Error('Resend API key not configured');
+      }
+
+      const adminClient = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+
+      const { data, error } = await adminClient.auth.admin.generateLink({
+        type: 'recovery',
+        email: to,
+        options: {
+          redirectTo: `${SITE_URL}/auth`,
+        },
+      });
+
+      const linkData = data as { properties?: { action_link?: string }; action_link?: string } | null;
+      const resetLink = linkData?.properties?.action_link || linkData?.action_link;
+
+      if (error || !resetLink) {
+        throw error || new Error('Failed to generate reset link');
+      }
+
+      const html = `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <div style="background-color: #4E4B43; color: white; padding: 20px; text-align: center;">
+            <h1 style="margin: 0;">HaDirot</h1>
+          </div>
+          <div style="padding: 20px; background-color: #f9f9f9;">
+            <div style="background-color: white; padding: 20px; border-radius: 8px;">
+              <p style="color: #333; line-height: 1.6;">You requested a password reset. Click the button below to reset your password:</p>
+              <div style="text-align: center; margin: 30px 0;">
+                <a href="${resetLink}" style="background-color: #4E4B43; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">Reset Password</a>
+              </div>
+              <p style="color: #666; font-size: 14px;">If you did not request this, please ignore this email.</p>
+            </div>
+          </div>
+          <div style="background-color: #4E4B43; color: #E5D8C1; padding: 15px; text-align: center; font-size: 12px;">
+            <p style="margin: 0;">© 2025 HaDirot. All rights reserved.</p>
+          </div>
+        </div>
+      `;
+
+      const response = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${RESEND_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          from: 'HaDirot <noreply@hadirot.com>',
+          to,
+          subject,
+          html,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        return {
+          success: false,
+          error: result.error || 'Failed to send password reset email',
+          details: result.details,
+        };
+      }
+
+      return { success: true, id: result.id };
+    } catch (error) {
+      console.error('Error sending password reset email:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error occurred',
+      };
+    }
+  },
+
   async sendEmail(emailData: EmailRequest): Promise<EmailResponse> {
     try {
-      // Prepare headers
+      if (emailData.type === 'password_reset') {
+        const toEmail = Array.isArray(emailData.to) ? emailData.to[0] : emailData.to;
+        return await this.sendPasswordResetEmail(toEmail, emailData.subject);
+      }
+
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
       };
 
-      // Skip authorization for password reset emails
-      if (emailData.type !== 'password_reset') {
-        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
 
-        if (sessionError || !session) {
-          throw new Error('User must be authenticated to send emails');
-        }
-
-        headers['Authorization'] = `Bearer ${session.access_token}`;
-      } else {
-        const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-        if (!anonKey) {
-          throw new Error('Supabase anon key not configured');
-        }
-        headers['apikey'] = anonKey;
+      if (sessionError || !session) {
+        throw new Error('User must be authenticated to send emails');
       }
 
-      // Get the Supabase URL from environment variables
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      if (!supabaseUrl) {
-        throw new Error('Supabase URL not configured');
-      }
+      headers['Authorization'] = `Bearer ${session.access_token}`;
 
-      // Construct the edge function URL
-      const functionUrl = `${supabaseUrl}/functions/v1/send-email`;
+      const functionUrl = `${SUPABASE_URL}/functions/v1/send-email`;
 
-      // Make the request to the edge function
       const response = await fetch(functionUrl, {
         method: 'POST',
         headers,
@@ -59,7 +128,6 @@ export const emailService = {
         }),
       });
 
-      // Parse the response
       const result = await response.json();
 
       if (!response.ok) {
@@ -518,17 +586,6 @@ export const emailService = {
       to: userEmail,
       subject: `Account Permissions Updated - HaDirot`,
       html,
-    });
-  },
-
-  // Helper function to send password reset email
-  async sendPasswordResetEmail(email: string): Promise<EmailResponse> {
-    // The Edge Function will handle generating the reset link and sending the branded email
-    return this.sendEmail({
-      to: email,
-      subject: 'Reset your HaDirot password',
-      html: '', // Will be generated by Edge Function
-      type: 'password_reset',
     });
   },
 
