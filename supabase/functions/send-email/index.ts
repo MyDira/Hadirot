@@ -106,13 +106,13 @@ Deno.serve(async (req) => {
         });
 
         // Generate password reset link using admin client (without sending Supabase's default email)
-        const { data, error: resetError } = await supabaseAdmin.auth.admin.generatePasswordResetLink(
-          resetEmail,
-          {
+        const { data, error: resetError } = await supabaseAdmin.auth.admin.generateLink({
+          type: 'recovery',
+          email: resetEmail,
+          options: {
             redirectTo: redirectUrl,
-            sendEmail: false, // Prevent Supabase from sending its own email
-          }
-        );
+          },
+        });
 
         if (resetError) {
           console.error('❌ Error generating password reset link:', {
