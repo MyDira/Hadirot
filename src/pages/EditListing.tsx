@@ -3,6 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { Upload, X, Star, ArrowLeft, Save } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { listingsService } from '../services/listings';
+import { emailService } from '../services/email';
 import { PropertyType, ParkingType, HeatType, Listing, ListingImage, TempListingImage } from '../config/supabase';
 
 interface ListingFormData {
