@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Users, FileText, Settings, Eye, Check, X, Ban, UserCheck, Trash2, ChevronLeft, Shield, TrendingUp, Home, Star, Power, ChevronDown, Search, UserX, Mail, ChevronRight } from 'lucide-react';
 import { emailService } from '../services/email';
+import { listingsService } from '../services/listings';
 import { useAuth } from '../hooks/useAuth';
 import { supabase, Profile, Listing } from '../config/supabase';
 
@@ -563,20 +564,10 @@ export function AdminPanel() {
 
   const approveListing = async (listingId: string) => {
     try {
-      const { error } = await supabase
-        .from('listings')
-        .update({ 
-          approved: true,
-          is_active: true
-        })
-        .eq('id', listingId);
-      
-      if (error) {
-        console.error('Error approving listing:', error);
-        alert('Failed to approve listing. Please try again.');
-        return;
-      }
-      
+      await listingsService.updateListing(listingId, {
+        approved: true,
+        is_active: true,
+      });
       await loadAdminData();
       setShowApproveSuccess(true);
     } catch (error) {
