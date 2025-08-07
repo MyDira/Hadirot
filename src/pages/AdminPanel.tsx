@@ -439,18 +439,14 @@ export function AdminPanel() {
   const resetPassword = async (userId: string, email: string) => {
     setActionLoading(userId);
     try {
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/auth`
-      });
-      
       console.log('🔄 Admin sending password reset email to:', email);
       const result = await emailService.sendPasswordResetEmail(email);
-      
+
       if (!result.success) {
         console.error('❌ Password reset failed:', result.error);
         throw new Error(result.error || 'Failed to send password reset email');
       }
-      
+
       console.log('✅ Password reset email sent successfully');
       alert('Password reset email sent successfully!');
     } catch (error) {
