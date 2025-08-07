@@ -563,20 +563,16 @@ export function AdminPanel() {
 
   const approveListing = async (listingId: string) => {
     try {
-      const { error } = await supabase
-        .from('listings')
-        .update({ 
-          approved: true,
-          is_active: true
-        })
-        .eq('id', listingId);
-      
-      if (error) {
-        console.error('Error approving listing:', error);
+      const { data, error } = await supabase.functions.invoke('approve-listing', {
+        body: { listingId }
+      });
+
+      if (error || !data?.ok) {
+        console.error('Error approving listing:', error || data);
         alert('Failed to approve listing. Please try again.');
         return;
       }
-      
+
       await loadAdminData();
       setShowApproveSuccess(true);
     } catch (error) {
