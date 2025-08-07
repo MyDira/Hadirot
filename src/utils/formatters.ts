@@ -14,7 +14,11 @@ export function capitalizeName(name: string): string {
     .split(' ')
     .map(word => {
       if (word.length === 0) return word;
-      return word.charAt(0).toUpperCase() + word.slice(1);
+      // Handle hyphenated names like "mary-jane"
+      return word
+        .split('-')
+        .map(part => (part.length > 0 ? part.charAt(0).toUpperCase() + part.slice(1) : part))
+        .join('-');
     })
     .join(' ')
     .replace(/\s+/g, ' '); // Replace multiple spaces with single space
