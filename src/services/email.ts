@@ -19,19 +19,25 @@ export const emailService = {
   async sendEmail(emailData: EmailRequest): Promise<EmailResponse> {
     try {
       // Prepare headers
-      let headers: Record<string, string> = {
+      const headers: Record<string, string> = {
         'Content-Type': 'application/json',
       };
 
       // Skip authorization for password reset emails
       if (emailData.type !== 'password_reset') {
         const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-        
+
         if (sessionError || !session) {
           throw new Error('User must be authenticated to send emails');
         }
-        
+
         headers['Authorization'] = `Bearer ${session.access_token}`;
+      } else {
+        const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+        if (!anonKey) {
+          throw new Error('Supabase anon key not configured');
+        }
+        headers['apikey'] = anonKey;
       }
 
       // Get the Supabase URL from environment variables
