@@ -92,19 +92,17 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Update the listing only if it was previously unapproved
-    const { data, error } = await supabaseAdmin
+    // Fetch the listing details
+    const { data: listing, error: fetchError } = await supabaseAdmin
       .from('listings')
-      .update({ approved: true })
+      .select('approved, title, profiles!listings_user_id_fkey(full_name, email)')
       .eq('id', listingId)
-      .eq('approved', false)
-      .select('title, profiles!listings_user_id_fkey(full_name, email)')
-      .maybeSingle();
+      .single();
 
-    if (error) {
-      console.error('Error approving listing:', error);
+    if (fetchError) {
+      console.error('Error fetching listing:', fetchError);
       return new Response(
-        JSON.stringify({ error: 'Failed to approve listing' }),
+        JSON.stringify({ error: 'Failed to fetch listing' }),
         {
           status: 500,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -112,11 +110,28 @@ Deno.serve(async (req) => {
       );
     }
 
-    if (!data) {
+    if (listing.approved) {
       return new Response(
         JSON.stringify({ message: 'Listing not updated or already approved' }),
         {
           status: 200,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
+      );
+    }
+
+    // Approve the listing
+    const { error: updateError } = await supabaseAdmin
+      .from('listings')
+      .update({ approved: true })
+      .eq('id', listingId);
+
+    if (updateError) {
+      console.error('Error approving listing:', updateError);
+      return new Response(
+        JSON.stringify({ error: 'Failed to approve listing' }),
+        {
+          status: 500,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         }
       );
@@ -131,9 +146,9 @@ Deno.serve(async (req) => {
           'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`
         },
         body: JSON.stringify({
-          to: data.profiles.email,
-          subject: `Listing Approved: ${data.title}`,
-          html: `Your listing <strong>${data.title}</strong> has been approved and is now live on HaDirot!`
+          to: listing.profiles.email,
+          subject: `Listing Approved: ${listing.title}`,
+          html: `Your listing <strong>${listing.title}</strong> has been approved and is now live on HaDirot!`
         })
       });
     } catch (emailError) {
