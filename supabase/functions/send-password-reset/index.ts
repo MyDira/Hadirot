@@ -55,7 +55,7 @@ Deno.serve(async (req) => {
     const redirectUrl = `${Deno.env.get('VITE_SITE_URL') || 'http://localhost:5173'}/auth`;
     const email = Array.isArray(to) ? to[0] : to;
 
-    const { data, error } = await supabaseAdmin.auth.admin.generateLink({
+    const { data, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
       type: 'recovery',
       email,
       options: { redirectTo: redirectUrl },
@@ -63,9 +63,12 @@ Deno.serve(async (req) => {
 
     const actionLink = data?.properties?.action_link || data?.action_link;
 
-    if (error || !actionLink) {
+    if (linkError || !actionLink) {
       return new Response(
-        JSON.stringify({ error: error?.message || 'Failed to generate reset link' }),
+        JSON.stringify({
+          error: linkError?.message || 'Failed to generate reset link',
+          details: linkError,
+        }),
         {
           status: 500,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -74,8 +77,10 @@ Deno.serve(async (req) => {
     }
 
     const html = `
-      <p>Click the link below to reset your password:</p>
-      <p><a href="${actionLink}">Reset Password</a></p>
+      <div style="font-family: Arial, sans-serif; line-height: 1.6;">
+        <p>Click the link below to reset your password:</p>
+        <p><a href="${actionLink}" target="_blank">Reset Password</a></p>
+      </div>
     `;
 
     const emailPayload = {
@@ -99,8 +104,8 @@ Deno.serve(async (req) => {
     if (!resendResponse.ok) {
       return new Response(
         JSON.stringify({
-          error: resendData.error || 'Failed to send email',
-          details: resendData.details,
+          error: resendData.error?.message || 'Failed to send email',
+          details: resendData.error,
         }),
         {
           status: 500,
@@ -118,10 +123,9 @@ Deno.serve(async (req) => {
     );
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    console.error('Unexpected error in send-password-reset function:', message);
 
     return new Response(
-      JSON.stringify({ error: 'Internal server error', message }),
+      JSON.stringify({ error: 'Internal server error', details: message }),
       {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
