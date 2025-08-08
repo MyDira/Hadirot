@@ -1,5 +1,6 @@
 import { supabase, Listing } from '../config/supabase';
 import { capitalizeName } from '../utils/formatters';
+import { emailService } from './email';
 
 export const listingsService = {
   async getListings(filters = {}, limit?: number, userId?: string, offset = 0, applyPagination: boolean = true, is_featured_only?: boolean) {
