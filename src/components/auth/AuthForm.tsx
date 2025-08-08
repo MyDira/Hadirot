@@ -86,7 +86,10 @@ export function AuthForm({ onAuthSuccess }: AuthFormProps = {}) {
 
       if (!result.success) {
         console.error('❌ Password reset failed:', result.error);
-        setError(result.error || 'Failed to send password reset email');
+        const message = result.error
+          ? `${result.error}${result.details ? ` (${result.details})` : ''}`
+          : 'Failed to send password reset email';
+        setError(message);
       } else {
         console.log('✅ Password reset email sent successfully');
         setResetMessage('Password reset email sent! Check your inbox for the reset link.');
