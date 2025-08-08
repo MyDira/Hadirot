@@ -117,10 +117,11 @@ Deno.serve(async (req) => {
       },
     );
   } catch (error) {
-    console.error('Unexpected error in send-password-reset function:', error);
+    const message = error instanceof Error ? error.message : String(error);
+    console.error('Unexpected error in send-password-reset function:', message);
 
     return new Response(
-      JSON.stringify({ error: 'Internal server error' }),
+      JSON.stringify({ error: 'Internal server error', message }),
       {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
