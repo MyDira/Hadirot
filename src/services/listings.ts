@@ -268,25 +268,40 @@ export const listingsService = {
     if (error) throw error;
 
     console.log('[WEB] approval flip check', { wasApproved: currentListing?.approved, nowApproved: listingData?.approved });
-    // Check if listing was just approved (changed from false to true)
-    if (currentListing &&
-        currentListing.approved === false &&
-        listingData.approved === true &&
-        currentListing.profiles?.email &&
-        currentListing.profiles?.full_name) {
-
-      try {
-        console.log('[WEB] sending approval email', { listingId: id, to: currentListing.profiles?.email });
-        await emailService.sendListingApprovalEmail(
-          currentListing.profiles.email,
-          currentListing.profiles.full_name,
-          currentListing.title,
-          id
-        );
-        console.log('✅ Listing approval email sent successfully');
-      } catch (err: any) {
-        console.error('[WEB] approval email error', err?.message || err);
-        // Don't throw error - approval should still succeed even if email fails
+    const justApproved =
+      !!currentListing &&
+      currentListing.approved === false &&
+      listingData?.approved === true;
+    console.log('[WEB] approval flip check passed?', justApproved);
+    if (justApproved) {
+      const owner = (currentListing as unknown as { owner?: { email?: string; full_name?: string; id?: string } })?.owner;
+      const ownerEmail = currentListing?.profiles?.email ?? owner?.email ?? null;
+      const ownerName = currentListing?.profiles?.full_name ?? owner?.full_name ?? null;
+      const ownerId = currentListing?.profiles?.id ?? owner?.id ?? null;
+      const listingOwnerFields = currentListing as unknown as { owner_id?: unknown; ownerId?: unknown };
+      console.log('[WEB] owner check', {
+        ownerId,
+        ownerEmail,
+        ownerName,
+        ownerLoaded: !!currentListing?.profiles || !!owner,
+        listingHasOwnerId: !!listingOwnerFields.owner_id || !!listingOwnerFields.ownerId,
+      });
+      if (!ownerEmail || !ownerName) {
+        console.warn('[WEB] skipping approval email: missing owner email', { listingId: id, owner: { ownerId, ownerName } });
+      } else {
+        try {
+          console.log('[WEB] sending approval email', { listingId: id, to: ownerEmail });
+          await emailService.sendListingApprovalEmail(
+            ownerEmail,
+            ownerName,
+            currentListing.title,
+            id
+          );
+          console.log('✅ Listing approval email sent successfully');
+        } catch (err) {
+          console.error('[WEB] approval email error', err instanceof Error ? err.message : err);
+          // Don't throw error - approval should still succeed even if email fails
+        }
       }
     }
     
