@@ -66,7 +66,7 @@ export function ListingCard({ listing, isFavorited = false, onFavoriteChange, sh
   return (
     <Link 
       to={`/listing/${listing.id}`}
-      className="group block bg-white rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition-all duration-200 overflow-hidden"
+      className="group block bg-[#FBF8F3] rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition-all duration-200 overflow-hidden"
     >
       <div className="relative">
         {featuredImage ? (
@@ -84,7 +84,7 @@ export function ListingCard({ listing, isFavorited = false, onFavoriteChange, sh
         {/* Featured badge - top left */}
         {listing.is_featured && showFeaturedBadge && (
           <div className="absolute top-3 left-3">
-            <span className="bg-[#D29D86] text-white px-2 py-1 rounded-full text-xs font-medium">
+            <span className="bg-[#667B9A] text-white px-2 py-1 rounded-full text-xs font-medium">
               Featured
             </span>
           </div>
@@ -93,7 +93,7 @@ export function ListingCard({ listing, isFavorited = false, onFavoriteChange, sh
         {/* Favorite button - top right */}
         <button
           onClick={handleFavoriteToggle}
-          className="absolute top-3 right-3 p-2 bg-white rounded-full shadow-sm hover:shadow-md transition-shadow"
+          className="absolute top-3 right-3 p-2 bg-[#FBF8F3] rounded-full shadow-sm hover:shadow-md transition-shadow"
         >
           <Heart
             className={`w-4 h-4 ${

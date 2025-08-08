@@ -384,7 +384,7 @@ export const emailService = {
   async sendListingFeaturedEmail(userEmail: string, userName: string, listingTitle: string, isFeatured: boolean): Promise<EmailResponse> {
     const html = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #f9f9f9;">
-        <div style="background-color: ${isFeatured ? '#D29D86' : '#4E4B43'}; color: white; padding: 30px; text-align: center;">
+        <div style="background-color: ${isFeatured ? '#667B9A' : '#4E4B43'}; color: white; padding: 30px; text-align: center;">
           <div style="display: flex; align-items: center; justify-content: center; margin-bottom: 10px;">
             <svg width="40" height="40" viewBox="0 0 32 32" style="color: white; margin-right: 10px;">
               <path d="M16 4L6 12v16h5v-8h10v8h5V12L16 4z" stroke="currentColor" stroke-width="2" fill="none" stroke-linejoin="round"/>
@@ -408,7 +408,8 @@ export const emailService = {
           </p>
           
           <div style="background-color: ${isFeatured ? '#fff3cd' : '#f8f9fa'}; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid ${isFeatured ? '#D29D86' : '#6c757d'};">
-            <p style="color: ${isFeatured ? '#856404' : '#495057'}; line-height: 1.6; margin: 0;">
+          <div style="background-color: ${isFeatured ? '#fff3cd' : '#f8f9fa'}; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid ${isFeatured ? '#667B9A' : '#6c757d'};">
+            <p style="color: ${isFeatured ? '#273140' : '#495057'}; line-height: 1.6; margin: 0;">
               ${isFeatured 
                 ? '<strong>Featured listings</strong> get premium placement and increased visibility to potential tenants.'
                 : 'Your listing is still active and visible to potential tenants in regular search results.'
