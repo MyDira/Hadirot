@@ -78,6 +78,7 @@ Deno.serve(async (req) => {
     }
 
     const { listingId } = await req.json();
+    console.log('[EDGE] approve-listing called', { listingId, at: new Date().toISOString() });
     if (!listingId) {
       return new Response(
         JSON.stringify({ error: 'Missing listingId parameter' }),
@@ -94,6 +95,7 @@ Deno.serve(async (req) => {
       .eq('id', listingId)
       .select('id, title, profiles!public.listings_user_id_fkey(email, full_name)')
       .single();
+    console.log('[EDGE] approve-listing updated listing to approved/active', { listingId });
 
     if (error) {
       console.error('Error approving listing:', error);

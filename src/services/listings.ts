@@ -185,12 +185,16 @@ export const listingsService = {
   },
 
   async updateListing(id: string, listingData: Partial<Listing>) {
+    console.log('[WEB] updateListing called', { id, updates: listingData });
     // Get the current listing to check for approval status change
     const { data: currentListing } = await supabase
       .from('listings')
       .select('approved, title, user_id, is_featured, profiles!listings_user_id_fkey(full_name, email, is_admin, can_feature_listings)')
       .eq('id', id)
       .single();
+
+    const owner = currentListing?.profiles;
+    console.log('[WEB] owner raw', owner);
 
     // If trying to feature a listing, check permissions and limits
     if (listingData.is_featured === true && currentListing && !currentListing.is_featured) {
@@ -265,24 +269,34 @@ export const listingsService = {
       .single();
 
     if (error) throw error;
-    
+
+    console.log('[WEB] approval flip check', { wasApproved: currentListing?.approved, nowApproved: listingData?.approved });
+    console.log('[WEB] approval flip check passed?', currentListing?.approved === false && listingData?.approved === true);
+    console.log('[WEB] owner check', {
+      ownerId: owner?.id,
+      ownerEmail: owner?.email,
+      ownerName: owner?.full_name,
+      ownerLoaded: !!owner,
+      listingHasOwnerId: !!currentListing?.owner_id || !!currentListing?.ownerId,
+    });
     // Check if listing was just approved (changed from false to true)
-    if (currentListing && 
-        currentListing.approved === false && 
+    if (currentListing &&
+        currentListing.approved === false &&
         listingData.approved === true &&
-        currentListing.profiles?.email &&
-        currentListing.profiles?.full_name) {
-      
+        owner?.email &&
+        owner?.full_name) {
+
       try {
+        console.log('[WEB] sending approval email', { listingId: id, to: owner?.email });
         await emailService.sendListingApprovalEmail(
-          currentListing.profiles.email,
-          currentListing.profiles.full_name,
+          owner.email,
+          owner.full_name,
           currentListing.title,
           id
         );
         console.log('✅ Listing approval email sent successfully');
-      } catch (emailError) {
-        console.error('⚠️ Failed to send listing approval email:', emailError);
+      } catch (err: any) {
+        console.error('[WEB] approval email error', err?.message || err);
         // Don't throw error - approval should still succeed even if email fails
       }
     }

@@ -315,6 +315,7 @@ export const emailService = {
 
   // Helper function to send listing approval email
   async sendListingApprovalEmail(userEmail: string, userName: string, listingTitle: string, listingId: string): Promise<EmailResponse> {
+    console.log('[WEB] sendListingApprovalEmail called', { to: userEmail, listingId });
     const html = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #f9f9f9;">
         <div style="background-color: #28a745; color: white; padding: 30px; text-align: center;">
