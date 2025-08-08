@@ -281,41 +281,48 @@ export const listingsService = {
     console.log('[WEB] approval flip check passed?', justApproved);
 
     if (justApproved) {
-      // Prefer the owner from a join if available on main, fall back to any local owner object
+      // Prefer joined profile data; fall back to any local owner object if present
       const ownerEmail =
-        (owner as any)?.email ?? currentListing?.profiles?.email ?? null;
+        currentListing?.profiles?.email ?? (owner as any)?.email ?? null;
       const ownerName =
-        (owner as any)?.full_name ?? currentListing?.profiles?.full_name ?? null;
+        currentListing?.profiles?.full_name ?? (owner as any)?.full_name ?? null;
       const ownerId =
-        (owner as any)?.id ?? currentListing?.profiles?.id ?? null;
+        currentListing?.profiles?.id ?? (owner as any)?.id ?? null;
 
       console.log('[WEB] owner check', {
         ownerId,
         ownerEmail,
         ownerName,
-        ownerLoaded: !!owner || !!currentListing?.profiles,
-        listingHasOwnerId: !!(currentListing as any)?.owner_id || !!(currentListing as any)?.ownerId,
+        ownerLoaded: !!currentListing?.profiles || !!owner,
+        listingHasOwnerId:
+          !!(currentListing as any)?.owner_id || !!(currentListing as any)?.ownerId,
       });
 
       if (!ownerEmail) {
-        console.warn('[WEB] skipping approval email: missing owner email', { listingId: id, owner: { ownerId, ownerName } });
+        console.warn('[WEB] skipping approval email: missing owner email', {
+          listingId: id,
+          owner: { ownerId, ownerName },
+        });
       } else {
         try {
-          console.log('[WEB] sending approval email', { listingId: id, to: ownerEmail });
+          console.log('[WEB] sending approval email', {
+            listingId: id,
+            to: ownerEmail,
+          });
           await emailService.sendListingApprovalEmail(
             ownerEmail,
             ownerName ?? '',
             currentListing.title,
             id
           );
-          console.log('[WEB] Listing approval email sent successfully');
+          console.log('✅ Listing approval email sent successfully');
         } catch (err: any) {
           console.error('[WEB] approval email error', err?.message || err);
           // Don't throw — approval should still succeed even if email fails
         }
       }
     }
-    
+
     return data;
   },
 
