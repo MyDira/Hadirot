@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Users, FileText, Settings, Eye, Check, X, Ban, UserCheck, Trash2, ChevronLeft, Shield, TrendingUp, Home, Star, Power, ChevronDown, Search, UserX, Mail, ChevronRight } from 'lucide-react';
-import { emailService } from '../services/email';
+import { requestPasswordReset } from '../services/email';
 import { listingsService } from '../services/listings';
 import { useAuth } from '../hooks/useAuth';
 import { supabase, Profile, Listing } from '../config/supabase';

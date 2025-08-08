@@ -19,26 +19,7 @@ export interface EmailResponse {
 export const emailService = {
   async sendPasswordResetEmail(to: string, subject = 'Reset your password'): Promise<EmailResponse> {
     try {
-      const response = await fetch(
-        `${SUPABASE_URL}/functions/v1/send-password-reset`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ to, subject }),
-        },
-      );
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        return {
-          success: false,
-          error: result.error || 'Failed to send password reset email',
-          details: result.details,
-        };
-      }
-
-      return result;
+      return await requestPasswordReset(to);
     } catch (error) {
       console.error('Error sending password reset email:', error);
       return {
@@ -647,3 +628,18 @@ export const emailService = {
     });
   },
 };
+
+export async function requestPasswordReset(email: string, redirectUrl?: string) {
+  const endpoint = 'https://pxlxdlrjmrkxyygdhvku.functions.supabase.co/send-password-reset';
+  const res = await fetch(endpoint, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ to: email, redirectUrl }), // NOTE: 'to', not 'email'
+  });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok || !json?.success) {
+    const msg = json?.message || `HTTP ${res.status}`;
+    throw new Error(`Password reset failed: ${msg}`);
+  }
+  return true;
+}

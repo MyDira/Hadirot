@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
-import { emailService } from '../../services/email';
+import { requestPasswordReset } from '../../services/email';
 
 interface AuthFormProps {
   onAuthSuccess?: () => void;
@@ -80,23 +80,10 @@ export function AuthForm({ onAuthSuccess }: AuthFormProps = {}) {
     setResetMessage(null);
 
     try {
-      console.log('🔄 Sending password reset email to:', resetEmail);
-      // Call our email service which handles both Supabase reset and branded email
-      const result = await emailService.sendPasswordResetEmail(resetEmail);
-
-      if (!result.success) {
-        console.error('❌ Password reset failed:', result.error);
-        const message = result.error
-          ? `${result.error}${result.details ? ` (${result.details})` : ''}`
-          : 'Failed to send password reset email';
-        setError(message);
-      } else {
-        console.log('✅ Password reset email sent successfully');
-        setResetMessage('Password reset email sent! Check your inbox for the reset link.');
-      }
+      await requestPasswordReset(resetEmail);
+      setResetMessage('Password reset email sent! Check your inbox for the reset link.');
     } catch (err: any) {
-      console.error('❌ Password reset error:', err);
-      setError(err.message || 'An error occurred while sending the reset email');
+      setError(err.message);
     } finally {
       setResetLoading(false);
     }
