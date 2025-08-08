@@ -294,7 +294,7 @@ export const listingsService = {
           currentListing.title,
           id
         );
-        console.log('✅ Listing approval email sent successfully');
+        console.log('[WEB] Listing approval email sent successfully');
       } catch (err: any) {
         console.error('[WEB] approval email error', err?.message || err);
         // Don't throw error - approval should still succeed even if email fails
