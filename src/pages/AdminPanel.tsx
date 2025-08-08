@@ -555,6 +555,7 @@ export function AdminPanel() {
   };
 
   const approveListing = async (listingId: string) => {
+    console.log('[UI] Approve clicked', { listingId });
     try {
       await listingsService.updateListing(listingId, {
         approved: true,

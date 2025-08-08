@@ -185,6 +185,7 @@ export const listingsService = {
   },
 
   async updateListing(id: string, listingData: Partial<Listing>) {
+    console.log('[WEB] updateListing called', { id, updates: listingData });
     // Get the current listing to check for approval status change
     const { data: currentListing } = await supabase
       .from('listings')
@@ -265,15 +266,17 @@ export const listingsService = {
       .single();
 
     if (error) throw error;
-    
+
+    console.log('[WEB] approval flip check', { wasApproved: currentListing?.approved, nowApproved: listingData?.approved });
     // Check if listing was just approved (changed from false to true)
-    if (currentListing && 
-        currentListing.approved === false && 
+    if (currentListing &&
+        currentListing.approved === false &&
         listingData.approved === true &&
         currentListing.profiles?.email &&
         currentListing.profiles?.full_name) {
-      
+
       try {
+        console.log('[WEB] sending approval email', { listingId: id, to: currentListing.profiles?.email });
         await emailService.sendListingApprovalEmail(
           currentListing.profiles.email,
           currentListing.profiles.full_name,
@@ -281,8 +284,8 @@ export const listingsService = {
           id
         );
         console.log('✅ Listing approval email sent successfully');
-      } catch (emailError) {
-        console.error('⚠️ Failed to send listing approval email:', emailError);
+      } catch (err: any) {
+        console.error('[WEB] approval email error', err?.message || err);
         // Don't throw error - approval should still succeed even if email fails
       }
     }
