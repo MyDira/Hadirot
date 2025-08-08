@@ -441,18 +441,10 @@ export function AdminPanel() {
     setActionLoading(userId);
     try {
       console.log('🔄 Admin sending password reset email to:', email);
-      const result = await emailService.sendPasswordResetEmail(email);
-
-      if (!result.success) {
-        console.error('❌ Password reset failed:', result.error);
-        throw new Error(result.error || 'Failed to send password reset email');
-      }
-
-      console.log('✅ Password reset email sent successfully');
+      await requestPasswordReset(email);
       alert('Password reset email sent successfully!');
     } catch (error) {
-      console.error('❌ Error sending password reset:', error);
-      alert('Error sending password reset: ' + (error.message || 'Failed to send email'));
+      alert(`Failed to send password reset: ${error.message}`);
     } finally {
       setActionLoading(null);
     }
