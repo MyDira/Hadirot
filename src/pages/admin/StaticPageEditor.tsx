@@ -572,6 +572,7 @@ export function StaticPageEditor() {
                       {/* Headings */}
                       <button
                         type="button"
+                        onMouseDown={(e) => e.preventDefault()}
                         onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
                         className={`px-3 py-1 rounded text-sm font-medium transition-colors ${
                           editor.isActive('heading', { level: 1 })
@@ -583,6 +584,7 @@ export function StaticPageEditor() {
                       </button>
                       <button
                         type="button"
+                        onMouseDown={(e) => e.preventDefault()}
                         onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
                         className={`px-3 py-1 rounded text-sm font-medium transition-colors ${
                           editor.isActive('heading', { level: 2 })
@@ -594,6 +596,7 @@ export function StaticPageEditor() {
                       </button>
                       <button
                         type="button"
+                        onMouseDown={(e) => e.preventDefault()}
                         onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
                         className={`px-3 py-1 rounded text-sm font-medium transition-colors ${
                           editor.isActive('heading', { level: 3 })
@@ -609,6 +612,7 @@ export function StaticPageEditor() {
                       {/* Text Formatting */}
                       <button
                         type="button"
+                        onMouseDown={(e) => e.preventDefault()}
                         onClick={() => editor.chain().focus().toggleBold().run()}
                         className={`p-2 rounded transition-colors ${
                           editor.isActive('bold')
@@ -620,6 +624,7 @@ export function StaticPageEditor() {
                       </button>
                       <button
                         type="button"
+                        onMouseDown={(e) => e.preventDefault()}
                         onClick={() => editor.chain().focus().toggleItalic().run()}
                         className={`p-2 rounded transition-colors ${
                           editor.isActive('italic')
@@ -635,6 +640,7 @@ export function StaticPageEditor() {
                       {/* Lists */}
                       <button
                         type="button"
+                        onMouseDown={(e) => e.preventDefault()}
                         onClick={() => editor.chain().focus().toggleBulletList().run()}
                         className={`p-2 rounded transition-colors ${
                           editor.isActive('bulletList')
@@ -646,6 +652,7 @@ export function StaticPageEditor() {
                       </button>
                       <button
                         type="button"
+                        onMouseDown={(e) => e.preventDefault()}
                         onClick={() => editor.chain().focus().toggleOrderedList().run()}
                         className={`p-2 rounded transition-colors ${
                           editor.isActive('orderedList')
@@ -661,6 +668,7 @@ export function StaticPageEditor() {
                       {/* Links */}
                       <button
                         type="button"
+                        onMouseDown={(e) => e.preventDefault()}
                         onClick={addLink}
                         className={`p-2 rounded transition-colors ${
                           editor.isActive('link')
@@ -673,6 +681,7 @@ export function StaticPageEditor() {
                       {editor.isActive('link') && (
                         <button
                           type="button"
+                          onMouseDown={(e) => e.preventDefault()}
                           onClick={removeLink}
                           className="px-2 py-1 rounded text-xs bg-red-100 text-red-700 hover:bg-red-200 transition-colors"
                         >
@@ -685,6 +694,7 @@ export function StaticPageEditor() {
                       {/* Paragraph */}
                       <button
                         type="button"
+                        onMouseDown={(e) => e.preventDefault()}
                         onClick={() => editor.chain().focus().setParagraph().run()}
                         className={`p-2 rounded transition-colors ${
                           editor.isActive('paragraph')
