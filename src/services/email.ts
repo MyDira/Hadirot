@@ -17,7 +17,7 @@ export interface EmailResponse {
 }
 
 export const emailService = {
-  async sendPasswordResetEmail(to: string, subject = 'Reset your password'): Promise<EmailResponse> {
+  async sendPasswordResetEmail(to: string): Promise<EmailResponse> {
     try {
       return await requestPasswordReset(to);
     } catch (error) {
@@ -53,10 +53,7 @@ export const emailService = {
       const response = await fetch(functionUrl, {
         method: 'POST',
         headers,
-        body: JSON.stringify({
-          ...emailData,
-        subject: `Listing Updated: ${listingTitle} - HaDirot`,
-        }),
+        body: JSON.stringify(emailData),
       });
 
       const result = await response.json();
@@ -626,7 +623,7 @@ export const emailService = {
 
     return this.sendEmail({
       to: userEmail,
-      subject: \`Listing Updated: ${listingTitle} - HaDirot`,
+      subject: `Listing Updated: ${listingTitle} - HaDirot`,
       html,
     });
   },
@@ -641,8 +638,8 @@ export async function requestPasswordReset(email: string, redirectUrl?: string) 
   });
   const json = await res.json().catch(() => ({}));
   if (!res.ok || !json?.success) {
-    const msg = json?.message || \`HTTP ${res.status}`;
-    throw new Error(\`Password reset failed: ${msg}`);
+    const msg = json?.message || `HTTP ${res.status}`;
+    throw new Error(`Password reset failed: ${msg}`);
   }
   return true;
 }
