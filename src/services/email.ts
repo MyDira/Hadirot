@@ -572,7 +572,7 @@ export const emailService = {
 
     return this.sendEmail({
       to: userEmail,
-      subject: \`Listing Deleted: ${listingTitle} - HaDirot`,
+      subject: `Listing Deleted: ${listingTitle} - HaDirot`,
       html,
     });
   },
