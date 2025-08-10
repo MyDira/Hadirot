@@ -82,19 +82,17 @@ export const emailService = {
   // Helper function to send a simple text email
   async sendSimpleEmail(to: string | string[], subject: string, message: string): Promise<EmailResponse> {
     const html = `
-      <div style="font-family: 'itc-benguiat', Georgia, 'Times New Roman', serif; max-width: 600px; margin: 0 auto; background-color: #fbf5ef;">
-        <div style="background-color: #273140; color: white; padding: 20px; text-align: center;">
-          <div style="font-family: 'itc-benguiat', Georgia, 'Times New Roman', serif; font-size: 28px; font-weight: 400; color: #F0E6D5; text-transform: uppercase; margin-bottom: 10px;">
-            HaDirot
-          </div>
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <div style="background-color: #4E4B43; color: white; padding: 20px; text-align: center;">
+          <h1 style="margin: 0;">HaDirot</h1>
         </div>
-        <div style="padding: 20px; background-color: #f9f4ed;">
+        <div style="padding: 20px; background-color: #f9f9f9;">
           <div style="background-color: white; padding: 20px; border-radius: 8px;">
             <p style="color: #333; line-height: 1.6; margin: 0;">${message.replace(/\n/g, '<br>')}</p>
           </div>
         </div>
-        <div style="background-color: #273140; color: #F0E6D5; padding: 15px; text-align: center; font-size: 12px;">
-          <p style="margin: 0; font-family: 'itc-benguiat', Georgia, 'Times New Roman', serif;">© 2025 HaDirot. All rights reserved.</p>
+        <div style="background-color: #4E4B43; color: #E5D8C1; padding: 15px; text-align: center; font-size: 12px;">
+          <p style="margin: 0;">© 2025 HaDirot. All rights reserved.</p>
         </div>
       </div>
     `;
@@ -136,9 +134,9 @@ export const emailService = {
               <li>Post your own rental listings if you're a landlord or agent</li>
               <li>Connect directly with property owners and agents</li>
             </ul>
-            <div style="text-align: center; margin: 30px 0;">
-              <a href="${window.location.origin}/browse" style="background-color: #4E4B43; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">
-                Start Browsing Listings
+              <a href="${window.location.origin}/dashboard"
+                 style="background-color: #273140; color: white; padding: 15px 30px; text-decoration: none; border-radius: 8px; display: inline-block; font-weight: 400; font-size: 16px; font-family: 'itc-benguiat', Georgia, 'Times New Roman', serif;">
+                 style="background-color: #28a745; color: white; padding: 15px 30px; text-decoration: none; border-radius: 8px; display: inline-block; font-weight: 400; font-size: 16px; margin-right: 10px; font-family: 'itc-benguiat', Georgia, 'Times New Roman', serif;">
               </a>
             </div>
             <p style="color: #666; font-size: 14px; margin-bottom: 0;">
