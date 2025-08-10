@@ -127,6 +127,7 @@ export function Home() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
           <div className="text-center">
             <h1 className="text-4xl md:text-6xl font-bold mb-6 text-[#F0E6D5]">
+            </h1>
             <h1 className="text-4xl md:text-6xl font-bold font-brand mb-6 text-[#F0E6D5]">
               The Heart of Local Rentals
             </h1>
