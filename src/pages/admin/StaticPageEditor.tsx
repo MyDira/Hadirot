@@ -1,14 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Save, ArrowLeft, FileText, Bold, Italic, List, ListOrdered, Link as LinkIcon, Type, Plus, Trash2, X } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import LinkExtension from '@tiptap/extension-link';
-import Heading from '@tiptap/extension-heading';
-import BulletList from '@tiptap/extension-bullet-list';
-import OrderedList from '@tiptap/extension-ordered-list';
-import ListItem from '@tiptap/extension-list-item';
-import { generateHTML } from '@tiptap/html';
 import { staticPagesService, StaticPage } from '../../services/staticPages';
 import { footerService } from '../../services/footer';
 import { FooterSection } from '../../config/supabase';
@@ -44,27 +39,18 @@ export function StaticPageEditor() {
   });
 
   // Define extensions array for reuse
-  const extensions = [
-    StarterKit.configure({
-      heading: false, // We'll use our custom heading extension
-      bulletList: false, // We'll use our custom bullet list extension
-      orderedList: false, // We'll use our custom ordered list extension
-      listItem: false, // We'll use our custom list item extension
-      link: false, // We'll use our custom link extension
-    }),
-    Heading.configure({
-      levels: [1, 2, 3],
-    }),
-    BulletList,
-    OrderedList,
-    ListItem,
-    LinkExtension.configure({
-      openOnClick: false,
-      HTMLAttributes: {
-        class: 'text-[#4E4B43] underline hover:text-[#3a3832]',
-      },
-    }),
-  ];
+  const extensions = useMemo(
+    () => [
+      StarterKit,
+      LinkExtension.configure({
+        openOnClick: false,
+        HTMLAttributes: {
+          class: 'text-[#4E4B43] underline hover:text-[#3a3832]',
+        },
+      }),
+    ],
+    []
+  );
   const editor = useEditor({
     extensions,
     content: '',
