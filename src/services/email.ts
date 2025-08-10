@@ -134,9 +134,9 @@ export const emailService = {
               <li>Post your own rental listings if you're a landlord or agent</li>
               <li>Connect directly with property owners and agents</li>
             </ul>
-              <a href="${window.location.origin}/dashboard"
-                 style="background-color: #273140; color: white; padding: 15px 30px; text-decoration: none; border-radius: 8px; display: inline-block; font-weight: 400; font-size: 16px; font-family: 'itc-benguiat', Georgia, 'Times New Roman', serif;">
-                 style="background-color: #28a745; color: white; padding: 15px 30px; text-decoration: none; border-radius: 8px; display: inline-block; font-weight: 400; font-size: 16px; margin-right: 10px; font-family: 'itc-benguiat', Georgia, 'Times New Roman', serif;">
+            <div style="text-align: center; margin: 30px 0;">
+              <a href="${window.location.origin}/browse" style="background-color: #4E4B43; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">
+                Start Browsing Listings
               </a>
             </div>
             <p style="color: #666; font-size: 14px; margin-bottom: 0;">
@@ -384,13 +384,9 @@ export const emailService = {
   async sendListingFeaturedEmail(userEmail: string, userName: string, listingTitle: string, isFeatured: boolean): Promise<EmailResponse> {
     const html = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #f9f9f9;">
-        <div style="background-color: ${isFeatured ? '#667B9A' : '#4E4B43'}; color: white; padding: 30px; text-align: center;">
-          <div style="display: flex; align-items: center; justify-content: center; margin-bottom: 10px;">
-            <svg width="40" height="40" viewBox="0 0 32 32" style="color: white; margin-right: 10px;">
-              <path d="M16 4L6 12v16h5v-8h10v8h5V12L16 4z" stroke="currentColor" stroke-width="2" fill="none" stroke-linejoin="round"/>
-              <circle cx="23" cy="8" r="1" fill="currentColor"/>
-            </svg>
-            <span style="font-size: 28px; font-weight: bold;">HaDirot</span>
+        <div style="background-color: ${isFeatured ? '#667B9A' : '#273140'}; color: white; padding: 30px; text-align: center;">
+          <div style="font-family: 'itc-benguiat', Georgia, 'Times New Roman', serif; font-size: 32px; font-weight: 400; color: white; text-transform: uppercase; margin-bottom: 10px;">
+            HaDirot
           </div>
           <h1 style="margin: 0; font-size: 24px;">
             ${isFeatured ? '⭐ Listing Featured!' : 'Featured Status Removed'}
