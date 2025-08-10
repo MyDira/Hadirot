@@ -115,40 +115,37 @@ export const emailService = {
   // Helper function to send a welcome email to new users
   async sendWelcomeEmail(userEmail: string, userName: string): Promise<EmailResponse> {
     const html = `
-      <div style="font-family: 'itc-benguiat', Georgia, 'Times New Roman', serif; max-width: 600px; margin: 0 auto; background-color: #FDF8F4;">
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
         <div style="background-color: #4E4B43; color: white; padding: 20px; text-align: center;">
-          <div style="color: #F0E6D5; margin-bottom: 10px;">
-            <span style="font-size: 28px; font-weight: 400; color: #F0E6D5; text-transform: uppercase; font-family: 'itc-benguiat', Georgia, 'Times New Roman', serif;">HADIROT</span>
-          </div>
-          <h1 style="margin: 0; font-family: 'itc-benguiat', Georgia, 'Times New Roman', serif;">Welcome to HaDirot!</h1>
+          <h1 style="margin: 0;">Welcome to HaDirot!</h1>
         </div>
-        <div style="padding: 20px; background-color: #FAF7F3;">
+        <div style="padding: 20px; background-color: #f9f9f9;">
           <div style="background-color: white; padding: 20px; border-radius: 8px;">
-            <h2 style="color: #4E4B43; margin-top: 0; font-family: 'itc-benguiat', Georgia, 'Times New Roman', serif;">Hello ${userName}!</h2>
-            <p style="color: #333; line-height: 1.6; font-family: 'itc-benguiat', Georgia, 'Times New Roman', serif;">
+            <h2 style="color: #4E4B43; margin-top: 0;">Hello ${userName}!</h2>
+            <p style="color: #333; line-height: 1.6;">
               Thank you for joining HaDirot, NYC's premier Jewish rental platform. We're excited to help you find the perfect rental home or connect with quality tenants.
             </p>
-            <p style="color: #333; line-height: 1.6; font-family: 'itc-benguiat', Georgia, 'Times New Roman', serif;">
+            <p style="color: #333; line-height: 1.6;">
               Here's what you can do next:
             </p>
-            <ul style="color: #333; line-height: 1.6; font-family: 'itc-benguiat', Georgia, 'Times New Roman', serif;">
+            <ul style="color: #333; line-height: 1.6;">
               <li>Browse available listings in your preferred neighborhoods</li>
               <li>Save your favorite properties for easy access</li>
               <li>Post your own rental listings if you're a landlord or agent</li>
               <li>Connect directly with property owners and agents</li>
             </ul>
             <div style="text-align: center; margin: 30px 0;">
-              <a href="${window.location.origin}/browse" style="background-color: #4E4B43; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block; font-family: 'itc-benguiat', Georgia, 'Times New Roman', serif;">
+              <a href="${window.location.origin}/browse" style="background-color: #4E4B43; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">
                 Start Browsing Listings
               </a>
             </div>
-            <p style="color: #666; font-size: 14px; margin-bottom: 0; font-family: 'itc-benguiat', Georgia, 'Times New Roman', serif;">
+            <p style="color: #666; font-size: 14px; margin-bottom: 0;">
               If you have any questions, feel free to reach out to our support team.
             </p>
           </div>
         </div>
-        <div style="background-color: #273140; color: #F0E6D5; padding: 15px; text-align: center; font-size: 12px;">
-          <p style="margin: 0; font-family: 'itc-benguiat', Georgia, 'Times New Roman', serif;">© 2025 HaDirot. All rights reserved.</p>
+        <div style="background-color: #4E4B43; color: #E5D8C1; padding: 15px; text-align: center; font-size: 12px;">
+          <p style="margin: 0;">© 2025 HaDirot. All rights reserved.</p>
         </div>
       </div>
     `;
@@ -410,7 +407,6 @@ export const emailService = {
             }
           </p>
           
-          <div style="background-color: ${isFeatured ? '#fff3cd' : '#f8f9fa'}; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid ${isFeatured ? '#D29D86' : '#6c757d'};">
           <div style="background-color: ${isFeatured ? '#fff3cd' : '#f8f9fa'}; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid ${isFeatured ? '#667B9A' : '#6c757d'};">
             <p style="color: ${isFeatured ? '#273140' : '#495057'}; line-height: 1.6; margin: 0;">
               ${isFeatured 
@@ -520,7 +516,7 @@ export const emailService = {
 
     return this.sendEmail({
       to: userEmail,
-      subject: `Account Permissions Updated - HaDirot`,
+      subject: \`Account Permissions Updated - HaDirot`,
       html,
     });
   },
@@ -574,7 +570,7 @@ export const emailService = {
 
     return this.sendEmail({
       to: userEmail,
-      subject: `Listing Deleted: ${listingTitle} - HaDirot`,
+      subject: \`Listing Deleted: ${listingTitle} - HaDirot`,
       html,
     });
   },
@@ -628,7 +624,7 @@ export const emailService = {
 
     return this.sendEmail({
       to: userEmail,
-      subject: `Listing Updated: ${listingTitle} - HaDirot`,
+      subject: \`Listing Updated: ${listingTitle} - HaDirot`,
       html,
     });
   },
@@ -643,8 +639,8 @@ export async function requestPasswordReset(email: string, redirectUrl?: string) 
   });
   const json = await res.json().catch(() => ({}));
   if (!res.ok || !json?.success) {
-    const msg = json?.message || `HTTP ${res.status}`;
-    throw new Error(`Password reset failed: ${msg}`);
+    const msg = json?.message || \`HTTP ${res.status}`;
+    throw new Error(\`Password reset failed: ${msg}`);
   }
   return true;
 }
