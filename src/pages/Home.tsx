@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Search, Star, Users, Home as HomeIcon, ChevronRight } from 'lucide-react';
+import { Search, Star, Users, Home as HomeIcon, ChevronRight, Plus } from 'lucide-react';
 import { ListingCard } from '../components/listings/ListingCard';
 import { Listing } from '../config/supabase';
 import { listingsService } from '../services/listings';
@@ -121,31 +121,39 @@ export function Home() {
   };
   
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-[#fbf5ef]">
       {/* Hero Section */}
       <section className="bg-gradient-to-br from-[#273140] via-[#273140] to-[#1e252f] text-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
           <div className="text-center">
-            <h1 className="text-4xl md:text-6xl font-bold mb-6">
-              Find Your Perfect
-              <span className="block text-[#F0E6D5]">Rental Home</span>
+            <h1 className="text-4xl md:text-6xl font-bold mb-6 text-[#F0E6D5]">
+              The Heart of Local Rentals
             </h1>
-            <p className="text-xl md:text-2xl text-gray-200 mb-8 max-w-3xl mx-auto">
-              Connect with landlords, agents, and homeowners to discover your next apartment or house rental
+            <p className="text-xl md:text-2xl text-gray-200 mb-8 max-w-2xl mx-auto">
+              Where your family finds their next home
             </p>
-            <Link
-              to="/browse"
-              className="inline-flex items-center bg-[#C5594C] text-white px-8 py-4 rounded-lg text-lg font-semibold hover:bg-[#b04d42] transition-colors shadow-lg"
-            >
-              <Search className="w-6 h-6 mr-2" />
-              Start Browsing
-            </Link>
+            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+              <Link
+                to="/browse"
+                className="inline-flex items-center bg-[#C5594C] text-white px-8 py-4 rounded-lg text-lg font-semibold hover:bg-[#b04d42] transition-colors shadow-lg"
+              >
+                <Search className="w-6 h-6 mr-2" />
+                Find Yours
+              </Link>
+              <Link
+                to="/post"
+                className="inline-flex items-center bg-transparent border-2 border-[#F0E6D5] text-[#F0E6D5] px-8 py-4 rounded-lg text-lg font-semibold hover:bg-[#F0E6D5] hover:text-[#273140] transition-colors shadow-lg"
+              >
+                <Plus className="w-6 h-6 mr-2" />
+                List a Property
+              </Link>
+            </div>
           </div>
         </div>
       </section>
 
       {/* Recently Added Listings */}
-      <section className="py-16 bg-[#F0E6D5]">
+      <section className="py-16 bg-[#fbf5ef]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="mb-8">
             <h2 className="text-3xl font-bold text-[#273140]">Recently Added</h2>
@@ -182,7 +190,7 @@ export function Home() {
       </section>
 
       {/* 2 Bedroom Listings */}
-      <section className="py-16 bg-white">
+      <section className="py-16 bg-[#f5ebda]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between mb-8">
             <h2 className="text-3xl font-bold text-[#273140]">2 Bedroom</h2>
@@ -243,7 +251,7 @@ export function Home() {
       </section>
 
       {/* 3 Bedroom Listings */}
-      <section className="py-16 bg-[#F0E6D5]">
+      <section className="py-16 bg-[#fbf5ef]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between mb-8">
             <h2 className="text-3xl font-bold text-[#273140]">3 Bedroom</h2>

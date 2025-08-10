@@ -302,7 +302,7 @@ export function BrowseListings() {
       <div className="md:hidden mb-6">
         <button
           onClick={() => setShowFiltersMobile(true)}
-          className="w-full bg-[#FBF8F3] border border-gray-200 rounded-lg p-4 flex items-center justify-center text-[#273140] hover:bg-gray-50 transition-colors"
+          className="w-full bg-[#f5ebda] border border-gray-200 rounded-lg p-4 flex items-center justify-center text-[#273140] hover:bg-gray-50 transition-colors"
         >
           <Filter className="w-5 h-5 mr-2" />
           <span className="font-medium">Filter Listings</span>
