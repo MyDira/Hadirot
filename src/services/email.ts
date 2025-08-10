@@ -407,7 +407,6 @@ export const emailService = {
             }
           </p>
           
-          <div style="background-color: ${isFeatured ? '#fff3cd' : '#f8f9fa'}; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid ${isFeatured ? '#D29D86' : '#6c757d'};">
           <div style="background-color: ${isFeatured ? '#fff3cd' : '#f8f9fa'}; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid ${isFeatured ? '#667B9A' : '#6c757d'};">
             <p style="color: ${isFeatured ? '#273140' : '#495057'}; line-height: 1.6; margin: 0;">
               ${isFeatured 
