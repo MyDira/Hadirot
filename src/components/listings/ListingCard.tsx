@@ -66,7 +66,7 @@ export function ListingCard({ listing, isFavorited = false, onFavoriteChange, sh
   return (
     <Link 
       to={`/listing/${listing.id}`}
-      className="group block bg-[#f5ebda] rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition-all duration-200 overflow-hidden"
+      className="group block bg-[#f9f4ed] rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition-all duration-200 overflow-hidden"
     >
       <div className="relative">
         {featuredImage ? (
@@ -93,7 +93,7 @@ export function ListingCard({ listing, isFavorited = false, onFavoriteChange, sh
         {/* Favorite button - top right */}
         <button
           onClick={handleFavoriteToggle}
-          className="absolute top-3 right-3 p-2 bg-[#f5ebda] rounded-full shadow-sm hover:shadow-md transition-shadow"
+          className="absolute top-3 right-3 p-2 bg-[#f9f4ed] rounded-full shadow-sm hover:shadow-md transition-shadow"
         >
           <Heart
             className={`w-4 h-4 ${
