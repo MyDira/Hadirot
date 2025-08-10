@@ -407,7 +407,6 @@ export const emailService = {
             }
           </p>
           
-          <div style="background-color: ${isFeatured ? '#fff3cd' : '#f8f9fa'}; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid ${isFeatured ? '#D29D86' : '#6c757d'};">
           <div style="background-color: ${isFeatured ? '#fff3cd' : '#f8f9fa'}; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid ${isFeatured ? '#667B9A' : '#6c757d'};">
             <p style="color: ${isFeatured ? '#273140' : '#495057'}; line-height: 1.6; margin: 0;">
               ${isFeatured 
@@ -581,16 +580,12 @@ export const emailService = {
     console.log('📧 Sending listing update email to:', userEmail);
     
     const html = `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #f9f9f9;">
-        <div style="background-color: #4E4B43; color: white; padding: 30px; text-align: center;">
-          <div style="display: flex; align-items: center; justify-content: center; margin-bottom: 10px;">
-            <svg width="40" height="40" viewBox="0 0 32 32" style="color: #E5D8C1; margin-right: 10px;">
-              <path d="M16 4L6 12v16h5v-8h10v8h5V12L16 4z" stroke="currentColor" stroke-width="2" fill="none" stroke-linejoin="round"/>
-              <circle cx="23" cy="8" r="1" fill="currentColor"/>
-            </svg>
-            <span style="font-size: 28px; font-weight: bold; color: #E5D8C1;">HaDirot</span>
+      <div style="font-family: 'itc-benguiat', Georgia, 'Times New Roman', serif; max-width: 600px; margin: 0 auto; background-color: #fbf5ef;">
+        <div style="background-color: #273140; color: white; padding: 30px; text-align: center;">
+          <div style="font-family: 'itc-benguiat', Georgia, 'Times New Roman', serif; font-size: 32px; font-weight: 400; color: #F0E6D5; text-transform: uppercase; margin-bottom: 10px;">
+            HaDirot
           </div>
-          <h1 style="margin: 0; font-size: 24px;">Listing Updated Successfully!</h1>
+          <h1 style="margin: 0; font-size: 24px;">Listing Submitted Successfully!</h1>
         </div>
         
         <div style="padding: 30px; background-color: white; margin: 0 20px;">
