@@ -82,17 +82,19 @@ export const emailService = {
   // Helper function to send a simple text email
   async sendSimpleEmail(to: string | string[], subject: string, message: string): Promise<EmailResponse> {
     const html = `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <div style="background-color: #4E4B43; color: white; padding: 20px; text-align: center;">
-          <h1 style="margin: 0;">HaDirot</h1>
+      <div style="font-family: 'itc-benguiat', Georgia, 'Times New Roman', serif; max-width: 600px; margin: 0 auto; background-color: #fbf5ef;">
+        <div style="background-color: #273140; color: white; padding: 20px; text-align: center;">
+          <div style="font-family: 'itc-benguiat', Georgia, 'Times New Roman', serif; font-size: 28px; font-weight: 400; color: #F0E6D5; text-transform: uppercase; margin-bottom: 10px;">
+            HaDirot
+          </div>
         </div>
-        <div style="padding: 20px; background-color: #f9f9f9;">
+        <div style="padding: 20px; background-color: #f9f4ed;">
           <div style="background-color: white; padding: 20px; border-radius: 8px;">
             <p style="color: #333; line-height: 1.6; margin: 0;">${message.replace(/\n/g, '<br>')}</p>
           </div>
         </div>
-        <div style="background-color: #4E4B43; color: #E5D8C1; padding: 15px; text-align: center; font-size: 12px;">
-          <p style="margin: 0;">© 2025 HaDirot. All rights reserved.</p>
+        <div style="background-color: #273140; color: #F0E6D5; padding: 15px; text-align: center; font-size: 12px;">
+          <p style="margin: 0; font-family: 'itc-benguiat', Georgia, 'Times New Roman', serif;">© 2025 HaDirot. All rights reserved.</p>
         </div>
       </div>
     `;
@@ -407,6 +409,7 @@ export const emailService = {
             }
           </p>
           
+          <div style="background-color: ${isFeatured ? '#fff3cd' : '#f8f9fa'}; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid ${isFeatured ? '#D29D86' : '#6c757d'};">
           <div style="background-color: ${isFeatured ? '#fff3cd' : '#f8f9fa'}; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid ${isFeatured ? '#667B9A' : '#6c757d'};">
             <p style="color: ${isFeatured ? '#273140' : '#495057'}; line-height: 1.6; margin: 0;">
               ${isFeatured 
