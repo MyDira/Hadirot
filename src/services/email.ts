@@ -407,6 +407,7 @@ export const emailService = {
             }
           </p>
           
+          <div style="background-color: ${isFeatured ? '#fff3cd' : '#f8f9fa'}; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid ${isFeatured ? '#D29D86' : '#6c757d'};">
           <div style="background-color: ${isFeatured ? '#fff3cd' : '#f8f9fa'}; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid ${isFeatured ? '#667B9A' : '#6c757d'};">
             <p style="color: ${isFeatured ? '#273140' : '#495057'}; line-height: 1.6; margin: 0;">
               ${isFeatured 
@@ -472,7 +473,7 @@ export const emailService = {
                 : 'You no longer have access to feature listings.'
               }
             </p>
-            ${previousLimit !== undefined ? `
+              <p style="color: #666; font-size: 14px; line-height: 1.6; margin: 0; font-family: 'itc-benguiat', Georgia, 'Times New Roman', serif;">
               <p style="color: #666; font-size: 14px; margin-top: 10px; margin-bottom: 0;">
                 Previous limit: ${previousLimit} listing${previousLimit === 1 ? '' : 's'}
               </p>
@@ -492,7 +493,7 @@ export const emailService = {
           ` : ''}
           
           <div style="text-align: center; margin: 30px 0;">
-            <a href="${window.location.origin}/dashboard" 
+            <p style="margin: 0; font-size: 14px; font-family: 'itc-benguiat', Georgia, 'Times New Roman', serif;">
                style="background-color: #4E4B43; color: white; padding: 15px 30px; text-decoration: none; border-radius: 8px; display: inline-block; font-weight: bold; font-size: 16px;">
               View My Dashboard
             </a>
