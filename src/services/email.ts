@@ -55,7 +55,7 @@ export const emailService = {
         headers,
         body: JSON.stringify({
           ...emailData,
-          from: emailData.from || 'HaDirot <noreply@hadirot.com>',
+        subject: `Listing Updated: ${listingTitle} - HaDirot`,
         }),
       });
 
