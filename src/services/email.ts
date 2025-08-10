@@ -186,15 +186,15 @@ export const emailService = {
           </div>
           
           <div style="text-align: center; margin: 30px 0;">
-            <a href="${window.location.origin}/dashboard"
-               style="background-color: #273140; color: white; padding: 15px 30px; text-decoration: none; border-radius: 8px; display: inline-block; font-weight: 400; font-size: 16px; font-family: 'itc-benguiat', Georgia, 'Times New Roman', serif;">
+            <a href="${window.location.origin}/dashboard" 
+               style="background-color: #4E4B43; color: white; padding: 15px 30px; text-decoration: none; border-radius: 8px; display: inline-block; font-weight: bold; font-size: 16px;">
               View My Dashboard
             </a>
           </div>
         </div>
         
         <div style="background-color: #4E4B43; color: #E5D8C1; padding: 20px; text-align: center; margin: 0 20px;">
-          <p style="margin: 0; font-size: 14px;">
+          <p style="margin: 0; font-size: 14px; font-family: 'itc-benguiat', Georgia, 'Times New Roman', serif;">
             © 2025 HaDirot. All rights reserved.<br>
             NYC's premier Jewish rental platform
           </p>
