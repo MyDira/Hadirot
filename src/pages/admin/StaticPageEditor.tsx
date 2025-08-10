@@ -790,6 +790,7 @@ export function StaticPageEditor() {
                       >
                         <Type className="w-4 h-4" />
                       </button>
+                      {/* Debug */}
                       <button
                         type="button"
                         onMouseDown={(e) => e.preventDefault()}
