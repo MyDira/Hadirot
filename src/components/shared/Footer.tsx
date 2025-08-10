@@ -25,20 +25,8 @@ export function Footer() {
   }, [location.pathname]);
 
   const Logo = () => (
-    <div className="flex items-center space-x-2">
-      <div className="relative">
-        <svg width="32" height="32" viewBox="0 0 32 32" className="text-[#F0E6D5]">
-          <path
-            d="M16 4L6 12v16h5v-8h10v8h5V12L16 4z"
-            stroke="currentColor"
-            strokeWidth="2"
-            fill="none"
-            strokeLinejoin="round"
-          />
-          <circle cx="23" cy="8" r="1" fill="currentColor" />
-        </svg>
-      </div>
-      <span className="text-xl font-bold text-[#F0E6D5]">HaDirot</span>
+    <div className="text-2xl font-brand uppercase font-normal text-[#F0E6D5]">
+      HaDirot
     </div>
   );
 
