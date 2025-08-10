@@ -472,11 +472,13 @@ export const emailService = {
                 : 'You no longer have access to feature listings.'
               }
             </p>
-            ${previousLimit !== undefined ? `
+            <div style="background-color: #FDF8F4; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #C5594C;">
+              <p style="color: #273140; line-height: 1.6; margin: 0; font-family: 'itc-benguiat', Georgia, 'Times New Roman', serif;">
+              </p>
               <p style="color: #666; font-size: 14px; margin-top: 10px; margin-bottom: 0;">
                 Previous limit: ${previousLimit} listing${previousLimit === 1 ? '' : 's'}
               </p>
-            ` : ''}
+            </div>
           </div>
           
           ${newLimit > 0 ? `
