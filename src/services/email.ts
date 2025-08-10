@@ -518,7 +518,7 @@ export const emailService = {
 
     return this.sendEmail({
       to: userEmail,
-      subject: \`Account Permissions Updated - HaDirot`,
+      subject: `Account Permissions Updated - HaDirot`,
       html,
     });
   },
