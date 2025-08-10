@@ -292,7 +292,7 @@ export function BrowseListings() {
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8"> 
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-[#273140] mb-2">Browse Listings</h1>
+        <h1 className="text-3xl font-bold font-brand text-[#273140] mb-2">Browse Listings</h1>
         <p className="text-gray-600">
           {loading ? 'Loading...' : `Showing ${((currentPage - 1) * NUM_STANDARD_SLOTS_PER_PAGE) + 1}-${Math.min(((currentPage - 1) * NUM_STANDARD_SLOTS_PER_PAGE) + displayListings.filter(l => !l.showFeaturedBadge).length, totalCount)} of ${totalCount} properties`}
         </p>

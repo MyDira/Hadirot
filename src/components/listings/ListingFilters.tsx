@@ -159,7 +159,7 @@ export function ListingFilters({ filters, onFiltersChange, agencies, allNeighbor
             </div>
             
             {showNeighborhoodDropdown && (
-              <div className="absolute z-10 w-full mt-1 bg-[#f9f4ed] border border-gray-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
+              <div className="absolute z-10 w-full mt-1 bg-[#FDF8F4] border border-gray-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
                 {allNeighborhoods.map((neighborhood) => (
                   <div
                     key={neighborhood}

@@ -93,7 +93,7 @@ export function ListingCard({ listing, isFavorited = false, onFavoriteChange, sh
         {/* Favorite button - top right */}
         <button
           onClick={handleFavoriteToggle}
-          className="absolute top-3 right-3 p-2 bg-[#f9f4ed] rounded-full shadow-sm hover:shadow-md transition-shadow"
+          className="absolute top-3 right-3 p-2 bg-[#FDF8F4] rounded-full shadow-sm hover:shadow-md transition-shadow"
         >
           <Heart
             className={`w-4 h-4 ${

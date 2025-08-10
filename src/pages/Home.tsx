@@ -127,6 +127,7 @@ export function Home() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
           <div className="text-center">
             <h1 className="text-4xl md:text-6xl font-bold mb-6 text-[#F0E6D5]">
+            <h1 className="text-4xl md:text-6xl font-bold font-brand mb-6 text-[#F0E6D5]">
               The Heart of Local Rentals
             </h1>
             <p className="text-xl md:text-2xl text-gray-200 mb-8 max-w-2xl mx-auto">
@@ -153,10 +154,10 @@ export function Home() {
       </section>
 
       {/* Recently Added Listings */}
-      <section className="py-16 bg-[#fbf5ef]">
+      <section className="py-16 bg-[#FFFDF9]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="mb-8">
-            <h2 className="text-3xl font-bold text-[#273140]">Recently Added</h2>
+            <h2 className="text-3xl font-bold font-brand text-[#273140]">Recently Added</h2>
           </div>
           
           {loading ? (
@@ -190,10 +191,10 @@ export function Home() {
       </section>
 
       {/* 2 Bedroom Listings */}
-      <section className="py-16 bg-[#f9f4ed]">
+      <section className="py-16 bg-[#FAF7F3]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between mb-8">
-            <h2 className="text-3xl font-bold text-[#273140]">2 Bedroom</h2>
+            <h2 className="text-3xl font-bold font-brand text-[#273140]">2 Bedroom</h2>
             <Link
               to="/browse?bedrooms=2"
               className="text-[#273140] hover:text-[#1e252f] font-medium transition-colors"
@@ -251,10 +252,10 @@ export function Home() {
       </section>
 
       {/* 3 Bedroom Listings */}
-      <section className="py-16 bg-[#fbf5ef]">
+      <section className="py-16 bg-[#FFFDF9]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between mb-8">
-            <h2 className="text-3xl font-bold text-[#273140]">3 Bedroom</h2>
+            <h2 className="text-3xl font-bold font-brand text-[#273140]">3 Bedroom</h2>
             <Link
               to="/browse?bedrooms=3"
               className="text-[#273140] hover:text-[#1e252f] font-medium transition-colors"

@@ -67,7 +67,7 @@ export function Layout({ children }: LayoutProps) {
   };
 
   const Logo = () => (
-    <div className="text-2xl font-brand uppercase font-normal text-[#273140]">
+    <div className="text-2xl font-brand uppercase text-[#273140]">
       HaDirot
     </div>
   );

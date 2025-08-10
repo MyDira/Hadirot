@@ -25,7 +25,7 @@ export function Footer() {
   }, [location.pathname]);
 
   const Logo = () => (
-    <div className="text-2xl font-brand uppercase font-normal text-[#F0E6D5]">
+    <div className="text-2xl font-brand uppercase text-[#F0E6D5]">
       HaDirot
     </div>
   );
