@@ -1,15 +1,24 @@
-import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
-import { Search, Star, Users, Home as HomeIcon, ChevronRight, Plus } from 'lucide-react';
-import { ListingCard } from '../components/listings/ListingCard';
-import { Listing } from '../config/supabase';
-import { listingsService } from '../services/listings';
-import { useAuth } from '../hooks/useAuth';
+import React, { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
+import {
+  Search,
+  Star,
+  Users,
+  Home as HomeIcon,
+  ChevronRight,
+  Plus,
+} from "lucide-react";
+import { ListingCard } from "../components/listings/ListingCard";
+import { Listing } from "../config/supabase";
+import { listingsService } from "../services/listings";
+import { useAuth } from "../hooks/useAuth";
 
 export function Home() {
   const [recentListings, setRecentListings] = useState<Listing[]>([]);
   const [twoBedroomListings, setTwoBedroomListings] = useState<Listing[]>([]);
-  const [threeBedroomListings, setThreeBedroomListings] = useState<Listing[]>([]);
+  const [threeBedroomListings, setThreeBedroomListings] = useState<Listing[]>(
+    [],
+  );
   const [userFavorites, setUserFavorites] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore2BR, setLoadingMore2BR] = useState(false);
@@ -27,12 +36,12 @@ export function Home() {
 
   const loadUserFavorites = async () => {
     if (!user) return;
-    
+
     try {
       const favorites = await listingsService.getUserFavoriteIds(user.id);
       setUserFavorites(favorites);
     } catch (error) {
-      console.error('Error loading user favorites:', error);
+      console.error("Error loading user favorites:", error);
     }
   };
 
@@ -44,18 +53,26 @@ export function Home() {
     try {
       // Load recently added listings
       const recentResult = await listingsService.getListings({}, 4, user?.id);
-      
+
       // Load 2 bedroom listings
-      const twoBedroomResult = await listingsService.getListings({ bedrooms: 2 }, 4, user?.id);
-      
+      const twoBedroomResult = await listingsService.getListings(
+        { bedrooms: 2 },
+        4,
+        user?.id,
+      );
+
       // Load 3 bedroom listings
-      const threeBedroomResult = await listingsService.getListings({ bedrooms: 3 }, 4, user?.id);
-      
+      const threeBedroomResult = await listingsService.getListings(
+        { bedrooms: 3 },
+        4,
+        user?.id,
+      );
+
       setRecentListings(recentResult.data);
       setTwoBedroomListings(twoBedroomResult.data);
       setThreeBedroomListings(threeBedroomResult.data);
     } catch (error) {
-      console.error('Error loading listings:', error);
+      console.error("Error loading listings:", error);
     } finally {
       setLoading(false);
     }
@@ -63,25 +80,25 @@ export function Home() {
 
   const loadMore2BR = async () => {
     if (loadingMore2BR) return;
-    
+
     setLoadingMore2BR(true);
     try {
-      const currentIds = twoBedroomListings.map(l => l.id);
+      const currentIds = twoBedroomListings.map((l) => l.id);
       const moreResult = await listingsService.getListings(
-        { bedrooms: 2 }, 
+        { bedrooms: 2 },
         8, // Load more to ensure we get 4 new ones after filtering
-        user?.id, 
-        twoBedroomListings.length
+        user?.id,
+        twoBedroomListings.length,
       );
-      
+
       // Filter out duplicates and take only 4 new listings
       const newListings = moreResult.data
-        .filter(listing => !currentIds.includes(listing.id))
+        .filter((listing) => !currentIds.includes(listing.id))
         .slice(0, 4);
-      
-      setTwoBedroomListings(prev => [...prev, ...newListings]);
+
+      setTwoBedroomListings((prev) => [...prev, ...newListings]);
     } catch (error) {
-      console.error('Error loading more 2BR listings:', error);
+      console.error("Error loading more 2BR listings:", error);
     } finally {
       setLoadingMore2BR(false);
     }
@@ -89,46 +106,45 @@ export function Home() {
 
   const loadMore3BR = async () => {
     if (loadingMore3BR) return;
-    
+
     setLoadingMore3BR(true);
     try {
-      const currentIds = threeBedroomListings.map(l => l.id);
+      const currentIds = threeBedroomListings.map((l) => l.id);
       const moreResult = await listingsService.getListings(
-        { bedrooms: 3 }, 
+        { bedrooms: 3 },
         8, // Load more to ensure we get 4 new ones after filtering
-        user?.id, 
+        user?.id,
         threeBedroomListings.length,
         true,
-        0 // No featured limit for "load more"
+        0, // No featured limit for "load more"
       );
-      
+
       // Filter out duplicates and take only 4 new listings
       const newListings = moreResult.data
-        .filter(listing => !currentIds.includes(listing.id))
+        .filter((listing) => !currentIds.includes(listing.id))
         .slice(0, 4);
-      
-      setThreeBedroomListings(prev => [...prev, ...newListings]);
+
+      setThreeBedroomListings((prev) => [...prev, ...newListings]);
     } catch (error) {
-      console.error('Error loading more 3BR listings:', error);
+      console.error("Error loading more 3BR listings:", error);
     } finally {
       setLoadingMore3BR(false);
     }
   };
-  
+
   const handleFavoriteChange = () => {
     // Reload user favorites when any favorite is toggled
     loadUserFavorites();
   };
-  
+
   return (
-    <div className="min-h-screen bg-[#fbf5ef]">
+    <div className="min-h-screen">
       {/* Hero Section */}
       <section className="bg-gradient-to-br from-[#273140] via-[#273140] to-[#1e252f] text-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
           <div className="text-center">
-            <h1 className="text-4xl md:text-6xl font-bold mb-6 text-[#F0E6D5]">
-            </h1>
-            <h1 className="text-4xl md:text-6xl font-bold font-brand mb-6 text-[#F0E6D5]">
+            <h1 className="text-4xl md:text-6xl font-bold mb-6 text-brandAccent-300"></h1>
+            <h1 className="text-4xl md:text-6xl font-bold font-brand mb-6 text-brandAccent-300">
               The Heart of Local Rentals
             </h1>
             <p className="text-xl md:text-2xl text-gray-200 mb-8 max-w-2xl mx-auto">
@@ -144,7 +160,7 @@ export function Home() {
               </Link>
               <Link
                 to="/post"
-                className="inline-flex items-center bg-transparent border-2 border-[#F0E6D5] text-[#F0E6D5] px-8 py-4 rounded-lg text-lg font-semibold hover:bg-[#F0E6D5] hover:text-[#273140] transition-colors shadow-lg"
+                className="inline-flex items-center bg-transparent border-2 border-brandAccent-500 text-brandAccent-500 px-8 py-4 rounded-lg text-lg font-semibold hover:bg-brandAccent-500 hover:text-brand-700 transition-colors shadow-lg"
               >
                 <Plus className="w-6 h-6 mr-2" />
                 List a Property
@@ -155,16 +171,21 @@ export function Home() {
       </section>
 
       {/* Recently Added Listings */}
-      <section className="py-16 bg-[#FFFDF9]">
+      <section className="py-16 bg-[var(--bg-soft)]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="mb-8">
-            <h2 className="text-3xl font-bold font-brand text-[#273140]">Recently Added</h2>
+            <h2 className="text-3xl font-bold font-brand text-brand-700">
+              Recently Added
+            </h2>
           </div>
-          
+
           {loading ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               {[1, 2, 3, 4].map((i) => (
-                <div key={i} className="bg-white rounded-lg shadow-sm animate-pulse">
+                <div
+                  key={i}
+                  className="bg-white rounded-lg shadow-sm animate-pulse"
+                >
                   <div className="h-48 bg-gray-200 rounded-t-lg"></div>
                   <div className="p-4">
                     <div className="h-4 bg-gray-200 rounded mb-2"></div>
@@ -175,7 +196,7 @@ export function Home() {
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <div className="flex gap-6 pb-4" style={{ width: 'max-content' }}>
+              <div className="flex gap-6 pb-4" style={{ width: "max-content" }}>
                 {recentListings.map((listing) => (
                   <div key={listing.id} className="flex-shrink-0 w-80">
                     <ListingCard
@@ -195,7 +216,9 @@ export function Home() {
       <section className="py-16 bg-[#FAF7F3]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between mb-8">
-            <h2 className="text-3xl font-bold font-brand text-[#273140]">2 Bedroom</h2>
+            <h2 className="text-3xl font-bold font-brand text-[#273140]">
+              2 Bedroom
+            </h2>
             <Link
               to="/browse?bedrooms=2"
               className="text-[#273140] hover:text-[#1e252f] font-medium transition-colors"
@@ -203,11 +226,14 @@ export function Home() {
               View All →
             </Link>
           </div>
-          
+
           {loading ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               {[1, 2, 3, 4].map((i) => (
-                <div key={i} className="bg-white rounded-lg shadow-sm animate-pulse">
+                <div
+                  key={i}
+                  className="bg-white rounded-lg shadow-sm animate-pulse"
+                >
                   <div className="h-48 bg-gray-200 rounded-t-lg"></div>
                   <div className="p-4">
                     <div className="h-4 bg-gray-200 rounded mb-2"></div>
@@ -219,7 +245,10 @@ export function Home() {
           ) : (
             <div className="relative">
               <div className="overflow-x-auto">
-                <div className="flex gap-6 pb-4" style={{ width: 'max-content' }}>
+                <div
+                  className="flex gap-6 pb-4"
+                  style={{ width: "max-content" }}
+                >
                   {twoBedroomListings.map((listing) => (
                     <div key={listing.id} className="flex-shrink-0 w-80">
                       <ListingCard
@@ -229,7 +258,7 @@ export function Home() {
                       />
                     </div>
                   ))}
-                  
+
                   {/* Load More Button */}
                   <div className="flex-shrink-0 w-20 flex items-center justify-center">
                     <button
@@ -253,22 +282,27 @@ export function Home() {
       </section>
 
       {/* 3 Bedroom Listings */}
-      <section className="py-16 bg-[#FFFDF9]">
+      <section className="py-16 bg-[var(--bg-soft)]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between mb-8">
-            <h2 className="text-3xl font-bold font-brand text-[#273140]">3 Bedroom</h2>
+            <h2 className="text-3xl font-bold font-brand text-brand-700">
+              3 Bedroom
+            </h2>
             <Link
               to="/browse?bedrooms=3"
-              className="text-[#273140] hover:text-[#1e252f] font-medium transition-colors"
+              className="text-brand-700 hover:text-brand-800 font-medium transition-colors"
             >
               View All →
             </Link>
           </div>
-          
+
           {loading ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               {[1, 2, 3, 4].map((i) => (
-                <div key={i} className="bg-white rounded-lg shadow-sm animate-pulse">
+                <div
+                  key={i}
+                  className="bg-white rounded-lg shadow-sm animate-pulse"
+                >
                   <div className="h-48 bg-gray-200 rounded-t-lg"></div>
                   <div className="p-4">
                     <div className="h-4 bg-gray-200 rounded mb-2"></div>
@@ -280,7 +314,10 @@ export function Home() {
           ) : (
             <div className="relative">
               <div className="overflow-x-auto">
-                <div className="flex gap-6 pb-4" style={{ width: 'max-content' }}>
+                <div
+                  className="flex gap-6 pb-4"
+                  style={{ width: "max-content" }}
+                >
                   {threeBedroomListings.map((listing) => (
                     <div key={listing.id} className="flex-shrink-0 w-80">
                       <ListingCard
@@ -290,7 +327,7 @@ export function Home() {
                       />
                     </div>
                   ))}
-                  
+
                   {/* Load More Button */}
                   <div className="flex-shrink-0 w-20 flex items-center justify-center">
                     <button
@@ -312,7 +349,6 @@ export function Home() {
           )}
         </div>
       </section>
-
     </div>
   );
 }
