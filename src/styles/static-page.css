@@ -1,0 +1,36 @@
+/* Base text rhythm */
+.prose.static-page-content {
+  line-height: 1.7;
+}
+.prose.static-page-content p {
+  margin: 0.75rem 0;
+}
+
+/* Lists: make bullets align with text baseline and indent correctly */
+.prose.static-page-content ul,
+.prose.static-page-content ol {
+  list-style-position: outside;
+  padding-left: 1.5rem;  /* indent */
+  margin: 0.75rem 0;
+}
+.prose.static-page-content li {
+  display: list-item;         /* ensure list formatting */
+  vertical-align: baseline;   /* align marker with text */
+  margin: 0.25rem 0;
+  line-height: 1.7;           /* match container line-height */
+}
+/* Tiptap outputs <li><p>…</p></li>; remove extra top/bottom gap from inner p */
+.prose.static-page-content li > p {
+  margin: 0;                  /* prevents bullet floating above text */
+}
+
+/* Nested lists */
+.prose.static-page-content li > ul,
+.prose.static-page-content li > ol {
+  margin: 0.25rem 0 0.25rem 1rem;
+}
+
+/* Optional: heading rhythm to match editor */
+.prose.static-page-content h1 { font-size: 1.875rem; line-height: 2.25rem; font-weight: 700; margin: 1rem 0 0.5rem; }
+.prose.static-page-content h2 { font-size: 1.5rem;   line-height: 2rem;    font-weight: 700; margin: 0.875rem 0 0.5rem; }
+.prose.static-page-content h3 { font-size: 1.25rem;  line-height: 1.75rem; font-weight: 600; margin: 0.75rem 0 0.5rem; }

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { staticPagesService, StaticPage } from '../services/staticPages';
 import { sanitizeHtml } from '../utils/sanitize';
+import '@/styles/static-page.css';
 
 export function Privacy() {
   const [pageData, setPageData] = useState<StaticPage | null>(null);
@@ -53,8 +54,8 @@ export function Privacy() {
         </p>
       </div>
 
-      <div 
-        className="prose prose-lg max-w-none text-gray-700 [&_h1]:text-2xl [&_h1]:font-bold [&_h1]:text-[#273140] [&_h1]:mb-4 [&_h2]:text-xl [&_h2]:font-semibold [&_h2]:text-[#273140] [&_h2]:mb-3 [&_h3]:text-lg [&_h3]:font-medium [&_h3]:text-[#273140] [&_h3]:mb-2 [&_a]:text-[#273140] [&_a]:underline hover:[&_a]:text-[#1e252f] [&_ul]:list-disc [&_ul]:list-inside [&_ol]:list-decimal [&_ol]:list-inside [&_li]:mb-1"
+      <div
+        className="prose prose-lg max-w-none text-gray-700 static-page-content [&_h1]:text-2xl [&_h1]:font-bold [&_h1]:text-[#273140] [&_h1]:mb-4 [&_h2]:text-xl [&_h2]:font-semibold [&_h2]:text-[#273140] [&_h2]:mb-3 [&_h3]:text-lg [&_h3]:font-medium [&_h3]:text-[#273140] [&_h3]:mb-2 [&_a]:text-[#273140] [&_a]:underline hover:[&_a]:text-[#1e252f]"
         dangerouslySetInnerHTML={{ __html: sanitizeHtml(pageData.content) }}
       />
     </div>
