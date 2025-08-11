@@ -1,0 +1,50 @@
+/* Base text rhythm */
+.static-page-content {
+  line-height: 1.7;
+}
+.static-page-content p {
+  margin: 0.75rem 0;
+}
+
+/* Lists: make bullets align with text baseline and indent correctly */
+.static-page-content ul,
+.static-page-content ol {
+  list-style-position: outside;
+  padding-left: 1.5rem;  /* indent */
+  margin: 0.75rem 0;
+  list-style: revert !important;      /* re-enable UA defaults if something killed it */
+}
+
+.static-page-content ul { list-style-type: disc !important; }
+.static-page-content ol { list-style-type: decimal !important; }
+
+.static-page-content li {
+  display: list-item;                 /* ensure list semantics even if reset changed it */
+  vertical-align: baseline;
+  line-height: 1.7;
+  margin: 0.25rem 0;
+}
+/* Tiptap outputs <li><p>…</p></li>; remove extra top/bottom gap from inner p */
+.static-page-content li > p { margin: 0; }
+
+/* If any global reset set marker to empty, undo it */
+.static-page-content li::marker { content: initial !important; }
+
+/* Nested lists */
+.static-page-content li > ul,
+.static-page-content li > ol {
+  margin: 0.25rem 0 0.25rem 1rem;
+}
+
+/* Optional: heading rhythm to match editor */
+.static-page-content h1 { font-size: 1.875rem; line-height: 2.25rem; font-weight: 700; margin: 1rem 0 0.5rem; }
+.static-page-content h2 { font-size: 1.5rem;   line-height: 2rem;    font-weight: 700; margin: 0.875rem 0 0.5rem; }
+.static-page-content h3 { font-size: 1.25rem;  line-height: 1.75rem; font-weight: 600; margin: 0.75rem 0 0.5rem; }
+
+/* If Tailwind Typography (.prose) is used on the same wrapper, out-spec it */
+.prose.static-page-content ul,
+.prose.static-page-content ol {
+  list-style: revert !important;
+  list-style-position: outside;
+  padding-left: 1.5rem;
+}

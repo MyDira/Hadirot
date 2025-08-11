@@ -21,6 +21,7 @@ import { staticPagesService, StaticPage } from "../../services/staticPages";
 import { footerService } from "../../services/footer";
 import { FooterSection } from "../../config/supabase";
 import { useAuth } from "../../hooks/useAuth";
+import "@/styles/editor.css";
 
 export function StaticPageEditor() {
   const { user, profile } = useAuth();
@@ -675,13 +676,27 @@ export function StaticPageEditor() {
                       <button
                         type="button"
                         onMouseDown={(e) => e.preventDefault()}
-                        onClick={() =>
-                          editor
+                        onClick={() => {
+                          if (!editor) return;
+                          const can = editor
+                            .can()
                             .chain()
                             .focus()
                             .toggleHeading({ level: 1 })
-                            .run()
-                        }
+                            .run();
+                          console.log("[TT] can-run?", can, {
+                            selection: {
+                              from: editor.state.selection.from,
+                              to: editor.state.selection.to,
+                            },
+                            isHeading2: editor.isActive("heading", { level: 2 }),
+                            isBullet: editor.isActive("bulletList"),
+                            isOrdered: editor.isActive("orderedList"),
+                            activeNode: editor.getAttributes("heading"),
+                          });
+                          editor.chain().focus().toggleHeading({ level: 1 }).run();
+                          console.log("[TT] doc after command", editor.getJSON());
+                        }}
                         className={`px-3 py-1 rounded text-sm font-medium transition-colors ${
                           editor.isActive("heading", { level: 1 })
                             ? "bg-[#273140] text-white"
@@ -693,13 +708,27 @@ export function StaticPageEditor() {
                       <button
                         type="button"
                         onMouseDown={(e) => e.preventDefault()}
-                        onClick={() =>
-                          editor
+                        onClick={() => {
+                          if (!editor) return;
+                          const can = editor
+                            .can()
                             .chain()
                             .focus()
                             .toggleHeading({ level: 2 })
-                            .run()
-                        }
+                            .run();
+                          console.log("[TT] can-run?", can, {
+                            selection: {
+                              from: editor.state.selection.from,
+                              to: editor.state.selection.to,
+                            },
+                            isHeading2: editor.isActive("heading", { level: 2 }),
+                            isBullet: editor.isActive("bulletList"),
+                            isOrdered: editor.isActive("orderedList"),
+                            activeNode: editor.getAttributes("heading"),
+                          });
+                          editor.chain().focus().toggleHeading({ level: 2 }).run();
+                          console.log("[TT] doc after command", editor.getJSON());
+                        }}
                         className={`px-3 py-1 rounded text-sm font-medium transition-colors ${
                           editor.isActive("heading", { level: 2 })
                             ? "bg-[#273140] text-white"
@@ -711,13 +740,27 @@ export function StaticPageEditor() {
                       <button
                         type="button"
                         onMouseDown={(e) => e.preventDefault()}
-                        onClick={() =>
-                          editor
+                        onClick={() => {
+                          if (!editor) return;
+                          const can = editor
+                            .can()
                             .chain()
                             .focus()
                             .toggleHeading({ level: 3 })
-                            .run()
-                        }
+                            .run();
+                          console.log("[TT] can-run?", can, {
+                            selection: {
+                              from: editor.state.selection.from,
+                              to: editor.state.selection.to,
+                            },
+                            isHeading2: editor.isActive("heading", { level: 2 }),
+                            isBullet: editor.isActive("bulletList"),
+                            isOrdered: editor.isActive("orderedList"),
+                            activeNode: editor.getAttributes("heading"),
+                          });
+                          editor.chain().focus().toggleHeading({ level: 3 }).run();
+                          console.log("[TT] doc after command", editor.getJSON());
+                        }}
                         className={`px-3 py-1 rounded text-sm font-medium transition-colors ${
                           editor.isActive("heading", { level: 3 })
                             ? "bg-[#273140] text-white"
@@ -765,9 +808,27 @@ export function StaticPageEditor() {
                       <button
                         type="button"
                         onMouseDown={(e) => e.preventDefault()}
-                        onClick={() =>
-                          editor.chain().focus().toggleBulletList().run()
-                        }
+                        onClick={() => {
+                          if (!editor) return;
+                          const can = editor
+                            .can()
+                            .chain()
+                            .focus()
+                            .toggleBulletList()
+                            .run();
+                          console.log("[TT] can-run?", can, {
+                            selection: {
+                              from: editor.state.selection.from,
+                              to: editor.state.selection.to,
+                            },
+                            isHeading2: editor.isActive("heading", { level: 2 }),
+                            isBullet: editor.isActive("bulletList"),
+                            isOrdered: editor.isActive("orderedList"),
+                            activeNode: editor.getAttributes("heading"),
+                          });
+                          editor.chain().focus().toggleBulletList().run();
+                          console.log("[TT] doc after command", editor.getJSON());
+                        }}
                         className={`p-2 rounded transition-colors ${
                           editor.isActive("bulletList")
                             ? "bg-[#273140] text-white"
@@ -779,9 +840,27 @@ export function StaticPageEditor() {
                       <button
                         type="button"
                         onMouseDown={(e) => e.preventDefault()}
-                        onClick={() =>
-                          editor.chain().focus().toggleOrderedList().run()
-                        }
+                        onClick={() => {
+                          if (!editor) return;
+                          const can = editor
+                            .can()
+                            .chain()
+                            .focus()
+                            .toggleOrderedList()
+                            .run();
+                          console.log("[TT] can-run?", can, {
+                            selection: {
+                              from: editor.state.selection.from,
+                              to: editor.state.selection.to,
+                            },
+                            isHeading2: editor.isActive("heading", { level: 2 }),
+                            isBullet: editor.isActive("bulletList"),
+                            isOrdered: editor.isActive("orderedList"),
+                            activeNode: editor.getAttributes("heading"),
+                          });
+                          editor.chain().focus().toggleOrderedList().run();
+                          console.log("[TT] doc after command", editor.getJSON());
+                        }}
                         className={`p-2 rounded transition-colors ${
                           editor.isActive("orderedList")
                             ? "bg-[#273140] text-white"
@@ -834,15 +913,37 @@ export function StaticPageEditor() {
                       >
                         <Type className="w-4 h-4" />
                       </button>
+
+                      <div className="w-px h-6 bg-gray-300 mx-1"></div>
+
+                      <button
+                        type="button"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => {
+                          if (!editor) return;
+                          console.log("[TT] debug snapshot", {
+                            selection: {
+                              from: editor.state.selection.from,
+                              to: editor.state.selection.to,
+                            },
+                            isH1: editor.isActive("heading", { level: 1 }),
+                            isH2: editor.isActive("heading", { level: 2 }),
+                            isH3: editor.isActive("heading", { level: 3 }),
+                            isBullet: editor.isActive("bulletList"),
+                            isOrdered: editor.isActive("orderedList"),
+                            json: editor.getJSON(),
+                          });
+                        }}
+                        className="px-3 py-1 rounded text-xs font-medium bg-white text-gray-700 hover:bg-gray-100"
+                      >
+                        Debug
+                      </button>
                     </div>
                   )}
 
                   {/* Rich Text Editor Content */}
-                  <div className="border border-gray-300 rounded-b-md min-h-[400px] max-h-[600px] overflow-y-auto">
-                    <EditorContent
-                      editor={editor}
-                      className="prose prose-sm max-w-none p-4 focus:outline-none [&_.ProseMirror]:outline-none [&_.ProseMirror]:min-h-[350px] [&_.ProseMirror]:cursor-text"
-                    />
+                  <div className="editor-shell border border-gray-300 rounded-b-md min-h-[400px] max-h-[600px] overflow-y-auto p-4">
+                    <EditorContent editor={editor} />
                   </div>
 
                   <p className="text-xs text-gray-500 mt-1">
