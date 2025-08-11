@@ -141,7 +141,6 @@ export function Home() {
     <div className="min-h-screen">
       {/* Hero Section */}
       <div>
-        <div className="bg-brand-800 h-2 w-full" />
         <section className="bg-brand-700 text-center py-20 text-white">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <h1 className="text-3xl md:text-5xl font-semibold font-brand text-white mb-6">
