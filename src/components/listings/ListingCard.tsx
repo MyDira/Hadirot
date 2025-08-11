@@ -76,7 +76,7 @@ export function ListingCard({
       to={`/listing/${listing.id}`}
       className="group block bg-white border border-gray-200 rounded-lg shadow-sm hover:shadow transition overflow-hidden"
     >
-      <div className="relative aspect-[4/3]">
+      <div className="relative aspect-[3/2]">
         {featuredImage ? (
           <img
             src={featuredImage.image_url}
@@ -84,7 +84,7 @@ export function ListingCard({
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
           />
         ) : (
-          <div className="aspect-[4/3] w-full bg-brand-50 flex items-center justify-center border-b border-gray-100">
+          <div className="aspect-[3/2] w-full bg-brand-50 flex items-center justify-center border-b border-gray-100">
             <svg
               width="56"
               height="56"
@@ -106,10 +106,10 @@ export function ListingCard({
         {/* Favorite button - top right */}
         <button
           onClick={handleFavoriteToggle}
-          className="absolute top-3 right-3 p-2 bg-white rounded-full shadow-sm hover:shadow-md transition-shadow"
+          className="absolute top-3 right-3 p-1.5 bg-white rounded-full shadow-sm hover:shadow-md transition-shadow"
         >
           <Heart
-            className={`w-4 h-4 ${
+            className={`w-3.5 h-3.5 ${
               isFavorited
                 ? "text-red-500 fill-current"
                 : "text-gray-400 hover:text-red-500"
@@ -118,42 +118,42 @@ export function ListingCard({
         </button>
       </div>
 
-      <div className="p-4">
+      <div className="p-3">
         {/* Price */}
-        <div className="mb-3">
-          <span className="text-3xl font-bold text-brand-900">
+        <div className="mb-2">
+          <span className="text-2xl leading-tight font-bold text-brand-900">
             {formatPrice(listing.price)}
           </span>
         </div>
 
         {/* Property specs - bedrooms, bathrooms, parking */}
-        <div className="flex items-center text-gray-600 mb-3">
-          <div className="flex items-center mr-4">
-            <span className="text-base mr-1">
+        <div className="flex items-center text-gray-600 mb-2">
+          <div className="flex items-center mr-3">
+            <span className="text-sm mr-1">
               {listing.bedrooms === 0 ? "Studio" : listing.bedrooms}
             </span>
             <Bed className="w-4 h-4" />
           </div>
-          <div className="flex items-center mr-4">
-            <span className="text-base mr-1">{listing.bathrooms}</span>
+          <div className="flex items-center mr-3">
+            <span className="text-sm mr-1">{listing.bathrooms}</span>
             <Bath className="w-4 h-4" />
           </div>
-          {hasParking && (
-            <span className="text-base text-gray-600">Parking</span>
-          )}
+          {hasParking && <span className="text-sm text-gray-600">Parking</span>}
         </div>
 
         {/* Location - cross streets */}
-        <div className="flex items-center text-gray-600 mt-2 mb-3">
-          <MapPin className="w-4 h-4 mr-1 flex-shrink-0" />
-          <span className="text-base truncate">{listing.location}</span>
+        <div className="flex items-center text-gray-600 mt-2 mb-2">
+          <MapPin className="w-4 h-4 mr-2 flex-shrink-0" />
+          <span className="text-sm leading-tight truncate">
+            {listing.location}
+          </span>
         </div>
 
         {/* Poster label and featured */}
-        <div className="mt-3 pt-2 border-t border-gray-100 flex items-center justify-between">
-          <span className="text-sm text-gray-600">by {getPosterLabel()}</span>
+        <div className="mt-2 pt-2 border-t border-gray-100 flex items-center justify-between">
+          <span className="text-xs text-gray-600">by {getPosterLabel()}</span>
           {listing.is_featured && showFeaturedBadge && (
-            <span className="inline-flex items-center rounded px-2 py-1 text-xs font-medium bg-brand-600 text-white">
+            <span className="inline-flex items-center rounded px-2 py-0.5 text-xs font-medium bg-brand-600 text-white">
               Featured
             </span>
           )}
