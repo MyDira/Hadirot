@@ -16,6 +16,50 @@ export interface EmailResponse {
   details?: string;
 }
 
+interface BrandEmailParams {
+  title: string;
+  intro?: string;
+  bodyHtml: string;
+  ctaLabel?: string;
+  ctaHref?: string;
+}
+
+export function renderBrandEmail({
+  title,
+  intro,
+  bodyHtml,
+  ctaLabel,
+  ctaHref,
+}: BrandEmailParams) {
+  const button =
+    ctaLabel && ctaHref
+      ? `<div style="text-align:center;margin:32px 0;">
+        <a href="${ctaHref}" style="background-color:#7CB342;color:#FFFFFF;padding:12px 24px;text-decoration:none;border-radius:6px;display:inline-block;font-weight:bold;">${ctaLabel}</a>
+      </div>`
+      : "";
+
+  const introHtml = intro ? `<p style="margin-top:0;">${intro}</p>` : "";
+
+  return `
+    <div style="font-family:Arial,sans-serif;background-color:#F7F9FC;padding:24px;">
+      <div style="max-width:600px;margin:0 auto;background-color:#FFFFFF;border:1px solid #E5E7EB;border-radius:8px;overflow:hidden;">
+        <div style="background-color:#1E4A74;color:#FFFFFF;padding:24px;text-align:center;">
+          <h1 style="margin:0;font-size:24px;">Hadirot</h1>
+        </div>
+        <div style="padding:24px;color:#374151;font-size:16px;line-height:1.5;">
+          <h2 style="margin:0 0 16px 0;font-size:20px;color:#1E4A74;">${title}</h2>
+          ${introHtml}
+          ${bodyHtml}
+          ${button}
+        </div>
+        <div style="background-color:#F7F9FC;color:#6B7280;text-align:center;font-size:12px;padding:16px;">
+          © ${new Date().getFullYear()} Hadirot. All rights reserved.
+        </div>
+      </div>
+    </div>
+  `;
+}
+
 export const emailService = {
   async sendPasswordResetEmail(to: string): Promise<EmailResponse> {
     try {
@@ -89,27 +133,12 @@ export const emailService = {
     subject: string,
     message: string,
   ): Promise<EmailResponse> {
-    const html = `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <div style="background-color: #4E4B43; color: white; padding: 20px; text-align: center;">
-          <h1 style="margin: 0;">HaDirot</h1>
-        </div>
-        <div style="padding: 20px; background-color: #f9f9f9;">
-          <div style="background-color: white; padding: 20px; border-radius: 8px;">
-            <p style="color: #333; line-height: 1.6; margin: 0;">${message.replace(/\n/g, "<br>")}</p>
-          </div>
-        </div>
-        <div style="background-color: #4E4B43; color: #FFFFFF; padding: 15px; text-align: center; font-size: 12px;">
-          <p style="margin: 0;">© 2025 HaDirot. All rights reserved.</p>
-        </div>
-      </div>
-    `;
-
-    return this.sendEmail({
-      to,
-      subject,
-      html,
+    const html = renderBrandEmail({
+      title: subject,
+      bodyHtml: `<p>${message.replace(/\n/g, "<br>")}</p>`,
     });
+
+    return this.sendEmail({ to, subject, html });
   },
 
   // Helper function to send a notification email to admins
@@ -127,360 +156,152 @@ export const emailService = {
     );
   },
 
-  // Helper function to send a welcome email to new users
-  async sendWelcomeEmail(
-    userEmail: string,
-    userName: string,
-  ): Promise<EmailResponse> {
-    const html = `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <div style="background-color: #4E4B43; color: white; padding: 20px; text-align: center;">
-          <h1 style="margin: 0;">Welcome to HaDirot!</h1>
-        </div>
-        <div style="padding: 20px; background-color: #f9f9f9;">
-          <div style="background-color: white; padding: 20px; border-radius: 8px;">
-            <h2 style="color: #4E4B43; margin-top: 0;">Hello ${userName}!</h2>
-            <p style="color: #333; line-height: 1.6;">
-              Thank you for joining HaDirot, NYC's premier Jewish rental platform. We're excited to help you find the perfect rental home or connect with quality tenants.
-            </p>
-            <p style="color: #333; line-height: 1.6;">
-              Here's what you can do next:
-            </p>
-            <ul style="color: #333; line-height: 1.6;">
-              <li>Browse available listings in your preferred neighborhoods</li>
-              <li>Save your favorite properties for easy access</li>
-              <li>Post your own rental listings if you're a landlord or agent</li>
-              <li>Connect directly with property owners and agents</li>
-            </ul>
-            <div style="text-align: center; margin: 30px 0;">
-              <a href="${window.location.origin}/browse" style="background-color: #4E4B43; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">
-                Start Browsing Listings
-              </a>
-            </div>
-            <p style="color: #666; font-size: 14px; margin-bottom: 0;">
-              If you have any questions, feel free to reach out to our support team.
-            </p>
-          </div>
-        </div>
-        <div style="background-color: #4E4B43; color: #FFFFFF; padding: 15px; text-align: center; font-size: 12px;">
-          <p style="margin: 0;">© 2025 HaDirot. All rights reserved.</p>
-        </div>
-      </div>
-    `;
+  async sendWelcomeEmail({
+    to,
+    fullName,
+  }: {
+    to: string;
+    fullName: string;
+  }): Promise<EmailResponse> {
+    const html = renderBrandEmail({
+      title: "Welcome to Hadirot",
+      intro: `Hi ${fullName},`,
+      bodyHtml:
+        "<p>Thanks for joining Hadirot. We're excited to help you find your next home.</p>",
+      ctaLabel: "Browse Listings",
+      ctaHref: `${typeof window !== "undefined" ? window.location.origin : ""}/browse`,
+    });
 
     return this.sendEmail({
-      to: userEmail,
-      subject: "Welcome to HaDirot - Your NYC Rental Journey Starts Here!",
+      to,
+      subject: "Welcome to Hadirot",
       html,
     });
   },
 
-  // Helper function to send listing update confirmation email
+  async sendAccountDeletedEmail({
+    to,
+    fullName,
+    reason,
+  }: {
+    to: string;
+    fullName: string;
+    reason?: string;
+  }): Promise<EmailResponse> {
+    const reasonText = reason ? `<p>${reason}</p>` : "";
+    const html = renderBrandEmail({
+      title: "Account Deleted",
+      intro: `Hi ${fullName},`,
+      bodyHtml: `<p>Your account has been deleted.</p>${reasonText}<p>If you have any questions, contact support@hadirot.com.</p>`,
+    });
+
+    return this.sendEmail({
+      to,
+      subject: "Your Hadirot account has been deleted",
+      html,
+    });
+  },
+
   async sendListingUpdateEmail(
     userEmail: string,
     userName: string,
     listingTitle: string,
   ): Promise<EmailResponse> {
-    const html = `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #f9f9f9;">
-        <div style="background-color: #4E4B43; color: white; padding: 30px; text-align: center;">
-          <div style="display: flex; align-items: center; justify-content: center; margin-bottom: 10px;">
-            <svg width="40" height="40" viewBox="0 0 32 32" style="color: #FFFFFF; margin-right: 10px;">
-              <path d="M16 4L6 12v16h5v-8h10v8h5V12L16 4z" stroke="currentColor" stroke-width="2" fill="none" stroke-linejoin="round"/>
-              <circle cx="23" cy="8" r="1" fill="currentColor"/>
-            </svg>
-            <span style="font-size: 28px; font-weight: bold; color: #FFFFFF;">HaDirot</span>
-          </div>
-          <h1 style="margin: 0; font-size: 24px;">Listing Updated Successfully!</h1>
-        </div>
-        
-        <div style="padding: 30px; background-color: white; margin: 0 20px;">
-          <h2 style="color: #4E4B43; margin-top: 0; font-size: 20px;">Hello ${userName}!</h2>
-          
-          <p style="color: #333; line-height: 1.6; font-size: 16px;">
-            Your listing "<strong>${listingTitle}</strong>" has been updated successfully on HaDirot.
-          </p>
-          
-          <div style="background-color: #e8f4f8; padding: 20px; border-radius: 8px; margin: 20px 0;">
-            <p style="color: #555; line-height: 1.6; margin: 0;">
-              Your changes are now live and visible to potential tenants browsing HaDirot.
-            </p>
-          </div>
-          
-          <div style="text-align: center; margin: 30px 0;">
-            <a href="${window.location.origin}/dashboard" 
-               style="background-color: #4E4B43; color: white; padding: 15px 30px; text-decoration: none; border-radius: 8px; display: inline-block; font-weight: bold; font-size: 16px;">
-              View My Dashboard
-            </a>
-          </div>
-        </div>
-        
-        <div style="background-color: #4E4B43; color: #FFFFFF; padding: 20px; text-align: center; margin: 0 20px;">
-          <p style="margin: 0; font-size: 14px; font-family: 'itc-benguiat', Georgia, 'Times New Roman', serif;">
-            © 2025 HaDirot. All rights reserved.<br>
-            NYC's premier Jewish rental platform
-          </p>
-        </div>
-      </div>
-    `;
-
+    const origin = typeof window !== "undefined" ? window.location.origin : "";
+    const html = renderBrandEmail({
+      title: "Listing Updated",
+      intro: `Hi ${userName},`,
+      bodyHtml: `<p>Your listing "<strong>${listingTitle}</strong>" has been updated successfully on Hadirot.</p>`,
+      ctaLabel: "View My Dashboard",
+      ctaHref: `${origin}/dashboard`,
+    });
     return this.sendEmail({
       to: userEmail,
-      subject: `Listing Updated: ${listingTitle} - HaDirot`,
+      subject: `Listing Updated: ${listingTitle} - Hadirot`,
       html,
     });
   },
 
-  // Helper function to send listing deactivation email
   async sendListingDeactivationEmail(
     userEmail: string,
     userName: string,
     listingTitle: string,
   ): Promise<EmailResponse> {
-    const html = `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #f9f9f9;">
-        <div style="background-color: #4E4B43; color: white; padding: 30px; text-align: center;">
-          <div style="display: flex; align-items: center; justify-content: center; margin-bottom: 10px;">
-            <svg width="40" height="40" viewBox="0 0 32 32" style="color: #FFFFFF; margin-right: 10px;">
-              <path d="M16 4L6 12v16h5v-8h10v8h5V12L16 4z" stroke="currentColor" stroke-width="2" fill="none" stroke-linejoin="round"/>
-              <circle cx="23" cy="8" r="1" fill="currentColor"/>
-            </svg>
-            <span style="font-size: 28px; font-weight: bold; color: #FFFFFF;">HaDirot</span>
-          </div>
-          <h1 style="margin: 0; font-size: 24px;">Listing Deactivated</h1>
-        </div>
-        
-        <div style="padding: 30px; background-color: white; margin: 0 20px;">
-          <h2 style="color: #4E4B43; margin-top: 0; font-size: 20px;">Hello ${userName}!</h2>
-          
-          <p style="color: #333; line-height: 1.6; font-size: 16px;">
-            Your listing "<strong>${listingTitle}</strong>" has been deactivated and is no longer visible to potential tenants.
-          </p>
-          
-          <div style="background-color: #fff3cd; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #ffc107;">
-            <p style="color: #856404; line-height: 1.6; margin: 0;">
-              <strong>Note:</strong> You can reactivate this listing at any time from your dashboard.
-            </p>
-          </div>
-          
-          <div style="text-align: center; margin: 30px 0;">
-            <a href="${window.location.origin}/dashboard" 
-               style="background-color: #4E4B43; color: white; padding: 15px 30px; text-decoration: none; border-radius: 8px; display: inline-block; font-weight: bold; font-size: 16px;">
-              Manage My Listings
-            </a>
-          </div>
-        </div>
-        
-        <div style="background-color: #4E4B43; color: #FFFFFF; padding: 20px; text-align: center; margin: 0 20px;">
-          <p style="margin: 0; font-size: 14px;">
-            © 2025 HaDirot. All rights reserved.<br>
-            NYC's premier Jewish rental platform
-          </p>
-        </div>
-      </div>
-    `;
-
+    const origin = typeof window !== "undefined" ? window.location.origin : "";
+    const html = renderBrandEmail({
+      title: "Listing Deactivated",
+      intro: `Hi ${userName},`,
+      bodyHtml: `<p>Your listing "<strong>${listingTitle}</strong>" has been deactivated and is no longer visible to potential tenants.</p>`,
+      ctaLabel: "Manage My Listings",
+      ctaHref: `${origin}/dashboard`,
+    });
     return this.sendEmail({
       to: userEmail,
-      subject: `Listing Deactivated: ${listingTitle} - HaDirot`,
+      subject: `Listing Deactivated: ${listingTitle} - Hadirot`,
       html,
     });
   },
 
-  // Helper function to send listing reactivation email
   async sendListingReactivationEmail(
     userEmail: string,
     userName: string,
     listingTitle: string,
   ): Promise<EmailResponse> {
-    const html = `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #f9f9f9;">
-        <div style="background-color: #4E4B43; color: white; padding: 30px; text-align: center;">
-          <div style="display: flex; align-items: center; justify-content: center; margin-bottom: 10px;">
-            <svg width="40" height="40" viewBox="0 0 32 32" style="color: #FFFFFF; margin-right: 10px;">
-              <path d="M16 4L6 12v16h5v-8h10v8h5V12L16 4z" stroke="currentColor" stroke-width="2" fill="none" stroke-linejoin="round"/>
-              <circle cx="23" cy="8" r="1" fill="currentColor"/>
-            </svg>
-            <span style="font-size: 28px; font-weight: bold; color: #FFFFFF;">HaDirot</span>
-          </div>
-          <h1 style="margin: 0; font-size: 24px;">Listing Reactivated!</h1>
-        </div>
-        
-        <div style="padding: 30px; background-color: white; margin: 0 20px;">
-          <h2 style="color: #4E4B43; margin-top: 0; font-size: 20px;">Hello ${userName}!</h2>
-          
-          <p style="color: #333; line-height: 1.6; font-size: 16px;">
-            Great news! Your listing "<strong>${listingTitle}</strong>" has been reactivated and is now live on HaDirot.
-          </p>
-          
-          <div style="background-color: #d4edda; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #28a745;">
-            <p style="color: #155724; line-height: 1.6; margin: 0;">
-              <strong>Your listing is now visible</strong> to potential tenants browsing HaDirot.
-            </p>
-          </div>
-          
-          <div style="text-align: center; margin: 30px 0;">
-            <a href="${window.location.origin}/dashboard" 
-               style="background-color: #4E4B43; color: white; padding: 15px 30px; text-decoration: none; border-radius: 8px; display: inline-block; font-weight: bold; font-size: 16px;">
-              View My Dashboard
-            </a>
-          </div>
-        </div>
-        
-        <div style="background-color: #4E4B43; color: #FFFFFF; padding: 20px; text-align: center; margin: 0 20px;">
-          <p style="margin: 0; font-size: 14px;">
-            © 2025 HaDirot. All rights reserved.<br>
-            NYC's premier Jewish rental platform
-          </p>
-        </div>
-      </div>
-    `;
-
+    const origin = typeof window !== "undefined" ? window.location.origin : "";
+    const html = renderBrandEmail({
+      title: "Listing Reactivated",
+      intro: `Hi ${userName},`,
+      bodyHtml: `<p>Your listing "<strong>${listingTitle}</strong>" has been reactivated and is visible again.</p>`,
+      ctaLabel: "View My Dashboard",
+      ctaHref: `${origin}/dashboard`,
+    });
     return this.sendEmail({
       to: userEmail,
-      subject: `Listing Reactivated: ${listingTitle} - HaDirot`,
+      subject: `Listing Reactivated: ${listingTitle} - Hadirot`,
       html,
     });
   },
 
-  // Helper function to send listing approval email
   async sendListingApprovalEmail(
     userEmail: string,
     userName: string,
     listingTitle: string,
     listingId: string,
   ): Promise<EmailResponse> {
-    console.log("[WEB] sendListingApprovalEmail called", {
-      to: userEmail,
-      listingId,
+    const origin = typeof window !== "undefined" ? window.location.origin : "";
+    const html = renderBrandEmail({
+      title: "Listing Approved",
+      intro: `Hi ${userName},`,
+      bodyHtml: `<p>Your listing "<strong>${listingTitle}</strong>" has been approved and is now live on Hadirot.</p>`,
+      ctaLabel: "View Live Listing",
+      ctaHref: `${origin}/listing/${listingId}`,
     });
-    const html = `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #f9f9f9;">
-        <div style="background-color: #28a745; color: white; padding: 30px; text-align: center;">
-          <div style="display: flex; align-items: center; justify-content: center; margin-bottom: 10px;">
-            <svg width="40" height="40" viewBox="0 0 32 32" style="color: white; margin-right: 10px;">
-              <path d="M16 4L6 12v16h5v-8h10v8h5V12L16 4z" stroke="currentColor" stroke-width="2" fill="none" stroke-linejoin="round"/>
-              <circle cx="23" cy="8" r="1" fill="currentColor"/>
-            </svg>
-            <span style="font-size: 28px; font-weight: bold;">HaDirot</span>
-          </div>
-          <h1 style="margin: 0; font-size: 24px;">🎉 Listing Approved!</h1>
-        </div>
-        
-        <div style="padding: 30px; background-color: white; margin: 0 20px;">
-          <h2 style="color: #4E4B43; margin-top: 0; font-size: 20px;">Congratulations ${userName}!</h2>
-          
-          <p style="color: #333; line-height: 1.6; font-size: 16px;">
-            Your listing "<strong>${listingTitle}</strong>" has been approved and is now live on HaDirot!
-          </p>
-          
-          <div style="background-color: #d4edda; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #28a745;">
-            <h3 style="color: #155724; margin-top: 0; font-size: 18px;">✅ Your listing is now:</h3>
-            <ul style="color: #155724; line-height: 1.6; margin: 0; padding-left: 20px;">
-              <li>Visible to thousands of potential tenants</li>
-              <li>Searchable in our browse section</li>
-              <li>Ready to receive inquiries</li>
-            </ul>
-          </div>
-          
-          <div style="text-align: center; margin: 30px 0;">
-            <a href="${window.location.origin}/listing/${listingId}" 
-               style="background-color: #28a745; color: white; padding: 15px 30px; text-decoration: none; border-radius: 8px; display: inline-block; font-weight: bold; font-size: 16px; margin-right: 10px;">
-              View Live Listing
-            </a>
-            <a href="${window.location.origin}/dashboard" 
-               style="background-color: #4E4B43; color: white; padding: 15px 30px; text-decoration: none; border-radius: 8px; display: inline-block; font-weight: bold; font-size: 16px;">
-              My Dashboard
-            </a>
-          </div>
-          
-          <div style="border-top: 1px solid #eee; padding-top: 20px; margin-top: 30px;">
-            <p style="color: #666; font-size: 14px; line-height: 1.6; margin: 0;">
-              <strong>What's next?</strong> Keep your listing updated and respond promptly to inquiries. 
-              You can edit your listing details anytime from your dashboard.
-            </p>
-          </div>
-        </div>
-        
-        <div style="background-color: #4E4B43; color: #FFFFFF; padding: 20px; text-align: center; margin: 0 20px;">
-          <p style="margin: 0; font-size: 14px;">
-            © 2025 HaDirot. All rights reserved.<br>
-            NYC's premier Jewish rental platform
-          </p>
-        </div>
-      </div>
-    `;
-
     return this.sendEmail({
       to: userEmail,
-      subject: `🎉 Listing Approved: ${listingTitle} is now live! - HaDirot`,
+      subject: `Listing Approved: ${listingTitle} is now live! - Hadirot`,
       html,
     });
   },
 
-  // Helper function to send featured status change email
   async sendListingFeaturedEmail(
     userEmail: string,
     userName: string,
     listingTitle: string,
     isFeatured: boolean,
   ): Promise<EmailResponse> {
-    const html = `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #f9f9f9;">
-        <div style="background-color: ${isFeatured ? "#667B9A" : "#4E4B43"}; color: white; padding: 30px; text-align: center;">
-          <div style="display: flex; align-items: center; justify-content: center; margin-bottom: 10px;">
-            <svg width="40" height="40" viewBox="0 0 32 32" style="color: white; margin-right: 10px;">
-              <path d="M16 4L6 12v16h5v-8h10v8h5V12L16 4z" stroke="currentColor" stroke-width="2" fill="none" stroke-linejoin="round"/>
-              <circle cx="23" cy="8" r="1" fill="currentColor"/>
-            </svg>
-            <span style="font-size: 28px; font-weight: bold;">HaDirot</span>
-          </div>
-          <h1 style="margin: 0; font-size: 24px;">
-            ${isFeatured ? "⭐ Listing Featured!" : "Featured Status Removed"}
-          </h1>
-        </div>
-        
-        <div style="padding: 30px; background-color: white; margin: 0 20px;">
-          <h2 style="color: #4E4B43; margin-top: 0; font-size: 20px;">Hello ${userName}!</h2>
-          
-          <p style="color: #333; line-height: 1.6; font-size: 16px;">
-            ${
-              isFeatured
-                ? `Your listing "<strong>${listingTitle}</strong>" is now featured on HaDirot!`
-                : `The featured status has been removed from your listing "<strong>${listingTitle}</strong>".`
-            }
-          </p>
-          
-          <div style="background-color: ${isFeatured ? "#fff3cd" : "#f8f9fa"}; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid ${isFeatured ? "#667B9A" : "#6c757d"};">
-            <p style="color: ${isFeatured ? "#273140" : "#495057"}; line-height: 1.6; margin: 0;">
-              ${
-                isFeatured
-                  ? "<strong>Featured listings</strong> get premium placement and increased visibility to potential tenants."
-                  : "Your listing is still active and visible to potential tenants in regular search results."
-              }
-            </p>
-          </div>
-          
-          <div style="text-align: center; margin: 30px 0;">
-            <a href="${window.location.origin}/dashboard" 
-               style="background-color: #4E4B43; color: white; padding: 15px 30px; text-decoration: none; border-radius: 8px; display: inline-block; font-weight: bold; font-size: 16px;">
-              View My Dashboard
-            </a>
-          </div>
-        </div>
-        
-        <div style="background-color: #4E4B43; color: #FFFFFF; padding: 20px; text-align: center; margin: 0 20px;">
-          <p style="margin: 0; font-size: 14px;">
-            © 2025 HaDirot. All rights reserved.<br>
-            NYC's premier Jewish rental platform
-          </p>
-        </div>
-      </div>
-    `;
-
+    const origin = typeof window !== "undefined" ? window.location.origin : "";
+    const html = renderBrandEmail({
+      title: isFeatured ? "Listing Featured" : "Featured Status Removed",
+      intro: `Hi ${userName},`,
+      bodyHtml: isFeatured
+        ? `<p>Your listing "<strong>${listingTitle}</strong>" is now featured on Hadirot!</p>`
+        : `<p>The featured status has been removed from your listing "<strong>${listingTitle}</strong>".</p>`,
+      ctaLabel: "View My Dashboard",
+      ctaHref: `${origin}/dashboard`,
+    });
     return this.sendEmail({
       to: userEmail,
-      subject: `${isFeatured ? "⭐ Listing Featured" : "Featured Status Removed"}: ${listingTitle} - HaDirot`,
+      subject: `${isFeatured ? "Listing Featured" : "Featured Status Removed"}: ${listingTitle} - Hadirot`,
       html,
     });
   },
@@ -492,206 +313,55 @@ export const emailService = {
     newLimit: number,
     previousLimit?: number,
   ): Promise<EmailResponse> {
-    const html = `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #f9f9f9;">
-        <div style="background-color: #4E4B43; color: white; padding: 30px; text-align: center;">
-          <div style="display: flex; align-items: center; justify-content: center; margin-bottom: 10px;">
-            <svg width="40" height="40" viewBox="0 0 32 32" style="color: #FFFFFF; margin-right: 10px;">
-              <path d="M16 4L6 12v16h5v-8h10v8h5V12L16 4z" stroke="currentColor" stroke-width="2" fill="none" stroke-linejoin="round"/>
-              <circle cx="23" cy="8" r="1" fill="currentColor"/>
-            </svg>
-            <span style="font-size: 28px; font-weight: bold; color: #FFFFFF;">HaDirot</span>
-          </div>
-          <h1 style="margin: 0; font-size: 24px;">Account Permissions Updated</h1>
-        </div>
-        
-        <div style="padding: 30px; background-color: white; margin: 0 20px;">
-          <h2 style="color: #4E4B43; margin-top: 0; font-size: 20px;">Hello ${userName}!</h2>
-          
-          <p style="color: #333; line-height: 1.6; font-size: 16px;">
-            Your featured listing permissions have been updated by our admin team.
-          </p>
-          
-          <div style="background-color: ${newLimit > 0 ? "#d4edda" : "#f8d7da"}; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid ${newLimit > 0 ? "#28a745" : "#dc3545"};">
-            <h3 style="color: ${newLimit > 0 ? "#155724" : "#721c24"}; margin-top: 0; font-size: 18px;">
-              ${newLimit > 0 ? "✅ Featured Listing Access" : "❌ Featured Listing Access Removed"}
-            </h3>
-            <p style="color: ${newLimit > 0 ? "#155724" : "#721c24"}; line-height: 1.6; margin: 0;">
-              ${
-                newLimit > 0
-                  ? `You can now feature up to <strong>${newLimit}</strong> listing${newLimit === 1 ? "" : "s"} at a time.`
-                  : "You no longer have access to feature listings."
-              }
-            </p>
-            <div style="background-color: #FDF8F4; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #C5594C;">
-              <p style="color: #273140; line-height: 1.6; margin: 0; font-family: 'itc-benguiat', Georgia, 'Times New Roman', serif;">
-              </p>
-              <p style="color: #666; font-size: 14px; margin-top: 10px; margin-bottom: 0;">
-                Previous limit: ${previousLimit} listing${previousLimit === 1 ? "" : "s"}
-              </p>
-            </div>
-          </div>
-          
-          ${
-            newLimit > 0
-              ? `
-            <div style="background-color: #e8f4f8; padding: 20px; border-radius: 8px; margin: 20px 0;">
-              <h3 style="color: #4E4B43; margin-top: 0; font-size: 18px;">⭐ Featured Listing Benefits:</h3>
-              <ul style="color: #555; line-height: 1.6; margin: 0; padding-left: 20px;">
-                <li>Premium placement in search results</li>
-                <li>Highlighted with special badges</li>
-                <li>Increased visibility to potential tenants</li>
-                <li>Priority display on the homepage</li>
-              </ul>
-            </div>
-          `
-              : ""
-          }
-          
-          <div style="text-align: center; margin: 30px 0;">
-            <a href="${window.location.origin}/dashboard" 
-               style="background-color: #4E4B43; color: white; padding: 15px 30px; text-decoration: none; border-radius: 8px; display: inline-block; font-weight: bold; font-size: 16px;">
-              View My Dashboard
-            </a>
-          </div>
-          
-          <div style="border-top: 1px solid #eee; padding-top: 20px; margin-top: 30px;">
-            <p style="color: #666; font-size: 14px; line-height: 1.6; margin: 0;">
-              If you have any questions about these changes, please contact our support team.
-            </p>
-          </div>
-        </div>
-        
-        <div style="background-color: #4E4B43; color: #FFFFFF; padding: 20px; text-align: center; margin: 0 20px;">
-          <p style="margin: 0; font-size: 14px;">
-            © 2025 HaDirot. All rights reserved.<br>
-            NYC's premier Jewish rental platform
-          </p>
-        </div>
-      </div>
-    `;
-
+    const origin = typeof window !== "undefined" ? window.location.origin : "";
+    const body =
+      newLimit > 0
+        ? `<p>You can now feature up to <strong>${newLimit}</strong> listing${newLimit === 1 ? "" : "s"} at a time.</p>`
+        : "<p>You no longer have access to feature listings.</p>";
+    const prev =
+      previousLimit !== undefined
+        ? `<p>Previous limit: ${previousLimit}</p>`
+        : "";
+    const html = renderBrandEmail({
+      title: "Account Permissions Updated",
+      intro: `Hi ${userName},`,
+      bodyHtml: `${body}${prev}`,
+      ctaLabel: "View My Dashboard",
+      ctaHref: `${origin}/dashboard`,
+    });
     return this.sendEmail({
       to: userEmail,
-      subject: `Account Permissions Updated - HaDirot`,
+      subject: "Account Permissions Updated - Hadirot",
       html,
     });
   },
 
-  // Helper function to send listing deletion confirmation email
   async sendListingDeletedEmail(
     userEmail: string,
     userName: string,
     listingTitle: string,
   ): Promise<EmailResponse> {
-    console.log("📧 Sending listing deletion email to:", userEmail);
-
-    const html = `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #f9f9f9;">
-        <div style="background-color: #dc3545; color: white; padding: 30px; text-align: center;">
-          <div style="display: flex; align-items: center; justify-content: center; margin-bottom: 10px;">
-            <svg width="40" height="40" viewBox="0 0 32 32" style="color: white; margin-right: 10px;">
-              <path d="M16 4L6 12v16h5v-8h10v8h5V12L16 4z" stroke="currentColor" stroke-width="2" fill="none" stroke-linejoin="round"/>
-              <circle cx="23" cy="8" r="1" fill="currentColor"/>
-            </svg>
-            <span style="font-size: 28px; font-weight: bold;">HaDirot</span>
-          </div>
-          <h1 style="margin: 0; font-size: 24px;">Listing Deleted</h1>
-        </div>
-        
-        <div style="padding: 30px; background-color: white; margin: 0 20px;">
-          <h2 style="color: #4E4B43; margin-top: 0; font-size: 20px;">Hello ${userName}!</h2>
-          
-          <p style="color: #333; line-height: 1.6; font-size: 16px;">
-            Your listing "<strong>${listingTitle}</strong>" has been permanently deleted from HaDirot.
-          </p>
-          
-          <div style="background-color: #f8d7da; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #dc3545;">
-            <p style="color: #721c24; line-height: 1.6; margin: 0;">
-              <strong>This action cannot be undone.</strong> The listing and all associated data have been permanently removed from our platform.
-            </p>
-          </div>
-          
-          <div style="text-align: center; margin: 30px 0;">
-            <a href="${window.location.origin}/dashboard" 
-               style="background-color: #4E4B43; color: white; padding: 15px 30px; text-decoration: none; border-radius: 8px; display: inline-block; font-weight: bold; font-size: 16px;">
-              View My Dashboard
-            </a>
-          </div>
-        </div>
-        
-        <div style="background-color: #4E4B43; color: #FFFFFF; padding: 20px; text-align: center; margin: 0 20px;">
-          <p style="margin: 0; font-size: 14px;">
-            © 2025 HaDirot. All rights reserved.<br>
-            NYC's premier Jewish rental platform
-          </p>
-        </div>
-      </div>
-    `;
-
+    const origin = typeof window !== "undefined" ? window.location.origin : "";
+    const html = renderBrandEmail({
+      title: "Listing Deleted",
+      intro: `Hi ${userName},`,
+      bodyHtml: `<p>Your listing "<strong>${listingTitle}</strong>" has been permanently deleted from Hadirot.</p>`,
+      ctaLabel: "View My Dashboard",
+      ctaHref: `${origin}/dashboard`,
+    });
     return this.sendEmail({
       to: userEmail,
-      subject: `Listing Deleted: ${listingTitle} - HaDirot`,
+      subject: `Listing Deleted: ${listingTitle} - Hadirot`,
       html,
     });
   },
 
-  // Helper function to send listing update confirmation email
   async sendListingUpdatedEmail(
     userEmail: string,
     userName: string,
     listingTitle: string,
   ): Promise<EmailResponse> {
-    console.log("📧 Sending listing update email to:", userEmail);
-
-    const html = `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #f9f9f9;">
-        <div style="background-color: #4E4B43; color: white; padding: 30px; text-align: center;">
-          <div style="display: flex; align-items: center; justify-content: center; margin-bottom: 10px;">
-            <svg width="40" height="40" viewBox="0 0 32 32" style="color: #FFFFFF; margin-right: 10px;">
-              <path d="M16 4L6 12v16h5v-8h10v8h5V12L16 4z" stroke="currentColor" stroke-width="2" fill="none" stroke-linejoin="round"/>
-              <circle cx="23" cy="8" r="1" fill="currentColor"/>
-            </svg>
-            <span style="font-size: 28px; font-weight: bold; color: #FFFFFF;">HaDirot</span>
-          </div>
-          <h1 style="margin: 0; font-size: 24px;">Listing Updated Successfully!</h1>
-        </div>
-        
-        <div style="padding: 30px; background-color: white; margin: 0 20px;">
-          <h2 style="color: #4E4B43; margin-top: 0; font-size: 20px;">Hello ${userName}!</h2>
-          
-          <p style="color: #333; line-height: 1.6; font-size: 16px;">
-            Your listing "<strong>${listingTitle}</strong>" has been updated successfully on HaDirot.
-          </p>
-          
-          <div style="background-color: #e8f4f8; padding: 20px; border-radius: 8px; margin: 20px 0;">
-            <p style="color: #555; line-height: 1.6; margin: 0;">
-              Your changes are now live and visible to potential tenants browsing HaDirot.
-            </p>
-          </div>
-          
-          <div style="text-align: center; margin: 30px 0;">
-            <a href="${window.location.origin}/dashboard" 
-               style="background-color: #4E4B43; color: white; padding: 15px 30px; text-decoration: none; border-radius: 8px; display: inline-block; font-weight: bold; font-size: 16px;">
-              View My Dashboard
-            </a>
-          </div>
-        </div>
-        
-        <div style="background-color: #4E4B43; color: #FFFFFF; padding: 20px; text-align: center; margin: 0 20px;">
-          <p style="margin: 0; font-size: 14px;">
-            © 2025 HaDirot. All rights reserved.<br>
-            NYC's premier Jewish rental platform
-          </p>
-        </div>
-      </div>
-    `;
-
-    return this.sendEmail({
-      to: userEmail,
-      subject: `Listing Updated: ${listingTitle} - HaDirot`,
-      html,
-    });
+    return this.sendListingUpdateEmail(userEmail, userName, listingTitle);
   },
 };
 
