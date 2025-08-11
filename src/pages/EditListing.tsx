@@ -1,10 +1,17 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
-import { Upload, X, Star, ArrowLeft, Save } from 'lucide-react';
-import { useAuth } from '../hooks/useAuth';
-import { listingsService } from '../services/listings';
-import { emailService } from '../services/email';
-import { PropertyType, ParkingType, HeatType, Listing, ListingImage, TempListingImage } from '../config/supabase';
+import React, { useState, useEffect, useMemo, useCallback } from "react";
+import { useParams, useNavigate, Link } from "react-router-dom";
+import { Upload, X, Star, ArrowLeft, Save } from "lucide-react";
+import { useAuth } from "../hooks/useAuth";
+import { listingsService } from "../services/listings";
+import { emailService } from "../services/email";
+import {
+  PropertyType,
+  ParkingType,
+  HeatType,
+  Listing,
+  ListingImage,
+  TempListingImage,
+} from "../config/supabase";
 
 interface ListingFormData {
   title: string;
@@ -33,13 +40,14 @@ interface ProcessedImage {
   isExisting: boolean;
 }
 
-const SUPABASE_STORAGE_BASE_URL = 'https://pxlxdlrjmrkxyygdhvku.supabase.co/storage/v1/object/public/listing-images/';
+const SUPABASE_STORAGE_BASE_URL =
+  "https://pxlxdlrjmrkxyygdhvku.supabase.co/storage/v1/object/public/listing-images/";
 
 export function EditListing() {
   const { id } = useParams<{ id: string }>();
   const { user, profile, loading: authLoading } = useAuth();
   const navigate = useNavigate();
-  
+
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [listing, setListing] = useState<Listing | null>(null);
@@ -48,23 +56,23 @@ export function EditListing() {
   const [newImages, setNewImages] = useState<TempListingImage[]>([]);
   const [showCustomNeighborhood, setShowCustomNeighborhood] = useState(false);
   const [formData, setFormData] = useState<ListingFormData>({
-    title: '',
-    description: '',
-    location: '',
-    neighborhood: '',
+    title: "",
+    description: "",
+    location: "",
+    neighborhood: "",
     bedrooms: 1,
     bathrooms: 1,
     floor: undefined,
     price: 0,
     square_footage: undefined,
-    parking: 'no',
+    parking: "no",
     washer_dryer_hookup: false,
     dishwasher: false,
-    lease_length: '',
-    heat: 'tenant_pays',
-    property_type: 'apartment_house',
-    contact_name: '',
-    contact_phone: '',
+    lease_length: "",
+    heat: "tenant_pays",
+    property_type: "apartment_house",
+    contact_name: "",
+    contact_phone: "",
   });
 
   useEffect(() => {
@@ -77,31 +85,31 @@ export function EditListing() {
   useEffect(() => {
     if (!authLoading && !loading && user && listing) {
       if (user.id !== listing.user_id) {
-        navigate('/dashboard');
+        navigate("/dashboard");
       }
     }
   }, [authLoading, loading, user, listing, navigate]);
 
   const loadListing = async () => {
     if (!id) return;
-    
+
     try {
       const data = await listingsService.getListing(id, user?.id);
-      
+
       if (!data) {
-        navigate('/dashboard');
+        navigate("/dashboard");
         return;
       }
 
       setListing(data);
       setExistingImages(data.listing_images || []);
-      
+
       // Pre-fill form data
       setFormData({
         title: data.title,
-        description: data.description || '',
+        description: data.description || "",
         location: data.location,
-        neighborhood: data.neighborhood || '',
+        neighborhood: data.neighborhood || "",
         bedrooms: data.bedrooms,
         bathrooms: data.bathrooms,
         floor: data.floor || undefined,
@@ -110,7 +118,7 @@ export function EditListing() {
         parking: data.parking,
         washer_dryer_hookup: data.washer_dryer_hookup,
         dishwasher: data.dishwasher,
-        lease_length: data.lease_length || '',
+        lease_length: data.lease_length || "",
         heat: data.heat,
         property_type: data.property_type,
         contact_name: data.contact_name,
@@ -118,83 +126,102 @@ export function EditListing() {
       });
 
       // Check if using custom neighborhood
-      const standardNeighborhoods = ['Midwood', 'Homecrest', 'Marine Park', 'Flatbush', 'Gravesend', 'Boro Park'];
-      if (data.neighborhood && !standardNeighborhoods.includes(data.neighborhood)) {
+      const standardNeighborhoods = [
+        "Midwood",
+        "Homecrest",
+        "Marine Park",
+        "Flatbush",
+        "Gravesend",
+        "Boro Park",
+      ];
+      if (
+        data.neighborhood &&
+        !standardNeighborhoods.includes(data.neighborhood)
+      ) {
         setShowCustomNeighborhood(true);
       }
     } catch (error) {
-      console.error('Error loading listing:', error);
-      navigate('/dashboard');
+      console.error("Error loading listing:", error);
+      navigate("/dashboard");
     } finally {
       setLoading(false);
     }
   };
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+  const handleInputChange = (
+    e: React.ChangeEvent<
+      HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
+    >,
+  ) => {
     const { name, value } = e.target;
     const type = e.target.type;
-    
-    if (type === 'checkbox') {
+
+    if (type === "checkbox") {
       const checked = (e.target as HTMLInputElement).checked;
-      setFormData(prev => ({ ...prev, [name]: checked }));
-    } else if (name === 'neighborhood') {
-      if (value === 'other') {
+      setFormData((prev) => ({ ...prev, [name]: checked }));
+    } else if (name === "neighborhood") {
+      if (value === "other") {
         setShowCustomNeighborhood(true);
-        setFormData(prev => ({ ...prev, [name]: '' }));
+        setFormData((prev) => ({ ...prev, [name]: "" }));
       } else {
         setShowCustomNeighborhood(false);
-        setFormData(prev => ({ ...prev, [name]: value }));
+        setFormData((prev) => ({ ...prev, [name]: value }));
       }
-    } else if (type === 'number') {
-      const numValue = value === '' ? undefined : parseFloat(value);
-      setFormData(prev => ({ ...prev, [name]: numValue }));
+    } else if (type === "number") {
+      const numValue = value === "" ? undefined : parseFloat(value);
+      setFormData((prev) => ({ ...prev, [name]: numValue }));
     } else {
-      setFormData(prev => ({ ...prev, [name]: value }));
+      setFormData((prev) => ({ ...prev, [name]: value }));
     }
   };
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
-    
+
     if (!user) {
-      alert('Please sign in to upload images');
+      alert("Please sign in to upload images");
       return;
     }
-    
+
     if (existingImages.length + newImages.length + files.length > 10) {
-      alert('Maximum 10 images allowed');
+      alert("Maximum 10 images allowed");
       return;
     }
 
     files.forEach(async (file) => {
       if (file.size > 5 * 1024 * 1024) {
-        alert('Image size should be less than 5MB');
+        alert("Image size should be less than 5MB");
         return;
       }
 
       try {
-        const { filePath, publicUrl } = await listingsService.uploadTempListingImage(file, user.id);
-        
+        const { filePath, publicUrl } =
+          await listingsService.uploadTempListingImage(file, user.id);
+
         const tempImage: TempListingImage = {
           filePath,
           publicUrl,
           is_featured: existingImages.length === 0 && newImages.length === 0,
           originalName: file.name,
         };
-        
-        setNewImages(prev => [...prev, tempImage]);
+
+        setNewImages((prev) => [...prev, tempImage]);
       } catch (error) {
-        console.error('Error uploading temp image:', error);
-        alert('Failed to upload image. Please try again.');
+        console.error("Error uploading temp image:", error);
+        alert("Failed to upload image. Please try again.");
       }
     });
   };
 
   const removeNewImage = (index: number) => {
-    setNewImages(prev => {
+    setNewImages((prev) => {
       const newImages = prev.filter((_, i) => i !== index);
       // If we removed the featured image, make the first one featured
-      if (prev[index]?.is_featured && newImages.length > 0 && existingImages.length === 0) {
+      if (
+        prev[index]?.is_featured &&
+        newImages.length > 0 &&
+        existingImages.length === 0
+      ) {
         newImages[0].is_featured = true;
       }
       return newImages;
@@ -203,51 +230,63 @@ export function EditListing() {
 
   const removeExistingImage = async (imageId: string, imageUrl: string) => {
     // Mark image for deletion instead of deleting immediately
-    setImagesToDelete(prev => [...prev, imageId]);
-    
+    setImagesToDelete((prev) => [...prev, imageId]);
+
     // If we're removing the featured image, make the first remaining image featured
-    const removedImage = existingImages.find(img => img.id === imageId);
+    const removedImage = existingImages.find((img) => img.id === imageId);
     if (removedImage?.is_featured) {
-      const remainingImages = existingImages.filter(img => img.id !== imageId && !imagesToDelete.includes(img.id));
+      const remainingImages = existingImages.filter(
+        (img) => img.id !== imageId && !imagesToDelete.includes(img.id),
+      );
       if (remainingImages.length > 0) {
-        setExistingImages(prev => prev.map(img => ({
-          ...img,
-          is_featured: img.id === remainingImages[0].id
-        })));
+        setExistingImages((prev) =>
+          prev.map((img) => ({
+            ...img,
+            is_featured: img.id === remainingImages[0].id,
+          })),
+        );
       } else if (newImages.length > 0) {
         // Make first new image featured if no existing images remain
-        setNewImages(prev => prev.map((img, i) => ({ ...img, is_featured: i === 0 })));
+        setNewImages((prev) =>
+          prev.map((img, i) => ({ ...img, is_featured: i === 0 })),
+        );
       }
     }
   };
 
   const setFeaturedExistingImage = async (imageId: string) => {
     // Update local state immediately
-    setExistingImages(prev => prev.map(img => ({
-      ...img,
-      is_featured: img.id === imageId
-    })));
+    setExistingImages((prev) =>
+      prev.map((img) => ({
+        ...img,
+        is_featured: img.id === imageId,
+      })),
+    );
 
     // Make sure no new images are featured
-    setNewImages(prev => prev.map(img => ({ ...img, is_featured: false })));
+    setNewImages((prev) => prev.map((img) => ({ ...img, is_featured: false })));
   };
 
   const setFeaturedNewImage = (index: number) => {
     // Update new images
-    setNewImages(prev => prev.map((img, i) => ({
-      ...img,
-      is_featured: i === index
-    })));
+    setNewImages((prev) =>
+      prev.map((img, i) => ({
+        ...img,
+        is_featured: i === index,
+      })),
+    );
 
     // Make sure no existing images are featured
-    setExistingImages(prev => prev.map(img => ({ ...img, is_featured: false })));
+    setExistingImages((prev) =>
+      prev.map((img) => ({ ...img, is_featured: false })),
+    );
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!user || !id) {
-      alert('Please sign in to edit this listing.');
+      alert("Please sign in to edit this listing.");
       return;
     }
 
@@ -255,16 +294,23 @@ export function EditListing() {
     try {
       // Delete marked images first
       for (const imageId of imagesToDelete) {
-        const imageToDelete = existingImages.find(img => img.id === imageId);
+        const imageToDelete = existingImages.find((img) => img.id === imageId);
         if (imageToDelete) {
-          await listingsService.deleteListingImage(imageId, imageToDelete.image_url);
+          await listingsService.deleteListingImage(
+            imageId,
+            imageToDelete.image_url,
+          );
         }
       }
 
       // Update featured status for remaining existing images
-      const remainingImages = existingImages.filter(img => !imagesToDelete.includes(img.id));
+      const remainingImages = existingImages.filter(
+        (img) => !imagesToDelete.includes(img.id),
+      );
       for (const image of remainingImages) {
-        await listingsService.updateListingImage(image.id, { is_featured: image.is_featured });
+        await listingsService.updateListingImage(image.id, {
+          is_featured: image.is_featured,
+        });
       }
 
       // Update the listing
@@ -279,36 +325,37 @@ export function EditListing() {
       }
 
       navigate(`/listing/${id}`);
-      
+
       // Send email notification to user
       try {
         if (user?.email && profile?.full_name) {
           await emailService.sendListingUpdatedEmail(
             user.email,
             profile.full_name,
-            formData.title
+            formData.title,
           );
-          console.log('✅ Email sent: listing update to', user.email);
+          console.log("✅ Email sent: listing update to", user.email);
         }
       } catch (emailError) {
-        console.error('❌ Email failed: listing update -', emailError.message);
+        console.error("❌ Email failed: listing update -", emailError.message);
         // Don't block the user flow if email fails
       }
     } catch (error) {
-      console.error('Error updating listing:', error);
-      
+      console.error("Error updating listing:", error);
+
       // Show specific error messages based on the error
-      let errorMessage = 'Failed to update listing. Please try again.';
+      let errorMessage = "Failed to update listing. Please try again.";
       if (error instanceof Error) {
-        if (error.message.includes('permission')) {
-          errorMessage = 'You do not have permission to feature listings. Please contact support to upgrade your account.';
-        } else if (error.message.includes('platform only allows')) {
+        if (error.message.includes("permission")) {
+          errorMessage =
+            "You do not have permission to feature listings. Please contact support to upgrade your account.";
+        } else if (error.message.includes("platform only allows")) {
           errorMessage = error.message;
-        } else if (error.message.includes('You can only feature')) {
+        } else if (error.message.includes("You can only feature")) {
           errorMessage = error.message;
         }
       }
-      
+
       alert(errorMessage);
     } finally {
       setSaving(false);
@@ -353,8 +400,10 @@ export function EditListing() {
       <form onSubmit={handleSubmit} className="space-y-8">
         {/* Basic Information */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-          <h2 className="text-xl font-semibold text-[#273140] mb-4">Basic Information</h2>
-          
+          <h2 className="text-xl font-semibold text-[#273140] mb-4">
+            Basic Information
+          </h2>
+
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <div className="lg:col-span-2">
               <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -403,7 +452,9 @@ export function EditListing() {
               </label>
               <select
                 name="neighborhood"
-                value={showCustomNeighborhood ? 'other' : (formData.neighborhood || '')}
+                value={
+                  showCustomNeighborhood ? "other" : formData.neighborhood || ""
+                }
                 onChange={handleInputChange}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
               >
@@ -420,7 +471,7 @@ export function EditListing() {
                 <input
                   type="text"
                   name="neighborhood"
-                  value={formData.neighborhood || ''}
+                  value={formData.neighborhood || ""}
                   onChange={handleInputChange}
                   className="mt-2 w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
                   placeholder="Enter custom neighborhood"
@@ -438,7 +489,9 @@ export function EditListing() {
                 onChange={handleInputChange}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
               >
-                <option value="apartment_building">Apartment in a building</option>
+                <option value="apartment_building">
+                  Apartment in a building
+                </option>
                 <option value="apartment_house">Apartment in a house</option>
                 <option value="full_house">Full house</option>
               </select>
@@ -448,8 +501,10 @@ export function EditListing() {
 
         {/* Property Details */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-          <h2 className="text-xl font-semibold text-[#273140] mb-4">Property Details</h2>
-          
+          <h2 className="text-xl font-semibold text-[#273140] mb-4">
+            Property Details
+          </h2>
+
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -497,7 +552,7 @@ export function EditListing() {
               <input
                 type="number"
                 name="floor"
-                value={formData.floor || ''}
+                value={formData.floor || ""}
                 onChange={handleInputChange}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
                 placeholder="2"
@@ -511,7 +566,7 @@ export function EditListing() {
               <input
                 type="number"
                 name="price"
-                value={formData.price || ''}
+                value={formData.price || ""}
                 onChange={handleInputChange}
                 required
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
@@ -526,7 +581,7 @@ export function EditListing() {
               <input
                 type="number"
                 name="square_footage"
-                value={formData.square_footage || ''}
+                value={formData.square_footage || ""}
                 onChange={handleInputChange}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
                 placeholder="800"
@@ -540,7 +595,7 @@ export function EditListing() {
               <input
                 type="text"
                 name="lease_length"
-                value={formData.lease_length || ''}
+                value={formData.lease_length || ""}
                 onChange={handleInputChange}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
                 placeholder="12 months"
@@ -611,40 +666,49 @@ export function EditListing() {
 
         {/* Images */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-          <h2 className="text-xl font-semibold text-[#273140] mb-4">Images (Up to 10)</h2>
-          
+          <h2 className="text-xl font-semibold text-[#273140] mb-4">
+            Images (Up to 10)
+          </h2>
+
           {/* Existing Images */}
-          {existingImages.filter(img => !imagesToDelete.includes(img.id)).length > 0 && (
+          {existingImages.filter((img) => !imagesToDelete.includes(img.id))
+            .length > 0 && (
             <div className="mb-6">
-              <h3 className="text-lg font-medium text-gray-900 mb-3">Current Images</h3>
+              <h3 className="text-lg font-medium text-gray-900 mb-3">
+                Current Images
+              </h3>
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                {existingImages.filter(img => !imagesToDelete.includes(img.id)).map((image) => (
-                  <div key={image.id} className="relative group">
-                    <img
-                      src={image.image_url}
-                      alt={listing?.title}
-                      className="w-full h-32 object-cover rounded-lg"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => removeExistingImage(image.id, image.image_url)}
-                      className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setFeaturedExistingImage(image.id)}
-                      className={`absolute bottom-2 left-2 px-2 py-1 rounded text-xs font-medium transition-colors ${
-                        image.is_featured
-                          ? 'bg-[#C5594C] text-white'
-                          : 'bg-black bg-opacity-50 text-white hover:bg-[#C5594C]'
-                      }`}
-                    >
-                      {image.is_featured ? 'Featured' : 'Set Featured'}
-                    </button>
-                  </div>
-                ))}
+                {existingImages
+                  .filter((img) => !imagesToDelete.includes(img.id))
+                  .map((image) => (
+                    <div key={image.id} className="relative group">
+                      <img
+                        src={image.image_url}
+                        alt={listing?.title}
+                        className="w-full h-32 object-cover rounded-lg"
+                      />
+                      <button
+                        type="button"
+                        onClick={() =>
+                          removeExistingImage(image.id, image.image_url)
+                        }
+                        className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setFeaturedExistingImage(image.id)}
+                        className={`absolute bottom-2 left-2 px-2 py-1 rounded text-xs font-medium transition-colors ${
+                          image.is_featured
+                            ? "bg-accent-500 text-white"
+                            : "bg-black bg-opacity-50 text-white hover:bg-accent-600"
+                        }`}
+                      >
+                        {image.is_featured ? "Featured" : "Set Featured"}
+                      </button>
+                    </div>
+                  ))}
               </div>
             </div>
           )}
@@ -652,7 +716,9 @@ export function EditListing() {
           {/* New Images */}
           {newImages.length > 0 && (
             <div className="mb-6">
-              <h3 className="text-lg font-medium text-gray-900 mb-3">New Images</h3>
+              <h3 className="text-lg font-medium text-gray-900 mb-3">
+                New Images
+              </h3>
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                 {newImages.map((image, index) => (
                   <div key={`new-${index}`} className="relative group">
@@ -673,11 +739,11 @@ export function EditListing() {
                       onClick={() => setFeaturedNewImage(index)}
                       className={`absolute bottom-2 left-2 px-2 py-1 rounded text-xs font-medium transition-colors ${
                         image.is_featured
-                          ? 'bg-[#C5594C] text-white'
-                          : 'bg-black bg-opacity-50 text-white hover:bg-[#C5594C]'
+                          ? "bg-accent-500 text-white"
+                          : "bg-black bg-opacity-50 text-white hover:bg-accent-600"
                       }`}
                     >
-                      {image.is_featured ? 'Featured' : 'Set Featured'}
+                      {image.is_featured ? "Featured" : "Set Featured"}
                     </button>
                   </div>
                 ))}
@@ -703,10 +769,16 @@ export function EditListing() {
                 accept="image/*"
                 onChange={handleImageUpload}
                 className="hidden"
-                disabled={existingImages.filter(img => !imagesToDelete.includes(img.id)).length + newImages.length >= 10 || !user}
+                disabled={
+                  existingImages.filter(
+                    (img) => !imagesToDelete.includes(img.id),
+                  ).length +
+                    newImages.length >=
+                    10 || !user
+                }
               />
             </label>
-            
+
             {!user && (
               <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
                 <p className="text-sm text-yellow-800">
@@ -719,8 +791,10 @@ export function EditListing() {
 
         {/* Contact Information */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-          <h2 className="text-xl font-semibold text-[#273140] mb-4">Contact Information</h2>
-          
+          <h2 className="text-xl font-semibold text-[#273140] mb-4">
+            Contact Information
+          </h2>
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -763,10 +837,10 @@ export function EditListing() {
           <button
             type="submit"
             disabled={saving}
-            className="bg-[#C5594C] text-white px-8 py-3 rounded-md font-semibold hover:bg-[#b04d42] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#C5594C] disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center"
+            className="bg-accent-500 text-white px-8 py-3 rounded-md font-semibold hover:bg-accent-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-accent-400 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center"
           >
             <Save className="w-4 h-4 mr-2" />
-            {saving ? 'Saving...' : 'Save Changes'}
+            {saving ? "Saving..." : "Save Changes"}
           </button>
         </div>
       </form>

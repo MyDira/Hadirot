@@ -1,8 +1,23 @@
-import React, { useState, useEffect } from 'react';
-import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { Home, Search, Plus, User, Heart, LogOut, Settings, LayoutDashboard, FileText, Edit3, Star, Menu, X } from 'lucide-react';
-import { useAuth } from '../../hooks/useAuth';
-import { Footer } from './Footer';
+import React, { useState, useEffect } from "react";
+import { Link, useNavigate, useLocation } from "react-router-dom";
+import {
+  Home,
+  Search,
+  Plus,
+  User,
+  Heart,
+  LogOut,
+  Settings,
+  LayoutDashboard,
+  FileText,
+  Edit3,
+  Star,
+  Menu,
+  X,
+} from "lucide-react";
+import { useAuth } from "../../hooks/useAuth";
+import { Footer } from "./Footer";
+import { capitalizeName } from "../../utils/formatters";
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -40,17 +55,20 @@ export function Layout({ children }: LayoutProps) {
   // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (userMenuRef.current && !userMenuRef.current.contains(event.target as Node)) {
+      if (
+        userMenuRef.current &&
+        !userMenuRef.current.contains(event.target as Node)
+      ) {
         setShowUserMenu(false);
       }
     };
 
     if (showUserMenu) {
-      document.addEventListener('mousedown', handleClickOutside);
+      document.addEventListener("mousedown", handleClickOutside);
     }
 
     return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener("mousedown", handleClickOutside);
     };
   }, [showUserMenu]);
 
@@ -60,175 +78,170 @@ export function Layout({ children }: LayoutProps) {
       setIsMobileMenuOpen(false);
       setShowSignOutMessage(true);
       setTimeout(() => setShowSignOutMessage(false), 3000);
-      navigate('/');
+      navigate("/");
     } catch (error) {
-      console.error('Error signing out:', error);
+      console.error("Error signing out:", error);
     }
   };
 
   const Logo = () => (
-    <div className="text-2xl font-brand uppercase text-[#273140]">
-      HaDirot
+    <div className="font-brand uppercase tracking-wide text-xl md:text-2xl">
+      HADIROT
     </div>
   );
 
   return (
-    <div className="min-h-screen bg-[#fbf5ef] flex flex-col">
-      <header className="bg-white shadow-sm border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            {/* Left spacer for balance */}
-            <div className="flex-1"></div>
-            
-            {/* Centered Logo */}
-            <Link to="/" className="flex-shrink-0">
-              <Logo />
-            </Link>
+    <div className="min-h-screen flex flex-col">
+      <header className="sticky top-0 z-50 bg-brand-800 text-white border-b border-black/5 shadow-sm">
+        <div className="max-w-7xl mx-auto px-4 md:px-6 h-14 md:h-16 flex items-center justify-between">
+          {/* Left spacer for balance */}
+          <div className="flex-1"></div>
 
-            {/* Right side navigation */}
-            <div className="flex-1 flex justify-end">
-              <nav className="hidden md:flex items-center space-x-4">
-                <Link
-                  to="/browse"
-                  className={`flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors ${
-                    location.pathname === '/browse'
-                      ? 'text-[#273140] bg-[#F0E6D5]'
-                      : 'text-gray-600 hover:text-[#273140]'
-                  }`}
-                >
-                  <Search className="w-4 h-4 mr-2" />
-                  Browse
-                </Link>
-                <Link
-                  to="/post"
-                  className={`flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors ${
-                    location.pathname === '/post'
-                      ? 'text-[#273140] bg-[#F0E6D5]'
-                      : 'text-gray-600 hover:text-[#273140]'
-                  }`}
-                >
-                  <Plus className="w-4 h-4 mr-2" />
-                  Post
-                </Link>
-              </nav>
+          {/* Centered Logo */}
+          <Link to="/" className="flex-shrink-0">
+            <Logo />
+          </Link>
 
-              <div className="hidden md:flex items-center ml-4">
-                {user ? (
-                  <div className="relative" ref={userMenuRef}>
-                    <button
-                      onClick={() => setShowUserMenu(!showUserMenu)}
-                      className="flex items-center space-x-2 text-gray-600 hover:text-[#273140] transition-colors"
-                    >
-                      <User className="w-5 h-5" />
-                      <span className="hidden sm:inline text-sm font-medium">
-                        {profile?.full_name}
-                      </span>
-                    </button>
+          {/* Right side navigation */}
+          <div className="flex-1 flex justify-end">
+            <nav className="hidden md:flex items-center space-x-4">
+              <Link
+                to="/browse"
+                className={`flex items-center px-3 py-2 text-sm font-medium rounded-md transition-opacity text-white hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-white/40 ${
+                  location.pathname === "/browse" ? "opacity-90" : ""
+                }`}
+              >
+                <Search className="w-4 h-4 mr-2" />
+                Browse
+              </Link>
+              <Link
+                to="/post"
+                className={`flex items-center px-3 py-2 text-sm font-medium rounded-md transition-opacity text-white hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-white/40 ${
+                  location.pathname === "/post" ? "opacity-90" : ""
+                }`}
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Post
+              </Link>
+            </nav>
 
-                    {showUserMenu && (
-                      <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg border border-gray-200 z-50">
-                        <div className="py-1">
-                          <div className="px-4 py-2 text-sm text-gray-500 border-b">
-                            {profile?.role === 'agent' && profile?.agency && (
-                              <span className="block">{profile.agency}</span>
-                            )}
-                            <span className="capitalize">{profile?.role}</span>
-                          </div>
-                          <Link
-                            to="/account-settings"
-                            className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                            onClick={() => setShowUserMenu(false)}
-                          >
-                            <User className="w-4 h-4 mr-2" />
-                            Account
-                          </Link>
-                          <Link
-                            to="/dashboard"
-                            className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                            onClick={() => setShowUserMenu(false)}
-                          >
-                            <LayoutDashboard className="w-4 h-4 mr-2" />
-                            My Dashboard
-                          </Link>
-                          <Link
-                            to="/favorites"
-                            className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                            onClick={() => setShowUserMenu(false)}
-                          >
-                            <Heart className="w-4 h-4 mr-2" />
-                            My Favorites
-                          </Link>
-                          {/* Debug log to check profile and loading state */}
-                          
-                          {!loading && profile?.is_admin && (
-                            <>
-                              <Link
-                                to="/admin"
-                                className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                                onClick={() => setShowUserMenu(false)}
-                              >
-                                <Settings className="w-4 h-4 mr-2" />
-                                Admin Panel
-                              </Link>
-                              <Link
-                                to="/admin/static-pages"
-                                className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                                onClick={() => setShowUserMenu(false)}
-                              >
-                                <FileText className="w-4 h-4 mr-2" />
-                                Static Pages
-                              </Link>
-                              <Link
-                                to="/admin/footer"
-                                className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                                onClick={() => setShowUserMenu(false)}
-                              >
-                                <Edit3 className="w-4 h-4 mr-2" />
-                                Footer Editor
-                              </Link>
-                              <Link
-                                to="/admin/featured-settings"
-                                className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                                onClick={() => setShowUserMenu(false)}
-                              >
-                                <Star className="w-4 h-4 mr-2" />
-                                Featured Settings
-                              </Link>
-                            </>
-                          )}
-                          <button
-                            onClick={handleSignOut}
-                            className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 text-left"
-                          >
-                            <LogOut className="w-4 h-4 mr-2" />
-                            Sign Out
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <Link
-                    to="/auth"
-                    className="bg-[#273140] text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-[#1e252f] transition-colors"
+            <div className="hidden md:flex items-center ml-4">
+              {user ? (
+                <div className="relative" ref={userMenuRef}>
+                  <button
+                    onClick={() => setShowUserMenu(!showUserMenu)}
+                    className="flex items-center space-x-2 text-white hover:opacity-90 transition-opacity focus:outline-none focus:ring-2 focus:ring-white/40"
                   >
-                    Sign In
-                  </Link>
-                )}
-              </div>
+                    <User className="w-5 h-5" />
+                    <span className="hidden sm:inline text-sm font-medium">
+                      {profile?.full_name
+                        ? capitalizeName(profile.full_name)
+                        : ""}
+                    </span>
+                  </button>
 
-              {/* Mobile menu button */}
-              <div className="md:hidden flex items-center">
-                <button
-                  onClick={() => setIsMobileMenuOpen(true)}
-                  className="text-gray-600 hover:text-[#273140] transition-colors p-2"
+                  {showUserMenu && (
+                    <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg border border-gray-200 z-50">
+                      <div className="py-1">
+                        <div className="px-4 py-2 text-sm text-gray-500 border-b">
+                          {profile?.role === "agent" && profile?.agency && (
+                            <span className="block">{profile.agency}</span>
+                          )}
+                          <span className="capitalize">{profile?.role}</span>
+                        </div>
+                        <Link
+                          to="/account-settings"
+                          className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                          onClick={() => setShowUserMenu(false)}
+                        >
+                          <User className="w-4 h-4 mr-2" />
+                          Account
+                        </Link>
+                        <Link
+                          to="/dashboard"
+                          className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                          onClick={() => setShowUserMenu(false)}
+                        >
+                          <LayoutDashboard className="w-4 h-4 mr-2" />
+                          My Dashboard
+                        </Link>
+                        <Link
+                          to="/favorites"
+                          className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                          onClick={() => setShowUserMenu(false)}
+                        >
+                          <Heart className="w-4 h-4 mr-2" />
+                          My Favorites
+                        </Link>
+                        {/* Debug log to check profile and loading state */}
+
+                        {!loading && profile?.is_admin && (
+                          <>
+                            <Link
+                              to="/admin"
+                              className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                              onClick={() => setShowUserMenu(false)}
+                            >
+                              <Settings className="w-4 h-4 mr-2" />
+                              Admin Panel
+                            </Link>
+                            <Link
+                              to="/admin/static-pages"
+                              className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                              onClick={() => setShowUserMenu(false)}
+                            >
+                              <FileText className="w-4 h-4 mr-2" />
+                              Static Pages
+                            </Link>
+                            <Link
+                              to="/admin/footer"
+                              className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                              onClick={() => setShowUserMenu(false)}
+                            >
+                              <Edit3 className="w-4 h-4 mr-2" />
+                              Footer Editor
+                            </Link>
+                            <Link
+                              to="/admin/featured-settings"
+                              className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                              onClick={() => setShowUserMenu(false)}
+                            >
+                              <Star className="w-4 h-4 mr-2" />
+                              Featured Settings
+                            </Link>
+                          </>
+                        )}
+                        <button
+                          onClick={handleSignOut}
+                          className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 text-left"
+                        >
+                          <LogOut className="w-4 h-4 mr-2" />
+                          Sign Out
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <Link
+                  to="/auth"
+                  className="bg-brand-700 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-brand-800 transition-colors"
                 >
-                  <Menu className="w-6 h-6" />
-                </button>
-              </div>
+                  Sign In
+                </Link>
+              )}
+            </div>
+
+            {/* Mobile menu button */}
+            <div className="md:hidden flex items-center">
+              <button
+                onClick={() => setIsMobileMenuOpen(true)}
+                className="p-2 text-white hover:opacity-90 transition-opacity focus:outline-none focus:ring-2 focus:ring-white/40"
+              >
+                <Menu className="w-6 h-6" />
+              </button>
             </div>
           </div>
-
         </div>
       </header>
 
@@ -236,28 +249,20 @@ export function Layout({ children }: LayoutProps) {
       {isMobileMenuOpen && (
         <>
           {/* Overlay */}
-          <div 
+          <div
             className="fixed inset-0 bg-black bg-opacity-50 z-40 md:hidden"
             onClick={() => setIsMobileMenuOpen(false)}
           />
-          
+
           {/* Sidebar */}
           <div className="fixed top-0 right-0 h-full w-80 bg-white shadow-xl z-50 md:hidden transform transition-transform duration-300 ease-in-out">
             <div className="flex flex-col h-full">
               {/* Header */}
               <div className="flex items-center justify-between p-4 border-b border-gray-200">
-                <div className="flex items-center space-x-2">
-                  <svg width="24" height="24" viewBox="0 0 32 32" className="text-[#273140]">
-                    <path
-                      d="M16 4L6 12v16h5v-8h10v8h5V12L16 4z"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      fill="none"
-                      strokeLinejoin="round"
-                    />
-                    <circle cx="23" cy="8" r="1" fill="currentColor" />
-                  </svg>
-                  <span className="text-lg font-bold text-[#273140]">HaDirot</span>
+                <div className="flex items-center">
+                  <div className="text-brand-700">
+                    <Logo />
+                  </div>
                 </div>
                 <button
                   onClick={() => setIsMobileMenuOpen(false)}
@@ -266,7 +271,7 @@ export function Layout({ children }: LayoutProps) {
                   <X className="w-6 h-6" />
                 </button>
               </div>
-              
+
               {/* Navigation */}
               <div className="flex-1 overflow-y-auto">
                 <nav className="p-4 space-y-2">
@@ -274,9 +279,9 @@ export function Layout({ children }: LayoutProps) {
                     to="/"
                     onClick={() => setIsMobileMenuOpen(false)}
                     className={`flex items-center px-4 py-3 text-base font-medium rounded-md transition-colors ${
-                      location.pathname === '/'
-                        ? 'text-[#273140] bg-[#F0E6D5]'
-                        : 'text-gray-600 hover:text-[#273140] hover:bg-gray-50'
+                      location.pathname === "/"
+                        ? "text-brand-700 bg-gray-100"
+                        : "text-gray-600 hover:text-brand-700 hover:bg-gray-50"
                     }`}
                   >
                     <Home className="w-5 h-5 mr-3" />
@@ -286,9 +291,9 @@ export function Layout({ children }: LayoutProps) {
                     to="/browse"
                     onClick={() => setIsMobileMenuOpen(false)}
                     className={`flex items-center px-4 py-3 text-base font-medium rounded-md transition-colors ${
-                      location.pathname === '/browse'
-                        ? 'text-[#273140] bg-[#F0E6D5]'
-                        : 'text-gray-600 hover:text-[#273140] hover:bg-gray-50'
+                      location.pathname === "/browse"
+                        ? "text-brand-700 bg-gray-100"
+                        : "text-gray-600 hover:text-brand-700 hover:bg-gray-50"
                     }`}
                   >
                     <Search className="w-5 h-5 mr-3" />
@@ -298,30 +303,32 @@ export function Layout({ children }: LayoutProps) {
                     to="/post"
                     onClick={() => setIsMobileMenuOpen(false)}
                     className={`flex items-center px-4 py-3 text-base font-medium rounded-md transition-colors ${
-                      location.pathname === '/post'
-                        ? 'text-[#273140] bg-[#F0E6D5]'
-                        : 'text-gray-600 hover:text-[#273140] hover:bg-gray-50'
+                      location.pathname === "/post"
+                        ? "text-brand-700 bg-gray-100"
+                        : "text-gray-600 hover:text-brand-700 hover:bg-gray-50"
                     }`}
                   >
                     <Plus className="w-5 h-5 mr-3" />
                     Post Listing
                   </Link>
-                  
+
                   {user && (
                     <>
                       <div className="border-t border-gray-200 my-4"></div>
                       <div className="px-4 py-2">
                         <div className="text-sm font-medium text-gray-900">
-                          {profile?.full_name}
+                          {profile?.full_name
+                            ? capitalizeName(profile.full_name)
+                            : ""}
                         </div>
                         <div className="text-sm text-gray-500">
-                          {profile?.role === 'agent' && profile?.agency && (
+                          {profile?.role === "agent" && profile?.agency && (
                             <span className="block">{profile.agency}</span>
                           )}
                           <span className="capitalize">{profile?.role}</span>
                         </div>
                       </div>
-                      
+
                       <Link
                         to="/account-settings"
                         onClick={() => setIsMobileMenuOpen(false)}
@@ -346,7 +353,7 @@ export function Layout({ children }: LayoutProps) {
                         <Heart className="w-5 h-5 mr-3" />
                         My Favorites
                       </Link>
-                      
+
                       {!loading && profile?.is_admin && (
                         <>
                           <div className="border-t border-gray-200 my-4"></div>
@@ -389,7 +396,7 @@ export function Layout({ children }: LayoutProps) {
                           </Link>
                         </>
                       )}
-                      
+
                       <div className="border-t border-gray-200 my-4"></div>
                       <button
                         onClick={handleSignOut}
@@ -400,7 +407,7 @@ export function Layout({ children }: LayoutProps) {
                       </button>
                     </>
                   )}
-                  
+
                   {!user && (
                     <>
                       <div className="border-t border-gray-200 my-4"></div>
@@ -430,22 +437,14 @@ export function Layout({ children }: LayoutProps) {
 
       <main className="flex-1">
         {loading ? (
-          <div className="min-h-screen bg-[#F0E6D5] flex items-center justify-center">
+          <div className="min-h-screen bg-gray-50 flex items-center justify-center">
             <div className="text-center">
-              <div className="flex items-center space-x-2 mb-4">
-                <svg width="40" height="40" viewBox="0 0 32 32" className="text-[#273140]">
-                  <path
-                    d="M16 4L6 12v16h5v-8h10v8h5V12L16 4z"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    fill="none"
-                    strokeLinejoin="round"
-                  />
-                  <circle cx="23" cy="8" r="1" fill="currentColor" />
-                </svg>
-                <span className="text-2xl font-bold text-[#273140]">HaDirot</span>
+              <div className="flex items-center justify-center mb-4">
+                <div className="text-brand-700">
+                  <Logo />
+                </div>
               </div>
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#273140] mx-auto"></div>
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-700 mx-auto"></div>
               <p className="text-gray-600 mt-4">Loading...</p>
             </div>
           </div>
@@ -455,7 +454,6 @@ export function Layout({ children }: LayoutProps) {
       </main>
 
       <Footer />
-
     </div>
   );
 }

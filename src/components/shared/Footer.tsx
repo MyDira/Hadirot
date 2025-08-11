@@ -1,7 +1,11 @@
-import React, { useState, useEffect } from 'react';
-import { Link, useLocation } from 'react-router-dom';
-import { footerService } from '../../services/footer';
-import { FooterSection, FooterRichTextData, FooterLinkData } from '../../config/supabase';
+import React, { useState, useEffect } from "react";
+import { Link, useLocation } from "react-router-dom";
+import { footerService } from "../../services/footer";
+import {
+  FooterSection,
+  FooterRichTextData,
+  FooterLinkData,
+} from "../../config/supabase";
 
 export function Footer() {
   const location = useLocation();
@@ -12,10 +16,10 @@ export function Footer() {
     const loadFooterSections = async () => {
       try {
         const sections = await footerService.getFooterSections();
-        console.log('Fetched footer sections:', sections);
+        console.log("Fetched footer sections:", sections);
         setFooterSections(sections);
       } catch (error) {
-        console.error('Error loading footer sections:', error);
+        console.error("Error loading footer sections:", error);
       } finally {
         setLoading(false);
       }
@@ -25,19 +29,22 @@ export function Footer() {
   }, [location.pathname]);
 
   const Logo = () => (
-    <div className="text-2xl font-brand uppercase text-[#F0E6D5]">
-      HaDirot
+    <div className="font-brand uppercase tracking-wide text-xl md:text-2xl text-white">
+      HADIROT
     </div>
   );
 
-  const mainInfoSection = footerSections.find(section => section.section_key === 'main_info');
+  const mainInfoSection = footerSections.find(
+    (section) => section.section_key === "main_info",
+  );
   const mainInfoData = mainInfoSection?.content_data as FooterRichTextData;
-  const linkSections = footerSections.filter(section =>
-    section.section_key !== 'main_info' && section.content_type === 'links'
+  const linkSections = footerSections.filter(
+    (section) =>
+      section.section_key !== "main_info" && section.content_type === "links",
   );
 
   return (
-    <footer className="bg-[#273140] text-[#F0E6D5] mt-auto">
+    <footer className="bg-brand-700 text-white mt-auto">
       {/* Main Footer Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="flex flex-col lg:flex-row justify-between items-start gap-8">
@@ -52,14 +59,21 @@ export function Footer() {
               </div>
             ) : mainInfoData ? (
               <div className="space-y-2">
-                <p className="text-lg font-medium text-white">{mainInfoData.tagline}</p>
-                <p className="text-sm text-[#F0E6D5] opacity-90 max-w-md">{mainInfoData.description}</p>
+                <p className="text-lg font-medium text-white">
+                  {mainInfoData.tagline}
+                </p>
+                <p className="text-sm text-white/90 max-w-md">
+                  {mainInfoData.description}
+                </p>
               </div>
             ) : (
               <div className="space-y-2">
-                <p className="text-lg font-medium text-white">NYC's Jewish rental platform</p>
-                <p className="text-sm text-[#F0E6D5] opacity-90 max-w-md">
-                  Helping tenants, landlords, and agents find the perfect match — no noise, just homes.
+                <p className="text-lg font-medium text-white">
+                  NYC's Jewish rental platform
+                </p>
+                <p className="text-sm text-white/90 max-w-md">
+                  Helping tenants, landlords, and agents find the perfect match
+                  — no noise, just homes.
                 </p>
               </div>
             )}
@@ -81,17 +95,19 @@ export function Footer() {
                 ))}
               </>
             ) : linkSections.length > 0 ? (
-              linkSections.map(section => {
+              linkSections.map((section) => {
                 const links = section.content_data as FooterLinkData[];
                 return (
                   <div key={section.id} className="space-y-4">
-                    <h3 className="text-lg font-semibold text-white">{section.title}</h3>
+                    <h3 className="text-lg font-semibold text-white">
+                      {section.title}
+                    </h3>
                     <nav className="space-y-2">
                       {links.map((link, index) => (
                         <Link
                           key={index}
                           to={link.url}
-                          className="block text-[#F0E6D5] hover:text-white transition-colors duration-200"
+                          className="block text-white/90 hover:text-white transition-colors duration-200"
                         >
                           {link.text}
                         </Link>
@@ -105,16 +121,28 @@ export function Footer() {
                 <div className="space-y-4">
                   <h3 className="text-lg font-semibold text-white">Company</h3>
                   <nav className="space-y-2">
-                    <Link to="/about" className="block text-[#F0E6D5] hover:text-white transition">
+                    <Link
+                      to="/about"
+                      className="block text-white/90 hover:text-white transition"
+                    >
                       About Us
                     </Link>
-                    <Link to="/contact" className="block text-[#F0E6D5] hover:text-white transition">
+                    <Link
+                      to="/contact"
+                      className="block text-white/90 hover:text-white transition"
+                    >
                       Contact
                     </Link>
-                    <Link to="/privacy" className="block text-[#F0E6D5] hover:text-white transition">
+                    <Link
+                      to="/privacy"
+                      className="block text-white/90 hover:text-white transition"
+                    >
                       Privacy Policy
                     </Link>
-                    <Link to="/terms" className="block text-[#F0E6D5] hover:text-white transition">
+                    <Link
+                      to="/terms"
+                      className="block text-white/90 hover:text-white transition"
+                    >
                       Terms of Use
                     </Link>
                   </nav>
@@ -122,13 +150,22 @@ export function Footer() {
                 <div className="space-y-4">
                   <h3 className="text-lg font-semibold text-white">Explore</h3>
                   <nav className="space-y-2">
-                    <Link to="/browse" className="block text-[#F0E6D5] hover:text-white transition">
+                    <Link
+                      to="/browse"
+                      className="block text-white/90 hover:text-white transition"
+                    >
                       Browse Listings
                     </Link>
-                    <Link to="/browse?featured=true" className="block text-[#F0E6D5] hover:text-white transition">
+                    <Link
+                      to="/browse?featured=true"
+                      className="block text-white/90 hover:text-white transition"
+                    >
                       Featured Listings
                     </Link>
-                    <Link to="/post" className="block text-[#F0E6D5] hover:text-white transition">
+                    <Link
+                      to="/post"
+                      className="block text-white/90 hover:text-white transition"
+                    >
                       Post a Listing
                     </Link>
                   </nav>
@@ -140,10 +177,10 @@ export function Footer() {
       </div>
 
       {/* Bottom Footer Bar */}
-      <div className="border-t border-[#3a4553] bg-[#1e252f]">
+      <div className="border-t border-black/10 bg-brand-800">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
           <div className="flex flex-col sm:flex-row justify-between items-center space-y-2 sm:space-y-0">
-            <p className="text-sm text-[#F0E6D5] opacity-75">
+            <p className="text-sm text-white/75">
               © 2025 HaDirot. All rights reserved.
             </p>
           </div>

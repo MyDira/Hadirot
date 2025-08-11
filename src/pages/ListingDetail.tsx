@@ -1,10 +1,26 @@
-import React, { useState, useEffect } from 'react';
-import { useParams, Link, useNavigate } from 'react-router-dom';
-import { Bed, Bath, Car, MapPin, Star, Heart, Phone, User, Calendar, Home as HomeIcon, Square, ArrowLeft, Flame, Droplets, WashingMachine } from 'lucide-react';
-import { Listing } from '../config/supabase';
-import { listingsService } from '../services/listings';
-import { useAuth } from '../hooks/useAuth';
-import { SimilarListings } from '../components/listings/SimilarListings';
+import React, { useState, useEffect } from "react";
+import { useParams, Link, useNavigate } from "react-router-dom";
+import {
+  Bed,
+  Bath,
+  Car,
+  MapPin,
+  Star,
+  Heart,
+  Phone,
+  User,
+  Calendar,
+  Home as HomeIcon,
+  Square,
+  ArrowLeft,
+  Flame,
+  Droplets,
+  WashingMachine,
+} from "lucide-react";
+import { Listing } from "../config/supabase";
+import { listingsService } from "../services/listings";
+import { useAuth } from "../hooks/useAuth";
+import { SimilarListings } from "../components/listings/SimilarListings";
 
 export function ListingDetail() {
   const { id } = useParams<{ id: string }>();
@@ -33,21 +49,40 @@ export function ListingDetail() {
 
   const getOrdinalWordText = (num: number): string => {
     const ordinals = [
-      '', 'First', 'Second', 'Third', 'Fourth', 'Fifth', 'Sixth', 'Seventh', 'Eighth', 'Ninth', 'Tenth',
-      'Eleventh', 'Twelfth', 'Thirteenth', 'Fourteenth', 'Fifteenth', 'Sixteenth', 'Seventeenth', 'Eighteenth', 'Nineteenth', 'Twentieth'
+      "",
+      "First",
+      "Second",
+      "Third",
+      "Fourth",
+      "Fifth",
+      "Sixth",
+      "Seventh",
+      "Eighth",
+      "Ninth",
+      "Tenth",
+      "Eleventh",
+      "Twelfth",
+      "Thirteenth",
+      "Fourteenth",
+      "Fifteenth",
+      "Sixteenth",
+      "Seventeenth",
+      "Eighteenth",
+      "Nineteenth",
+      "Twentieth",
     ];
     return ordinals[num] || `${getOrdinalSuffixText(num)}`;
   };
 
   const formatPhoneNumber = (phone: string): string => {
     // Remove all non-digit characters
-    const cleaned = phone.replace(/\D/g, '');
-    
+    const cleaned = phone.replace(/\D/g, "");
+
     // Format as (XXX) XXX-XXXX if it's a 10-digit number
     if (cleaned.length === 10) {
       return `(${cleaned.slice(0, 3)}) ${cleaned.slice(3, 6)}-${cleaned.slice(6)}`;
     }
-    
+
     // Return original if not 10 digits
     return phone;
   };
@@ -70,28 +105,28 @@ export function ListingDetail() {
           await listingsService.incrementListingView(id);
           hasViewedRef.current = true;
         } catch (error) {
-          console.error('Error incrementing view count:', error);
+          console.error("Error incrementing view count:", error);
         }
       };
-      
+
       incrementView();
     }
   }, [id]); // Only depends on id, not user or other state
-  
+
   const loadListing = async () => {
     if (!id) return;
-    
+
     try {
       setError(null);
       const data = await listingsService.getListing(id, user?.id);
       if (data) {
         setListing(data);
       } else {
-        setError('Listing not found or no longer available');
+        setError("Listing not found or no longer available");
       }
     } catch (error) {
-      console.error('Error loading listing:', error);
-      setError('Failed to load listing. Please try again.');
+      console.error("Error loading listing:", error);
+      setError("Failed to load listing. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -100,7 +135,7 @@ export function ListingDetail() {
   const handleFavoriteToggle = async () => {
     if (!user || !listing) {
       if (!user) {
-        navigate('/auth', { state: { isSignUp: true } });
+        navigate("/auth", { state: { isSignUp: true } });
       }
       return;
     }
@@ -111,15 +146,19 @@ export function ListingDetail() {
       } else {
         await listingsService.addToFavorites(user.id, listing.id);
       }
-      
+
       // Update local state immediately for better UX
-      setListing(prev => prev ? { ...prev, is_favorited: !prev.is_favorited } : null);
+      setListing((prev) =>
+        prev ? { ...prev, is_favorited: !prev.is_favorited } : null,
+      );
     } catch (error) {
-      console.error('Error toggling favorite:', error);
-      alert('Failed to update favorite. Please try again.');
-      
+      console.error("Error toggling favorite:", error);
+      alert("Failed to update favorite. Please try again.");
+
       // Revert the optimistic update on error
-      setListing(prev => prev ? { ...prev, is_favorited: !prev.is_favorited } : null);
+      setListing((prev) =>
+        prev ? { ...prev, is_favorited: !prev.is_favorited } : null,
+      );
     }
   };
 
@@ -144,45 +183,46 @@ export function ListingDetail() {
   if (!listing) {
     return (
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 text-center">
-        <p className="text-gray-600">{error || 'Listing not found.'}</p>
+        <p className="text-gray-600">{error || "Listing not found."}</p>
       </div>
     );
   }
 
   const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
     }).format(price);
   };
 
   const getRoleLabel = () => {
-    if (listing.owner?.role === 'agent') {
-      return 'Agent';
+    if (listing.owner?.role === "agent") {
+      return "Agent";
     }
-    return listing.owner?.role === 'landlord' ? 'Landlord' : 'Homeowner';
+    return listing.owner?.role === "landlord" ? "Landlord" : "Homeowner";
   };
 
   const getPropertyTypeLabel = () => {
     switch (listing.property_type) {
-      case 'apartment_building':
-        return 'Apartment in Building';
-      case 'apartment_house':
-        return 'Apartment in House';
-      case 'full_house':
-        return 'Full House';
+      case "apartment_building":
+        return "Apartment in Building";
+      case "apartment_house":
+        return "Apartment in House";
+      case "full_house":
+        return "Full House";
       default:
         return listing.property_type;
     }
   };
 
-  const images = listing.listing_images?.sort((a, b) => {
-    if (a.is_featured && !b.is_featured) return -1;
-    if (!a.is_featured && b.is_featured) return 1;
-    return a.sort_order - b.sort_order;
-  }) || [];
+  const images =
+    listing.listing_images?.sort((a, b) => {
+      if (a.is_featured && !b.is_featured) return -1;
+      if (!a.is_featured && b.is_featured) return 1;
+      return a.sort_order - b.sort_order;
+    }) || [];
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -196,7 +236,7 @@ export function ListingDetail() {
       </Link>
 
       {/* Image Gallery */}
-      {images.length > 0 && (
+      {images.length > 0 ? (
         <div className="mb-8">
           {/* Main Image Viewer */}
           <div className="relative mb-4">
@@ -205,16 +245,16 @@ export function ListingDetail() {
               alt={listing.title}
               className="w-full h-96 object-contain bg-gray-100 rounded-lg"
             />
-            
+
             <button
               onClick={handleFavoriteToggle}
               className="absolute top-4 right-4 p-3 bg-white rounded-full shadow-lg hover:shadow-xl transition-shadow"
             >
               <Heart
                 className={`w-6 h-6 ${
-                  listing.is_favorited 
-                    ? 'text-red-500 fill-current' 
-                    : 'text-gray-400 hover:text-red-500'
+                  listing.is_favorited
+                    ? "text-red-500 fill-current"
+                    : "text-gray-400 hover:text-red-500"
                 }`}
               />
             </button>
@@ -226,7 +266,9 @@ export function ListingDetail() {
                     key={index}
                     onClick={() => setCurrentImageIndex(index)}
                     className={`w-3 h-3 rounded-full transition-colors ${
-                      index === currentImageIndex ? 'bg-white' : 'bg-white bg-opacity-50'
+                      index === currentImageIndex
+                        ? "bg-white"
+                        : "bg-white bg-opacity-50"
                     }`}
                   />
                 ))}
@@ -241,16 +283,28 @@ export function ListingDetail() {
                 {/* Left Arrow */}
                 <button
                   onClick={() => {
-                    const container = document.getElementById('thumbnail-container');
+                    const container = document.getElementById(
+                      "thumbnail-container",
+                    );
                     if (container) {
-                      container.scrollBy({ left: -200, behavior: 'smooth' });
+                      container.scrollBy({ left: -200, behavior: "smooth" });
                     }
                   }}
                   className="flex-shrink-0 p-2 mr-2 bg-white rounded-full shadow-md hover:shadow-lg transition-shadow z-10"
                   aria-label="Scroll thumbnails left"
                 >
-                  <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                  <svg
+                    className="w-4 h-4 text-gray-600"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M15 19l-7-7 7-7"
+                    />
                   </svg>
                 </button>
 
@@ -258,16 +312,16 @@ export function ListingDetail() {
                 <div
                   id="thumbnail-container"
                   className="flex-1 flex gap-3 overflow-x-auto scrollbar-hide scroll-smooth"
-                  style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+                  style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
                 >
                   {images.map((image, index) => (
                     <button
                       key={index}
                       onClick={() => setCurrentImageIndex(index)}
                       className={`flex-shrink-0 relative rounded-lg overflow-hidden transition-all ${
-                        index === currentImageIndex 
-                          ? 'ring-2 ring-[#4E4B43] shadow-md' 
-                          : 'hover:ring-2 hover:ring-gray-300'
+                        index === currentImageIndex
+                          ? "ring-2 ring-[#4E4B43] shadow-md"
+                          : "hover:ring-2 hover:ring-gray-300"
                       }`}
                     >
                       <img
@@ -290,21 +344,53 @@ export function ListingDetail() {
                 {/* Right Arrow */}
                 <button
                   onClick={() => {
-                    const container = document.getElementById('thumbnail-container');
+                    const container = document.getElementById(
+                      "thumbnail-container",
+                    );
                     if (container) {
-                      container.scrollBy({ left: 200, behavior: 'smooth' });
+                      container.scrollBy({ left: 200, behavior: "smooth" });
                     }
                   }}
                   className="flex-shrink-0 p-2 ml-2 bg-white rounded-full shadow-md hover:shadow-lg transition-shadow z-10"
                   aria-label="Scroll thumbnails right"
                 >
-                  <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  <svg
+                    className="w-4 h-4 text-gray-600"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M9 5l7 7-7 7"
+                    />
                   </svg>
                 </button>
               </div>
             </div>
           )}
+        </div>
+      ) : (
+        <div className="mb-8">
+          <div className="w-full aspect-[4/3] bg-brand-50 flex items-center justify-center border border-gray-100 rounded-lg">
+            <svg
+              width="64"
+              height="64"
+              viewBox="0 0 24 24"
+              className="text-brand-700"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.5"
+            >
+              <path d="M3 10.5L12 3l9 7.5v9a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 19.5v-9z" />
+              <path d="M9 21V12h6v9" />
+            </svg>
+            <span className="ml-3 text-brand-700/90 text-base">
+              No image available
+            </span>
+          </div>
         </div>
       )}
 
@@ -315,7 +401,9 @@ export function ListingDetail() {
           <div className="mb-6">
             <div className="flex items-start justify-between mb-4">
               <div>
-                <h1 className="text-3xl font-bold text-[#273140] mb-2">{listing.title}</h1>
+                <h1 className="text-3xl font-bold text-[#273140] mb-2">
+                  {listing.title}
+                </h1>
                 <div className="flex items-center text-gray-600 mb-2">
                   <MapPin className="w-5 h-5 mr-2" />
                   <span className="text-lg">
@@ -325,20 +413,22 @@ export function ListingDetail() {
                 </div>
                 <div className="text-3xl font-bold text-[#273140]">
                   {formatPrice(listing.price)}
-                  <span className="text-lg font-normal text-gray-500">/month</span>
+                  <span className="text-lg font-normal text-gray-500">
+                    /month
+                  </span>
                 </div>
               </div>
-              
+
               <div className="flex flex-wrap gap-2">
                 {listing.is_featured && (
-                  <span className="bg-[#C5594C] text-white px-3 py-1 rounded-full text-sm font-medium flex items-center">
+                  <span className="bg-accent-500 text-white px-3 py-1 rounded-full text-sm font-medium flex items-center">
                     <Star className="w-4 h-4 mr-1" />
                     Featured
                   </span>
                 )}
                 <span className="bg-[#667B9A] text-white px-3 py-1 rounded-full text-sm font-medium">
-                  {listing.owner?.role === 'agent' && listing.owner?.agency 
-                    ? listing.owner.agency 
+                  {listing.owner?.role === "agent" && listing.owner?.agency
+                    ? listing.owner.agency
                     : getRoleLabel()}
                 </span>
               </div>
@@ -348,11 +438,13 @@ export function ListingDetail() {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 bg-gray-50 rounded-lg">
               <div className="flex items-center">
                 <div>
-                  <div className="font-semibold">{listing.bedrooms === 0 ? 'Studio' : listing.bedrooms}</div>
+                  <div className="font-semibold">
+                    {listing.bedrooms === 0 ? "Studio" : listing.bedrooms}
+                  </div>
                 </div>
                 <Bed className="w-5 h-5 text-[#273140] ml-2" />
               </div>
-              
+
               <div className="flex items-center">
                 <div>
                   <div className="font-semibold">{listing.bathrooms}</div>
@@ -363,14 +455,18 @@ export function ListingDetail() {
               {listing.square_footage && (
                 <div className="flex items-center">
                   <div>
-                    <div className="font-semibold">{formatSquareFootage(listing.square_footage)} sq ft</div>
+                    <div className="font-semibold">
+                      {formatSquareFootage(listing.square_footage)} sq ft
+                    </div>
                   </div>
                 </div>
               )}
 
               <div className="flex items-center">
                 <div>
-                  <div className="font-semibold text-sm">{getPropertyTypeLabel()}</div>
+                  <div className="font-semibold text-sm">
+                    {getPropertyTypeLabel()}
+                  </div>
                 </div>
                 <HomeIcon className="w-5 h-5 text-[#273140] ml-2" />
               </div>
@@ -380,7 +476,9 @@ export function ListingDetail() {
           {/* Description */}
           {listing.description && (
             <div className="mb-8">
-              <h2 className="text-2xl font-bold text-[#273140] mb-4">Description</h2>
+              <h2 className="text-2xl font-bold text-[#273140] mb-4">
+                Description
+              </h2>
               <p className="text-gray-700 leading-relaxed whitespace-pre-wrap">
                 {listing.description}
               </p>
@@ -389,17 +487,21 @@ export function ListingDetail() {
 
           {/* Amenities */}
           <div className="mb-8">
-            <h2 className="text-2xl font-bold text-[#273140] mb-4">Features & Amenities</h2>
+            <h2 className="text-2xl font-bold text-[#273140] mb-4">
+              Features & Amenities
+            </h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {listing.parking !== 'no' && (
+              {listing.parking !== "no" && (
                 <div className="flex items-center">
                   <Car className="w-5 h-5 text-[#273140] mr-3" />
-                  <span className="capitalize">{listing.parking.replace('_', ' ')}</span>
+                  <span className="capitalize">
+                    {listing.parking.replace("_", " ")}
+                  </span>
                 </div>
               )}
-              
+
               {listing.washer_dryer_hookup && (
-                <div className="flex items-center"> 
+                <div className="flex items-center">
                   <WashingMachine className="w-5 h-5 text-[#273140] mr-3" />
                   <span>Washer/Dryer Hookup</span>
                 </div>
@@ -414,13 +516,19 @@ export function ListingDetail() {
 
               <div className="flex items-center">
                 <Flame className="w-5 h-5 text-[#273140] mr-3" />
-                <span>{listing.heat === 'included' ? 'Heat Included' : 'Tenant Pays Heat'}</span>
+                <span>
+                  {listing.heat === "included"
+                    ? "Heat Included"
+                    : "Tenant Pays Heat"}
+                </span>
               </div>
 
               {listing.floor && (
                 <div className="flex items-center">
                   <div className="w-5 h-5 bg-[#273140] rounded mr-3 flex items-center justify-center">
-                    <span className="text-white text-xs font-bold">{listing.floor}</span>
+                    <span className="text-white text-xs font-bold">
+                      {listing.floor}
+                    </span>
                   </div>
                   <span>{getOrdinalWordText(listing.floor)} Floor</span>
                 </div>
@@ -439,8 +547,10 @@ export function ListingDetail() {
         {/* Contact Card */}
         <div className="lg:col-span-1">
           <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-6 sticky top-8">
-            <h3 className="text-xl font-bold text-[#273140] mb-4">Contact Information</h3>
-            
+            <h3 className="text-xl font-bold text-[#273140] mb-4">
+              Contact Information
+            </h3>
+
             <div className="space-y-4">
               <div className="flex items-center">
                 <User className="w-5 h-5 text-[#273140] mr-3" />
@@ -469,10 +579,10 @@ export function ListingDetail() {
                 <Phone className="w-5 h-5 mr-2" />
                 Call Now
               </a>
-              
+
               <a
-                href={`sms:${listing.contact_phone.replace(/\D/g, '')}?body=Hi, I'm interested in your listing: ${listing.title}`}
-                className="w-full bg-[#C5594C] text-white py-3 px-4 rounded-md font-semibold hover:bg-[#b04d42] transition-colors flex items-center justify-center"
+                href={`sms:${listing.contact_phone.replace(/\D/g, "")}?body=Hi, I'm interested in your listing: ${listing.title}`}
+                className="w-full bg-accent-500 text-white py-3 px-4 rounded-md font-semibold hover:bg-accent-600 transition-colors flex items-center justify-center"
               >
                 Send Message
               </a>

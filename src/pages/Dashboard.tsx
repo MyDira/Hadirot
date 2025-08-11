@@ -1,16 +1,28 @@
-import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
-import { Edit, Eye, Star, Trash2, RefreshCw, Plus, EyeOff, AlertTriangle } from 'lucide-react';
-import { useAuth } from '../hooks/useAuth';
-import { Listing } from '../config/supabase';
-import { listingsService } from '../services/listings';
-import { profilesService } from '../services/profiles';
-import { emailService } from '../services/email';
+import React, { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
+import {
+  Edit,
+  Eye,
+  Star,
+  Trash2,
+  RefreshCw,
+  Plus,
+  EyeOff,
+  AlertTriangle,
+} from "lucide-react";
+import { useAuth } from "../hooks/useAuth";
+import { Listing } from "../config/supabase";
+import { listingsService } from "../services/listings";
+import { profilesService } from "../services/profiles";
+import { emailService } from "../services/email";
 
 export default function Dashboard() {
   const { user, profile, loading: authLoading, refreshProfile } = useAuth();
   const [listings, setListings] = useState<Listing[]>([]);
-  const [adminSettings, setAdminSettings] = useState<{ max_featured_listings: number; max_featured_per_user: number } | null>(null);
+  const [adminSettings, setAdminSettings] = useState<{
+    max_featured_listings: number;
+    max_featured_per_user: number;
+  } | null>(null);
   const [globalFeaturedCount, setGlobalFeaturedCount] = useState<number>(0);
   const [currentUserProfile, setCurrentUserProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -30,7 +42,7 @@ export default function Dashboard() {
       const settings = await listingsService.getAdminSettings();
       setAdminSettings(settings);
     } catch (error) {
-      console.error('Error loading admin settings:', error);
+      console.error("Error loading admin settings:", error);
     }
   };
 
@@ -39,80 +51,91 @@ export default function Dashboard() {
       const count = await listingsService.getGlobalFeaturedCount();
       setGlobalFeaturedCount(count);
     } catch (error) {
-      console.error('Error loading global featured count:', error);
+      console.error("Error loading global featured count:", error);
     }
   };
 
   const loadCurrentUserProfile = async () => {
     if (!user) return;
-    
+
     try {
       const profileData = await profilesService.getProfile(user.id);
       setCurrentUserProfile(profileData);
     } catch (error) {
-      console.error('Error loading current user profile:', error);
+      console.error("Error loading current user profile:", error);
     }
   };
 
   const loadUserListings = async () => {
     if (!user) return;
-    
+
     try {
       const data = await listingsService.getUserListings(user.id);
       setListings(data);
     } catch (error) {
-      console.error('Error loading user listings:', error);
+      console.error("Error loading user listings:", error);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleToggleFeature = async (listingId: string, isFeatured: boolean) => {
+  const handleToggleFeature = async (
+    listingId: string,
+    isFeatured: boolean,
+  ) => {
     setActionLoading(listingId);
     try {
       const updates: any = { is_featured: !isFeatured };
-      
+
       // The service layer will handle setting featured_expires_at automatically
 
       await listingsService.updateListing(listingId, updates);
-      
+
       // Send email notification for featured status change
       try {
         if (user?.email && profile?.full_name) {
-          const listing = listings.find(l => l.id === listingId);
+          const listing = listings.find((l) => l.id === listingId);
           if (listing) {
             await emailService.sendListingFeaturedEmail(
               user.email,
               profile.full_name,
               listing.title,
-              !isFeatured // New featured status (opposite of current)
+              !isFeatured, // New featured status (opposite of current)
             );
-            console.log('✅ Email sent: featured status change to', user.email);
+            console.log("✅ Email sent: featured status change to", user.email);
           }
         }
       } catch (emailError) {
-        console.error('❌ Email failed: featured status change -', emailError.message);
+        console.error(
+          "❌ Email failed: featured status change -",
+          emailError.message,
+        );
         // Don't block the user flow if email fails
       }
-      
+
       await loadUserListings();
       // Refresh user profile to get updated permissions and limits
       await refreshProfile();
     } catch (error) {
-      console.error('Error toggling featured status:', error);
-      
+      console.error("Error toggling featured status:", error);
+
       // Show specific error messages based on the error
-      let errorMessage = 'Failed to update listing. Please try again.';
+      let errorMessage = "Failed to update listing. Please try again.";
       if (error instanceof Error) {
-        if (error.message.includes('permission')) {
-          errorMessage = 'You do not have permission to feature listings. Please contact support to upgrade your account.';
-        } else if (error.message.includes('sitewide maximum') || error.message.includes('platform only allows')) {
-          errorMessage = 'The website limit for featured listings has been reached. Please try again later.';
-        } else if (error.message.includes('You can only feature')) {
+        if (error.message.includes("permission")) {
+          errorMessage =
+            "You do not have permission to feature listings. Please contact support to upgrade your account.";
+        } else if (
+          error.message.includes("sitewide maximum") ||
+          error.message.includes("platform only allows")
+        ) {
+          errorMessage =
+            "The website limit for featured listings has been reached. Please try again later.";
+        } else if (error.message.includes("You can only feature")) {
           errorMessage = error.message;
         }
       }
-      
+
       alert(errorMessage);
     } finally {
       setActionLoading(null);
@@ -125,141 +148,168 @@ export default function Dashboard() {
   const handleRenewListing = async (listingId: string) => {
     setActionLoading(listingId);
     try {
-      await listingsService.updateListing(listingId, { 
+      await listingsService.updateListing(listingId, {
         last_published_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
-        is_active: true
+        is_active: true,
       });
-      
+
       // Send email notification for listing reactivation
       try {
         if (user?.email && profile?.full_name) {
-          const listing = listings.find(l => l.id === listingId);
+          const listing = listings.find((l) => l.id === listingId);
           if (listing) {
             await emailService.sendListingReactivationEmail(
               user.email,
               profile.full_name,
-              listing.title
+              listing.title,
             );
-            console.log('✅ Email sent: listing reactivation to', user.email);
+            console.log("✅ Email sent: listing reactivation to", user.email);
           }
         }
       } catch (emailError) {
-        console.error('❌ Email failed: listing reactivation -', emailError.message);
+        console.error(
+          "❌ Email failed: listing reactivation -",
+          emailError.message,
+        );
         // Don't block the user flow if email fails
       }
-      
+
       await loadUserListings();
     } catch (error) {
-      console.error('Error renewing listing:', error);
-      alert('Failed to renew listing. Please try again.');
+      console.error("Error renewing listing:", error);
+      alert("Failed to renew listing. Please try again.");
     } finally {
       setActionLoading(null);
     }
   };
 
   const handleUnpublishListing = async (listingId: string) => {
-    if (!confirm('Are you sure you want to unpublish this listing? It will be hidden from public view but can be republished later.')) {
+    if (
+      !confirm(
+        "Are you sure you want to unpublish this listing? It will be hidden from public view but can be republished later.",
+      )
+    ) {
       return;
     }
 
     setActionLoading(listingId);
     try {
-      await listingsService.updateListing(listingId, { 
+      await listingsService.updateListing(listingId, {
         is_active: false,
-        updated_at: new Date().toISOString()
+        updated_at: new Date().toISOString(),
       });
       await loadUserListings();
-      
+
       // Send email notification
       try {
         if (user?.email && profile?.full_name) {
-          const listing = listings.find(l => l.id === listingId);
+          const listing = listings.find((l) => l.id === listingId);
           if (listing) {
             await emailService.sendListingDeactivationEmail(
               user.email,
               profile.full_name,
-              listing.title
+              listing.title,
             );
-            console.log('✅ Email sent: listing deactivation to', user.email);
+            console.log("✅ Email sent: listing deactivation to", user.email);
           }
         }
       } catch (emailError) {
-        console.error('❌ Email failed: listing deactivation -', emailError.message);
+        console.error(
+          "❌ Email failed: listing deactivation -",
+          emailError.message,
+        );
         // Don't block the user flow if email fails
       }
     } catch (error) {
-      console.error('Error unpublishing listing:', error);
-      alert('Failed to unpublish listing. Please try again.');
+      console.error("Error unpublishing listing:", error);
+      alert("Failed to unpublish listing. Please try again.");
     } finally {
       setActionLoading(null);
     }
   };
   const handleDeleteListing = async (listingId: string) => {
-    if (!confirm('Are you sure you want to permanently delete this listing? This action cannot be undone.')) {
+    if (
+      !confirm(
+        "Are you sure you want to permanently delete this listing? This action cannot be undone.",
+      )
+    ) {
       return;
     }
 
     // Store listing data before deletion for email
-    const listingToDelete = listings.find(l => l.id === listingId);
+    const listingToDelete = listings.find((l) => l.id === listingId);
 
     setActionLoading(listingId);
     try {
       await listingsService.deleteListing(listingId);
       // Remove from UI immediately on success
-      setListings(prev => prev.filter(listing => listing.id !== listingId));
-      
+      setListings((prev) => prev.filter((listing) => listing.id !== listingId));
+
       // Send email notification
       try {
         if (user?.email && profile?.full_name && listingToDelete) {
-            await emailService.sendListingDeletedEmail(
-              user.email,
-              profile.full_name,
-              listingToDelete.title
-            );
-            console.log('✅ Email sent: listing deletion to', user.email);
+          await emailService.sendListingDeletedEmail(
+            user.email,
+            profile.full_name,
+            listingToDelete.title,
+          );
+          console.log("✅ Email sent: listing deletion to", user.email);
         }
       } catch (emailError) {
-        console.error('❌ Email failed: listing deletion -', emailError.message);
+        console.error(
+          "❌ Email failed: listing deletion -",
+          emailError.message,
+        );
         // Don't block the user flow if email fails
       }
-      
-      console.log('✅ Listing deleted successfully');
+
+      console.log("✅ Listing deleted successfully");
     } catch (error) {
-      console.error('❌ Error deleting listing:', error);
-      alert('Failed to delete listing. Please try again.');
+      console.error("❌ Error deleting listing:", error);
+      alert("Failed to delete listing. Please try again.");
     } finally {
       setActionLoading(null);
     }
   };
 
   const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
     }).format(price);
   };
 
   // Calculate user's effective featured limit and current count
-  const effectiveUserFeaturedLimit = (currentUserProfile || profile)?.is_admin 
-    ? Infinity 
-    : ((currentUserProfile || profile)?.max_featured_listings_per_user ?? adminSettings?.max_featured_per_user ?? 0);
-  
-  const currentUserFeaturedCount = listings.filter(listing => 
-    listing.is_featured && 
-    (!listing.featured_expires_at || new Date(listing.featured_expires_at) > new Date())
+  const effectiveUserFeaturedLimit = (currentUserProfile || profile)?.is_admin
+    ? Infinity
+    : ((currentUserProfile || profile)?.max_featured_listings_per_user ??
+      adminSettings?.max_featured_per_user ??
+      0);
+
+  const currentUserFeaturedCount = listings.filter(
+    (listing) =>
+      listing.is_featured &&
+      (!listing.featured_expires_at ||
+        new Date(listing.featured_expires_at) > new Date()),
   ).length;
 
-  const globalLimitReached = adminSettings ? globalFeaturedCount >= adminSettings.max_featured_listings : false;
-  const canFeatureMore = (currentUserProfile || profile)?.is_admin || currentUserFeaturedCount < effectiveUserFeaturedLimit;
+  const globalLimitReached = adminSettings
+    ? globalFeaturedCount >= adminSettings.max_featured_listings
+    : false;
+  const canFeatureMore =
+    (currentUserProfile || profile)?.is_admin ||
+    currentUserFeaturedCount < effectiveUserFeaturedLimit;
 
   // Helper function to check if a listing is actually featured (not expired)
   const isListingCurrentlyFeatured = (listing: Listing) => {
-    return listing.is_featured && 
-           listing.featured_expires_at && 
-           new Date(listing.featured_expires_at) > new Date();
+    return (
+      listing.is_featured &&
+      listing.featured_expires_at &&
+      new Date(listing.featured_expires_at) > new Date()
+    );
   };
   if (authLoading) {
     return (
@@ -278,14 +328,21 @@ export default function Dashboard() {
           <div className="flex items-center">
             <AlertTriangle className="w-5 h-5 text-red-600 mr-3 flex-shrink-0" />
             <div className="text-red-800">
-              <p className="font-medium">🚫 Your account has been banned. Your listings are hidden from public view.</p>
+              <p className="font-medium">
+                🚫 Your account has been banned. Your listings are hidden from
+                public view.
+              </p>
             </div>
           </div>
         </div>
       )}
 
       <h1 className="text-3xl font-bold text-[#273140] mb-4">
-        Welcome back{(currentUserProfile || profile)?.full_name ? `, ${(currentUserProfile || profile).full_name}` : ''}!
+        Welcome back
+        {(currentUserProfile || profile)?.full_name
+          ? `, ${(currentUserProfile || profile).full_name}`
+          : ""}
+        !
       </h1>
 
       <div>
@@ -293,7 +350,7 @@ export default function Dashboard() {
           <p className="text-gray-600">Manage your property listings</p>
           <Link
             to="/post"
-            className="bg-[#C5594C] text-white px-4 py-2 rounded-md font-medium hover:bg-[#b04d42] transition-colors flex items-center"
+            className="bg-accent-500 text-white px-4 py-2 rounded-md font-medium hover:bg-accent-600 transition-colors flex items-center"
           >
             <Plus className="w-4 h-4 mr-2" />
             Add New Listing
@@ -322,11 +379,15 @@ export default function Dashboard() {
                 />
               </svg>
             </div>
-            <h3 className="text-lg font-medium text-gray-900 mb-2">No listings yet</h3>
-            <p className="text-gray-500 mb-4">Start by creating your first property listing.</p>
+            <h3 className="text-lg font-medium text-gray-900 mb-2">
+              No listings yet
+            </h3>
+            <p className="text-gray-500 mb-4">
+              Start by creating your first property listing.
+            </p>
             <Link
               to="/post"
-              className="inline-flex items-center bg-[#C5594C] text-white px-4 py-2 rounded-md font-medium hover:bg-[#b04d42] transition-colors"
+              className="inline-flex items-center bg-accent-500 text-white px-4 py-2 rounded-md font-medium hover:bg-accent-600 transition-colors"
             >
               <Plus className="w-4 h-4 mr-2" />
               Create Listing
@@ -360,8 +421,10 @@ export default function Dashboard() {
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                   {listings.map((listing) => {
-                    const featuredImage = listing.listing_images?.find(img => img.is_featured) || listing.listing_images?.[0];
-                    
+                    const featuredImage =
+                      listing.listing_images?.find((img) => img.is_featured) ||
+                      listing.listing_images?.[0];
+
                     return (
                       <tr key={listing.id} className="hover:bg-gray-50">
                         <td className="px-6 py-4">
@@ -397,16 +460,18 @@ export default function Dashboard() {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="flex items-center space-x-2">
-                            <span className={`px-2 py-1 text-xs rounded-full ${
-                              listing.is_active 
-                                ? 'bg-green-100 text-green-800' 
-                                : 'bg-red-100 text-red-800'
-                            }`}>
-                              {listing.is_active ? 'Active' : 'Inactive'}
+                            <span
+                              className={`px-2 py-1 text-xs rounded-full ${
+                                listing.is_active
+                                  ? "bg-green-100 text-green-800"
+                                  : "bg-red-100 text-red-800"
+                              }`}
+                            >
+                              {listing.is_active ? "Active" : "Inactive"}
                             </span>
                             {!listing.approved && (
                               <span className="px-2 py-1 text-xs bg-yellow-100 text-yellow-800 rounded-full">
-                               Pending Approval
+                                Pending Approval
                               </span>
                             )}
                             {isListingCurrentlyFeatured(listing) && (
@@ -419,10 +484,18 @@ export default function Dashboard() {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                           <div>
-                            <div className="whitespace-nowrap">Posted: {new Date(listing.created_at).toLocaleDateString()}</div>
+                            <div className="whitespace-nowrap">
+                              Posted:{" "}
+                              {new Date(
+                                listing.created_at,
+                              ).toLocaleDateString()}
+                            </div>
                             {listing.last_published_at && (
                               <div className="text-xs text-gray-400 whitespace-nowrap">
-                                Last Published: {new Date(listing.last_published_at).toLocaleDateString()}
+                                Last Published:{" "}
+                                {new Date(
+                                  listing.last_published_at,
+                                ).toLocaleDateString()}
                               </div>
                             )}
                           </div>
@@ -436,45 +509,63 @@ export default function Dashboard() {
                             >
                               <Eye className="w-5 h-5" />
                             </Link>
-                            
+
                             <Link
                               to={`/edit/${listing.id}`}
                               className="flex items-center space-x-1 px-2 py-1 text-blue-600 hover:text-blue-800 transition-colors flex-shrink-0"
                               title="Edit Listing"
                             >
                               <Edit className="w-4 h-4" />
-                              <span className="text-sm hidden sm:inline">Edit</span>
+                              <span className="text-sm hidden sm:inline">
+                                Edit
+                              </span>
                             </Link>
-                            
+
                             <button
                               type="button"
-                              onClick={() => handleToggleFeature(listing.id, isListingCurrentlyFeatured(listing))}
-                              disabled={actionLoading === listing.id || (!isListingCurrentlyFeatured(listing) && (!canFeatureMore || globalLimitReached))}
+                              onClick={() =>
+                                handleToggleFeature(
+                                  listing.id,
+                                  isListingCurrentlyFeatured(listing),
+                                )
+                              }
+                              disabled={
+                                actionLoading === listing.id ||
+                                (!isListingCurrentlyFeatured(listing) &&
+                                  (!canFeatureMore || globalLimitReached))
+                              }
                               className={`transition-colors flex-shrink-0 ${
                                 isListingCurrentlyFeatured(listing)
-                                  ? 'text-[#C5594C] hover:text-[#b04d42]'
-                                  : (!canFeatureMore || globalLimitReached) 
-                                    ? 'text-gray-300 cursor-not-allowed' 
-                                    : 'text-gray-400 hover:text-[#C5594C]'
+                                  ? "text-accent-600 hover:text-accent-600"
+                                  : !canFeatureMore || globalLimitReached
+                                    ? "text-gray-300 cursor-not-allowed"
+                                    : "text-gray-400 hover:text-accent-600"
                               }`}
                               title={
-                                isListingCurrentlyFeatured(listing) 
-                                  ? 'Remove Featured' 
+                                isListingCurrentlyFeatured(listing)
+                                  ? "Remove Featured"
                                   : globalLimitReached
-                                    ? 'The sitewide maximum for featured listings has been reached'
-                                    : (!canFeatureMore)
+                                    ? "The sitewide maximum for featured listings has been reached"
+                                    : !canFeatureMore
                                       ? `You have reached your featured listing limit (${currentUserFeaturedCount}/${effectiveUserFeaturedLimit})`
-                                    : 'Make Featured'
+                                      : "Make Featured"
                               }
                             >
-                              <Star className={`w-5 h-5 ${isListingCurrentlyFeatured(listing) ? 'fill-current' : ''}`} />
+                              <Star
+                                className={`w-5 h-5 ${isListingCurrentlyFeatured(listing) ? "fill-current" : ""}`}
+                              />
                             </button>
-                            
+
                             {listing.is_active ? (
                               <button
                                 type="button"
-                                onClick={() => handleUnpublishListing(listing.id)}
-                                disabled={actionLoading === listing.id || !listing.approved}
+                                onClick={() =>
+                                  handleUnpublishListing(listing.id)
+                                }
+                                disabled={
+                                  actionLoading === listing.id ||
+                                  !listing.approved
+                                }
                                 className="text-orange-600 hover:text-orange-800 transition-colors flex-shrink-0"
                                 title="Unpublish Listing"
                               >
@@ -484,7 +575,10 @@ export default function Dashboard() {
                               <button
                                 type="button"
                                 onClick={() => handleRenewListing(listing.id)}
-                                disabled={actionLoading === listing.id || !listing.approved}
+                                disabled={
+                                  actionLoading === listing.id ||
+                                  !listing.approved
+                                }
                                 className="text-blue-600 hover:text-blue-800 transition-colors flex-shrink-0"
                                 title="Republish Listing"
                               >

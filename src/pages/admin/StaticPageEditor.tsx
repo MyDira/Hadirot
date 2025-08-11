@@ -1,41 +1,64 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { Save, ArrowLeft, FileText, Bold, Italic, List, ListOrdered, Link as LinkIcon, Type, Plus, Trash2, X } from 'lucide-react';
-import { Link } from 'react-router-dom';
-import { useEditor, EditorContent } from '@tiptap/react';
-import StarterKit from '@tiptap/starter-kit';
-import LinkExtension from '@tiptap/extension-link';
-import { staticPagesService, StaticPage } from '../../services/staticPages';
-import { footerService } from '../../services/footer';
-import { FooterSection } from '../../config/supabase';
-import { useAuth } from '../../hooks/useAuth';
+import React, { useState, useEffect, useMemo } from "react";
+import {
+  Save,
+  ArrowLeft,
+  FileText,
+  Bold,
+  Italic,
+  List,
+  ListOrdered,
+  Link as LinkIcon,
+  Type,
+  Plus,
+  Trash2,
+  X,
+} from "lucide-react";
+import { Link } from "react-router-dom";
+import { useEditor, EditorContent } from "@tiptap/react";
+import StarterKit from "@tiptap/starter-kit";
+import LinkExtension from "@tiptap/extension-link";
+import { staticPagesService, StaticPage } from "../../services/staticPages";
+import { footerService } from "../../services/footer";
+import { FooterSection } from "../../config/supabase";
+import { useAuth } from "../../hooks/useAuth";
 
 export function StaticPageEditor() {
   const { user, profile } = useAuth();
   const [staticPages, setStaticPages] = useState<StaticPage[]>([]);
-  const [selectedPageId, setSelectedPageId] = useState<string>('');
+  const [selectedPageId, setSelectedPageId] = useState<string>("");
   const [selectedPage, setSelectedPage] = useState<StaticPage | null>(null);
-  const [title, setTitle] = useState('');
+  const [title, setTitle] = useState("");
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [newPageData, setNewPageData] = useState({
-    id: '',
-    title: '',
-    content: '',
+    id: "",
+    title: "",
+    content: "",
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [creating, setCreating] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
-  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
-  
+  const [message, setMessage] = useState<{
+    type: "success" | "error";
+    text: string;
+  } | null>(null);
+
   // Footer placement state
-  const [showFooterPlacementPrompt, setShowFooterPlacementPrompt] = useState(false);
-  const [newlyCreatedPage, setNewlyCreatedPage] = useState<{ id: string; title: string } | null>(null);
-  const [availableFooterSections, setAvailableFooterSections] = useState<FooterSection[]>([]);
-  const [selectedFooterSection, setSelectedFooterSection] = useState<string>('');
-  const [linkTextForNewPage, setLinkTextForNewPage] = useState('');
+  const [showFooterPlacementPrompt, setShowFooterPlacementPrompt] =
+    useState(false);
+  const [newlyCreatedPage, setNewlyCreatedPage] = useState<{
+    id: string;
+    title: string;
+  } | null>(null);
+  const [availableFooterSections, setAvailableFooterSections] = useState<
+    FooterSection[]
+  >([]);
+  const [selectedFooterSection, setSelectedFooterSection] =
+    useState<string>("");
+  const [linkTextForNewPage, setLinkTextForNewPage] = useState("");
   const [newFooterColumnData, setNewFooterColumnData] = useState({
-    key: '',
-    title: '',
+    key: "",
+    title: "",
   });
 
   // Define extensions array for reuse
@@ -45,17 +68,16 @@ export function StaticPageEditor() {
       LinkExtension.configure({
         openOnClick: false,
         HTMLAttributes: {
-          class: 'text-[#4E4B43] underline hover:text-[#3a3832]',
+          class: "text-[#4E4B43] underline hover:text-[#3a3832]",
         },
       }),
     ],
-    []
+    [],
   );
   const editor = useEditor({
     extensions,
-    content: '',
+    content: "",
   });
-
 
   useEffect(() => {
     if (user && profile?.is_admin) {
@@ -65,25 +87,25 @@ export function StaticPageEditor() {
 
   useEffect(() => {
     if (selectedPageId) {
-      const page = staticPages.find(p => p.id === selectedPageId);
+      const page = staticPages.find((p) => p.id === selectedPageId);
       if (page) {
         setSelectedPage(page);
         setTitle(page.title);
-        
+
         // Load HTML content into Tiptap editor
         if (editor && page.content) {
           try {
             // Use setContent to parse HTML and convert to Tiptap format
-            editor.commands.setContent(page.content || '');
+            editor.commands.setContent(page.content || "");
             setTimeout(() => {
-            editor.chain().focus('end').run();
+              editor.chain().focus("end").run();
             }, 100);
           } catch (error) {
-            console.error('Error parsing HTML content:', error);
+            console.error("Error parsing HTML content:", error);
             // Fallback: set as plain text if HTML parsing fails
             editor.commands.setContent(`<p>${page.content}</p>`);
             setTimeout(() => {
-            editor.chain().focus('end').run();
+              editor.chain().focus("end").run();
             }, 100);
           }
         }
@@ -99,8 +121,8 @@ export function StaticPageEditor() {
         setSelectedPageId(pages[0].id);
       }
     } catch (error) {
-      console.error('Error loading static pages:', error);
-      setMessage({ type: 'error', text: 'Failed to load static pages' });
+      console.error("Error loading static pages:", error);
+      setMessage({ type: "error", text: "Failed to load static pages" });
     } finally {
       setLoading(false);
     }
@@ -108,33 +130,39 @@ export function StaticPageEditor() {
 
   const handleSave = async () => {
     if (!selectedPageId || !title.trim() || !editor) {
-      setMessage({ type: 'error', text: 'Please fill in both title and content' });
+      setMessage({
+        type: "error",
+        text: "Please fill in both title and content",
+      });
       return;
     }
 
     const content = editor.getHTML();
-    
-    if (!content.trim() || content === '<p></p>') {
-      setMessage({ type: 'error', text: 'Please add some content' });
+
+    if (!content.trim() || content === "<p></p>") {
+      setMessage({ type: "error", text: "Please add some content" });
       return;
     }
     setSaving(true);
     try {
       await staticPagesService.updateStaticPage(selectedPageId, {
         title: title.trim(),
-        content: content
+        content: content,
       });
-      
+
       // Reload the pages to get updated data
       await loadStaticPages();
-      
-      setMessage({ type: 'success', text: 'Page updated successfully!' });
-      
+
+      setMessage({ type: "success", text: "Page updated successfully!" });
+
       // Clear message after 3 seconds
       setTimeout(() => setMessage(null), 3000);
     } catch (error) {
-      console.error('Error saving page:', error);
-      setMessage({ type: 'error', text: 'Failed to save page. Please try again.' });
+      console.error("Error saving page:", error);
+      setMessage({
+        type: "error",
+        text: "Failed to save page. Please try again.",
+      });
     } finally {
       setSaving(false);
     }
@@ -142,13 +170,16 @@ export function StaticPageEditor() {
 
   const handleCreatePage = async () => {
     if (!newPageData.id.trim() || !newPageData.title.trim()) {
-      setMessage({ type: 'error', text: 'Please fill in both page ID and title' });
+      setMessage({
+        type: "error",
+        text: "Please fill in both page ID and title",
+      });
       return;
     }
 
     // Check if page ID already exists
-    if (staticPages.some(page => page.id === newPageData.id)) {
-      setMessage({ type: 'error', text: 'A page with this ID already exists' });
+    if (staticPages.some((page) => page.id === newPageData.id)) {
+      setMessage({ type: "error", text: "A page with this ID already exists" });
       return;
     }
 
@@ -157,32 +188,39 @@ export function StaticPageEditor() {
       const newPage = await staticPagesService.createStaticPage({
         id: newPageData.id,
         title: newPageData.title,
-        content: newPageData.content || '<p>New page content...</p>'
+        content: newPageData.content || "<p>New page content...</p>",
       });
 
       if (newPage) {
         // Store the newly created page info
         setNewlyCreatedPage({ id: newPage.id, title: newPage.title });
-        
+
         // Load available footer sections (only link type sections)
         const allFooterSections = await footerService.getAllFooterSections();
-        const linkSections = allFooterSections.filter(section => section.content_type === 'links');
+        const linkSections = allFooterSections.filter(
+          (section) => section.content_type === "links",
+        );
         setAvailableFooterSections(linkSections);
-        
+
         // Set default selection and link text
-        setSelectedFooterSection(linkSections.length > 0 ? linkSections[0].id : 'create-new');
+        setSelectedFooterSection(
+          linkSections.length > 0 ? linkSections[0].id : "create-new",
+        );
         setLinkTextForNewPage(newPage.title);
-        
+
         // Show the footer placement prompt
         setShowFooterPlacementPrompt(true);
-        
+
         // Reset form and hide it
-        setNewPageData({ id: '', title: '', content: '' });
+        setNewPageData({ id: "", title: "", content: "" });
         setShowCreateForm(false);
       }
     } catch (error) {
-      console.error('Error creating page:', error);
-      setMessage({ type: 'error', text: 'Failed to create page. Please try again.' });
+      console.error("Error creating page:", error);
+      setMessage({
+        type: "error",
+        text: "Failed to create page. Please try again.",
+      });
     } finally {
       setCreating(false);
     }
@@ -190,7 +228,10 @@ export function StaticPageEditor() {
 
   const handlePlacePageInFooter = async () => {
     if (!newlyCreatedPage || !linkTextForNewPage.trim()) {
-      setMessage({ type: 'error', text: 'Please provide link text for the new page' });
+      setMessage({
+        type: "error",
+        text: "Please provide link text for the new page",
+      });
       return;
     }
 
@@ -201,33 +242,54 @@ export function StaticPageEditor() {
         url: `/${newlyCreatedPage.id}`,
       };
 
-      if (selectedFooterSection === 'create-new') {
+      if (selectedFooterSection === "create-new") {
         // Create new footer section
-        if (!newFooterColumnData.key.trim() || !newFooterColumnData.title.trim()) {
-          setMessage({ type: 'error', text: 'Please fill in both section key and title for the new column' });
+        if (
+          !newFooterColumnData.key.trim() ||
+          !newFooterColumnData.title.trim()
+        ) {
+          setMessage({
+            type: "error",
+            text: "Please fill in both section key and title for the new column",
+          });
           return;
         }
 
         // Check if section key already exists
-        if (availableFooterSections.some(s => s.section_key === newFooterColumnData.key)) {
-          setMessage({ type: 'error', text: 'A footer section with this key already exists' });
+        if (
+          availableFooterSections.some(
+            (s) => s.section_key === newFooterColumnData.key,
+          )
+        ) {
+          setMessage({
+            type: "error",
+            text: "A footer section with this key already exists",
+          });
           return;
         }
 
-        const maxSortOrder = Math.max(...availableFooterSections.map(s => s.sort_order), 0);
-        
+        const maxSortOrder = Math.max(
+          ...availableFooterSections.map((s) => s.sort_order),
+          0,
+        );
+
         await footerService.createFooterSection({
           section_key: newFooterColumnData.key,
           title: newFooterColumnData.title,
-          content_type: 'links',
+          content_type: "links",
           content_data: [newLink],
           sort_order: maxSortOrder + 1,
         });
       } else {
         // Add to existing footer section
-        const existingSection = availableFooterSections.find(s => s.id === selectedFooterSection);
+        const existingSection = availableFooterSections.find(
+          (s) => s.id === selectedFooterSection,
+        );
         if (!existingSection) {
-          setMessage({ type: 'error', text: 'Selected footer section not found' });
+          setMessage({
+            type: "error",
+            text: "Selected footer section not found",
+          });
           return;
         }
 
@@ -241,24 +303,30 @@ export function StaticPageEditor() {
 
       // Reload the pages to get updated data
       await loadStaticPages();
-      
+
       // Select the newly created page
       setSelectedPageId(newlyCreatedPage.id);
-      
+
       // Reset footer placement state
       setShowFooterPlacementPrompt(false);
       setNewlyCreatedPage(null);
-      setSelectedFooterSection('');
-      setLinkTextForNewPage('');
-      setNewFooterColumnData({ key: '', title: '' });
-      
-      setMessage({ type: 'success', text: 'Page created and added to footer successfully!' });
-      
+      setSelectedFooterSection("");
+      setLinkTextForNewPage("");
+      setNewFooterColumnData({ key: "", title: "" });
+
+      setMessage({
+        type: "success",
+        text: "Page created and added to footer successfully!",
+      });
+
       // Clear message after 3 seconds
       setTimeout(() => setMessage(null), 3000);
     } catch (error) {
-      console.error('Error placing page in footer:', error);
-      setMessage({ type: 'error', text: 'Failed to add page to footer. Please try again.' });
+      console.error("Error placing page in footer:", error);
+      setMessage({
+        type: "error",
+        text: "Failed to add page to footer. Please try again.",
+      });
     } finally {
       setCreating(false);
     }
@@ -269,61 +337,70 @@ export function StaticPageEditor() {
 
     // Reload the pages to get updated data
     await loadStaticPages();
-    
+
     // Select the newly created page
     setSelectedPageId(newlyCreatedPage.id);
-    
+
     // Reset footer placement state
     setShowFooterPlacementPrompt(false);
     setNewlyCreatedPage(null);
-    setSelectedFooterSection('');
-    setLinkTextForNewPage('');
-    setNewFooterColumnData({ key: '', title: '' });
-    
-    setMessage({ type: 'success', text: 'Page created successfully!' });
-    
+    setSelectedFooterSection("");
+    setLinkTextForNewPage("");
+    setNewFooterColumnData({ key: "", title: "" });
+
+    setMessage({ type: "success", text: "Page created successfully!" });
+
     // Clear message after 3 seconds
     setTimeout(() => setMessage(null), 3000);
   };
 
   const handleDeletePage = async (pageId: string) => {
     // Prevent deletion of core pages
-    if (['about', 'contact', 'privacy', 'terms'].includes(pageId)) {
-      setMessage({ type: 'error', text: 'Core pages cannot be deleted' });
+    if (["about", "contact", "privacy", "terms"].includes(pageId)) {
+      setMessage({ type: "error", text: "Core pages cannot be deleted" });
       return;
     }
 
-    if (!confirm('Are you sure you want to delete this page? This action cannot be undone.')) {
+    if (
+      !confirm(
+        "Are you sure you want to delete this page? This action cannot be undone.",
+      )
+    ) {
       return;
     }
 
     setDeleting(pageId);
     try {
       await staticPagesService.deleteStaticPage(pageId);
-      
+
       // If we're deleting the currently selected page, select another one
       if (selectedPageId === pageId) {
-        const remainingPages = staticPages.filter(p => p.id !== pageId);
-        setSelectedPageId(remainingPages.length > 0 ? remainingPages[0].id : '');
+        const remainingPages = staticPages.filter((p) => p.id !== pageId);
+        setSelectedPageId(
+          remainingPages.length > 0 ? remainingPages[0].id : "",
+        );
       }
-      
+
       // Reload the pages to get updated data
       await loadStaticPages();
-      
-      setMessage({ type: 'success', text: 'Page deleted successfully!' });
-      
+
+      setMessage({ type: "success", text: "Page deleted successfully!" });
+
       // Clear message after 3 seconds
       setTimeout(() => setMessage(null), 3000);
     } catch (error) {
-      console.error('Error deleting page:', error);
-      setMessage({ type: 'error', text: 'Failed to delete page. Please try again.' });
+      console.error("Error deleting page:", error);
+      setMessage({
+        type: "error",
+        text: "Failed to delete page. Please try again.",
+      });
     } finally {
       setDeleting(null);
     }
   };
 
   const addLink = () => {
-    const url = window.prompt('Enter the URL:');
+    const url = window.prompt("Enter the URL:");
     if (url && editor) {
       editor.chain().focus().setLink({ href: url }).run();
     }
@@ -337,19 +414,27 @@ export function StaticPageEditor() {
 
   const getPageDisplayName = (id: string) => {
     const names: Record<string, string> = {
-      'about': 'About Us',
-      'contact': 'Contact',
-      'privacy': 'Privacy Policy',
-      'terms': 'Terms of Use'
+      about: "About Us",
+      contact: "Contact",
+      privacy: "Privacy Policy",
+      terms: "Terms of Use",
     };
-    return names[id] || id.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+    return (
+      names[id] ||
+      id
+        .split("-")
+        .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(" ")
+    );
   };
 
   if (!user || !profile?.is_admin) {
     return (
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         <div className="text-center">
-          <p className="text-red-600">Access denied. Admin privileges required.</p>
+          <p className="text-red-600">
+            Access denied. Admin privileges required.
+          </p>
         </div>
       </div>
     );
@@ -382,17 +467,20 @@ export function StaticPageEditor() {
           Static Page Editor
         </h1>
         <p className="text-gray-600 mt-2">
-          Edit the content of footer pages (About, Contact, Privacy Policy, Terms of Use)
+          Edit the content of footer pages (About, Contact, Privacy Policy,
+          Terms of Use)
         </p>
       </div>
 
       {/* Message */}
       {message && (
-        <div className={`mb-6 p-4 rounded-md ${
-          message.type === 'success' 
-            ? 'bg-green-50 border border-green-200 text-green-800' 
-            : 'bg-red-50 border border-red-200 text-red-800'
-        }`}>
+        <div
+          className={`mb-6 p-4 rounded-md ${
+            message.type === "success"
+              ? "bg-green-50 border border-green-200 text-green-800"
+              : "bg-red-50 border border-red-200 text-red-800"
+          }`}
+        >
           {message.text}
         </div>
       )}
@@ -401,12 +489,14 @@ export function StaticPageEditor() {
         {/* Page Selector */}
         <div className="lg:col-span-1">
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-            <h3 className="text-lg font-semibold text-[#273140] mb-4">Select Page</h3>
-            
+            <h3 className="text-lg font-semibold text-[#273140] mb-4">
+              Select Page
+            </h3>
+
             {/* Create New Page Button */}
             <button
               onClick={() => setShowCreateForm(!showCreateForm)}
-              className="w-full mb-4 bg-[#C5594C] text-white px-3 py-2 rounded-md text-sm font-medium hover:bg-[#b04d42] transition-colors flex items-center justify-center"
+              className="w-full mb-4 bg-accent-500 text-white px-3 py-2 rounded-md text-sm font-medium hover:bg-accent-600 transition-colors flex items-center justify-center"
             >
               <Plus className="w-4 h-4 mr-2" />
               Create New Page
@@ -423,7 +513,14 @@ export function StaticPageEditor() {
                     <input
                       type="text"
                       value={newPageData.id}
-                      onChange={(e) => setNewPageData(prev => ({ ...prev, id: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '') }))}
+                      onChange={(e) =>
+                        setNewPageData((prev) => ({
+                          ...prev,
+                          id: e.target.value
+                            .toLowerCase()
+                            .replace(/[^a-z0-9-]/g, ""),
+                        }))
+                      }
                       placeholder="e.g., help, faq, support"
                       className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:ring-[#273140] focus:border-[#273140]"
                     />
@@ -435,7 +532,12 @@ export function StaticPageEditor() {
                     <input
                       type="text"
                       value={newPageData.title}
-                      onChange={(e) => setNewPageData(prev => ({ ...prev, title: e.target.value }))}
+                      onChange={(e) =>
+                        setNewPageData((prev) => ({
+                          ...prev,
+                          title: e.target.value,
+                        }))
+                      }
                       placeholder="e.g., Help Center"
                       className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:ring-[#273140] focus:border-[#273140]"
                     />
@@ -446,7 +548,12 @@ export function StaticPageEditor() {
                     </label>
                     <textarea
                       value={newPageData.content}
-                      onChange={(e) => setNewPageData(prev => ({ ...prev, content: e.target.value }))}
+                      onChange={(e) =>
+                        setNewPageData((prev) => ({
+                          ...prev,
+                          content: e.target.value,
+                        }))
+                      }
                       placeholder="Enter initial page content..."
                       rows={3}
                       className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:ring-[#273140] focus:border-[#273140]"
@@ -458,12 +565,12 @@ export function StaticPageEditor() {
                       disabled={creating}
                       className="flex-1 bg-green-600 text-white px-2 py-1 rounded text-xs font-medium hover:bg-green-700 disabled:opacity-50 transition-colors"
                     >
-                      {creating ? 'Creating...' : 'Create'}
+                      {creating ? "Creating..." : "Create"}
                     </button>
                     <button
                       onClick={() => {
                         setShowCreateForm(false);
-                        setNewPageData({ id: '', title: '', content: '' });
+                        setNewPageData({ id: "", title: "", content: "" });
                       }}
                       className="flex-1 bg-gray-500 text-white px-2 py-1 rounded text-xs font-medium hover:bg-gray-600 transition-colors"
                     >
@@ -484,15 +591,17 @@ export function StaticPageEditor() {
                     onClick={() => setSelectedPageId(page.id)}
                     className={`flex-1 text-left px-3 py-2 rounded-md transition-colors ${
                       selectedPageId === page.id
-                        ? 'bg-[#273140] text-white'
-                        : 'text-gray-700 hover:bg-gray-100'
+                        ? "bg-[#273140] text-white"
+                        : "text-gray-700 hover:bg-gray-100"
                     }`}
                   >
                     {getPageDisplayName(page.id)}
                   </button>
-                  
+
                   {/* Delete button for non-core pages */}
-                  {!['about', 'contact', 'privacy', 'terms'].includes(page.id) && (
+                  {!["about", "contact", "privacy", "terms"].includes(
+                    page.id,
+                  ) && (
                     <button
                       onClick={() => handleDeletePage(page.id)}
                       disabled={deleting === page.id}
@@ -509,11 +618,12 @@ export function StaticPageEditor() {
                 </div>
               ))}
             </div>
-            
+
             {selectedPage && (
               <div className="mt-4 pt-4 border-t border-gray-200">
                 <p className="text-xs text-gray-500">
-                  Last updated: {new Date(selectedPage.updated_at).toLocaleDateString()}
+                  Last updated:{" "}
+                  {new Date(selectedPage.updated_at).toLocaleDateString()}
                 </p>
               </div>
             )}
@@ -533,7 +643,10 @@ export function StaticPageEditor() {
               <div className="space-y-6">
                 {/* Title Field */}
                 <div>
-                  <label htmlFor="title" className="block text-sm font-medium text-gray-700 mb-2">
+                  <label
+                    htmlFor="title"
+                    className="block text-sm font-medium text-gray-700 mb-2"
+                  >
                     Page Title
                   </label>
                   <input
@@ -548,10 +661,13 @@ export function StaticPageEditor() {
 
                 {/* Content Field */}
                 <div>
-                  <label htmlFor="content" className="block text-sm font-medium text-gray-700 mb-2">
+                  <label
+                    htmlFor="content"
+                    className="block text-sm font-medium text-gray-700 mb-2"
+                  >
                     Page Content
                   </label>
-                  
+
                   {/* Rich Text Editor Toolbar */}
                   {editor && (
                     <div className="border border-gray-300 rounded-t-md bg-gray-50 p-2 flex flex-wrap gap-1">
@@ -559,11 +675,17 @@ export function StaticPageEditor() {
                       <button
                         type="button"
                         onMouseDown={(e) => e.preventDefault()}
-                        onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
+                        onClick={() =>
+                          editor
+                            .chain()
+                            .focus()
+                            .toggleHeading({ level: 1 })
+                            .run()
+                        }
                         className={`px-3 py-1 rounded text-sm font-medium transition-colors ${
-                          editor.isActive('heading', { level: 1 })
-                            ? 'bg-[#273140] text-white'
-                            : 'bg-white text-gray-700 hover:bg-gray-100'
+                          editor.isActive("heading", { level: 1 })
+                            ? "bg-[#273140] text-white"
+                            : "bg-white text-gray-700 hover:bg-gray-100"
                         }`}
                       >
                         H1
@@ -571,11 +693,17 @@ export function StaticPageEditor() {
                       <button
                         type="button"
                         onMouseDown={(e) => e.preventDefault()}
-                        onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
+                        onClick={() =>
+                          editor
+                            .chain()
+                            .focus()
+                            .toggleHeading({ level: 2 })
+                            .run()
+                        }
                         className={`px-3 py-1 rounded text-sm font-medium transition-colors ${
-                          editor.isActive('heading', { level: 2 })
-                            ? 'bg-[#273140] text-white'
-                            : 'bg-white text-gray-700 hover:bg-gray-100'
+                          editor.isActive("heading", { level: 2 })
+                            ? "bg-[#273140] text-white"
+                            : "bg-white text-gray-700 hover:bg-gray-100"
                         }`}
                       >
                         H2
@@ -583,27 +711,35 @@ export function StaticPageEditor() {
                       <button
                         type="button"
                         onMouseDown={(e) => e.preventDefault()}
-                        onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
+                        onClick={() =>
+                          editor
+                            .chain()
+                            .focus()
+                            .toggleHeading({ level: 3 })
+                            .run()
+                        }
                         className={`px-3 py-1 rounded text-sm font-medium transition-colors ${
-                          editor.isActive('heading', { level: 3 })
-                            ? 'bg-[#273140] text-white'
-                            : 'bg-white text-gray-700 hover:bg-gray-100'
+                          editor.isActive("heading", { level: 3 })
+                            ? "bg-[#273140] text-white"
+                            : "bg-white text-gray-700 hover:bg-gray-100"
                         }`}
                       >
                         H3
                       </button>
-                      
+
                       <div className="w-px h-6 bg-gray-300 mx-1"></div>
-                      
+
                       {/* Text Formatting */}
                       <button
                         type="button"
                         onMouseDown={(e) => e.preventDefault()}
-                        onClick={() => editor.chain().focus().toggleBold().run()}
+                        onClick={() =>
+                          editor.chain().focus().toggleBold().run()
+                        }
                         className={`p-2 rounded transition-colors ${
-                          editor.isActive('bold')
-                            ? 'bg-[#273140] text-white'
-                            : 'bg-white text-gray-700 hover:bg-gray-100'
+                          editor.isActive("bold")
+                            ? "bg-[#273140] text-white"
+                            : "bg-white text-gray-700 hover:bg-gray-100"
                         }`}
                       >
                         <Bold className="w-4 h-4" />
@@ -611,27 +747,31 @@ export function StaticPageEditor() {
                       <button
                         type="button"
                         onMouseDown={(e) => e.preventDefault()}
-                        onClick={() => editor.chain().focus().toggleItalic().run()}
+                        onClick={() =>
+                          editor.chain().focus().toggleItalic().run()
+                        }
                         className={`p-2 rounded transition-colors ${
-                          editor.isActive('italic')
-                            ? 'bg-[#273140] text-white'
-                            : 'bg-white text-gray-700 hover:bg-gray-100'
+                          editor.isActive("italic")
+                            ? "bg-[#273140] text-white"
+                            : "bg-white text-gray-700 hover:bg-gray-100"
                         }`}
                       >
                         <Italic className="w-4 h-4" />
                       </button>
-                      
+
                       <div className="w-px h-6 bg-gray-300 mx-1"></div>
-                      
+
                       {/* Lists */}
                       <button
                         type="button"
                         onMouseDown={(e) => e.preventDefault()}
-                        onClick={() => editor.chain().focus().toggleBulletList().run()}
+                        onClick={() =>
+                          editor.chain().focus().toggleBulletList().run()
+                        }
                         className={`p-2 rounded transition-colors ${
-                          editor.isActive('bulletList')
-                            ? 'bg-[#273140] text-white'
-                            : 'bg-white text-gray-700 hover:bg-gray-100'
+                          editor.isActive("bulletList")
+                            ? "bg-[#273140] text-white"
+                            : "bg-white text-gray-700 hover:bg-gray-100"
                         }`}
                       >
                         <List className="w-4 h-4" />
@@ -639,32 +779,34 @@ export function StaticPageEditor() {
                       <button
                         type="button"
                         onMouseDown={(e) => e.preventDefault()}
-                        onClick={() => editor.chain().focus().toggleOrderedList().run()}
+                        onClick={() =>
+                          editor.chain().focus().toggleOrderedList().run()
+                        }
                         className={`p-2 rounded transition-colors ${
-                          editor.isActive('orderedList')
-                            ? 'bg-[#273140] text-white'
-                            : 'bg-white text-gray-700 hover:bg-gray-100'
+                          editor.isActive("orderedList")
+                            ? "bg-[#273140] text-white"
+                            : "bg-white text-gray-700 hover:bg-gray-100"
                         }`}
                       >
                         <ListOrdered className="w-4 h-4" />
                       </button>
-                      
+
                       <div className="w-px h-6 bg-gray-300 mx-1"></div>
-                      
+
                       {/* Links */}
                       <button
                         type="button"
                         onMouseDown={(e) => e.preventDefault()}
                         onClick={addLink}
                         className={`p-2 rounded transition-colors ${
-                          editor.isActive('link')
-                            ? 'bg-[#273140] text-white'
-                            : 'bg-white text-gray-700 hover:bg-gray-100'
+                          editor.isActive("link")
+                            ? "bg-[#273140] text-white"
+                            : "bg-white text-gray-700 hover:bg-gray-100"
                         }`}
                       >
                         <LinkIcon className="w-4 h-4" />
                       </button>
-                      {editor.isActive('link') && (
+                      {editor.isActive("link") && (
                         <button
                           type="button"
                           onMouseDown={(e) => e.preventDefault()}
@@ -674,35 +816,38 @@ export function StaticPageEditor() {
                           Remove Link
                         </button>
                       )}
-                      
+
                       <div className="w-px h-6 bg-gray-300 mx-1"></div>
-                      
+
                       {/* Paragraph */}
                       <button
                         type="button"
                         onMouseDown={(e) => e.preventDefault()}
-                        onClick={() => editor.chain().focus().setParagraph().run()}
+                        onClick={() =>
+                          editor.chain().focus().setParagraph().run()
+                        }
                         className={`p-2 rounded transition-colors ${
-                          editor.isActive('paragraph')
-                            ? 'bg-[#273140] text-white'
-                            : 'bg-white text-gray-700 hover:bg-gray-100'
+                          editor.isActive("paragraph")
+                            ? "bg-[#273140] text-white"
+                            : "bg-white text-gray-700 hover:bg-gray-100"
                         }`}
                       >
                         <Type className="w-4 h-4" />
                       </button>
                     </div>
                   )}
-                  
+
                   {/* Rich Text Editor Content */}
                   <div className="border border-gray-300 rounded-b-md min-h-[400px] max-h-[600px] overflow-y-auto">
-                    <EditorContent 
-                      editor={editor} 
+                    <EditorContent
+                      editor={editor}
                       className="prose prose-sm max-w-none p-4 focus:outline-none [&_.ProseMirror]:outline-none [&_.ProseMirror]:min-h-[350px] [&_.ProseMirror]:cursor-text"
                     />
                   </div>
-                  
+
                   <p className="text-xs text-gray-500 mt-1">
-                    Use the toolbar above to format your content. The editor supports headings, bold, italic, lists, and links.
+                    Use the toolbar above to format your content. The editor
+                    supports headings, bold, italic, lists, and links.
                   </p>
                 </div>
 
@@ -711,10 +856,10 @@ export function StaticPageEditor() {
                   <button
                     onClick={handleSave}
                     disabled={saving || !title.trim() || !editor}
-                    className="bg-[#C5594C] text-white px-6 py-3 rounded-md font-semibold hover:bg-[#b04d42] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#C5594C] disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center"
+                    className="bg-accent-500 text-white px-6 py-3 rounded-md font-semibold hover:bg-accent-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-accent-400 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center"
                   >
                     <Save className="w-5 h-5 mr-2" />
-                    {saving ? 'Saving...' : 'Save Changes'}
+                    {saving ? "Saving..." : "Save Changes"}
                   </button>
                 </div>
               </div>
@@ -722,7 +867,9 @@ export function StaticPageEditor() {
           ) : (
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 text-center">
               <FileText className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-              <p className="text-gray-500">Select a page from the sidebar to start editing</p>
+              <p className="text-gray-500">
+                Select a page from the sidebar to start editing
+              </p>
             </div>
           )}
         </div>
@@ -733,8 +880,12 @@ export function StaticPageEditor() {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
             <div className="flex items-center justify-between p-6 border-b">
-              <h3 className="text-lg font-semibold text-[#4E4B43]">Add Page to Footer</h3>
-             <h3 className="text-lg font-semibold text-[#273140]">Add Page to Footer</h3>
+              <h3 className="text-lg font-semibold text-[#4E4B43]">
+                Add Page to Footer
+              </h3>
+              <h3 className="text-lg font-semibold text-[#273140]">
+                Add Page to Footer
+              </h3>
               <button
                 onClick={handleSkipFooterPlacement}
                 className="text-gray-400 hover:text-gray-600 transition-colors"
@@ -742,13 +893,13 @@ export function StaticPageEditor() {
                 <X className="w-5 h-5" />
               </button>
             </div>
-            
+
             <div className="p-6">
               <p className="text-gray-600 mb-4">
-                Your page "<strong>{newlyCreatedPage.title}</strong>" has been created. 
-                Would you like to add it to a footer column?
+                Your page "<strong>{newlyCreatedPage.title}</strong>" has been
+                created. Would you like to add it to a footer column?
               </p>
-              
+
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -762,7 +913,7 @@ export function StaticPageEditor() {
                     placeholder="How it appears in the footer"
                   />
                 </div>
-                
+
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Footer Column
@@ -780,8 +931,8 @@ export function StaticPageEditor() {
                     <option value="create-new">+ Create New Column</option>
                   </select>
                 </div>
-                
-                {selectedFooterSection === 'create-new' && (
+
+                {selectedFooterSection === "create-new" && (
                   <div className="space-y-3 p-3 bg-gray-50 rounded-md">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -790,10 +941,14 @@ export function StaticPageEditor() {
                       <input
                         type="text"
                         value={newFooterColumnData.key}
-                        onChange={(e) => setNewFooterColumnData(prev => ({ 
-                          ...prev, 
-                          key: e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, '') 
-                        }))}
+                        onChange={(e) =>
+                          setNewFooterColumnData((prev) => ({
+                            ...prev,
+                            key: e.target.value
+                              .toLowerCase()
+                              .replace(/[^a-z0-9_]/g, ""),
+                          }))
+                        }
                         className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
                         placeholder="e.g., help_center"
                       />
@@ -805,10 +960,12 @@ export function StaticPageEditor() {
                       <input
                         type="text"
                         value={newFooterColumnData.title}
-                        onChange={(e) => setNewFooterColumnData(prev => ({ 
-                          ...prev, 
-                          title: e.target.value 
-                        }))}
+                        onChange={(e) =>
+                          setNewFooterColumnData((prev) => ({
+                            ...prev,
+                            title: e.target.value,
+                          }))
+                        }
                         className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
                         placeholder="e.g., Help Center"
                       />
@@ -817,7 +974,7 @@ export function StaticPageEditor() {
                 )}
               </div>
             </div>
-            
+
             <div className="flex justify-end space-x-3 p-6 border-t bg-gray-50">
               <button
                 onClick={handleSkipFooterPlacement}
@@ -828,9 +985,9 @@ export function StaticPageEditor() {
               <button
                 onClick={handlePlacePageInFooter}
                 disabled={creating || !linkTextForNewPage.trim()}
-                className="px-4 py-2 bg-[#C5594C] text-white rounded-md hover:bg-[#b04d42] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="px-4 py-2 bg-accent-500 text-white rounded-md hover:bg-accent-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
-                {creating ? 'Adding...' : 'Add to Footer'}
+                {creating ? "Adding..." : "Add to Footer"}
               </button>
             </div>
           </div>
