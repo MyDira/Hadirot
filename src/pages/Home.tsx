@@ -141,13 +141,13 @@ export function Home() {
     <div className="min-h-screen">
       {/* Hero Section */}
       <div>
-        <div className="bg-brand-700 h-2 w-full" />
-        <section className="bg-brand-100 text-center py-20">
+        <div className="bg-brand-800 h-2 w-full" />
+        <section className="bg-brand-700 text-center py-20 text-white">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <h1 className="text-4xl md:text-6xl font-semibold font-brand text-brand-900 mb-6">
+            <h1 className="text-3xl md:text-5xl font-semibold font-brand text-white mb-6">
               The Heart of Local Rentals
             </h1>
-            <p className="text-xl md:text-2xl text-brand-800 mb-8 max-w-2xl mx-auto">
+            <p className="text-2xl md:text-3xl text-white/90 mb-8 max-w-2xl mx-auto">
               Where your family finds their next home
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
