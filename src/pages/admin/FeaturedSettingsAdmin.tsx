@@ -1,11 +1,21 @@
-import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
-import { ArrowLeft, Save, Settings, Users, Star, Search, Check, X, AlertTriangle } from 'lucide-react';
-import { useAuth } from '../../hooks/useAuth';
-import { listingsService } from '../../services/listings';
-import { profilesService } from '../../services/profiles';
-import { emailService } from '../../services/email';
-import { Profile } from '../../config/supabase';
+import React, { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
+import {
+  ArrowLeft,
+  Save,
+  Settings,
+  Users,
+  Star,
+  Search,
+  Check,
+  X,
+  AlertTriangle,
+} from "lucide-react";
+import { useAuth } from "../../hooks/useAuth";
+import { listingsService } from "../../services/listings";
+import { profilesService } from "../../services/profiles";
+import { emailService } from "../../services/email";
+import { Profile } from "../../config/supabase";
 
 interface AdminSettings {
   max_featured_listings: number;
@@ -24,15 +34,22 @@ export function FeaturedSettingsAdmin() {
     max_featured_per_user: 2,
   });
   const [profiles, setProfiles] = useState<ProfileWithCounts[]>([]);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [filteredProfiles, setFilteredProfiles] = useState<ProfileWithCounts[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [filteredProfiles, setFilteredProfiles] = useState<ProfileWithCounts[]>(
+    [],
+  );
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [updatingUser, setUpdatingUser] = useState<string | null>(null);
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
   const [bulkUpdating, setBulkUpdating] = useState(false);
-  const [editingUserLimits, setEditingUserLimits] = useState<{ [userId: string]: number }>({});
-  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [editingUserLimits, setEditingUserLimits] = useState<{
+    [userId: string]: number;
+  }>({});
+  const [message, setMessage] = useState<{
+    type: "success" | "error";
+    text: string;
+  } | null>(null);
 
   useEffect(() => {
     if (user && profile?.is_admin) {
@@ -42,15 +59,16 @@ export function FeaturedSettingsAdmin() {
 
   useEffect(() => {
     // Filter profiles based on search query
-    if (searchQuery.trim() === '') {
+    if (searchQuery.trim() === "") {
       setFilteredProfiles(profiles);
     } else {
       const query = searchQuery.toLowerCase();
-      const filtered = profiles.filter(p => 
-        p.full_name.toLowerCase().includes(query) ||
-        (p.email && p.email.toLowerCase().includes(query)) ||
-        (p.agency && p.agency.toLowerCase().includes(query)) ||
-        p.role.toLowerCase().includes(query)
+      const filtered = profiles.filter(
+        (p) =>
+          p.full_name.toLowerCase().includes(query) ||
+          (p.email && p.email.toLowerCase().includes(query)) ||
+          (p.agency && p.agency.toLowerCase().includes(query)) ||
+          p.role.toLowerCase().includes(query),
       );
       setFilteredProfiles(filtered);
     }
@@ -59,18 +77,18 @@ export function FeaturedSettingsAdmin() {
   const loadData = async () => {
     try {
       setLoading(true);
-      
+
       // Load admin settings
       const adminSettings = await listingsService.getAdminSettings();
       setSettings(adminSettings);
-      
+
       // Load profiles with listing counts
       const profilesData = await profilesService.getProfilesWithListingCounts();
       setProfiles(profilesData);
       setFilteredProfiles(profilesData);
     } catch (error) {
-      console.error('Error loading admin data:', error);
-      setMessage({ type: 'error', text: 'Failed to load admin data' });
+      console.error("Error loading admin data:", error);
+      setMessage({ type: "error", text: "Failed to load admin data" });
     } finally {
       setLoading(false);
     }
@@ -79,70 +97,88 @@ export function FeaturedSettingsAdmin() {
   const handleSettingsSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
-    
+
     try {
       await listingsService.updateAdminSettings(settings);
-      setMessage({ type: 'success', text: 'Settings updated successfully!' });
+      setMessage({ type: "success", text: "Settings updated successfully!" });
       setTimeout(() => setMessage(null), 3000);
     } catch (error) {
-      console.error('Error updating settings:', error);
-      setMessage({ type: 'error', text: 'Failed to update settings' });
+      console.error("Error updating settings:", error);
+      setMessage({ type: "error", text: "Failed to update settings" });
     } finally {
       setSaving(false);
     }
   };
 
-  const handleUpdateUserFeaturedLimit = async (userId: string, newLimit: number) => {
+  const handleUpdateUserFeaturedLimit = async (
+    userId: string,
+    newLimit: number,
+  ) => {
     setUpdatingUser(userId);
-    
+
     try {
       // Get the current user's data before updating
-      const currentUser = profiles.find(p => p.id === userId);
-      const previousLimit = currentUser?.max_featured_listings_per_user ?? settings.max_featured_per_user;
-      
+      const currentUser = profiles.find((p) => p.id === userId);
+      const previousLimit =
+        currentUser?.max_featured_listings_per_user ??
+        settings.max_featured_per_user;
+
       await profilesService.updateProfile(userId, {
         max_featured_listings_per_user: newLimit,
         can_feature_listings: newLimit > 0,
       });
-      
+
       // Send email notification if limit changed
       try {
-        if (currentUser?.email && currentUser?.full_name && newLimit !== previousLimit) {
+        if (
+          currentUser?.email &&
+          currentUser?.full_name &&
+          newLimit !== previousLimit
+        ) {
           await emailService.sendPermissionChangedEmail(
             currentUser.email,
             currentUser.full_name,
             newLimit,
-            previousLimit
+            previousLimit,
           );
-          console.log('✅ Permission change email sent successfully');
+          console.log("✅ Permission change email sent successfully");
         }
       } catch (emailError) {
-        console.error('⚠️ Failed to send permission change email:', emailError);
+        console.error("⚠️ Failed to send permission change email:", emailError);
         // Don't block the user flow if email fails
       }
-      
+
       // Update local state
-      setProfiles(prev => prev.map(p => 
-        p.id === userId 
-          ? { ...p, max_featured_listings_per_user: newLimit, can_feature_listings: newLimit > 0 }
-          : p
-      ));
-      
+      setProfiles((prev) =>
+        prev.map((p) =>
+          p.id === userId
+            ? {
+                ...p,
+                max_featured_listings_per_user: newLimit,
+                can_feature_listings: newLimit > 0,
+              }
+            : p,
+        ),
+      );
+
       // Clear editing state
-      setEditingUserLimits(prev => {
+      setEditingUserLimits((prev) => {
         const newState = { ...prev };
         delete newState[userId];
         return newState;
       });
-      
-      setMessage({ 
-        type: 'success', 
-        text: `User featured listing limit updated to ${newLimit}` 
+
+      setMessage({
+        type: "success",
+        text: `User featured listing limit updated to ${newLimit}`,
       });
       setTimeout(() => setMessage(null), 3000);
     } catch (error) {
-      console.error('Error updating user featured limit:', error);
-      setMessage({ type: 'error', text: 'Failed to update user featured limit' });
+      console.error("Error updating user featured limit:", error);
+      setMessage({
+        type: "error",
+        text: "Failed to update user featured limit",
+      });
     } finally {
       setUpdatingUser(null);
     }
@@ -150,65 +186,87 @@ export function FeaturedSettingsAdmin() {
 
   const handleBulkUpdate = async (maxFeaturedListings: number) => {
     if (selectedUsers.length === 0) {
-      setMessage({ type: 'error', text: 'Please select users to update' });
+      setMessage({ type: "error", text: "Please select users to update" });
       return;
     }
 
     setBulkUpdating(true);
-    
+
     try {
       // Get current user data before updating for email notifications
-      const usersToUpdate = profiles.filter(p => selectedUsers.includes(p.id));
-      
-      await profilesService.bulkUpdateFeaturedPermissions(selectedUsers, maxFeaturedListings, maxFeaturedListings > 0);
-      
+      const usersToUpdate = profiles.filter((p) =>
+        selectedUsers.includes(p.id),
+      );
+
+      await profilesService.bulkUpdateFeaturedPermissions(
+        selectedUsers,
+        maxFeaturedListings,
+        maxFeaturedListings > 0,
+      );
+
       // Send email notifications to affected users
       for (const userProfile of usersToUpdate) {
         try {
           if (userProfile.email && userProfile.full_name) {
-            const previousLimit = userProfile.max_featured_listings_per_user ?? settings.max_featured_per_user;
+            const previousLimit =
+              userProfile.max_featured_listings_per_user ??
+              settings.max_featured_per_user;
             if (maxFeaturedListings !== previousLimit) {
               await emailService.sendPermissionChangedEmail(
                 userProfile.email,
                 userProfile.full_name,
                 maxFeaturedListings,
-                previousLimit
+                previousLimit,
               );
-              console.log(`✅ Permission change email sent to ${userProfile.full_name}`);
+              console.log(
+                `✅ Permission change email sent to ${userProfile.full_name}`,
+              );
             }
           }
         } catch (emailError) {
-          console.error(`⚠️ Failed to send permission change email to ${userProfile.full_name}:`, emailError);
+          console.error(
+            `⚠️ Failed to send permission change email to ${userProfile.full_name}:`,
+            emailError,
+          );
           // Don't block the bulk operation if individual emails fail
         }
       }
-      
+
       // Update local state
-      setProfiles(prev => prev.map(p => 
-        selectedUsers.includes(p.id)
-          ? { ...p, max_featured_listings_per_user: maxFeaturedListings, can_feature_listings: maxFeaturedListings > 0 }
-          : p
-      ));
-      
+      setProfiles((prev) =>
+        prev.map((p) =>
+          selectedUsers.includes(p.id)
+            ? {
+                ...p,
+                max_featured_listings_per_user: maxFeaturedListings,
+                can_feature_listings: maxFeaturedListings > 0,
+              }
+            : p,
+        ),
+      );
+
       setSelectedUsers([]);
-      setMessage({ 
-        type: 'success', 
-        text: `${selectedUsers.length} users updated with featured limit of ${maxFeaturedListings}` 
+      setMessage({
+        type: "success",
+        text: `${selectedUsers.length} users updated with featured limit of ${maxFeaturedListings}`,
       });
       setTimeout(() => setMessage(null), 3000);
     } catch (error) {
-      console.error('Error bulk updating featured limits:', error);
-      setMessage({ type: 'error', text: `Failed to bulk update featured limits: ${error.message}` });
+      console.error("Error bulk updating featured limits:", error);
+      setMessage({
+        type: "error",
+        text: `Failed to bulk update featured limits: ${error.message}`,
+      });
     } finally {
       setBulkUpdating(false);
     }
   };
 
   const handleSelectUser = (userId: string) => {
-    setSelectedUsers(prev => 
+    setSelectedUsers((prev) =>
       prev.includes(userId)
-        ? prev.filter(id => id !== userId)
-        : [...prev, userId]
+        ? prev.filter((id) => id !== userId)
+        : [...prev, userId],
     );
   };
 
@@ -216,7 +274,7 @@ export function FeaturedSettingsAdmin() {
     if (selectedUsers.length === filteredProfiles.length) {
       setSelectedUsers([]);
     } else {
-      setSelectedUsers(filteredProfiles.map(p => p.id));
+      setSelectedUsers(filteredProfiles.map((p) => p.id));
     }
   };
 
@@ -225,7 +283,9 @@ export function FeaturedSettingsAdmin() {
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         <div className="text-center">
           <AlertTriangle className="w-12 h-12 text-red-500 mx-auto mb-4" />
-          <p className="text-red-600 text-lg">Access denied. Admin privileges required.</p>
+          <p className="text-red-600 text-lg">
+            Access denied. Admin privileges required.
+          </p>
         </div>
       </div>
     );
@@ -254,7 +314,7 @@ export function FeaturedSettingsAdmin() {
           Back to Admin Panel
         </Link>
         <h1 className="text-3xl font-bold text-[#273140] flex items-center">
-          <Star className="w-8 h-8 mr-3 text-[#C5594C]" />
+          <Star className="w-8 h-8 mr-3 text-accent-600" />
           Featured Listings Settings
         </h1>
         <p className="text-gray-600 mt-2">
@@ -264,11 +324,13 @@ export function FeaturedSettingsAdmin() {
 
       {/* Message */}
       {message && (
-        <div className={`mb-6 p-4 rounded-md ${
-          message.type === 'success' 
-            ? 'bg-green-50 border border-green-200 text-green-800' 
-            : 'bg-red-50 border border-red-200 text-red-800'
-        }`}>
+        <div
+          className={`mb-6 p-4 rounded-md ${
+            message.type === "success"
+              ? "bg-green-50 border border-green-200 text-green-800"
+              : "bg-red-50 border border-red-200 text-red-800"
+          }`}
+        >
           {message.text}
         </div>
       )}
@@ -280,11 +342,14 @@ export function FeaturedSettingsAdmin() {
             <Settings className="w-6 h-6 mr-2" />
             Global Limits
           </h2>
-          
+
           <form onSubmit={handleSettingsSubmit} className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
-                <label htmlFor="max_featured_listings" className="block text-sm font-medium text-gray-700 mb-2">
+                <label
+                  htmlFor="max_featured_listings"
+                  className="block text-sm font-medium text-gray-700 mb-2"
+                >
                   Maximum Featured Listings (Platform-wide)
                 </label>
                 <input
@@ -293,19 +358,25 @@ export function FeaturedSettingsAdmin() {
                   min="1"
                   max="50"
                   value={settings.max_featured_listings}
-                  onChange={(e) => setSettings(prev => ({ 
-                    ...prev, 
-                    max_featured_listings: parseInt(e.target.value) || 1 
-                  }))}
+                  onChange={(e) =>
+                    setSettings((prev) => ({
+                      ...prev,
+                      max_featured_listings: parseInt(e.target.value) || 1,
+                    }))
+                  }
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
                 />
                 <p className="text-xs text-gray-500 mt-1">
-                  Total number of listings that can be featured at once across the entire platform
+                  Total number of listings that can be featured at once across
+                  the entire platform
                 </p>
               </div>
 
               <div>
-                <label htmlFor="max_featured_per_user" className="block text-sm font-medium text-gray-700 mb-2">
+                <label
+                  htmlFor="max_featured_per_user"
+                  className="block text-sm font-medium text-gray-700 mb-2"
+                >
                   Maximum Per User
                 </label>
                 <input
@@ -316,15 +387,16 @@ export function FeaturedSettingsAdmin() {
                   value={settings.max_featured_per_user}
                   onChange={(e) => {
                     const value = parseInt(e.target.value);
-                    setSettings(prev => ({ 
-                      ...prev, 
-                      max_featured_per_user: isNaN(value) ? 0 : value 
+                    setSettings((prev) => ({
+                      ...prev,
+                      max_featured_per_user: isNaN(value) ? 0 : value,
                     }));
                   }}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
                 />
                 <p className="text-xs text-gray-500 mt-1">
-                  Maximum number of listings each user can feature simultaneously
+                  Maximum number of listings each user can feature
+                  simultaneously
                 </p>
               </div>
             </div>
@@ -333,10 +405,10 @@ export function FeaturedSettingsAdmin() {
               <button
                 type="submit"
                 disabled={saving}
-                className="bg-[#C5594C] text-white px-6 py-3 rounded-md font-semibold hover:bg-[#b04d42] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#C5594C] disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center"
+                className="bg-accent-500 text-white px-6 py-3 rounded-md font-semibold hover:bg-accent-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-accent-400 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center"
               >
                 <Save className="w-5 h-5 mr-2" />
-                {saving ? 'Saving...' : 'Save Settings'}
+                {saving ? "Saving..." : "Save Settings"}
               </button>
             </div>
           </form>
@@ -349,7 +421,7 @@ export function FeaturedSettingsAdmin() {
               <Users className="w-6 h-6 mr-2" />
               User Permissions
             </h2>
-            
+
             {/* Bulk Actions */}
             {selectedUsers.length > 0 && (
               <div className="flex items-center space-x-2">
@@ -357,7 +429,9 @@ export function FeaturedSettingsAdmin() {
                   {selectedUsers.length} selected
                 </span>
                 <button
-                  onClick={() => handleBulkUpdate(settings.max_featured_per_user)}
+                  onClick={() =>
+                    handleBulkUpdate(settings.max_featured_per_user)
+                  }
                   disabled={bulkUpdating}
                   className="bg-green-600 text-white px-3 py-1 rounded text-sm font-medium hover:bg-green-700 disabled:opacity-50 transition-colors"
                 >
@@ -396,7 +470,10 @@ export function FeaturedSettingsAdmin() {
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     <input
                       type="checkbox"
-                      checked={selectedUsers.length === filteredProfiles.length && filteredProfiles.length > 0}
+                      checked={
+                        selectedUsers.length === filteredProfiles.length &&
+                        filteredProfiles.length > 0
+                      }
                       onChange={handleSelectAll}
                       className="h-4 w-4 text-[#273140] focus:ring-[#273140] border-gray-300 rounded"
                     />
@@ -448,16 +525,18 @@ export function FeaturedSettingsAdmin() {
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                        userProfile.is_admin 
-                          ? 'bg-purple-100 text-purple-800'
-                          : userProfile.role === 'agent'
-                          ? 'bg-blue-100 text-blue-800'
-                          : userProfile.role === 'landlord'
-                          ? 'bg-green-100 text-green-800'
-                          : 'bg-gray-100 text-gray-800'
-                      }`}>
-                        {userProfile.is_admin ? 'Admin' : userProfile.role}
+                      <span
+                        className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                          userProfile.is_admin
+                            ? "bg-purple-100 text-purple-800"
+                            : userProfile.role === "agent"
+                              ? "bg-blue-100 text-blue-800"
+                              : userProfile.role === "landlord"
+                                ? "bg-green-100 text-green-800"
+                                : "bg-gray-100 text-gray-800"
+                        }`}
+                      >
+                        {userProfile.is_admin ? "Admin" : userProfile.role}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
@@ -466,9 +545,11 @@ export function FeaturedSettingsAdmin() {
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                       <div className="flex items-center">
                         {userProfile.featured_count > 0 && (
-                          <Star className="w-4 h-4 text-[#C5594C] mr-1" />
+                          <Star className="w-4 h-4 text-accent-600 mr-1" />
                         )}
-                        {userProfile.featured_count} / {userProfile.max_featured_listings_per_user ?? settings.max_featured_per_user}
+                        {userProfile.featured_count} /{" "}
+                        {userProfile.max_featured_listings_per_user ??
+                          settings.max_featured_per_user}
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
@@ -477,33 +558,53 @@ export function FeaturedSettingsAdmin() {
                           type="number"
                           min="0"
                           max="10"
-                          value={editingUserLimits[userProfile.id] ?? userProfile.max_featured_listings_per_user ?? settings.max_featured_per_user}
-                          onChange={(e) => setEditingUserLimits(prev => ({
-                            ...prev,
-                            [userProfile.id]: parseInt(e.target.value) || 0
-                          }))}
+                          value={
+                            editingUserLimits[userProfile.id] ??
+                            userProfile.max_featured_listings_per_user ??
+                            settings.max_featured_per_user
+                          }
+                          onChange={(e) =>
+                            setEditingUserLimits((prev) => ({
+                              ...prev,
+                              [userProfile.id]: parseInt(e.target.value) || 0,
+                            }))
+                          }
                           className="w-16 px-2 py-1 text-sm border border-gray-300 rounded focus:ring-[#273140] focus:border-[#273140]"
                           disabled={userProfile.is_admin}
-                          title={userProfile.is_admin ? 'Admins have unlimited featured listings' : ''}
+                          title={
+                            userProfile.is_admin
+                              ? "Admins have unlimited featured listings"
+                              : ""
+                          }
                         />
-                        {editingUserLimits[userProfile.id] !== undefined && editingUserLimits[userProfile.id] !== (userProfile.max_featured_listings_per_user ?? settings.max_featured_per_user) && (
-                          <button
-                            onClick={() => handleUpdateUserFeaturedLimit(userProfile.id, editingUserLimits[userProfile.id])}
-                            disabled={updatingUser === userProfile.id}
-                            className="px-2 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 disabled:opacity-50 transition-colors"
-                          >
-                            Save
-                          </button>
-                        )}
+                        {editingUserLimits[userProfile.id] !== undefined &&
+                          editingUserLimits[userProfile.id] !==
+                            (userProfile.max_featured_listings_per_user ??
+                              settings.max_featured_per_user) && (
+                            <button
+                              onClick={() =>
+                                handleUpdateUserFeaturedLimit(
+                                  userProfile.id,
+                                  editingUserLimits[userProfile.id],
+                                )
+                              }
+                              disabled={updatingUser === userProfile.id}
+                              className="px-2 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                            >
+                              Save
+                            </button>
+                          )}
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                       <div className="flex items-center space-x-2">
                         <button
-                          onClick={() => setEditingUserLimits(prev => ({
-                            ...prev,
-                            [userProfile.id]: settings.max_featured_per_user
-                          }))}
+                          onClick={() =>
+                            setEditingUserLimits((prev) => ({
+                              ...prev,
+                              [userProfile.id]: settings.max_featured_per_user,
+                            }))
+                          }
                           disabled={userProfile.is_admin}
                           className="text-blue-600 hover:text-blue-800 text-sm transition-colors disabled:opacity-50"
                           title="Set to default limit"
@@ -511,10 +612,12 @@ export function FeaturedSettingsAdmin() {
                           Default
                         </button>
                         <button
-                          onClick={() => setEditingUserLimits(prev => ({
-                            ...prev,
-                            [userProfile.id]: 0
-                          }))}
+                          onClick={() =>
+                            setEditingUserLimits((prev) => ({
+                              ...prev,
+                              [userProfile.id]: 0,
+                            }))
+                          }
                           disabled={userProfile.is_admin}
                           className="text-red-600 hover:text-red-800 text-sm transition-colors disabled:opacity-50"
                           title="Remove featuring ability"
@@ -533,7 +636,8 @@ export function FeaturedSettingsAdmin() {
             <div className="text-center py-8">
               <Users className="w-12 h-12 text-gray-300 mx-auto mb-4" />
               <p className="text-gray-500">
-                Maximum number of listings each user can feature simultaneously (0 = no featuring allowed)
+                Maximum number of listings each user can feature simultaneously
+                (0 = no featuring allowed)
               </p>
             </div>
           )}

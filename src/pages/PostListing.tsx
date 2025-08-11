@@ -1,13 +1,18 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
-import { Upload, X, Star } from 'lucide-react';
-import { useAuth } from '../hooks/useAuth';
-import { listingsService } from '../services/listings';
-import { emailService } from '../services/email';
-import { draftListingsService, DraftData } from '../services/draftListings';
-import { Modal } from '../components/shared/Modal';
-import { AuthForm } from '../components/auth/AuthForm';
-import { PropertyType, ParkingType, HeatType, TempListingImage } from '../config/supabase';
+import React, { useState, useEffect } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
+import { Upload, X, Star } from "lucide-react";
+import { useAuth } from "../hooks/useAuth";
+import { listingsService } from "../services/listings";
+import { emailService } from "../services/email";
+import { draftListingsService, DraftData } from "../services/draftListings";
+import { Modal } from "../components/shared/Modal";
+import { AuthForm } from "../components/auth/AuthForm";
+import {
+  PropertyType,
+  ParkingType,
+  HeatType,
+  TempListingImage,
+} from "../config/supabase";
 
 interface ListingFormData {
   title: string;
@@ -36,28 +41,30 @@ export function PostListing() {
   const location = useLocation();
   const [loading, setLoading] = useState(false);
   const [tempImages, setTempImages] = useState<TempListingImage[]>([]);
-  const [uploadingImages, setUploadingImages] = useState<{ [key: string]: boolean }>({});
+  const [uploadingImages, setUploadingImages] = useState<{
+    [key: string]: boolean;
+  }>({});
   const [savingDraft, setSavingDraft] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showCustomNeighborhood, setShowCustomNeighborhood] = useState(false);
   const [formData, setFormData] = useState<ListingFormData>({
-    title: '',
-    description: '',
-    location: '',
-    neighborhood: '',
+    title: "",
+    description: "",
+    location: "",
+    neighborhood: "",
     bedrooms: 1,
     bathrooms: 1,
     floor: undefined,
     price: 0,
     square_footage: undefined,
-    parking: 'no',
+    parking: "no",
     washer_dryer_hookup: false,
     dishwasher: false,
-    lease_length: '',
-    heat: 'tenant_pays',
-    property_type: 'apartment_house',
-    contact_name: profile?.full_name || '',
-    contact_phone: profile?.phone || '',
+    lease_length: "",
+    heat: "tenant_pays",
+    property_type: "apartment_house",
+    contact_name: profile?.full_name || "",
+    contact_phone: profile?.phone || "",
     is_featured: false,
   });
 
@@ -82,7 +89,7 @@ export function PostListing() {
 
     const timeoutId = setTimeout(() => {
       // Save draft even if user is not logged in (use a temporary identifier)
-      const identifier = user?.id || 'anonymous';
+      const identifier = user?.id || "anonymous";
       saveDraftData(identifier);
     }, 2000); // Save after 2 seconds of inactivity
 
@@ -92,10 +99,10 @@ export function PostListing() {
   // Update contact info when user profile loads
   useEffect(() => {
     if (profile) {
-      setFormData(prev => ({
+      setFormData((prev) => ({
         ...prev,
-        contact_name: prev.contact_name || profile.full_name || '',
-        contact_phone: prev.contact_phone || profile.phone || '',
+        contact_name: prev.contact_name || profile.full_name || "",
+        contact_phone: prev.contact_phone || profile.phone || "",
       }));
     }
   }, [profile]);
@@ -105,40 +112,45 @@ export function PostListing() {
       let draftData: DraftData | null = null;
 
       // Load draft from localStorage (try user ID first, then anonymous)
-      const identifier = user?.id || 'anonymous';
+      const identifier = user?.id || "anonymous";
       draftData = await draftListingsService.loadDraft(identifier);
-      
+
       // If user just logged in and we have an anonymous draft, migrate it
       if (user?.id && !draftData) {
-        const anonymousDraft = await draftListingsService.loadDraft('anonymous');
+        const anonymousDraft =
+          await draftListingsService.loadDraft("anonymous");
         if (anonymousDraft) {
           draftData = anonymousDraft;
           // Save to user's account and delete anonymous draft
-          await draftListingsService.saveDraft(draftData, user.id, draftData.tempImages);
-          await draftListingsService.deleteDraft('anonymous');
+          await draftListingsService.saveDraft(
+            draftData,
+            user.id,
+            draftData.tempImages,
+          );
+          await draftListingsService.deleteDraft("anonymous");
         }
       }
 
       if (draftData) {
         // Restore form data
         setFormData({
-          title: draftData.title || '',
-          description: draftData.description || '',
-          location: draftData.location || '',
-          neighborhood: draftData.neighborhood || '',
+          title: draftData.title || "",
+          description: draftData.description || "",
+          location: draftData.location || "",
+          neighborhood: draftData.neighborhood || "",
           bedrooms: draftData.bedrooms || 1,
           bathrooms: draftData.bathrooms || 1,
           floor: draftData.floor,
           price: draftData.price || 0,
           square_footage: draftData.square_footage,
-          parking: draftData.parking || 'no',
+          parking: draftData.parking || "no",
           washer_dryer_hookup: draftData.washer_dryer_hookup || false,
           dishwasher: draftData.dishwasher || false,
-          lease_length: draftData.lease_length || '',
-          heat: draftData.heat || 'tenant_pays',
-          property_type: draftData.property_type || 'apartment_house',
-          contact_name: draftData.contact_name || profile?.full_name || '',
-          contact_phone: draftData.contact_phone || profile?.phone || '',
+          lease_length: draftData.lease_length || "",
+          heat: draftData.heat || "tenant_pays",
+          property_type: draftData.property_type || "apartment_house",
+          contact_name: draftData.contact_name || profile?.full_name || "",
+          contact_phone: draftData.contact_phone || profile?.phone || "",
           is_featured: draftData.is_featured || false,
         });
 
@@ -148,15 +160,25 @@ export function PostListing() {
         }
 
         // Check if using custom neighborhood
-        const standardNeighborhoods = ['Midwood', 'Homecrest', 'Marine Park', 'Flatbush', 'Gravesend', 'Boro Park'];
-        if (draftData.neighborhood && !standardNeighborhoods.includes(draftData.neighborhood)) {
+        const standardNeighborhoods = [
+          "Midwood",
+          "Homecrest",
+          "Marine Park",
+          "Flatbush",
+          "Gravesend",
+          "Boro Park",
+        ];
+        if (
+          draftData.neighborhood &&
+          !standardNeighborhoods.includes(draftData.neighborhood)
+        ) {
           setShowCustomNeighborhood(true);
         }
 
-        console.log('✅ Draft data loaded successfully');
+        console.log("✅ Draft data loaded successfully");
       }
     } catch (error) {
-      console.error('Error loading draft data:', error);
+      console.error("Error loading draft data:", error);
     }
   };
 
@@ -166,76 +188,81 @@ export function PostListing() {
       const draftData: DraftData = formData;
 
       await draftListingsService.saveDraft(draftData, identifier, tempImages);
-      console.log('✅ Draft saved automatically for:', identifier);
+      console.log("✅ Draft saved automatically for:", identifier);
     } catch (error) {
-      console.error('❌ Error saving draft for', identifier, ':', error);
+      console.error("❌ Error saving draft for", identifier, ":", error);
       // Don't show alert for auto-save failures to avoid interrupting user experience
     } finally {
       setSavingDraft(false);
     }
   };
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+  const handleInputChange = (
+    e: React.ChangeEvent<
+      HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
+    >,
+  ) => {
     const { name, value } = e.target;
     const type = e.target.type;
-    
-    if (type === 'checkbox') {
+
+    if (type === "checkbox") {
       const checked = (e.target as HTMLInputElement).checked;
-      setFormData(prev => ({ ...prev, [name]: checked }));
-    } else if (name === 'neighborhood') {
-      if (value === 'other') {
+      setFormData((prev) => ({ ...prev, [name]: checked }));
+    } else if (name === "neighborhood") {
+      if (value === "other") {
         setShowCustomNeighborhood(true);
-        setFormData(prev => ({ ...prev, [name]: '' }));
+        setFormData((prev) => ({ ...prev, [name]: "" }));
       } else {
         setShowCustomNeighborhood(false);
-        setFormData(prev => ({ ...prev, [name]: value }));
+        setFormData((prev) => ({ ...prev, [name]: value }));
       }
-    } else if (type === 'number') {
-      const numValue = value === '' ? undefined : parseFloat(value);
-      setFormData(prev => ({ ...prev, [name]: numValue }));
+    } else if (type === "number") {
+      const numValue = value === "" ? undefined : parseFloat(value);
+      setFormData((prev) => ({ ...prev, [name]: numValue }));
     } else {
-      setFormData(prev => ({ ...prev, [name]: value }));
+      setFormData((prev) => ({ ...prev, [name]: value }));
     }
   };
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
-    
+
     if (!user) {
-      alert('Please sign in to upload images');
+      alert("Please sign in to upload images");
       return;
     }
-    
+
     if (tempImages.length + files.length > 10) {
-      alert('Maximum 10 images allowed');
+      alert("Maximum 10 images allowed");
       return;
     }
 
     for (const file of files) {
       if (file.size > 5 * 1024 * 1024) {
-        alert('Image size should be less than 5MB');
+        alert("Image size should be less than 5MB");
         continue;
       }
 
       const tempId = `temp-${Date.now()}-${Math.random()}`;
-      setUploadingImages(prev => ({ ...prev, [tempId]: true }));
+      setUploadingImages((prev) => ({ ...prev, [tempId]: true }));
 
       try {
-        const { filePath, publicUrl } = await listingsService.uploadTempListingImage(file, user.id);
-        
+        const { filePath, publicUrl } =
+          await listingsService.uploadTempListingImage(file, user.id);
+
         const tempImage: TempListingImage = {
           filePath,
           publicUrl,
           is_featured: tempImages.length === 0, // First image is featured by default
           originalName: file.name,
         };
-        
-        setTempImages(prev => [...prev, tempImage]);
+
+        setTempImages((prev) => [...prev, tempImage]);
       } catch (error) {
-        console.error('Error uploading temp image:', error);
-        alert('Failed to upload image. Please try again.');
+        console.error("Error uploading temp image:", error);
+        alert("Failed to upload image. Please try again.");
       } finally {
-        setUploadingImages(prev => {
+        setUploadingImages((prev) => {
           const newState = { ...prev };
           delete newState[tempId];
           return newState;
@@ -245,7 +272,7 @@ export function PostListing() {
   };
 
   const removeImage = (index: number) => {
-    setTempImages(prev => {
+    setTempImages((prev) => {
       const newImages = prev.filter((_, i) => i !== index);
       // If we removed the featured image, make the first one featured
       if (prev[index]?.is_featured && newImages.length > 0) {
@@ -256,15 +283,19 @@ export function PostListing() {
   };
 
   const setFeaturedImage = (index: number) => {
-    setTempImages(prev => prev.map((img, i) => ({
-      ...img,
-      is_featured: i === index
-    })));
+    setTempImages((prev) =>
+      prev.map((img, i) => ({
+        ...img,
+        is_featured: i === index,
+      })),
+    );
   };
 
   const submitListingContent = async () => {
     if (!user) {
-      console.error('User is not authenticated when trying to submit listing content.');
+      console.error(
+        "User is not authenticated when trying to submit listing content.",
+      );
       return;
     }
 
@@ -280,15 +311,22 @@ export function PostListing() {
 
       // Process images: upload local base64 images to draft bucket first, then finalize all images
       if (tempImages.length > 0) {
-        await listingsService.finalizeTempListingImages(listing.id, user.id, tempImages);
+        await listingsService.finalizeTempListingImages(
+          listing.id,
+          user.id,
+          tempImages,
+        );
       }
 
       // Delete the draft since we've successfully created the listing
       try {
         await draftListingsService.deleteDraft(user.id);
-        console.log('✅ Draft deleted after successful listing creation');
+        console.log("✅ Draft deleted after successful listing creation");
       } catch (draftError) {
-        console.error('⚠️ Failed to delete draft after listing creation:', draftError);
+        console.error(
+          "⚠️ Failed to delete draft after listing creation:",
+          draftError,
+        );
         // Don't block the flow if draft deletion fails
       }
 
@@ -300,17 +338,17 @@ export function PostListing() {
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #f9f9f9;">
             <div style="background-color: #4E4B43; color: white; padding: 30px; text-align: center;">
               <div style="display: flex; align-items: center; justify-content: center; margin-bottom: 10px;">
-                <svg width="40" height="40" viewBox="0 0 32 32" style="color: #E5D8C1; margin-right: 10px;">
+                <svg width="40" height="40" viewBox="0 0 32 32" style="color: #FFFFFF; margin-right: 10px;">
                   <path d="M16 4L6 12v16h5v-8h10v8h5V12L16 4z" stroke="currentColor" stroke-width="2" fill="none" stroke-linejoin="round"/>
                   <circle cx="23" cy="8" r="1" fill="currentColor"/>
                 </svg>
-                <span style="font-size: 28px; font-weight: bold; color: #E5D8C1;">HaDirot</span>
+                <span style="font-size: 28px; font-weight: bold; color: #FFFFFF;">HaDirot</span>
               </div>
               <h1 style="margin: 0; font-size: 24px;">Listing Submitted Successfully!</h1>
             </div>
             
             <div style="padding: 30px; background-color: white; margin: 0 20px;">
-              <h2 style="color: #4E4B43; margin-top: 0; font-size: 20px;">Hello ${profile?.full_name || 'there'}!</h2>
+              <h2 style="color: #4E4B43; margin-top: 0; font-size: 20px;">Hello ${profile?.full_name || "there"}!</h2>
               
               <p style="color: #333; line-height: 1.6; font-size: 16px;">
                 Thank you for submitting your listing "<strong>${formData.title}</strong>" to HaDirot. We've received your submission and it's currently under review.
@@ -320,12 +358,12 @@ export function PostListing() {
                 <h3 style="color: #4E4B43; margin-top: 0; font-size: 18px;">📋 Listing Details</h3>
                 <ul style="color: #555; line-height: 1.6; margin: 0; padding-left: 20px;">
                   <li><strong>Property:</strong> ${formData.title}</li>
-                  <li><strong>Location:</strong> ${formData.location}${formData.neighborhood ? `, ${formData.neighborhood}` : ''}</li>
-                  <li><strong>Bedrooms:</strong> ${formData.bedrooms === 0 ? 'Studio' : formData.bedrooms}</li>
+                  <li><strong>Location:</strong> ${formData.location}${formData.neighborhood ? `, ${formData.neighborhood}` : ""}</li>
+                  <li><strong>Bedrooms:</strong> ${formData.bedrooms === 0 ? "Studio" : formData.bedrooms}</li>
                   <li><strong>Bathrooms:</strong> ${formData.bathrooms}</li>
                   <li><strong>Monthly Rent:</strong> $${formData.price.toLocaleString()}</li>
-                  <li><strong>Property Type:</strong> ${formData.property_type.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}</li>
-                  ${formData.is_featured ? '<li><strong>Featured:</strong> Yes (Premium placement)</li>' : ''}
+                  <li><strong>Property Type:</strong> ${formData.property_type.replace("_", " ").replace(/\b\w/g, (l) => l.toUpperCase())}</li>
+                  ${formData.is_featured ? "<li><strong>Featured:</strong> Yes (Premium placement)</li>" : ""}
                 </ul>
               </div>
               
@@ -334,7 +372,7 @@ export function PostListing() {
                 <ol style="color: #555; line-height: 1.8; margin: 0; padding-left: 20px;">
                   <li>Our team will review your listing within 24-48 hours</li>
                   <li>Once approved, your listing will go live on HaDirot</li>
-                  ${formData.is_featured ? '<li>Your featured listing will get premium placement for 1 week</li>' : ''}
+                  ${formData.is_featured ? "<li>Your featured listing will get premium placement for 1 week</li>" : ""}
                   <li>You'll receive another email confirmation when it's published</li>
                   <li>Potential tenants will be able to contact you directly</li>
                 </ol>
@@ -355,7 +393,7 @@ export function PostListing() {
               </div>
             </div>
             
-            <div style="background-color: #4E4B43; color: #E5D8C1; padding: 20px; text-align: center; margin: 0 20px;">
+            <div style="background-color: #4E4B43; color: #FFFFFF; padding: 20px; text-align: center; margin: 0 20px;">
               <p style="margin: 0; font-size: 14px;">
                 © 2025 HaDirot. All rights reserved.<br>
                 NYC's premier Jewish rental platform
@@ -367,29 +405,33 @@ export function PostListing() {
         await emailService.sendEmail({
           to: user.email!,
           subject: `Listing Submitted: ${formData.title} - HaDirot`,
-          html: emailHtml
+          html: emailHtml,
         });
-        
-        console.log('✅ Listing submission email sent successfully');
+
+        console.log("✅ Listing submission email sent successfully");
       } catch (emailError) {
-        console.error('⚠️ Failed to send listing submission email:', emailError);
+        console.error(
+          "⚠️ Failed to send listing submission email:",
+          emailError,
+        );
         // Don't block the user flow if email fails
       }
     } catch (error) {
-      console.error('Error creating listing:', error);
-      
+      console.error("Error creating listing:", error);
+
       // Show specific error messages based on the error
-      let errorMessage = 'Failed to create listing. Please try again.';
+      let errorMessage = "Failed to create listing. Please try again.";
       if (error instanceof Error) {
-        if (error.message.includes('permission')) {
-          errorMessage = 'You do not have permission to feature listings. Please contact support to upgrade your account.';
-        } else if (error.message.includes('platform only allows')) {
+        if (error.message.includes("permission")) {
+          errorMessage =
+            "You do not have permission to feature listings. Please contact support to upgrade your account.";
+        } else if (error.message.includes("platform only allows")) {
           errorMessage = error.message;
-        } else if (error.message.includes('You can only feature')) {
+        } else if (error.message.includes("You can only feature")) {
           errorMessage = error.message;
         }
       }
-      
+
       alert(errorMessage);
     } finally {
       setLoading(false);
@@ -398,12 +440,12 @@ export function PostListing() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!user) {
       setShowAuthModal(true);
       return;
     }
-    
+
     // If user is already logged in, proceed with submission
     await submitListingContent();
   };
@@ -419,15 +461,21 @@ export function PostListing() {
         <h1 className="text-3xl font-bold text-[#273140]">Post a Listing</h1>
         <p className="text-gray-600 mt-2">
           Share your property with potential tenants
-          {!user && <span className="block text-sm text-orange-600 mt-1">You'll need to sign in to publish your listing</span>}
+          {!user && (
+            <span className="block text-sm text-orange-600 mt-1">
+              You'll need to sign in to publish your listing
+            </span>
+          )}
         </p>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-8">
         {/* Basic Information */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-          <h2 className="text-xl font-semibold text-[#273140] mb-4">Basic Information</h2>
-          
+          <h2 className="text-xl font-semibold text-[#273140] mb-4">
+            Basic Information
+          </h2>
+
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <div className="lg:col-span-2">
               <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -476,7 +524,9 @@ export function PostListing() {
               </label>
               <select
                 name="neighborhood"
-                value={showCustomNeighborhood ? 'other' : (formData.neighborhood || '')}
+                value={
+                  showCustomNeighborhood ? "other" : formData.neighborhood || ""
+                }
                 onChange={handleInputChange}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
               >
@@ -493,7 +543,7 @@ export function PostListing() {
                 <input
                   type="text"
                   name="neighborhood"
-                  value={formData.neighborhood || ''}
+                  value={formData.neighborhood || ""}
                   onChange={handleInputChange}
                   className="mt-2 w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
                   placeholder="Enter custom neighborhood"
@@ -511,7 +561,9 @@ export function PostListing() {
                 onChange={handleInputChange}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
               >
-                <option value="apartment_building">Apartment in a building</option>
+                <option value="apartment_building">
+                  Apartment in a building
+                </option>
                 <option value="apartment_house">Apartment in a house</option>
                 <option value="full_house">Full house</option>
               </select>
@@ -521,8 +573,10 @@ export function PostListing() {
 
         {/* Property Details */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-          <h2 className="text-xl font-semibold text-[#273140] mb-4">Property Details</h2>
-          
+          <h2 className="text-xl font-semibold text-[#273140] mb-4">
+            Property Details
+          </h2>
+
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -570,7 +624,7 @@ export function PostListing() {
               <input
                 type="number"
                 name="floor"
-                value={formData.floor || ''}
+                value={formData.floor || ""}
                 onChange={handleInputChange}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
                 placeholder="2"
@@ -584,7 +638,7 @@ export function PostListing() {
               <input
                 type="number"
                 name="price"
-                value={formData.price || ''}
+                value={formData.price || ""}
                 onChange={handleInputChange}
                 required
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
@@ -599,7 +653,7 @@ export function PostListing() {
               <input
                 type="number"
                 name="square_footage"
-                value={formData.square_footage || ''}
+                value={formData.square_footage || ""}
                 onChange={handleInputChange}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
                 placeholder="800"
@@ -613,7 +667,7 @@ export function PostListing() {
               <input
                 type="text"
                 name="lease_length"
-                value={formData.lease_length || ''}
+                value={formData.lease_length || ""}
                 onChange={handleInputChange}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
                 placeholder="12 months"
@@ -686,17 +740,28 @@ export function PostListing() {
                 name="is_featured"
                 checked={formData.is_featured}
                 onChange={handleInputChange}
-                disabled={!profile?.is_admin && (profile?.max_featured_listings_per_user ?? 0) <= 0}
+                disabled={
+                  !profile?.is_admin &&
+                  (profile?.max_featured_listings_per_user ?? 0) <= 0
+                }
                 className="h-4 w-4 text-[#273140] focus:ring-[#273140] border-gray-300 rounded"
               />
-              <label className={`ml-2 text-sm font-medium flex items-center ${
-                (!profile?.is_admin && (profile?.max_featured_listings_per_user ?? 0) <= 0) ? 'text-gray-400' : 'text-gray-700'
-              }`}>
-                <Star className="w-4 h-4 mr-1 text-[#C5594C]" />
+              <label
+                className={`ml-2 text-sm font-medium flex items-center ${
+                  !profile?.is_admin &&
+                  (profile?.max_featured_listings_per_user ?? 0) <= 0
+                    ? "text-gray-400"
+                    : "text-gray-700"
+                }`}
+              >
+                <Star className="w-4 h-4 mr-1 text-accent-600" />
                 Feature this listing
-                {(!profile?.is_admin && (profile?.max_featured_listings_per_user ?? 0) <= 0) && (
-                  <span className="ml-2 text-xs text-gray-400">(Contact support to upgrade)</span>
-                )}
+                {!profile?.is_admin &&
+                  (profile?.max_featured_listings_per_user ?? 0) <= 0 && (
+                    <span className="ml-2 text-xs text-gray-400">
+                      (Contact support to upgrade)
+                    </span>
+                  )}
               </label>
             </div>
           </div>
@@ -704,8 +769,10 @@ export function PostListing() {
 
         {/* Images */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-          <h2 className="text-xl font-semibold text-[#273140] mb-4">Images (Up to 10)</h2>
-          
+          <h2 className="text-xl font-semibold text-[#273140] mb-4">
+            Images (Up to 10)
+          </h2>
+
           <div className="mb-4">
             <label className="block w-full">
               <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-[#273140] transition-colors cursor-pointer">
@@ -715,7 +782,9 @@ export function PostListing() {
                   <Upload className="w-8 h-8 mx-auto mb-2 text-gray-400" />
                 )}
                 <span className="text-sm text-gray-600">
-                  {Object.keys(uploadingImages).length > 0 ? 'Uploading...' : 'Click to upload images or drag and drop'}
+                  {Object.keys(uploadingImages).length > 0
+                    ? "Uploading..."
+                    : "Click to upload images or drag and drop"}
                 </span>
                 <span className="text-xs text-gray-500 block mt-1">
                   PNG, JPG up to 5MB each
@@ -727,7 +796,11 @@ export function PostListing() {
                 accept="image/*"
                 onChange={handleImageUpload}
                 className="hidden"
-                disabled={tempImages.length >= 10 || Object.keys(uploadingImages).length > 0 || !user}
+                disabled={
+                  tempImages.length >= 10 ||
+                  Object.keys(uploadingImages).length > 0 ||
+                  !user
+                }
               />
             </label>
           </div>
@@ -753,11 +826,11 @@ export function PostListing() {
                     onClick={() => setFeaturedImage(index)}
                     className={`absolute bottom-2 left-2 px-2 py-1 rounded text-xs font-medium transition-colors ${
                       image.is_featured
-                        ? 'bg-[#C5594C] text-white'
-                        : 'bg-black bg-opacity-50 text-white hover:bg-[#C5594C]'
+                        ? "bg-accent-500 text-white"
+                        : "bg-black bg-opacity-50 text-white hover:bg-accent-600"
                     }`}
                   >
-                    {image.is_featured ? 'Featured' : 'Set Featured'}
+                    {image.is_featured ? "Featured" : "Set Featured"}
                   </button>
                 </div>
               ))}
@@ -771,11 +844,12 @@ export function PostListing() {
               Saving draft...
             </div>
           )}
-          
+
           {!user && (
             <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
               <p className="text-sm text-yellow-800">
-                Please sign in to upload images. Your form data will be saved automatically.
+                Please sign in to upload images. Your form data will be saved
+                automatically.
               </p>
             </div>
           )}
@@ -783,8 +857,10 @@ export function PostListing() {
 
         {/* Contact Information */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-          <h2 className="text-xl font-semibold text-[#273140] mb-4">Contact Information</h2>
-          
+          <h2 className="text-xl font-semibold text-[#273140] mb-4">
+            Contact Information
+          </h2>
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -821,22 +897,23 @@ export function PostListing() {
           <button
             type="submit"
             disabled={loading}
-            className="bg-[#C5594C] text-white px-8 py-3 rounded-md font-semibold hover:bg-[#b04d42] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#C5594C] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="bg-accent-500 text-white px-8 py-3 rounded-md font-semibold hover:bg-accent-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-accent-400 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
-            {loading ? 'Creating Listing...' : 'Post Listing'}
+            {loading ? "Creating Listing..." : "Post Listing"}
           </button>
         </div>
       </form>
 
       {/* Authentication Modal */}
-      <Modal 
-        isOpen={showAuthModal} 
-        onClose={() => setShowAuthModal(false)} 
+      <Modal
+        isOpen={showAuthModal}
+        onClose={() => setShowAuthModal(false)}
         title="Sign In or Sign Up to Post Listing"
       >
         <div className="space-y-4">
           <p className="text-gray-600">
-            Please sign in or create an account to publish your listing. Your draft will be saved automatically.
+            Please sign in or create an account to publish your listing. Your
+            draft will be saved automatically.
           </p>
           <AuthForm onAuthSuccess={handleAuthSuccess} />
         </div>

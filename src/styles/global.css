@@ -4,13 +4,36 @@
 
 :root {
   --brand-serif: "itc-benguiat", Georgia, "Times New Roman", serif;
+  --bg-base: #ffffff;
+  --bg-soft: #fafafa;
+  --bg-card: #ffffff;
+  --border-subtle: #e5e7eb;
 }
 
-html, body {
+html,
+body {
+  background: var(--bg-base);
   font-family: var(--brand-serif);
 }
 
-h1, h2, h3, h4, h5, h6, .brand-heading {
+.section,
+.page,
+.container,
+.content,
+.panel,
+.drawer,
+.modal,
+.card {
+  background: var(--bg-card);
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+.brand-heading {
   font-family: var(--brand-serif);
 }
 

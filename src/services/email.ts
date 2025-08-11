@@ -1,12 +1,12 @@
-import { supabase } from '../config/supabase';
-import { SUPABASE_URL } from '../config/env';
+import { supabase } from "../config/supabase";
+import { SUPABASE_URL } from "../config/env";
 
 export interface EmailRequest {
   to: string | string[];
   subject: string;
   html: string;
   from?: string;
-  type?: 'password_reset' | 'general';
+  type?: "password_reset" | "general";
 }
 
 export interface EmailResponse {
@@ -21,37 +21,43 @@ export const emailService = {
     try {
       return await requestPasswordReset(to);
     } catch (error) {
-      console.error('Error sending password reset email:', error);
+      console.error("Error sending password reset email:", error);
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Unknown error occurred',
+        error:
+          error instanceof Error ? error.message : "Unknown error occurred",
       };
     }
   },
 
   async sendEmail(emailData: EmailRequest): Promise<EmailResponse> {
     try {
-      if (emailData.type === 'password_reset') {
-        const toEmail = Array.isArray(emailData.to) ? emailData.to[0] : emailData.to;
+      if (emailData.type === "password_reset") {
+        const toEmail = Array.isArray(emailData.to)
+          ? emailData.to[0]
+          : emailData.to;
         return await this.sendPasswordResetEmail(toEmail, emailData.subject);
       }
 
       const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
       };
 
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      const {
+        data: { session },
+        error: sessionError,
+      } = await supabase.auth.getSession();
 
       if (sessionError || !session) {
-        throw new Error('User must be authenticated to send emails');
+        throw new Error("User must be authenticated to send emails");
       }
 
-      headers['Authorization'] = `Bearer ${session.access_token}`;
+      headers["Authorization"] = `Bearer ${session.access_token}`;
 
       const functionUrl = `${SUPABASE_URL}/functions/v1/send-email`;
 
       const response = await fetch(functionUrl, {
-        method: 'POST',
+        method: "POST",
         headers,
         body: JSON.stringify(emailData),
       });
@@ -61,23 +67,28 @@ export const emailService = {
       if (!response.ok) {
         return {
           success: false,
-          error: result.error || 'Failed to send email',
+          error: result.error || "Failed to send email",
           details: result.details,
         };
       }
 
       return result;
     } catch (error) {
-      console.error('Error sending email:', error);
+      console.error("Error sending email:", error);
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Unknown error occurred',
+        error:
+          error instanceof Error ? error.message : "Unknown error occurred",
       };
     }
   },
 
   // Helper function to send a simple text email
-  async sendSimpleEmail(to: string | string[], subject: string, message: string): Promise<EmailResponse> {
+  async sendSimpleEmail(
+    to: string | string[],
+    subject: string,
+    message: string,
+  ): Promise<EmailResponse> {
     const html = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
         <div style="background-color: #4E4B43; color: white; padding: 20px; text-align: center;">
@@ -85,10 +96,10 @@ export const emailService = {
         </div>
         <div style="padding: 20px; background-color: #f9f9f9;">
           <div style="background-color: white; padding: 20px; border-radius: 8px;">
-            <p style="color: #333; line-height: 1.6; margin: 0;">${message.replace(/\n/g, '<br>')}</p>
+            <p style="color: #333; line-height: 1.6; margin: 0;">${message.replace(/\n/g, "<br>")}</p>
           </div>
         </div>
-        <div style="background-color: #4E4B43; color: #E5D8C1; padding: 15px; text-align: center; font-size: 12px;">
+        <div style="background-color: #4E4B43; color: #FFFFFF; padding: 15px; text-align: center; font-size: 12px;">
           <p style="margin: 0;">© 2025 HaDirot. All rights reserved.</p>
         </div>
       </div>
@@ -102,15 +113,25 @@ export const emailService = {
   },
 
   // Helper function to send a notification email to admins
-  async sendAdminNotification(subject: string, message: string): Promise<EmailResponse> {
+  async sendAdminNotification(
+    subject: string,
+    message: string,
+  ): Promise<EmailResponse> {
     // You can configure admin email addresses here or fetch from database
-    const adminEmails = ['admin@hadirot.com']; // Replace with actual admin emails
-    
-    return this.sendSimpleEmail(adminEmails, `[HaDirot Admin] ${subject}`, message);
+    const adminEmails = ["admin@hadirot.com"]; // Replace with actual admin emails
+
+    return this.sendSimpleEmail(
+      adminEmails,
+      `[HaDirot Admin] ${subject}`,
+      message,
+    );
   },
 
   // Helper function to send a welcome email to new users
-  async sendWelcomeEmail(userEmail: string, userName: string): Promise<EmailResponse> {
+  async sendWelcomeEmail(
+    userEmail: string,
+    userName: string,
+  ): Promise<EmailResponse> {
     const html = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
         <div style="background-color: #4E4B43; color: white; padding: 20px; text-align: center;">
@@ -141,7 +162,7 @@ export const emailService = {
             </p>
           </div>
         </div>
-        <div style="background-color: #4E4B43; color: #E5D8C1; padding: 15px; text-align: center; font-size: 12px;">
+        <div style="background-color: #4E4B43; color: #FFFFFF; padding: 15px; text-align: center; font-size: 12px;">
           <p style="margin: 0;">© 2025 HaDirot. All rights reserved.</p>
         </div>
       </div>
@@ -149,22 +170,26 @@ export const emailService = {
 
     return this.sendEmail({
       to: userEmail,
-      subject: 'Welcome to HaDirot - Your NYC Rental Journey Starts Here!',
+      subject: "Welcome to HaDirot - Your NYC Rental Journey Starts Here!",
       html,
     });
   },
 
   // Helper function to send listing update confirmation email
-  async sendListingUpdateEmail(userEmail: string, userName: string, listingTitle: string): Promise<EmailResponse> {
+  async sendListingUpdateEmail(
+    userEmail: string,
+    userName: string,
+    listingTitle: string,
+  ): Promise<EmailResponse> {
     const html = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #f9f9f9;">
         <div style="background-color: #4E4B43; color: white; padding: 30px; text-align: center;">
           <div style="display: flex; align-items: center; justify-content: center; margin-bottom: 10px;">
-            <svg width="40" height="40" viewBox="0 0 32 32" style="color: #E5D8C1; margin-right: 10px;">
+            <svg width="40" height="40" viewBox="0 0 32 32" style="color: #FFFFFF; margin-right: 10px;">
               <path d="M16 4L6 12v16h5v-8h10v8h5V12L16 4z" stroke="currentColor" stroke-width="2" fill="none" stroke-linejoin="round"/>
               <circle cx="23" cy="8" r="1" fill="currentColor"/>
             </svg>
-            <span style="font-size: 28px; font-weight: bold; color: #E5D8C1;">HaDirot</span>
+            <span style="font-size: 28px; font-weight: bold; color: #FFFFFF;">HaDirot</span>
           </div>
           <h1 style="margin: 0; font-size: 24px;">Listing Updated Successfully!</h1>
         </div>
@@ -190,7 +215,7 @@ export const emailService = {
           </div>
         </div>
         
-        <div style="background-color: #4E4B43; color: #E5D8C1; padding: 20px; text-align: center; margin: 0 20px;">
+        <div style="background-color: #4E4B43; color: #FFFFFF; padding: 20px; text-align: center; margin: 0 20px;">
           <p style="margin: 0; font-size: 14px; font-family: 'itc-benguiat', Georgia, 'Times New Roman', serif;">
             © 2025 HaDirot. All rights reserved.<br>
             NYC's premier Jewish rental platform
@@ -207,16 +232,20 @@ export const emailService = {
   },
 
   // Helper function to send listing deactivation email
-  async sendListingDeactivationEmail(userEmail: string, userName: string, listingTitle: string): Promise<EmailResponse> {
+  async sendListingDeactivationEmail(
+    userEmail: string,
+    userName: string,
+    listingTitle: string,
+  ): Promise<EmailResponse> {
     const html = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #f9f9f9;">
         <div style="background-color: #4E4B43; color: white; padding: 30px; text-align: center;">
           <div style="display: flex; align-items: center; justify-content: center; margin-bottom: 10px;">
-            <svg width="40" height="40" viewBox="0 0 32 32" style="color: #E5D8C1; margin-right: 10px;">
+            <svg width="40" height="40" viewBox="0 0 32 32" style="color: #FFFFFF; margin-right: 10px;">
               <path d="M16 4L6 12v16h5v-8h10v8h5V12L16 4z" stroke="currentColor" stroke-width="2" fill="none" stroke-linejoin="round"/>
               <circle cx="23" cy="8" r="1" fill="currentColor"/>
             </svg>
-            <span style="font-size: 28px; font-weight: bold; color: #E5D8C1;">HaDirot</span>
+            <span style="font-size: 28px; font-weight: bold; color: #FFFFFF;">HaDirot</span>
           </div>
           <h1 style="margin: 0; font-size: 24px;">Listing Deactivated</h1>
         </div>
@@ -242,7 +271,7 @@ export const emailService = {
           </div>
         </div>
         
-        <div style="background-color: #4E4B43; color: #E5D8C1; padding: 20px; text-align: center; margin: 0 20px;">
+        <div style="background-color: #4E4B43; color: #FFFFFF; padding: 20px; text-align: center; margin: 0 20px;">
           <p style="margin: 0; font-size: 14px;">
             © 2025 HaDirot. All rights reserved.<br>
             NYC's premier Jewish rental platform
@@ -259,16 +288,20 @@ export const emailService = {
   },
 
   // Helper function to send listing reactivation email
-  async sendListingReactivationEmail(userEmail: string, userName: string, listingTitle: string): Promise<EmailResponse> {
+  async sendListingReactivationEmail(
+    userEmail: string,
+    userName: string,
+    listingTitle: string,
+  ): Promise<EmailResponse> {
     const html = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #f9f9f9;">
         <div style="background-color: #4E4B43; color: white; padding: 30px; text-align: center;">
           <div style="display: flex; align-items: center; justify-content: center; margin-bottom: 10px;">
-            <svg width="40" height="40" viewBox="0 0 32 32" style="color: #E5D8C1; margin-right: 10px;">
+            <svg width="40" height="40" viewBox="0 0 32 32" style="color: #FFFFFF; margin-right: 10px;">
               <path d="M16 4L6 12v16h5v-8h10v8h5V12L16 4z" stroke="currentColor" stroke-width="2" fill="none" stroke-linejoin="round"/>
               <circle cx="23" cy="8" r="1" fill="currentColor"/>
             </svg>
-            <span style="font-size: 28px; font-weight: bold; color: #E5D8C1;">HaDirot</span>
+            <span style="font-size: 28px; font-weight: bold; color: #FFFFFF;">HaDirot</span>
           </div>
           <h1 style="margin: 0; font-size: 24px;">Listing Reactivated!</h1>
         </div>
@@ -294,7 +327,7 @@ export const emailService = {
           </div>
         </div>
         
-        <div style="background-color: #4E4B43; color: #E5D8C1; padding: 20px; text-align: center; margin: 0 20px;">
+        <div style="background-color: #4E4B43; color: #FFFFFF; padding: 20px; text-align: center; margin: 0 20px;">
           <p style="margin: 0; font-size: 14px;">
             © 2025 HaDirot. All rights reserved.<br>
             NYC's premier Jewish rental platform
@@ -311,8 +344,16 @@ export const emailService = {
   },
 
   // Helper function to send listing approval email
-  async sendListingApprovalEmail(userEmail: string, userName: string, listingTitle: string, listingId: string): Promise<EmailResponse> {
-    console.log('[WEB] sendListingApprovalEmail called', { to: userEmail, listingId });
+  async sendListingApprovalEmail(
+    userEmail: string,
+    userName: string,
+    listingTitle: string,
+    listingId: string,
+  ): Promise<EmailResponse> {
+    console.log("[WEB] sendListingApprovalEmail called", {
+      to: userEmail,
+      listingId,
+    });
     const html = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #f9f9f9;">
         <div style="background-color: #28a745; color: white; padding: 30px; text-align: center;">
@@ -361,7 +402,7 @@ export const emailService = {
           </div>
         </div>
         
-        <div style="background-color: #4E4B43; color: #E5D8C1; padding: 20px; text-align: center; margin: 0 20px;">
+        <div style="background-color: #4E4B43; color: #FFFFFF; padding: 20px; text-align: center; margin: 0 20px;">
           <p style="margin: 0; font-size: 14px;">
             © 2025 HaDirot. All rights reserved.<br>
             NYC's premier Jewish rental platform
@@ -378,10 +419,15 @@ export const emailService = {
   },
 
   // Helper function to send featured status change email
-  async sendListingFeaturedEmail(userEmail: string, userName: string, listingTitle: string, isFeatured: boolean): Promise<EmailResponse> {
+  async sendListingFeaturedEmail(
+    userEmail: string,
+    userName: string,
+    listingTitle: string,
+    isFeatured: boolean,
+  ): Promise<EmailResponse> {
     const html = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #f9f9f9;">
-        <div style="background-color: ${isFeatured ? '#667B9A' : '#4E4B43'}; color: white; padding: 30px; text-align: center;">
+        <div style="background-color: ${isFeatured ? "#667B9A" : "#4E4B43"}; color: white; padding: 30px; text-align: center;">
           <div style="display: flex; align-items: center; justify-content: center; margin-bottom: 10px;">
             <svg width="40" height="40" viewBox="0 0 32 32" style="color: white; margin-right: 10px;">
               <path d="M16 4L6 12v16h5v-8h10v8h5V12L16 4z" stroke="currentColor" stroke-width="2" fill="none" stroke-linejoin="round"/>
@@ -390,7 +436,7 @@ export const emailService = {
             <span style="font-size: 28px; font-weight: bold;">HaDirot</span>
           </div>
           <h1 style="margin: 0; font-size: 24px;">
-            ${isFeatured ? '⭐ Listing Featured!' : 'Featured Status Removed'}
+            ${isFeatured ? "⭐ Listing Featured!" : "Featured Status Removed"}
           </h1>
         </div>
         
@@ -398,17 +444,19 @@ export const emailService = {
           <h2 style="color: #4E4B43; margin-top: 0; font-size: 20px;">Hello ${userName}!</h2>
           
           <p style="color: #333; line-height: 1.6; font-size: 16px;">
-            ${isFeatured 
-              ? `Your listing "<strong>${listingTitle}</strong>" is now featured on HaDirot!`
-              : `The featured status has been removed from your listing "<strong>${listingTitle}</strong>".`
+            ${
+              isFeatured
+                ? `Your listing "<strong>${listingTitle}</strong>" is now featured on HaDirot!`
+                : `The featured status has been removed from your listing "<strong>${listingTitle}</strong>".`
             }
           </p>
           
-          <div style="background-color: ${isFeatured ? '#fff3cd' : '#f8f9fa'}; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid ${isFeatured ? '#667B9A' : '#6c757d'};">
-            <p style="color: ${isFeatured ? '#273140' : '#495057'}; line-height: 1.6; margin: 0;">
-              ${isFeatured 
-                ? '<strong>Featured listings</strong> get premium placement and increased visibility to potential tenants.'
-                : 'Your listing is still active and visible to potential tenants in regular search results.'
+          <div style="background-color: ${isFeatured ? "#fff3cd" : "#f8f9fa"}; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid ${isFeatured ? "#667B9A" : "#6c757d"};">
+            <p style="color: ${isFeatured ? "#273140" : "#495057"}; line-height: 1.6; margin: 0;">
+              ${
+                isFeatured
+                  ? "<strong>Featured listings</strong> get premium placement and increased visibility to potential tenants."
+                  : "Your listing is still active and visible to potential tenants in regular search results."
               }
             </p>
           </div>
@@ -421,7 +469,7 @@ export const emailService = {
           </div>
         </div>
         
-        <div style="background-color: #4E4B43; color: #E5D8C1; padding: 20px; text-align: center; margin: 0 20px;">
+        <div style="background-color: #4E4B43; color: #FFFFFF; padding: 20px; text-align: center; margin: 0 20px;">
           <p style="margin: 0; font-size: 14px;">
             © 2025 HaDirot. All rights reserved.<br>
             NYC's premier Jewish rental platform
@@ -432,22 +480,27 @@ export const emailService = {
 
     return this.sendEmail({
       to: userEmail,
-      subject: `${isFeatured ? '⭐ Listing Featured' : 'Featured Status Removed'}: ${listingTitle} - HaDirot`,
+      subject: `${isFeatured ? "⭐ Listing Featured" : "Featured Status Removed"}: ${listingTitle} - HaDirot`,
       html,
     });
   },
 
   // Helper function to send permission changed email
-  async sendPermissionChangedEmail(userEmail: string, userName: string, newLimit: number, previousLimit?: number): Promise<EmailResponse> {
+  async sendPermissionChangedEmail(
+    userEmail: string,
+    userName: string,
+    newLimit: number,
+    previousLimit?: number,
+  ): Promise<EmailResponse> {
     const html = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #f9f9f9;">
         <div style="background-color: #4E4B43; color: white; padding: 30px; text-align: center;">
           <div style="display: flex; align-items: center; justify-content: center; margin-bottom: 10px;">
-            <svg width="40" height="40" viewBox="0 0 32 32" style="color: #E5D8C1; margin-right: 10px;">
+            <svg width="40" height="40" viewBox="0 0 32 32" style="color: #FFFFFF; margin-right: 10px;">
               <path d="M16 4L6 12v16h5v-8h10v8h5V12L16 4z" stroke="currentColor" stroke-width="2" fill="none" stroke-linejoin="round"/>
               <circle cx="23" cy="8" r="1" fill="currentColor"/>
             </svg>
-            <span style="font-size: 28px; font-weight: bold; color: #E5D8C1;">HaDirot</span>
+            <span style="font-size: 28px; font-weight: bold; color: #FFFFFF;">HaDirot</span>
           </div>
           <h1 style="margin: 0; font-size: 24px;">Account Permissions Updated</h1>
         </div>
@@ -459,26 +512,29 @@ export const emailService = {
             Your featured listing permissions have been updated by our admin team.
           </p>
           
-          <div style="background-color: ${newLimit > 0 ? '#d4edda' : '#f8d7da'}; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid ${newLimit > 0 ? '#28a745' : '#dc3545'};">
-            <h3 style="color: ${newLimit > 0 ? '#155724' : '#721c24'}; margin-top: 0; font-size: 18px;">
-              ${newLimit > 0 ? '✅ Featured Listing Access' : '❌ Featured Listing Access Removed'}
+          <div style="background-color: ${newLimit > 0 ? "#d4edda" : "#f8d7da"}; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid ${newLimit > 0 ? "#28a745" : "#dc3545"};">
+            <h3 style="color: ${newLimit > 0 ? "#155724" : "#721c24"}; margin-top: 0; font-size: 18px;">
+              ${newLimit > 0 ? "✅ Featured Listing Access" : "❌ Featured Listing Access Removed"}
             </h3>
-            <p style="color: ${newLimit > 0 ? '#155724' : '#721c24'}; line-height: 1.6; margin: 0;">
-              ${newLimit > 0 
-                ? `You can now feature up to <strong>${newLimit}</strong> listing${newLimit === 1 ? '' : 's'} at a time.`
-                : 'You no longer have access to feature listings.'
+            <p style="color: ${newLimit > 0 ? "#155724" : "#721c24"}; line-height: 1.6; margin: 0;">
+              ${
+                newLimit > 0
+                  ? `You can now feature up to <strong>${newLimit}</strong> listing${newLimit === 1 ? "" : "s"} at a time.`
+                  : "You no longer have access to feature listings."
               }
             </p>
             <div style="background-color: #FDF8F4; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #C5594C;">
               <p style="color: #273140; line-height: 1.6; margin: 0; font-family: 'itc-benguiat', Georgia, 'Times New Roman', serif;">
               </p>
               <p style="color: #666; font-size: 14px; margin-top: 10px; margin-bottom: 0;">
-                Previous limit: ${previousLimit} listing${previousLimit === 1 ? '' : 's'}
+                Previous limit: ${previousLimit} listing${previousLimit === 1 ? "" : "s"}
               </p>
             </div>
           </div>
           
-          ${newLimit > 0 ? `
+          ${
+            newLimit > 0
+              ? `
             <div style="background-color: #e8f4f8; padding: 20px; border-radius: 8px; margin: 20px 0;">
               <h3 style="color: #4E4B43; margin-top: 0; font-size: 18px;">⭐ Featured Listing Benefits:</h3>
               <ul style="color: #555; line-height: 1.6; margin: 0; padding-left: 20px;">
@@ -488,7 +544,9 @@ export const emailService = {
                 <li>Priority display on the homepage</li>
               </ul>
             </div>
-          ` : ''}
+          `
+              : ""
+          }
           
           <div style="text-align: center; margin: 30px 0;">
             <a href="${window.location.origin}/dashboard" 
@@ -504,7 +562,7 @@ export const emailService = {
           </div>
         </div>
         
-        <div style="background-color: #4E4B43; color: #E5D8C1; padding: 20px; text-align: center; margin: 0 20px;">
+        <div style="background-color: #4E4B43; color: #FFFFFF; padding: 20px; text-align: center; margin: 0 20px;">
           <p style="margin: 0; font-size: 14px;">
             © 2025 HaDirot. All rights reserved.<br>
             NYC's premier Jewish rental platform
@@ -521,9 +579,13 @@ export const emailService = {
   },
 
   // Helper function to send listing deletion confirmation email
-  async sendListingDeletedEmail(userEmail: string, userName: string, listingTitle: string): Promise<EmailResponse> {
-    console.log('📧 Sending listing deletion email to:', userEmail);
-    
+  async sendListingDeletedEmail(
+    userEmail: string,
+    userName: string,
+    listingTitle: string,
+  ): Promise<EmailResponse> {
+    console.log("📧 Sending listing deletion email to:", userEmail);
+
     const html = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #f9f9f9;">
         <div style="background-color: #dc3545; color: white; padding: 30px; text-align: center;">
@@ -558,7 +620,7 @@ export const emailService = {
           </div>
         </div>
         
-        <div style="background-color: #4E4B43; color: #E5D8C1; padding: 20px; text-align: center; margin: 0 20px;">
+        <div style="background-color: #4E4B43; color: #FFFFFF; padding: 20px; text-align: center; margin: 0 20px;">
           <p style="margin: 0; font-size: 14px;">
             © 2025 HaDirot. All rights reserved.<br>
             NYC's premier Jewish rental platform
@@ -575,18 +637,22 @@ export const emailService = {
   },
 
   // Helper function to send listing update confirmation email
-  async sendListingUpdatedEmail(userEmail: string, userName: string, listingTitle: string): Promise<EmailResponse> {
-    console.log('📧 Sending listing update email to:', userEmail);
-    
+  async sendListingUpdatedEmail(
+    userEmail: string,
+    userName: string,
+    listingTitle: string,
+  ): Promise<EmailResponse> {
+    console.log("📧 Sending listing update email to:", userEmail);
+
     const html = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #f9f9f9;">
         <div style="background-color: #4E4B43; color: white; padding: 30px; text-align: center;">
           <div style="display: flex; align-items: center; justify-content: center; margin-bottom: 10px;">
-            <svg width="40" height="40" viewBox="0 0 32 32" style="color: #E5D8C1; margin-right: 10px;">
+            <svg width="40" height="40" viewBox="0 0 32 32" style="color: #FFFFFF; margin-right: 10px;">
               <path d="M16 4L6 12v16h5v-8h10v8h5V12L16 4z" stroke="currentColor" stroke-width="2" fill="none" stroke-linejoin="round"/>
               <circle cx="23" cy="8" r="1" fill="currentColor"/>
             </svg>
-            <span style="font-size: 28px; font-weight: bold; color: #E5D8C1;">HaDirot</span>
+            <span style="font-size: 28px; font-weight: bold; color: #FFFFFF;">HaDirot</span>
           </div>
           <h1 style="margin: 0; font-size: 24px;">Listing Updated Successfully!</h1>
         </div>
@@ -612,7 +678,7 @@ export const emailService = {
           </div>
         </div>
         
-        <div style="background-color: #4E4B43; color: #E5D8C1; padding: 20px; text-align: center; margin: 0 20px;">
+        <div style="background-color: #4E4B43; color: #FFFFFF; padding: 20px; text-align: center; margin: 0 20px;">
           <p style="margin: 0; font-size: 14px;">
             © 2025 HaDirot. All rights reserved.<br>
             NYC's premier Jewish rental platform
@@ -629,11 +695,15 @@ export const emailService = {
   },
 };
 
-export async function requestPasswordReset(email: string, redirectUrl?: string) {
-  const endpoint = 'https://pxlxdlrjmrkxyygdhvku.functions.supabase.co/send-password-reset';
+export async function requestPasswordReset(
+  email: string,
+  redirectUrl?: string,
+) {
+  const endpoint =
+    "https://pxlxdlrjmrkxyygdhvku.functions.supabase.co/send-password-reset";
   const res = await fetch(endpoint, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ to: email, redirectUrl }), // NOTE: 'to', not 'email'
   });
   const json = await res.json().catch(() => ({}));
