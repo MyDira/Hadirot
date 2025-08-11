@@ -21,6 +21,7 @@ import { staticPagesService, StaticPage } from "../../services/staticPages";
 import { footerService } from "../../services/footer";
 import { FooterSection } from "../../config/supabase";
 import { useAuth } from "../../hooks/useAuth";
+import "@/styles/editor.css";
 
 export function StaticPageEditor() {
   const { user, profile } = useAuth();
@@ -941,11 +942,8 @@ export function StaticPageEditor() {
                   )}
 
                   {/* Rich Text Editor Content */}
-                  <div className="border border-gray-300 rounded-b-md min-h-[400px] max-h-[600px] overflow-y-auto">
-                    <EditorContent
-                      editor={editor}
-                      className="prose prose-sm max-w-none p-4 focus:outline-none [&_.ProseMirror]:outline-none [&_.ProseMirror]:min-h-[350px] [&_.ProseMirror]:cursor-text"
-                    />
+                  <div className="editor-shell border border-gray-300 rounded-b-md min-h-[400px] max-h-[600px] overflow-y-auto p-4">
+                    <EditorContent editor={editor} />
                   </div>
 
                   <p className="text-xs text-gray-500 mt-1">
