@@ -754,7 +754,7 @@ export function PostListing() {
                     : "text-gray-700"
                 }`}
               >
-                <Star className="w-4 h-4 mr-1 text-[#C5594C]" />
+                <Star className="w-4 h-4 mr-1 text-accent-600" />
                 Feature this listing
                 {!profile?.is_admin &&
                   (profile?.max_featured_listings_per_user ?? 0) <= 0 && (
@@ -826,8 +826,8 @@ export function PostListing() {
                     onClick={() => setFeaturedImage(index)}
                     className={`absolute bottom-2 left-2 px-2 py-1 rounded text-xs font-medium transition-colors ${
                       image.is_featured
-                        ? "bg-[#C5594C] text-white"
-                        : "bg-black bg-opacity-50 text-white hover:bg-[#C5594C]"
+                        ? "bg-accent-500 text-white"
+                        : "bg-black bg-opacity-50 text-white hover:bg-accent-600"
                     }`}
                   >
                     {image.is_featured ? "Featured" : "Set Featured"}
@@ -897,7 +897,7 @@ export function PostListing() {
           <button
             type="submit"
             disabled={loading}
-            className="bg-[#C5594C] text-white px-8 py-3 rounded-md font-semibold hover:bg-[#b04d42] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#C5594C] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="bg-accent-500 text-white px-8 py-3 rounded-md font-semibold hover:bg-accent-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-accent-400 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {loading ? "Creating Listing..." : "Post Listing"}
           </button>

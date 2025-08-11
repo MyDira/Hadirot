@@ -140,35 +140,35 @@ export function Home() {
   return (
     <div className="min-h-screen">
       {/* Hero Section */}
-      <section className="bg-gradient-to-br from-[#273140] via-[#273140] to-[#1e252f] text-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
-          <div className="text-center">
-            <h1 className="text-4xl md:text-6xl font-bold mb-6 text-brandAccent-300"></h1>
-            <h1 className="text-4xl md:text-6xl font-bold font-brand mb-6 text-brandAccent-300">
+      <div>
+        <div className="bg-brand-700 h-2 w-full" />
+        <section className="bg-brand-100 text-center py-20">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <h1 className="text-4xl md:text-6xl font-semibold font-brand text-brand-900 mb-6">
               The Heart of Local Rentals
             </h1>
-            <p className="text-xl md:text-2xl text-gray-200 mb-8 max-w-2xl mx-auto">
+            <p className="text-xl md:text-2xl text-brand-800 mb-8 max-w-2xl mx-auto">
               Where your family finds their next home
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Link
                 to="/browse"
-                className="inline-flex items-center bg-[#C5594C] text-white px-8 py-4 rounded-lg text-lg font-semibold hover:bg-[#b04d42] transition-colors shadow-lg"
+                className="inline-flex items-center justify-center bg-accent-500 text-white px-8 py-4 rounded-lg text-lg font-medium hover:bg-accent-600 focus:outline-none focus:ring-2 focus:ring-accent-400 transition-colors"
               >
                 <Search className="w-6 h-6 mr-2" />
                 Find Yours
               </Link>
               <Link
                 to="/post"
-                className="inline-flex items-center bg-transparent border-2 border-brandAccent-500 text-brandAccent-500 px-8 py-4 rounded-lg text-lg font-semibold hover:bg-brandAccent-500 hover:text-brand-700 transition-colors shadow-lg"
+                className="inline-flex items-center justify-center border border-accent-500 text-accent-600 px-8 py-4 rounded-lg text-lg font-medium hover:bg-accent-500 hover:text-white focus:outline-none focus:ring-2 focus:ring-accent-400 transition-colors"
               >
                 <Plus className="w-6 h-6 mr-2" />
                 List a Property
               </Link>
             </div>
           </div>
-        </div>
-      </section>
+        </section>
+      </div>
 
       {/* Recently Added Listings */}
       <section className="py-16 bg-[var(--bg-soft)]">

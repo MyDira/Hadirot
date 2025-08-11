@@ -1,9 +1,22 @@
-import React, { useState, useEffect } from 'react';
-import { Save, ArrowLeft, Plus, Trash2, GripVertical, Edit3, Link as LinkIcon, Type } from 'lucide-react';
-import { Link } from 'react-router-dom';
-import { footerService } from '../../services/footer';
-import { FooterSection, FooterRichTextData, FooterLinkData } from '../../config/supabase';
-import { useAuth } from '../../hooks/useAuth';
+import React, { useState, useEffect } from "react";
+import {
+  Save,
+  ArrowLeft,
+  Plus,
+  Trash2,
+  GripVertical,
+  Edit3,
+  Link as LinkIcon,
+  Type,
+} from "lucide-react";
+import { Link } from "react-router-dom";
+import { footerService } from "../../services/footer";
+import {
+  FooterSection,
+  FooterRichTextData,
+  FooterLinkData,
+} from "../../config/supabase";
+import { useAuth } from "../../hooks/useAuth";
 
 export function FooterEditor() {
   const { user, profile } = useAuth();
@@ -12,13 +25,16 @@ export function FooterEditor() {
   const [saving, setSaving] = useState<string | null>(null);
   const [editingSection, setEditingSection] = useState<string | null>(null);
   const [showCreateForm, setShowCreateForm] = useState(false);
-  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [message, setMessage] = useState<{
+    type: "success" | "error";
+    text: string;
+  } | null>(null);
 
   const [newSectionData, setNewSectionData] = useState({
-    section_key: '',
-    title: '',
-    content_type: 'links' as const,
-    links: [{ text: '', url: '' }],
+    section_key: "",
+    title: "",
+    content_type: "links" as const,
+    links: [{ text: "", url: "" }],
   });
 
   const [editData, setEditData] = useState<{
@@ -40,16 +56,16 @@ export function FooterEditor() {
     try {
       const sections = await footerService.getAllFooterSections();
       setFooterSections(sections);
-      
+
       // Initialize edit data
       const initialEditData: typeof editData = {};
-      sections.forEach(section => {
-        if (section.content_type === 'rich_text') {
+      sections.forEach((section) => {
+        if (section.content_type === "rich_text") {
           const data = section.content_data as FooterRichTextData;
           initialEditData[section.id] = {
             title: section.title,
-            tagline: data.tagline || '',
-            description: data.description || '',
+            tagline: data.tagline || "",
+            description: data.description || "",
           };
         } else {
           const data = section.content_data as FooterLinkData[];
@@ -61,27 +77,27 @@ export function FooterEditor() {
       });
       setEditData(initialEditData);
     } catch (error) {
-      console.error('Error loading footer sections:', error);
-      setMessage({ type: 'error', text: 'Failed to load footer sections' });
+      console.error("Error loading footer sections:", error);
+      setMessage({ type: "error", text: "Failed to load footer sections" });
     } finally {
       setLoading(false);
     }
   };
 
   const handleSaveSection = async (sectionId: string) => {
-    const section = footerSections.find(s => s.id === sectionId);
+    const section = footerSections.find((s) => s.id === sectionId);
     const data = editData[sectionId];
-    
+
     if (!section || !data) return;
 
     setSaving(sectionId);
     try {
       let content_data: any;
-      
-      if (section.content_type === 'rich_text') {
+
+      if (section.content_type === "rich_text") {
         content_data = {
-          tagline: data.tagline || '',
-          description: data.description || '',
+          tagline: data.tagline || "",
+          description: data.description || "",
         };
       } else {
         content_data = data.links || [];
@@ -94,12 +110,12 @@ export function FooterEditor() {
 
       await loadFooterSections();
       setEditingSection(null);
-      setMessage({ type: 'success', text: 'Section updated successfully!' });
-      
+      setMessage({ type: "success", text: "Section updated successfully!" });
+
       setTimeout(() => setMessage(null), 3000);
     } catch (error) {
-      console.error('Error saving section:', error);
-      setMessage({ type: 'error', text: 'Failed to save section' });
+      console.error("Error saving section:", error);
+      setMessage({ type: "error", text: "Failed to save section" });
     } finally {
       setSaving(null);
     }
@@ -107,57 +123,73 @@ export function FooterEditor() {
 
   const handleCreateSection = async () => {
     if (!newSectionData.section_key.trim() || !newSectionData.title.trim()) {
-      setMessage({ type: 'error', text: 'Please fill in section key and title' });
+      setMessage({
+        type: "error",
+        text: "Please fill in section key and title",
+      });
       return;
     }
 
     // Check if section key already exists
-    if (footerSections.some(s => s.section_key === newSectionData.section_key)) {
-      setMessage({ type: 'error', text: 'A section with this key already exists' });
+    if (
+      footerSections.some((s) => s.section_key === newSectionData.section_key)
+    ) {
+      setMessage({
+        type: "error",
+        text: "A section with this key already exists",
+      });
       return;
     }
 
-    setSaving('new');
+    setSaving("new");
     try {
-      const maxSortOrder = Math.max(...footerSections.map(s => s.sort_order), 0);
-      
+      const maxSortOrder = Math.max(
+        ...footerSections.map((s) => s.sort_order),
+        0,
+      );
+
       await footerService.createFooterSection({
         section_key: newSectionData.section_key,
         title: newSectionData.title,
         content_type: newSectionData.content_type,
-        content_data: newSectionData.links.filter(link => link.text.trim() && link.url.trim()),
+        content_data: newSectionData.links.filter(
+          (link) => link.text.trim() && link.url.trim(),
+        ),
         sort_order: maxSortOrder + 1,
       });
 
       await loadFooterSections();
       setNewSectionData({
-        section_key: '',
-        title: '',
-        content_type: 'links',
-        links: [{ text: '', url: '' }],
+        section_key: "",
+        title: "",
+        content_type: "links",
+        links: [{ text: "", url: "" }],
       });
       setShowCreateForm(false);
-      setMessage({ type: 'success', text: 'Section created successfully!' });
-      
+      setMessage({ type: "success", text: "Section created successfully!" });
+
       setTimeout(() => setMessage(null), 3000);
     } catch (error) {
-      console.error('Error creating section:', error);
-      setMessage({ type: 'error', text: 'Failed to create section' });
+      console.error("Error creating section:", error);
+      setMessage({ type: "error", text: "Failed to create section" });
     } finally {
       setSaving(null);
     }
   };
 
   const handleDeleteSection = async (sectionId: string) => {
-    const section = footerSections.find(s => s.id === sectionId);
-    
+    const section = footerSections.find((s) => s.id === sectionId);
+
     // Prevent deletion of main_info section
-    if (section?.section_key === 'main_info') {
-      setMessage({ type: 'error', text: 'The main info section cannot be deleted' });
+    if (section?.section_key === "main_info") {
+      setMessage({
+        type: "error",
+        text: "The main info section cannot be deleted",
+      });
       return;
     }
 
-    if (!confirm('Are you sure you want to delete this section?')) {
+    if (!confirm("Are you sure you want to delete this section?")) {
       return;
     }
 
@@ -165,19 +197,19 @@ export function FooterEditor() {
     try {
       await footerService.deleteFooterSection(sectionId);
       await loadFooterSections();
-      setMessage({ type: 'success', text: 'Section deleted successfully!' });
-      
+      setMessage({ type: "success", text: "Section deleted successfully!" });
+
       setTimeout(() => setMessage(null), 3000);
     } catch (error) {
-      console.error('Error deleting section:', error);
-      setMessage({ type: 'error', text: 'Failed to delete section' });
+      console.error("Error deleting section:", error);
+      setMessage({ type: "error", text: "Failed to delete section" });
     } finally {
       setSaving(null);
     }
   };
 
   const updateEditData = (sectionId: string, field: string, value: any) => {
-    setEditData(prev => ({
+    setEditData((prev) => ({
       ...prev,
       [sectionId]: {
         ...prev[sectionId],
@@ -188,27 +220,41 @@ export function FooterEditor() {
 
   const addLink = (sectionId: string) => {
     const currentLinks = editData[sectionId]?.links || [];
-    updateEditData(sectionId, 'links', [...currentLinks, { text: '', url: '' }]);
+    updateEditData(sectionId, "links", [
+      ...currentLinks,
+      { text: "", url: "" },
+    ]);
   };
 
   const removeLink = (sectionId: string, linkIndex: number) => {
     const currentLinks = editData[sectionId]?.links || [];
-    updateEditData(sectionId, 'links', currentLinks.filter((_, i) => i !== linkIndex));
+    updateEditData(
+      sectionId,
+      "links",
+      currentLinks.filter((_, i) => i !== linkIndex),
+    );
   };
 
-  const updateLink = (sectionId: string, linkIndex: number, field: 'text' | 'url', value: string) => {
+  const updateLink = (
+    sectionId: string,
+    linkIndex: number,
+    field: "text" | "url",
+    value: string,
+  ) => {
     const currentLinks = editData[sectionId]?.links || [];
-    const updatedLinks = currentLinks.map((link, i) => 
-      i === linkIndex ? { ...link, [field]: value } : link
+    const updatedLinks = currentLinks.map((link, i) =>
+      i === linkIndex ? { ...link, [field]: value } : link,
     );
-    updateEditData(sectionId, 'links', updatedLinks);
+    updateEditData(sectionId, "links", updatedLinks);
   };
 
   if (!user || !profile?.is_admin) {
     return (
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         <div className="text-center">
-          <p className="text-red-600">Access denied. Admin privileges required.</p>
+          <p className="text-red-600">
+            Access denied. Admin privileges required.
+          </p>
         </div>
       </div>
     );
@@ -247,11 +293,13 @@ export function FooterEditor() {
 
       {/* Message */}
       {message && (
-        <div className={`mb-6 p-4 rounded-md ${
-          message.type === 'success' 
-            ? 'bg-green-50 border border-green-200 text-green-800' 
-            : 'bg-red-50 border border-red-200 text-red-800'
-        }`}>
+        <div
+          className={`mb-6 p-4 rounded-md ${
+            message.type === "success"
+              ? "bg-green-50 border border-green-200 text-green-800"
+              : "bg-red-50 border border-red-200 text-red-800"
+          }`}
+        >
           {message.text}
         </div>
       )}
@@ -259,10 +307,12 @@ export function FooterEditor() {
       {/* Create New Section */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-8">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-semibold text-[#273140]">Add New Column</h2>
+          <h2 className="text-xl font-semibold text-[#273140]">
+            Add New Column
+          </h2>
           <button
             onClick={() => setShowCreateForm(!showCreateForm)}
-            className="bg-[#C5594C] text-white px-4 py-2 rounded-md font-medium hover:bg-[#b04d42] transition-colors flex items-center"
+            className="bg-accent-500 text-white px-4 py-2 rounded-md font-medium hover:bg-accent-600 transition-colors flex items-center"
           >
             <Plus className="w-4 h-4 mr-2" />
             Add Column
@@ -279,10 +329,14 @@ export function FooterEditor() {
                 <input
                   type="text"
                   value={newSectionData.section_key}
-                  onChange={(e) => setNewSectionData(prev => ({ 
-                    ...prev, 
-                    section_key: e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, '') 
-                  }))}
+                  onChange={(e) =>
+                    setNewSectionData((prev) => ({
+                      ...prev,
+                      section_key: e.target.value
+                        .toLowerCase()
+                        .replace(/[^a-z0-9_]/g, ""),
+                    }))
+                  }
                   placeholder="e.g., support_links"
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
                 />
@@ -294,7 +348,12 @@ export function FooterEditor() {
                 <input
                   type="text"
                   value={newSectionData.title}
-                  onChange={(e) => setNewSectionData(prev => ({ ...prev, title: e.target.value }))}
+                  onChange={(e) =>
+                    setNewSectionData((prev) => ({
+                      ...prev,
+                      title: e.target.value,
+                    }))
+                  }
                   placeholder="e.g., Support"
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
                 />
@@ -302,17 +361,22 @@ export function FooterEditor() {
             </div>
 
             <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-2">Links</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Links
+              </label>
               {newSectionData.links.map((link, index) => (
                 <div key={index} className="flex gap-2 mb-2">
                   <input
                     type="text"
                     value={link.text}
                     onChange={(e) => {
-                      const updatedLinks = newSectionData.links.map((l, i) => 
-                        i === index ? { ...l, text: e.target.value } : l
+                      const updatedLinks = newSectionData.links.map((l, i) =>
+                        i === index ? { ...l, text: e.target.value } : l,
                       );
-                      setNewSectionData(prev => ({ ...prev, links: updatedLinks }));
+                      setNewSectionData((prev) => ({
+                        ...prev,
+                        links: updatedLinks,
+                      }));
                     }}
                     placeholder="Link text"
                     className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
@@ -321,18 +385,26 @@ export function FooterEditor() {
                     type="text"
                     value={link.url}
                     onChange={(e) => {
-                      const updatedLinks = newSectionData.links.map((l, i) => 
-                        i === index ? { ...l, url: e.target.value } : l
+                      const updatedLinks = newSectionData.links.map((l, i) =>
+                        i === index ? { ...l, url: e.target.value } : l,
                       );
-                      setNewSectionData(prev => ({ ...prev, links: updatedLinks }));
+                      setNewSectionData((prev) => ({
+                        ...prev,
+                        links: updatedLinks,
+                      }));
                     }}
                     placeholder="/url or https://..."
                     className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
                   />
                   <button
                     onClick={() => {
-                      const updatedLinks = newSectionData.links.filter((_, i) => i !== index);
-                      setNewSectionData(prev => ({ ...prev, links: updatedLinks }));
+                      const updatedLinks = newSectionData.links.filter(
+                        (_, i) => i !== index,
+                      );
+                      setNewSectionData((prev) => ({
+                        ...prev,
+                        links: updatedLinks,
+                      }));
                     }}
                     className="px-3 py-2 text-red-600 hover:text-red-800 transition-colors"
                   >
@@ -341,10 +413,12 @@ export function FooterEditor() {
                 </div>
               ))}
               <button
-                onClick={() => setNewSectionData(prev => ({ 
-                  ...prev, 
-                  links: [...prev.links, { text: '', url: '' }] 
-                }))}
+                onClick={() =>
+                  setNewSectionData((prev) => ({
+                    ...prev,
+                    links: [...prev.links, { text: "", url: "" }],
+                  }))
+                }
                 className="text-[#273140] hover:text-[#1e252f] text-sm font-medium transition-colors"
               >
                 + Add Link
@@ -354,19 +428,19 @@ export function FooterEditor() {
             <div className="flex space-x-3">
               <button
                 onClick={handleCreateSection}
-                disabled={saving === 'new'}
+                disabled={saving === "new"}
                 className="bg-green-600 text-white px-4 py-2 rounded-md font-medium hover:bg-green-700 disabled:opacity-50 transition-colors"
               >
-                {saving === 'new' ? 'Creating...' : 'Create Section'}
+                {saving === "new" ? "Creating..." : "Create Section"}
               </button>
               <button
                 onClick={() => {
                   setShowCreateForm(false);
                   setNewSectionData({
-                    section_key: '',
-                    title: '',
-                    content_type: 'links',
-                    links: [{ text: '', url: '' }],
+                    section_key: "",
+                    title: "",
+                    content_type: "links",
+                    links: [{ text: "", url: "" }],
                   });
                 }}
                 className="bg-gray-500 text-white px-4 py-2 rounded-md font-medium hover:bg-gray-600 transition-colors"
@@ -381,13 +455,16 @@ export function FooterEditor() {
       {/* Existing Sections */}
       <div className="space-y-6">
         {footerSections.map((section) => (
-          <div key={section.id} className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <div
+            key={section.id}
+            className="bg-white rounded-lg shadow-sm border border-gray-200 p-6"
+          >
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center">
                 <GripVertical className="w-5 h-5 text-gray-400 mr-2" />
                 <div>
                   <h3 className="text-lg font-semibold text-[#273140] flex items-center">
-                    {section.content_type === 'rich_text' ? (
+                    {section.content_type === "rich_text" ? (
                       <Type className="w-5 h-5 mr-2" />
                     ) : (
                       <LinkIcon className="w-5 h-5 mr-2" />
@@ -395,19 +472,26 @@ export function FooterEditor() {
                     {section.title}
                   </h3>
                   <p className="text-sm text-gray-500">
-                    {section.section_key} • {section.content_type === 'rich_text' ? 'Rich Text' : 'Links'}
+                    {section.section_key} •{" "}
+                    {section.content_type === "rich_text"
+                      ? "Rich Text"
+                      : "Links"}
                   </p>
                 </div>
               </div>
-              
+
               <div className="flex items-center space-x-2">
                 <button
-                  onClick={() => setEditingSection(editingSection === section.id ? null : section.id)}
+                  onClick={() =>
+                    setEditingSection(
+                      editingSection === section.id ? null : section.id,
+                    )
+                  }
                   className="text-[#273140] hover:text-[#1e252f] transition-colors"
                 >
                   <Edit3 className="w-5 h-5" />
                 </button>
-                {section.section_key !== 'main_info' && (
+                {section.section_key !== "main_info" && (
                   <button
                     onClick={() => handleDeleteSection(section.id)}
                     disabled={saving === section.id}
@@ -429,12 +513,14 @@ export function FooterEditor() {
                     <input
                       type="text"
                       value={editData[section.id].title}
-                      onChange={(e) => updateEditData(section.id, 'title', e.target.value)}
+                      onChange={(e) =>
+                        updateEditData(section.id, "title", e.target.value)
+                      }
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
                     />
                   </div>
 
-                  {section.content_type === 'rich_text' ? (
+                  {section.content_type === "rich_text" ? (
                     <>
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -442,8 +528,14 @@ export function FooterEditor() {
                         </label>
                         <input
                           type="text"
-                          value={editData[section.id].tagline || ''}
-                          onChange={(e) => updateEditData(section.id, 'tagline', e.target.value)}
+                          value={editData[section.id].tagline || ""}
+                          onChange={(e) =>
+                            updateEditData(
+                              section.id,
+                              "tagline",
+                              e.target.value,
+                            )
+                          }
                           className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
                         />
                       </div>
@@ -452,8 +544,14 @@ export function FooterEditor() {
                           Description
                         </label>
                         <textarea
-                          value={editData[section.id].description || ''}
-                          onChange={(e) => updateEditData(section.id, 'description', e.target.value)}
+                          value={editData[section.id].description || ""}
+                          onChange={(e) =>
+                            updateEditData(
+                              section.id,
+                              "description",
+                              e.target.value,
+                            )
+                          }
                           rows={3}
                           className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
                         />
@@ -469,14 +567,28 @@ export function FooterEditor() {
                           <input
                             type="text"
                             value={link.text}
-                            onChange={(e) => updateLink(section.id, index, 'text', e.target.value)}
+                            onChange={(e) =>
+                              updateLink(
+                                section.id,
+                                index,
+                                "text",
+                                e.target.value,
+                              )
+                            }
                             placeholder="Link text"
                             className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
                           />
                           <input
                             type="text"
                             value={link.url}
-                            onChange={(e) => updateLink(section.id, index, 'url', e.target.value)}
+                            onChange={(e) =>
+                              updateLink(
+                                section.id,
+                                index,
+                                "url",
+                                e.target.value,
+                              )
+                            }
                             placeholder="/url or https://..."
                             className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
                           />
@@ -501,10 +613,10 @@ export function FooterEditor() {
                     <button
                       onClick={() => handleSaveSection(section.id)}
                       disabled={saving === section.id}
-                      className="bg-[#C5594C] text-white px-4 py-2 rounded-md font-medium hover:bg-[#b04d42] disabled:opacity-50 transition-colors flex items-center"
+                      className="bg-accent-500 text-white px-4 py-2 rounded-md font-medium hover:bg-accent-600 disabled:opacity-50 transition-colors flex items-center"
                     >
                       <Save className="w-4 h-4 mr-2" />
-                      {saving === section.id ? 'Saving...' : 'Save Changes'}
+                      {saving === section.id ? "Saving..." : "Save Changes"}
                     </button>
                     <button
                       onClick={() => setEditingSection(null)}

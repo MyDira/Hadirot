@@ -17,6 +17,11 @@ export default {
           900: "#102A42",
         },
         brandAccent: { 300: "#EAD9A8", 500: "#D8BE72", 700: "#B79A4D" },
+        accent: {
+          400: "#9CCC65",
+          500: "#7CB342",
+          600: "#689F38",
+        },
       },
       fontFamily: { brand: ["var(--brand-serif)"] },
     },
