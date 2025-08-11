@@ -3,6 +3,46 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const RESEND_API_URL = "https://api.resend.com/emails";
 
+function renderBrandEmail({
+  title,
+  intro,
+  bodyHtml,
+  ctaLabel,
+  ctaHref,
+}: {
+  title: string;
+  intro?: string;
+  bodyHtml: string;
+  ctaLabel?: string;
+  ctaHref?: string;
+}) {
+  const introHtml = intro ? `<p style="margin-top:0;">${intro}</p>` : "";
+  const button =
+    ctaLabel && ctaHref
+      ? `<div style="text-align:center;margin:32px 0;">
+         <a href="${ctaHref}" style="background-color:#7CB342;color:#FFFFFF;padding:12px 24px;text-decoration:none;border-radius:6px;display:inline-block;font-weight:bold;">${ctaLabel}</a>
+       </div>`
+      : "";
+  return `
+    <div style="font-family:Arial,sans-serif;background-color:#F7F9FC;padding:24px;">
+      <div style="max-width:600px;margin:0 auto;background-color:#FFFFFF;border:1px solid #E5E7EB;border-radius:8px;overflow:hidden;">
+        <div style="background-color:#1E4A74;color:#FFFFFF;padding:24px;text-align:center;">
+          <h1 style="margin:0;font-size:24px;">Hadirot</h1>
+        </div>
+        <div style="padding:24px;color:#374151;font-size:16px;line-height:1.5;">
+          <h2 style="margin:0 0 16px 0;font-size:20px;color:#1E4A74;">${title}</h2>
+          ${introHtml}
+          ${bodyHtml}
+          ${button}
+        </div>
+        <div style="background-color:#F7F9FC;color:#6B7280;text-align:center;font-size:12px;padding:16px;">
+          © ${new Date().getFullYear()} Hadirot. All rights reserved.
+        </div>
+      </div>
+    </div>
+  `;
+}
+
 interface EmailRequest {
   to: string | string[];
   subject: string;
@@ -175,58 +215,14 @@ Deno.serve(async (req) => {
         });
 
         // Create branded password reset email HTML
-        const resetHtml = `
-          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #FFFFFF;">
-            <div style="background-color: #273140; color: white; padding: 30px; text-align: center;">
-              <div style="display: flex; align-items: center; justify-content: center; margin-bottom: 10px;">
-                <svg width="40" height="40" viewBox="0 0 32 32" style="color: #FFFFFF; margin-right: 10px;">
-                  <path d="M16 4L6 12v16h5v-8h10v8h5V12L16 4z" stroke="currentColor" stroke-width="2" fill="none" stroke-linejoin="round"/>
-                  <circle cx="23" cy="8" r="1" fill="currentColor"/>
-                </svg>
-                <span style="font-size: 28px; font-weight: bold; color: #FFFFFF;">HaDirot</span>
-              </div>
-              <h1 style="margin: 0; font-size: 24px;">Reset Your Password</h1>
-            </div>
-            
-            <div style="padding: 30px; background-color: white; margin: 0 20px;">
-              <h2 style="color: #273140; margin-top: 0; font-size: 20px;">Password Reset Request</h2>
-              
-              <p style="color: #333; line-height: 1.6; font-size: 16px;">
-                We received a request to reset your password for your HaDirot account.
-              </p>
-              
-              <div style="text-align: center; margin: 30px 0;">
-                <a href="${resetLink}" 
-                   style="background-color: #C5594C; color: white; padding: 15px 30px; text-decoration: none; border-radius: 8px; display: inline-block; font-weight: bold; font-size: 16px;">
-                  Reset My Password
-                </a>
-              </div>
-              
-              <div style="background-color: #FFFFFF; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #C5594C;">
-                <p style="color: #273140; line-height: 1.6; margin: 0;">
-                  <strong>Security Note:</strong> This link will expire in 1 hour. If you didn't request this password reset, 
-                  you can safely ignore this email. Your account remains secure.
-                </p>
-              </div>
-              
-              <div style="border-top: 1px solid #eee; padding-top: 20px; margin-top: 30px;">
-                <p style="color: #666; font-size: 14px; line-height: 1.6; margin: 0;">
-                  If the button above doesn't work, copy and paste this link into your browser:<br>
-                  <a href="${resetLink}" style="color: #273140; word-break: break-all;">${resetLink}</a>
-                </p>
-              </div>
-            </div>
-            
-            <div style="background-color: #273140; color: #FFFFFF; padding: 20px; text-align: center; margin: 0 20px;">
-              <p style="margin: 0; font-size: 14px;">
-                © 2025 HaDirot. All rights reserved.<br>
-                NYC's premier Jewish rental platform
-              </p>
-            </div>
-          </div>
-        `;
+        const resetHtml = renderBrandEmail({
+          title: "Reset Your Password",
+          bodyHtml:
+            "<p>We received a request to reset your password for your Hadirot account.</p><p>If you didn't request this, you can ignore this email.</p>",
+          ctaLabel: "Reset My Password",
+          ctaHref: resetLink,
+        });
 
-        // Override the email data for password reset
         emailData = {
           ...emailData,
           html: resetHtml,

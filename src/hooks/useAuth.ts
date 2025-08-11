@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
-import { User } from '@supabase/supabase-js';
-import { supabase, Profile } from '../config/supabase';
+import { useState, useEffect } from "react";
+import { User } from "@supabase/supabase-js";
+import { supabase, Profile } from "../config/supabase";
+import { emailService } from "../services/email";
 
 export function useAuth() {
   const [user, setUser] = useState<User | null>(null);
@@ -17,9 +18,11 @@ export function useAuth() {
     console.log("🔍 refreshProfile running for:", session.user.id);
     try {
       const { data, error } = await supabase
-        .from('profiles')
-        .select('id, full_name, role, phone, agency, email, is_admin, can_feature_listings, max_featured_listings_per_user, is_banned, created_at, updated_at')
-        .eq('id', session.user.id)
+        .from("profiles")
+        .select(
+          "id, full_name, role, phone, agency, email, is_admin, can_feature_listings, max_featured_listings_per_user, is_banned, created_at, updated_at",
+        )
+        .eq("id", session.user.id)
         .maybeSingle();
 
       if (error) {
@@ -59,7 +62,9 @@ export function useAuth() {
     });
 
     // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
       setUser(session?.user ?? null);
     });
@@ -67,12 +72,16 @@ export function useAuth() {
     return () => subscription.unsubscribe();
   }, []);
 
-  const signUp = async (email: string, password: string, profileData: {
-    full_name: string;
-    role: string;
-    phone?: string;
-    agency?: string;
-  }) => {
+  const signUp = async (
+    email: string,
+    password: string,
+    profileData: {
+      full_name: string;
+      role: string;
+      phone?: string;
+      agency?: string;
+    },
+  ) => {
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
@@ -81,16 +90,14 @@ export function useAuth() {
     if (error) throw error;
 
     if (data.user) {
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .insert({
-          id: data.user.id,
-          email: email,
-          ...profileData,
-        });
+      const { error: profileError } = await supabase.from("profiles").insert({
+        id: data.user.id,
+        email: email,
+        ...profileData,
+      });
 
       if (profileError) throw profileError;
-      
+
       // Immediately set the profile state with the new profile data
       setProfile({
         id: data.user.id,
@@ -100,6 +107,15 @@ export function useAuth() {
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       });
+
+      try {
+        await emailService.sendWelcomeEmail({
+          to: email,
+          fullName: profileData.full_name || "",
+        });
+      } catch (err) {
+        console.warn("Failed to send welcome email", err);
+      }
     }
 
     return data;

@@ -4,6 +4,7 @@ import { Bed, Bath, MapPin, Heart } from "lucide-react";
 import { Listing } from "../../config/supabase";
 import { listingsService } from "../../services/listings";
 import { useAuth } from "../../hooks/useAuth";
+import { capitalizeName } from "../../utils/formatters";
 
 interface ListingCardProps {
   listing: Listing;
@@ -54,7 +55,7 @@ export function ListingCard({
 
   const getPosterLabel = () => {
     if (listing.owner?.role === "agent" && listing.owner?.agency) {
-      return listing.owner.agency;
+      return capitalizeName(listing.owner?.agency || "");
     }
     return "Owner";
   };
