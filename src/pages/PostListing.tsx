@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { Upload, X, Star } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
 import { listingsService } from "../services/listings";
-import { emailService } from "../services/email";
+import { emailService, renderBrandEmail } from "../services/email";
 import { draftListingsService, DraftData } from "../services/draftListings";
 import { Modal } from "../components/shared/Modal";
 import { AuthForm } from "../components/auth/AuthForm";
@@ -334,78 +334,20 @@ export function PostListing() {
 
       // Send email notification to user
       try {
-        const emailHtml = `
-          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #f9f9f9;">
-            <div style="background-color: #4E4B43; color: white; padding: 30px; text-align: center;">
-              <div style="display: flex; align-items: center; justify-content: center; margin-bottom: 10px;">
-                <svg width="40" height="40" viewBox="0 0 32 32" style="color: #FFFFFF; margin-right: 10px;">
-                  <path d="M16 4L6 12v16h5v-8h10v8h5V12L16 4z" stroke="currentColor" stroke-width="2" fill="none" stroke-linejoin="round"/>
-                  <circle cx="23" cy="8" r="1" fill="currentColor"/>
-                </svg>
-                <span style="font-size: 28px; font-weight: bold; color: #FFFFFF;">HaDirot</span>
-              </div>
-              <h1 style="margin: 0; font-size: 24px;">Listing Submitted Successfully!</h1>
-            </div>
-            
-            <div style="padding: 30px; background-color: white; margin: 0 20px;">
-              <h2 style="color: #4E4B43; margin-top: 0; font-size: 20px;">Hello ${profile?.full_name || "there"}!</h2>
-              
-              <p style="color: #333; line-height: 1.6; font-size: 16px;">
-                Thank you for submitting your listing "<strong>${formData.title}</strong>" to HaDirot. We've received your submission and it's currently under review.
-              </p>
-              
-              <div style="background-color: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #4E4B43;">
-                <h3 style="color: #4E4B43; margin-top: 0; font-size: 18px;">📋 Listing Details</h3>
-                <ul style="color: #555; line-height: 1.6; margin: 0; padding-left: 20px;">
-                  <li><strong>Property:</strong> ${formData.title}</li>
-                  <li><strong>Location:</strong> ${formData.location}${formData.neighborhood ? `, ${formData.neighborhood}` : ""}</li>
-                  <li><strong>Bedrooms:</strong> ${formData.bedrooms === 0 ? "Studio" : formData.bedrooms}</li>
-                  <li><strong>Bathrooms:</strong> ${formData.bathrooms}</li>
-                  <li><strong>Monthly Rent:</strong> $${formData.price.toLocaleString()}</li>
-                  <li><strong>Property Type:</strong> ${formData.property_type.replace("_", " ").replace(/\b\w/g, (l) => l.toUpperCase())}</li>
-                  ${formData.is_featured ? "<li><strong>Featured:</strong> Yes (Premium placement)</li>" : ""}
-                </ul>
-              </div>
-              
-              <div style="background-color: #e8f4f8; padding: 20px; border-radius: 8px; margin: 20px 0;">
-                <h3 style="color: #4E4B43; margin-top: 0; font-size: 18px;">⏳ What happens next?</h3>
-                <ol style="color: #555; line-height: 1.8; margin: 0; padding-left: 20px;">
-                  <li>Our team will review your listing within 24-48 hours</li>
-                  <li>Once approved, your listing will go live on HaDirot</li>
-                  ${formData.is_featured ? "<li>Your featured listing will get premium placement for 1 week</li>" : ""}
-                  <li>You'll receive another email confirmation when it's published</li>
-                  <li>Potential tenants will be able to contact you directly</li>
-                </ol>
-              </div>
-              
-              <div style="text-align: center; margin: 30px 0;">
-                <a href="${window.location.origin}/dashboard" 
-                   style="background-color: #4E4B43; color: white; padding: 15px 30px; text-decoration: none; border-radius: 8px; display: inline-block; font-weight: bold; font-size: 16px;">
-                  View My Dashboard
-                </a>
-              </div>
-              
-              <div style="border-top: 1px solid #eee; padding-top: 20px; margin-top: 30px;">
-                <p style="color: #666; font-size: 14px; line-height: 1.6; margin: 0;">
-                  <strong>Need help?</strong> If you have any questions about your listing or need to make changes, 
-                  you can edit your listing from your dashboard or contact our support team.
-                </p>
-              </div>
-            </div>
-            
-            <div style="background-color: #4E4B43; color: #FFFFFF; padding: 20px; text-align: center; margin: 0 20px;">
-              <p style="margin: 0; font-size: 14px;">
-                © 2025 HaDirot. All rights reserved.<br>
-                NYC's premier Jewish rental platform
-              </p>
-            </div>
-          </div>
-        `;
+        const siteUrl = window.location.origin;
+        const userName = profile?.full_name || "A user";
+        const html = renderBrandEmail({
+          title: "New Listing Posted",
+          intro: `${userName} has posted a new listing.`,
+          bodyHtml: `<p>View the listing here:</p>`,
+          ctaLabel: "View Listing",
+          ctaHref: `${siteUrl}/listing/${listing.id}`,
+        });
 
         await emailService.sendEmail({
           to: user.email!,
           subject: `Listing Submitted: ${formData.title} - HaDirot`,
-          html: emailHtml,
+          html,
         });
 
         console.log("✅ Listing submission email sent successfully");
