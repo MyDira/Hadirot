@@ -475,7 +475,7 @@ export default function Dashboard() {
                               </span>
                             )}
                             {isListingCurrentlyFeatured(listing) && (
-                              <span className="px-2 py-1 text-xs bg-[#D29D86] text-white rounded-full flex items-center">
+                              <span className="px-2 py-1 text-xs bg-accent-500 text-white rounded-full flex items-center">
                                 <Star className="w-3 h-3 mr-1" />
                                 Featured
                               </span>
