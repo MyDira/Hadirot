@@ -236,7 +236,7 @@ export function ListingDetail() {
       </Link>
 
       {/* Image Gallery */}
-      {images.length > 0 && (
+      {images.length > 0 ? (
         <div className="mb-8">
           {/* Main Image Viewer */}
           <div className="relative mb-4">
@@ -371,6 +371,26 @@ export function ListingDetail() {
               </div>
             </div>
           )}
+        </div>
+      ) : (
+        <div className="mb-8">
+          <div className="w-full aspect-[4/3] bg-brand-50 flex items-center justify-center border border-gray-100 rounded-lg">
+            <svg
+              width="64"
+              height="64"
+              viewBox="0 0 24 24"
+              className="text-brand-700"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.5"
+            >
+              <path d="M3 10.5L12 3l9 7.5v9a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 19.5v-9z" />
+              <path d="M9 21V12h6v9" />
+            </svg>
+            <span className="ml-3 text-brand-700/90 text-base">
+              No image available
+            </span>
+          </div>
         </div>
       )}
 

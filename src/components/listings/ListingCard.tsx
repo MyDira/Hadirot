@@ -76,15 +76,15 @@ export function ListingCard({
       to={`/listing/${listing.id}`}
       className="group block bg-white border border-gray-200 rounded-lg shadow-sm hover:shadow transition overflow-hidden"
     >
-      <div className="relative">
+      <div className="relative aspect-[4/3]">
         {featuredImage ? (
           <img
             src={featuredImage.image_url}
             alt={listing.title}
-            className="w-full h-48 object-cover group-hover:scale-105 transition-transform duration-200"
+            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
           />
         ) : (
-          <div className="w-full h-48 bg-brand-50 flex items-center justify-center border-b border-gray-100">
+          <div className="aspect-[4/3] w-full bg-brand-50 flex items-center justify-center border-b border-gray-100">
             <svg
               width="56"
               height="56"
@@ -97,7 +97,7 @@ export function ListingCard({
               <path d="M3 10.5L12 3l9 7.5v9a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 19.5v-9z" />
               <path d="M9 21V12h6v9" />
             </svg>
-            <span className="ml-3 text-brand-700/90 text-sm">
+            <span className="ml-3 text-brand-700/90 text-sm md:text-base">
               No image available
             </span>
           </div>
