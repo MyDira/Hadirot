@@ -1,6 +1,15 @@
 import { corsHeaders } from "../_shared/cors.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
+const listEnvKeys = () => {
+  try {
+    const keys = Object.keys(Deno.env.toObject() || {}).sort();
+    console.log("🧪 [send-email] ENV_KEYS", keys);
+  } catch (e) {
+    console.log("🧪 [send-email] ENV_KEYS error", String(e));
+  }
+};
+
 // Email provider (Zepto default, Resend fallback)
 const ZEPTO_API_URL = "https://api.zeptomail.com/v1.1/email";
 const RESEND_API_URL = "https://api.resend.com/emails";
@@ -82,6 +91,7 @@ interface EmailRequest {
 }
 
 Deno.serve(async (req) => {
+  listEnvKeys();
   // Handle CORS preflight requests
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
