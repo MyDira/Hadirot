@@ -1,6 +1,8 @@
 import { corsHeaders } from "../_shared/cors.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
+// Email provider (Zepto default, Resend fallback)
+const ZEPTO_API_URL = "https://api.zeptomail.com/v1.1/email";
 const RESEND_API_URL = "https://api.resend.com/emails";
 
 function renderBrandEmail({
@@ -43,10 +45,21 @@ function renderBrandEmail({
   `;
 }
 
+interface Attachment {
+  name: string;
+  mimeType: string;
+  base64: string;
+}
+
 interface EmailRequest {
   to: string | string[];
   subject: string;
   html: string;
+  text?: string;
+  cc?: string[];
+  bcc?: string[];
+  replyTo?: string;
+  attachments?: Attachment[];
   from?: string;
   type?: "password_reset" | "general";
 }
@@ -69,17 +82,45 @@ Deno.serve(async (req) => {
     // Get the authorization header at the start
     const authHeader = req.headers.get("Authorization");
 
-    // Get the Resend API key from Supabase secrets
-    const resendApiKey = Deno.env.get("RESEND_API_KEY");
-    if (!resendApiKey) {
-      console.error("RESEND_API_KEY not found in environment variables");
-      return new Response(
-        JSON.stringify({ error: "Email service not configured" }),
-        {
-          status: 500,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        },
-      );
+    // Determine which provider to use and validate required env vars
+    const provider = (Deno.env.get("EMAIL_PROVIDER") || "zepto").toLowerCase();
+
+    let resendApiKey: string | undefined;
+    let zeptoToken: string | undefined;
+    let zeptoFrom: string | undefined;
+    let zeptoFromName: string | undefined;
+    const zeptoReplyTo = Deno.env.get("ZEPTO_REPLY_TO") || undefined;
+
+    if (provider === "resend") {
+      resendApiKey = Deno.env.get("RESEND_API_KEY");
+      if (!resendApiKey) {
+        console.error("RESEND_API_KEY not found in environment variables");
+        return new Response(
+          JSON.stringify({ error: "Email service not configured" }),
+          {
+            status: 500,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          },
+        );
+      }
+    } else {
+      zeptoToken = Deno.env.get("ZEPTO_TOKEN");
+      zeptoFrom = Deno.env.get("ZEPTO_FROM_ADDRESS");
+      zeptoFromName = Deno.env.get("ZEPTO_FROM_NAME");
+      if (!zeptoToken || !zeptoFrom || !zeptoFromName) {
+        console.error("Missing ZeptoMail environment variables", {
+          hasToken: !!zeptoToken,
+          hasFrom: !!zeptoFrom,
+          hasFromName: !!zeptoFromName,
+        });
+        return new Response(
+          JSON.stringify({ error: "Email service not configured" }),
+          {
+            status: 500,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          },
+        );
+      }
     }
 
     // Parse the request body
@@ -90,6 +131,7 @@ Deno.serve(async (req) => {
         to: emailData.to,
         subject: emailData.subject,
         type: emailData.type,
+        provider,
         hasAuth: !!authHeader,
       });
     } catch (error) {
@@ -318,84 +360,160 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Prepare the email payload for Resend
-    const emailPayload = {
-      from: emailData.from || "HaDirot <noreply@hadirot.com>",
-      to: Array.isArray(emailData.to) ? emailData.to : [emailData.to],
+    const toAddresses = Array.isArray(emailData.to)
+      ? emailData.to
+      : [emailData.to];
+    console.log("📤 Sending email via", provider, {
+      to: toAddresses,
       subject: emailData.subject,
-      html: emailData.html,
-    };
-
-    console.log("📤 Sending email via Resend:", {
-      to: emailPayload.to,
-      subject: emailPayload.subject,
-      from: emailPayload.from,
-      htmlLength: emailPayload.html.length,
     });
 
     try {
-      // Send email via Resend API
-      const resendResponse = await fetch(RESEND_API_URL, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${resendApiKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(emailPayload),
-      });
+      if (provider === "resend") {
+        const resendPayload = {
+          from: emailData.from || "HaDirot <noreply@hadirot.com>",
+          to: toAddresses,
+          subject: emailData.subject,
+          html: emailData.html,
+          text: emailData.text,
+          cc: emailData.cc,
+          bcc: emailData.bcc,
+          reply_to: emailData.replyTo,
+          attachments: emailData.attachments?.map((a) => ({
+            filename: a.name,
+            content: a.base64,
+            type: a.mimeType,
+          })),
+        };
 
-      if (!resendResponse.ok) {
-        const errorData = await resendResponse.text();
-        console.error("❌ Resend API error:", {
-          status: resendResponse.status,
-          statusText: resendResponse.statusText,
-          errorData: errorData,
-          payload: emailPayload,
+        const resendResponse = await fetch(RESEND_API_URL, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${resendApiKey}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(resendPayload),
+        });
+
+        if (!resendResponse.ok) {
+          const errorData = await resendResponse.text();
+          console.error("❌ Resend API error:", {
+            status: resendResponse.status,
+            statusText: resendResponse.statusText,
+            errorData: errorData,
+          });
+
+          return new Response(
+            JSON.stringify({
+              error: "Failed to send email",
+              details:
+                resendResponse.status === 422
+                  ? "Invalid email data"
+                  : "Email service error",
+              resendStatus: resendResponse.status,
+            }),
+            {
+              status: 500,
+              headers: { ...corsHeaders, "Content-Type": "application/json" },
+            },
+          );
+        }
+
+        const resendData = await resendResponse.json();
+        console.log("✅ Email sent successfully via Resend:", {
+          id: resendData.id,
+          to: toAddresses,
+          subject: emailData.subject,
+          type: isPasswordReset ? "password_reset" : "general",
         });
 
         return new Response(
           JSON.stringify({
-            error: "Failed to send email",
-            details:
-              resendResponse.status === 422
-                ? "Invalid email data"
-                : "Email service error",
-            resendStatus: resendResponse.status,
+            ok: true,
+            provider: "resend",
+            request_id: resendData.id,
+            raw: resendData,
           }),
           {
-            status: 500,
+            status: 200,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          },
+        );
+      } else {
+        const zeptoPayload = {
+          from: { address: zeptoFrom!, name: zeptoFromName! },
+          to: toAddresses.map((a) => ({ email_address: { address: a } })),
+          subject: emailData.subject,
+          htmlbody: emailData.html,
+          textbody: emailData.text ?? undefined,
+          cc: emailData.cc?.map((a) => ({ email_address: { address: a } })),
+          bcc: emailData.bcc?.map((a) => ({ email_address: { address: a } })),
+          reply_to: zeptoReplyTo
+            ? [{ address: zeptoReplyTo }]
+            : emailData.replyTo
+            ? [{ address: emailData.replyTo }]
+            : undefined,
+          track_opens: false,
+          track_clicks: false,
+          attachments: emailData.attachments?.map((a) => ({
+            name: a.name,
+            mime_type: a.mimeType,
+            content: a.base64,
+          })),
+        };
+
+        const zeptoResponse = await fetch(ZEPTO_API_URL, {
+          method: "POST",
+          headers: {
+            Authorization: `Zoho-enczapikey ${zeptoToken}`,
+            "Content-Type": "application/json",
+            Accept: "application/json",
+          },
+          body: JSON.stringify(zeptoPayload),
+        });
+
+        const zeptoData = await zeptoResponse.json();
+        if (!zeptoResponse.ok) {
+          console.error("❌ ZeptoMail API error:", {
+            status: zeptoResponse.status,
+            body: zeptoData,
+          });
+          return new Response(
+            JSON.stringify({
+              error: zeptoData.error?.message || "Failed to send email",
+              code: zeptoData.error?.code,
+              provider: "zepto",
+            }),
+            {
+              status: 500,
+              headers: { ...corsHeaders, "Content-Type": "application/json" },
+            },
+          );
+        }
+
+        return new Response(
+          JSON.stringify({
+            ok: true,
+            provider: "zepto",
+            request_id: zeptoData.data?.request_id,
+            raw: zeptoData.data,
+          }),
+          {
+            status: 200,
             headers: { ...corsHeaders, "Content-Type": "application/json" },
           },
         );
       }
-
-      const resendData = await resendResponse.json();
-      console.log("✅ Email sent successfully via Resend:", {
-        id: resendData.id,
-        to: emailPayload.to,
-        subject: emailPayload.subject,
-        type: isPasswordReset ? "password_reset" : "general",
-      });
-
-      return new Response(
-        JSON.stringify({
-          success: true,
-          id: resendData.id,
-        }),
-        {
-          status: 200,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        },
-      );
     } catch (error) {
-      console.error("❌ Error calling Resend API:", {
+      console.error("❌ Error calling email provider:", {
+        provider: provider,
         error: error,
         message: error.message,
         stack: error.stack,
       });
 
       return new Response(
-        JSON.stringify({ error: "Failed to send email via Resend" }),
+        JSON.stringify({ error: `Failed to send email via ${provider}` }),
         {
           status: 500,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
