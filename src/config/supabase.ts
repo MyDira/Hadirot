@@ -45,6 +45,7 @@ export interface Listing {
   parking: ParkingType;
   washer_dryer_hookup: boolean;
   dishwasher: boolean;
+  broker_fee: boolean;
   lease_length?: string;
   heat: HeatType;
   property_type: PropertyType;
