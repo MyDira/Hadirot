@@ -7,6 +7,7 @@ import { emailService, renderBrandEmail } from "../services/email";
 import { draftListingsService, DraftData } from "../services/draftListings";
 import { Modal } from "../components/shared/Modal";
 import { AuthForm } from "../components/auth/AuthForm";
+import { compressImage } from "../utils/imageUtils";
 import {
   PropertyType,
   ParkingType,
@@ -46,7 +47,9 @@ export function PostListing() {
   }>({});
   const [savingDraft, setSavingDraft] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
+  const [neighborhoodSelectValue, setNeighborhoodSelectValue] = useState<string>("");
   const [showCustomNeighborhood, setShowCustomNeighborhood] = useState(false);
+  const [customNeighborhoodInput, setCustomNeighborhoodInput] = useState("");
   const [formData, setFormData] = useState<ListingFormData>({
     title: "",
     description: "",
@@ -173,6 +176,12 @@ export function PostListing() {
           !standardNeighborhoods.includes(draftData.neighborhood)
         ) {
           setShowCustomNeighborhood(true);
+          setNeighborhoodSelectValue("other");
+          setCustomNeighborhoodInput(draftData.neighborhood);
+        } else {
+          setShowCustomNeighborhood(false);
+          setNeighborhoodSelectValue(draftData.neighborhood || "");
+          setCustomNeighborhoodInput("");
         }
 
         console.log("✅ Draft data loaded successfully");
@@ -208,20 +217,35 @@ export function PostListing() {
     if (type === "checkbox") {
       const checked = (e.target as HTMLInputElement).checked;
       setFormData((prev) => ({ ...prev, [name]: checked }));
-    } else if (name === "neighborhood") {
-      if (value === "other") {
-        setShowCustomNeighborhood(true);
-        setFormData((prev) => ({ ...prev, [name]: "" }));
-      } else {
-        setShowCustomNeighborhood(false);
-        setFormData((prev) => ({ ...prev, [name]: value }));
-      }
     } else if (type === "number") {
       const numValue = value === "" ? undefined : parseFloat(value);
       setFormData((prev) => ({ ...prev, [name]: numValue }));
     } else {
       setFormData((prev) => ({ ...prev, [name]: value }));
     }
+  };
+
+  const handleNeighborhoodSelect = (
+    e: React.ChangeEvent<HTMLSelectElement>,
+  ) => {
+    const value = e.target.value;
+    setNeighborhoodSelectValue(value);
+    if (value === "other") {
+      setShowCustomNeighborhood(true);
+      setFormData((prev) => ({ ...prev, neighborhood: customNeighborhoodInput }));
+    } else {
+      setShowCustomNeighborhood(false);
+      setCustomNeighborhoodInput("");
+      setFormData((prev) => ({ ...prev, neighborhood: value }));
+    }
+  };
+
+  const handleCustomNeighborhoodChange = (
+    e: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    const value = e.target.value;
+    setCustomNeighborhoodInput(value);
+    setFormData((prev) => ({ ...prev, neighborhood: value }));
   };
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -236,11 +260,33 @@ export function PostListing() {
       alert("Maximum 10 images allowed");
       return;
     }
+    let hasFeatured = tempImages.some((img) => img.is_featured);
 
     for (const file of files) {
-      if (file.size > 5 * 1024 * 1024) {
-        alert("Image size should be less than 5MB");
+      if (!file.type.startsWith("image/")) {
+        alert(`${file.name} is not an image file`);
         continue;
+      }
+
+      let fileToUpload: File = file;
+      if (file.size > 8 * 1024 * 1024) {
+        try {
+          const compressed = await compressImage(file, {
+            quality: 0.8,
+            maxWidth: 1920,
+          });
+          if (compressed.size > 8 * 1024 * 1024) {
+            alert(`${file.name} is too large even after compression (8MB limit)`);
+            continue;
+          }
+          fileToUpload = new File([compressed],
+            file.name.replace(/\.[^.]+$/, ".jpg"),
+            { type: "image/jpeg" });
+        } catch (err) {
+          console.error("Error compressing image:", err);
+          alert(`Failed to process ${file.name}`);
+          continue;
+        }
       }
 
       const tempId = `temp-${Date.now()}-${Math.random()}`;
@@ -248,16 +294,27 @@ export function PostListing() {
 
       try {
         const { filePath, publicUrl } =
-          await listingsService.uploadTempListingImage(file, user.id);
+          await listingsService.uploadTempListingImage(fileToUpload, user.id);
+
+        const is_featured = !hasFeatured;
+        if (!hasFeatured) {
+          hasFeatured = true;
+        }
 
         const tempImage: TempListingImage = {
           filePath,
           publicUrl,
-          is_featured: tempImages.length === 0, // First image is featured by default
+          is_featured,
           originalName: file.name,
         };
 
-        setTempImages((prev) => [...prev, tempImage]);
+        setTempImages((prev) => {
+          const updated = is_featured
+            ? prev.map((img) => ({ ...img, is_featured: false }))
+            : [...prev];
+          updated.push(tempImage);
+          return updated;
+        });
       } catch (error) {
         console.error("Error uploading temp image:", error);
         alert("Failed to upload image. Please try again.");
@@ -301,9 +358,21 @@ export function PostListing() {
 
     setLoading(true);
     try {
+      const neighborhood =
+        neighborhoodSelectValue === "other"
+          ? customNeighborhoodInput.trim()
+          : neighborhoodSelectValue;
+
+      if (neighborhoodSelectValue === "other" && neighborhood === "") {
+        alert("Please enter a neighborhood");
+        setLoading(false);
+        return;
+      }
+
       // Create the listing first
       const listing = await listingsService.createListing({
         ...formData,
+        neighborhood,
         user_id: user.id,
         is_active: false,
         approved: false,
@@ -466,10 +535,8 @@ export function PostListing() {
               </label>
               <select
                 name="neighborhood"
-                value={
-                  showCustomNeighborhood ? "other" : formData.neighborhood || ""
-                }
-                onChange={handleInputChange}
+                value={neighborhoodSelectValue}
+                onChange={handleNeighborhoodSelect}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
               >
                 <option value="">Select a neighborhood</option>
@@ -484,9 +551,8 @@ export function PostListing() {
               {showCustomNeighborhood && (
                 <input
                   type="text"
-                  name="neighborhood"
-                  value={formData.neighborhood || ""}
-                  onChange={handleInputChange}
+                  value={customNeighborhoodInput}
+                  onChange={handleCustomNeighborhoodChange}
                   className="mt-2 w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
                   placeholder="Enter custom neighborhood"
                 />
@@ -729,7 +795,7 @@ export function PostListing() {
                     : "Click to upload images or drag and drop"}
                 </span>
                 <span className="text-xs text-gray-500 block mt-1">
-                  PNG, JPG up to 5MB each
+                  PNG, JPG up to 8MB each
                 </span>
               </div>
               <input
