@@ -1,7 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders } from "../_shared/cors.ts";
 
-const RESEND_API_URL = "https://api.resend.com/emails";
+const ZEPTO_API_URL = "https://api.zeptomail.com/v1.1/email";
 
 function renderBrandEmail({
   title,
@@ -67,9 +67,11 @@ Deno.serve(async (req) => {
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-    const resendApiKey = Deno.env.get("RESEND_API_KEY");
+    const zeptoToken = Deno.env.get("ZEPTO_TOKEN");
+    const zeptoFromAddress = Deno.env.get("ZEPTO_FROM_ADDRESS") || "noreply@hadirot.com";
+    const zeptoFromName = Deno.env.get("ZEPTO_FROM_NAME") || "HaDirot";
 
-    if (!supabaseUrl || !serviceRoleKey || !resendApiKey) {
+    if (!supabaseUrl || !serviceRoleKey || !zeptoToken) {
       return new Response(
         JSON.stringify({ error: "Server configuration error" }),
         {
@@ -118,29 +120,44 @@ Deno.serve(async (req) => {
       ctaHref: actionLink,
     });
 
-    const emailPayload = {
-      from: "HaDirot <noreply@hadirot.com>",
-      to: Array.isArray(to) ? to : [to],
+    const zeptoPayload = {
+      from: {
+        address: zeptoFromAddress,
+        name: zeptoFromName,
+      },
+      to: [{
+        email_address: {
+          address: Array.isArray(to) ? to[0] : to,
+        },
+      }],
       subject: subject || "Reset your password",
-      html,
+      htmlbody: html,
+      track_opens: false,
+      track_clicks: false,
     };
 
-    const resendResponse = await fetch(RESEND_API_URL, {
+    const zeptoResponse = await fetch(ZEPTO_API_URL, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${resendApiKey}`,
+        Authorization: `Zoho-enczapikey ${zeptoToken}`,
         "Content-Type": "application/json",
+        Accept: "application/json",
       },
-      body: JSON.stringify(emailPayload),
+      body: JSON.stringify(zeptoPayload),
     });
 
-    const resendData = await resendResponse.json();
+    if (!zeptoResponse.ok) {
+      const errorData = await zeptoResponse.text();
+      console.error("❌ ZeptoMail API error:", {
+        status: zeptoResponse.status,
+        statusText: zeptoResponse.statusText,
+        errorData: errorData,
+      });
 
-    if (!resendResponse.ok) {
       return new Response(
         JSON.stringify({
-          error: resendData.error?.message || "Failed to send email",
-          details: resendData.error,
+          error: "Failed to send email",
+          details: "Email service error",
         }),
         {
           status: 500,
@@ -149,7 +166,17 @@ Deno.serve(async (req) => {
       );
     }
 
-    return new Response(JSON.stringify({ success: true, id: resendData.id }), {
+    const zeptoData = await zeptoResponse.json();
+    console.log("✅ Password reset email sent via ZeptoMail:", {
+      messageId: zeptoData?.data?.message_id,
+      to: Array.isArray(to) ? to : [to],
+    });
+
+    return new Response(JSON.stringify({ 
+      success: true, 
+      id: zeptoData?.data?.message_id,
+      provider: "zeptomail"
+    }), {
       status: 200,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

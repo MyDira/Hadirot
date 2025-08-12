@@ -6,7 +6,7 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
-const RESEND_API_URL = "https://api.resend.com/emails";
+const ZEPTO_API_URL = "https://api.zeptomail.com/v1.1/email";
 
 function renderBrandEmail({
   title,
@@ -175,30 +175,49 @@ Deno.serve(async (req) => {
 
     console.log(`Successfully deleted user: ${userId}`);
 
+    // Send deletion notification email via ZeptoMail
     if (targetEmail) {
       try {
-        const html = renderBrandEmail({
-          title: "Account Deleted",
-          intro: `Hi ${fullName},`,
-          bodyHtml: `<p>Your Hadirot account has been deleted.</p>${reason ? `<p>${reason}</p>` : ""}<p>If you have questions, contact support@hadirot.com.</p>`,
-        });
-        const resendApiKey = Deno.env.get("RESEND_API_KEY");
-        if (resendApiKey) {
-          await fetch(RESEND_API_URL, {
+        const zeptoToken = Deno.env.get("ZEPTO_TOKEN");
+        const zeptoFromAddress = Deno.env.get("ZEPTO_FROM_ADDRESS") || "noreply@hadirot.com";
+        const zeptoFromName = Deno.env.get("ZEPTO_FROM_NAME") || "HaDirot";
+
+        if (zeptoToken) {
+          const html = renderBrandEmail({
+            title: "Account Deleted",
+            intro: `Hi ${fullName},`,
+            bodyHtml: `<p>Your Hadirot account has been deleted.</p>${reason ? `<p>${reason}</p>` : ""}<p>If you have questions, contact support@hadirot.com.</p>`,
+          });
+
+          const zeptoPayload = {
+            from: {
+              address: zeptoFromAddress,
+              name: zeptoFromName,
+            },
+            to: [{
+              email_address: {
+                address: targetEmail,
+              },
+            }],
+            subject: "Your Hadirot account has been deleted",
+            htmlbody: html,
+            track_opens: false,
+            track_clicks: false,
+          };
+
+          await fetch(ZEPTO_API_URL, {
             method: "POST",
             headers: {
-              Authorization: `Bearer ${resendApiKey}`,
+              Authorization: `Zoho-enczapikey ${zeptoToken}`,
               "Content-Type": "application/json",
+              Accept: "application/json",
             },
-            body: JSON.stringify({
-              from: "HaDirot <noreply@hadirot.com>",
-              to: [targetEmail],
-              subject: "Your Hadirot account has been deleted",
-              html,
-            }),
+            body: JSON.stringify(zeptoPayload),
           });
+
+          console.log("✅ Account deletion email sent via ZeptoMail");
         } else {
-          console.warn("RESEND_API_KEY not set; skipping deletion email");
+          console.warn("ZEPTO_TOKEN not set; skipping deletion email");
         }
       } catch (emailError) {
         console.error("Error sending account deletion email:", emailError);
