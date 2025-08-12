@@ -1,41 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type",
-};
-
-const ZEPTO_API_URL = "https://api.zeptomail.com/v1.1/email";
-
-function renderBrandEmail({
-  title,
-  intro,
-  bodyHtml,
-}: {
-  title: string;
-  intro?: string;
-  bodyHtml: string;
-}) {
-  const introHtml = intro ? `<p style="margin-top:0;">${intro}</p>` : "";
-  return `
-    <div style="font-family:Arial,sans-serif;background-color:#F7F9FC;padding:24px;">
-      <div style="max-width:600px;margin:0 auto;background-color:#FFFFFF;border:1px solid #E5E7EB;border-radius:8px;overflow:hidden;">
-        <div style="background-color:#1E4A74;color:#FFFFFF;padding:24px;text-align:center;">
-          <h1 style="margin:0;font-size:24px;">Hadirot</h1>
-        </div>
-        <div style="padding:24px;color:#374151;font-size:16px;line-height:1.5;">
-          <h2 style="margin:0 0 16px 0;font-size:20px;color:#1E4A74;">${title}</h2>
-          ${introHtml}
-          ${bodyHtml}
-        </div>
-        <div style="background-color:#F7F9FC;color:#6B7280;text-align:center;font-size:12px;padding:16px;">
-          © ${new Date().getFullYear()} Hadirot. All rights reserved.
-        </div>
-      </div>
-    </div>
-  `;
-}
+import { corsHeaders } from "../_shared/cors.ts";
+import { renderBrandEmail, sendViaZepto } from "../_shared/zepto.ts";
 
 Deno.serve(async (req) => {
   // Handle CORS preflight requests
@@ -181,6 +146,8 @@ Deno.serve(async (req) => {
         const zeptoToken = Deno.env.get("ZEPTO_TOKEN");
         const zeptoFromAddress = Deno.env.get("ZEPTO_FROM_ADDRESS") || "noreply@hadirot.com";
         const zeptoFromName = Deno.env.get("ZEPTO_FROM_NAME") || "HaDirot";
+        const zeptoReplyTo = Deno.env.get("ZEPTO_REPLY_TO");
+        const emailProvider = Deno.env.get("EMAIL_PROVIDER");
 
         if (zeptoToken) {
           const html = renderBrandEmail({
@@ -189,30 +156,12 @@ Deno.serve(async (req) => {
             bodyHtml: `<p>Your Hadirot account has been deleted.</p>${reason ? `<p>${reason}</p>` : ""}<p>If you have questions, contact support@hadirot.com.</p>`,
           });
 
-          const zeptoPayload = {
-            from: {
-              address: zeptoFromAddress,
-              name: zeptoFromName,
-            },
-            to: [{
-              email_address: {
-                address: targetEmail,
-              },
-            }],
+          await sendViaZepto({
+            to: targetEmail,
             subject: "Your Hadirot account has been deleted",
-            htmlbody: html,
-            track_opens: false,
-            track_clicks: false,
-          };
-
-          await fetch(ZEPTO_API_URL, {
-            method: "POST",
-            headers: {
-              Authorization: `Zoho-enczapikey ${zeptoToken}`,
-              "Content-Type": "application/json",
-              Accept: "application/json",
-            },
-            body: JSON.stringify(zeptoPayload),
+            html,
+            from: zeptoFromAddress,
+            fromName: zeptoFromName,
           });
 
           console.log("✅ Account deletion email sent via ZeptoMail");
