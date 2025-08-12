@@ -17,9 +17,20 @@
 
       gtag("config", "G-Q27FCJ5TG9");
     </script>
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <link rel="mask-icon" href="/safari-pinned-tab.svg" color="#1E4A74">
+    <meta name="theme-color" content="#1E4A74">
+    <link rel="icon" type="image/png" sizes="32x32" href="" id="favicon-32">
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>HaDirot Real Estate Listings Platform</title>
+    <script>
+      // Inject data-URL fallback for older browsers
+      import('/src/assets/favicon-32-data-url.ts').then(m => {
+        const el = document.getElementById('favicon-32');
+        if (el) el.href = m.FAVICON_32_DATA_URL;
+      }).catch(() => {});
+    </script>
   </head>
   <body>
     <div id="root"></div>
