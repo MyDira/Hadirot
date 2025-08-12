@@ -5,6 +5,23 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 const ZEPTO_API_URL = "https://api.zeptomail.com/v1.1/email";
 const RESEND_API_URL = "https://api.resend.com/emails";
 
+const dbg = (...args: any[]) => console.log("🧪 [send-email]", ...args);
+const mask = (s?: string | null, keep = 8) =>
+  s ? `${s.slice(0, keep)}…(${s.length})` : "undefined";
+
+const env = {
+  PROVIDER: (Deno.env.get("EMAIL_PROVIDER") || "zepto").toLowerCase(),
+  ZEPTO_TOKEN_RAW: Deno.env.get("ZEPTO_TOKEN") || "",
+  ZEPTO_FROM_ADDRESS:
+    Deno.env.get("ZEPTO_FROM_ADDRESS") || "noreply@hadirot.com",
+  ZEPTO_FROM_NAME: Deno.env.get("ZEPTO_FROM_NAME") || "HaDirot",
+  ZEPTO_REPLY_TO: Deno.env.get("ZEPTO_REPLY_TO") || "",
+  SITE_URL: Deno.env.get("VITE_SITE_URL") || "http://localhost:5173",
+  SUPABASE_URL: Deno.env.get("SUPABASE_URL") || "",
+  HAS_SERVICE_ROLE: !!Deno.env.get("SUPABASE_SERVICE_ROLE_KEY"),
+  HAS_ANON_KEY: !!Deno.env.get("SUPABASE_ANON_KEY"),
+};
+
 function renderBrandEmail({
   title,
   intro,
@@ -83,36 +100,17 @@ Deno.serve(async (req) => {
     const authHeader = req.headers.get("Authorization");
 
     // Determine which provider to use and validate required env vars
-    const provider = (Deno.env.get("EMAIL_PROVIDER") || "zepto").toLowerCase();
+    const provider = env.PROVIDER;
 
     let resendApiKey: string | undefined;
-    let zeptoToken: string | undefined;
-    let zeptoFrom: string | undefined;
-    let zeptoFromName: string | undefined;
-    const zeptoReplyTo = Deno.env.get("ZEPTO_REPLY_TO") || undefined;
+    const zeptoFrom = env.ZEPTO_FROM_ADDRESS;
+    const zeptoFromName = env.ZEPTO_FROM_NAME;
+    const zeptoReplyTo = env.ZEPTO_REPLY_TO || undefined;
 
     if (provider === "resend") {
       resendApiKey = Deno.env.get("RESEND_API_KEY");
       if (!resendApiKey) {
         console.error("RESEND_API_KEY not found in environment variables");
-        return new Response(
-          JSON.stringify({ error: "Email service not configured" }),
-          {
-            status: 500,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          },
-        );
-      }
-    } else {
-      zeptoToken = Deno.env.get("ZEPTO_TOKEN");
-      zeptoFrom = Deno.env.get("ZEPTO_FROM_ADDRESS");
-      zeptoFromName = Deno.env.get("ZEPTO_FROM_NAME");
-      if (!zeptoToken || !zeptoFrom || !zeptoFromName) {
-        console.error("Missing ZeptoMail environment variables", {
-          hasToken: !!zeptoToken,
-          hasFrom: !!zeptoFrom,
-          hasFromName: !!zeptoFromName,
-        });
         return new Response(
           JSON.stringify({ error: "Email service not configured" }),
           {
@@ -127,6 +125,22 @@ Deno.serve(async (req) => {
     let emailData: EmailRequest;
     try {
       emailData = await req.json();
+      dbg("env", {
+        PROVIDER: env.PROVIDER,
+        ZEPTO_TOKEN: mask(env.ZEPTO_TOKEN_RAW),
+        ZEPTO_FROM_ADDRESS: env.ZEPTO_FROM_ADDRESS,
+        ZEPTO_FROM_NAME: env.ZEPTO_FROM_NAME,
+        ZEPTO_REPLY_TO: env.ZEPTO_REPLY_TO ? "set" : "unset",
+        SITE_URL: env.SITE_URL,
+        SUPABASE_URL: env.SUPABASE_URL ? "set" : "unset",
+        HAS_SERVICE_ROLE: env.HAS_SERVICE_ROLE,
+        HAS_ANON_KEY: env.HAS_ANON_KEY,
+      });
+      dbg("request meta", {
+        to: emailData?.to,
+        subject: emailData?.subject,
+        type: emailData?.type,
+      });
       console.log("📧 Email request received:", {
         to: emailData.to,
         subject: emailData.subject,
@@ -367,6 +381,18 @@ Deno.serve(async (req) => {
       to: toAddresses,
       subject: emailData.subject,
     });
+    const zeptoToken = env.ZEPTO_TOKEN_RAW.trim();
+    if (provider === "zepto" && !zeptoToken) {
+      dbg("ZEPTO_TOKEN missing or empty after trim");
+      return new Response(JSON.stringify({ error: "ZEPTO_TOKEN missing" }), {
+        status: 500,
+        headers: {
+          ...corsHeaders,
+          "Content-Type": "application/json",
+          "X-Debug-Provider": "zepto",
+        },
+      });
+    }
 
     try {
       if (provider === "resend") {
@@ -462,7 +488,10 @@ Deno.serve(async (req) => {
           })),
         };
 
-        const zeptoResponse = await fetch(ZEPTO_API_URL, {
+        const reqId = crypto.randomUUID();
+        dbg("sending to Zepto", { reqId, endpoint: ZEPTO_API_URL });
+
+        const zeptoRes = await fetch(ZEPTO_API_URL, {
           method: "POST",
           headers: {
             Authorization: `Zoho-enczapikey ${zeptoToken}`,
@@ -472,35 +501,43 @@ Deno.serve(async (req) => {
           body: JSON.stringify(zeptoPayload),
         });
 
-        const zeptoData = await zeptoResponse.json();
-        if (!zeptoResponse.ok) {
-          console.error("❌ ZeptoMail API error:", {
-            status: zeptoResponse.status,
-            body: zeptoData,
-          });
+        const status = zeptoRes.status;
+        const text = await zeptoRes.text();
+        dbg("Zepto response", { reqId, status, bodyPreview: text.slice(0, 400) });
+
+        if (!zeptoRes.ok) {
           return new Response(
             JSON.stringify({
-              error: zeptoData.error?.message || "Failed to send email",
-              code: zeptoData.error?.code,
-              provider: "zepto",
+              error: "Zepto send failed",
+              status,
+              details: text,
             }),
             {
-              status: 500,
-              headers: { ...corsHeaders, "Content-Type": "application/json" },
+              status: 502,
+              headers: {
+                ...corsHeaders,
+                "Content-Type": "application/json",
+                "X-Debug-Provider": "zepto",
+              },
             },
           );
         }
 
+        const zeptoData = JSON.parse(text || "{}");
         return new Response(
           JSON.stringify({
             ok: true,
             provider: "zepto",
-            request_id: zeptoData.data?.request_id,
-            raw: zeptoData.data,
+            request_id: zeptoData?.data?.message_id,
+            debug: { reqId },
           }),
           {
             status: 200,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
+            headers: {
+              ...corsHeaders,
+              "Content-Type": "application/json",
+              "X-Debug-Provider": "zepto",
+            },
           },
         );
       }
@@ -521,11 +558,7 @@ Deno.serve(async (req) => {
       );
     }
   } catch (error) {
-    console.error("❌ Unexpected error in send-email function:", {
-      error: error,
-      message: error.message,
-      stack: error.stack,
-    });
+    console.error("❌ [send-email] unexpected error:", error);
 
     return new Response(JSON.stringify({ error: "Internal server error" }), {
       status: 500,
