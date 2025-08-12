@@ -1,0 +1,395 @@
+[
+  {
+    "id": "password_reset_email",
+    "purpose": "Password reset instructions",
+    "triggers": [
+      "user requests password reset"
+    ],
+    "callSites": [
+      {
+        "file": "src/components/auth/AuthForm.tsx",
+        "lines": [
+          85
+        ]
+      },
+      {
+        "file": "src/pages/AdminPanel.tsx",
+        "lines": [
+          444
+        ]
+      },
+      {
+        "file": "src/services/email.ts",
+        "lines": [
+          66
+        ]
+      },
+      {
+        "file": "src/services/email.ts",
+        "lines": [
+          368
+        ]
+      },
+      {
+        "file": "supabase/functions/send-password-reset/index.ts",
+        "lines": [
+          4
+        ]
+      }
+    ],
+    "functions": [
+      "requestPasswordReset",
+      "sendPasswordResetEmail",
+      "renderBrandEmail"
+    ],
+    "template": "renderBrandEmail",
+    "subjectExample": "Reset your password",
+    "payloadKeys": [
+      "to",
+      "subject",
+      "html"
+    ],
+    "attachments": false,
+    "providerPath": "edge->resend",
+    "env": [
+      "RESEND_API_KEY",
+      "SUPABASE_URL",
+      "SUPABASE_SERVICE_ROLE_KEY",
+      "VITE_SITE_URL"
+    ]
+  },
+  {
+    "id": "welcome_email",
+    "purpose": "Welcome new user",
+    "triggers": [
+      "user signup"
+    ],
+    "callSites": [
+      {
+        "file": "src/hooks/useAuth.ts",
+        "lines": [
+          112
+        ]
+      }
+    ],
+    "functions": [
+      "sendWelcomeEmail",
+      "renderBrandEmail"
+    ],
+    "template": "renderBrandEmail",
+    "subjectExample": "Welcome to Hadirot",
+    "payloadKeys": [
+      "to",
+      "subject",
+      "html"
+    ],
+    "attachments": false,
+    "providerPath": "edge->resend",
+    "env": [
+      "RESEND_API_KEY",
+      "SUPABASE_URL"
+    ]
+  },
+  {
+    "id": "account_deletion_email",
+    "purpose": "Account deleted by admin",
+    "triggers": [
+      "admin deletes user"
+    ],
+    "callSites": [
+      {
+        "file": "src/pages/AdminPanel.tsx",
+        "lines": [
+          468
+        ]
+      },
+      {
+        "file": "supabase/functions/delete-user/index.ts",
+        "lines": [
+          9
+        ]
+      }
+    ],
+    "functions": [
+      "delete-user edge",
+      "renderBrandEmail"
+    ],
+    "template": "renderBrandEmail",
+    "subjectExample": "Your Hadirot account has been deleted",
+    "payloadKeys": [
+      "to",
+      "subject",
+      "html"
+    ],
+    "attachments": false,
+    "providerPath": "edge->resend",
+    "env": [
+      "RESEND_API_KEY",
+      "SUPABASE_URL",
+      "SUPABASE_SERVICE_ROLE_KEY",
+      "SUPABASE_ANON_KEY"
+    ]
+  },
+  {
+    "id": "listing_featured_email",
+    "purpose": "Listing featured status change",
+    "triggers": [
+      "listing featured status changed"
+    ],
+    "callSites": [
+      {
+        "file": "src/pages/Dashboard.tsx",
+        "lines": [
+          99
+        ]
+      }
+    ],
+    "functions": [
+      "sendListingFeaturedEmail",
+      "renderBrandEmail"
+    ],
+    "template": "renderBrandEmail",
+    "subjectExample": "Listing Featured",
+    "payloadKeys": [
+      "to",
+      "subject",
+      "html"
+    ],
+    "attachments": false,
+    "providerPath": "edge->resend",
+    "env": [
+      "RESEND_API_KEY",
+      "SUPABASE_URL"
+    ]
+  },
+  {
+    "id": "listing_reactivated_email",
+    "purpose": "Listing reactivated notification",
+    "triggers": [
+      "listing reactivated"
+    ],
+    "callSites": [
+      {
+        "file": "src/pages/Dashboard.tsx",
+        "lines": [
+          162
+        ]
+      }
+    ],
+    "functions": [
+      "sendListingReactivationEmail",
+      "renderBrandEmail"
+    ],
+    "template": "renderBrandEmail",
+    "subjectExample": "Listing Reactivated",
+    "payloadKeys": [
+      "to",
+      "subject",
+      "html"
+    ],
+    "attachments": false,
+    "providerPath": "edge->resend",
+    "env": [
+      "RESEND_API_KEY",
+      "SUPABASE_URL"
+    ]
+  },
+  {
+    "id": "listing_deactivated_email",
+    "purpose": "Listing deactivated notification",
+    "triggers": [
+      "listing deactivated"
+    ],
+    "callSites": [
+      {
+        "file": "src/pages/Dashboard.tsx",
+        "lines": [
+          209
+        ]
+      }
+    ],
+    "functions": [
+      "sendListingDeactivationEmail",
+      "renderBrandEmail"
+    ],
+    "template": "renderBrandEmail",
+    "subjectExample": "Listing Deactivated",
+    "payloadKeys": [
+      "to",
+      "subject",
+      "html"
+    ],
+    "attachments": false,
+    "providerPath": "edge->resend",
+    "env": [
+      "RESEND_API_KEY",
+      "SUPABASE_URL"
+    ]
+  },
+  {
+    "id": "listing_deleted_email",
+    "purpose": "Listing deleted notice",
+    "triggers": [
+      "listing deleted"
+    ],
+    "callSites": [
+      {
+        "file": "src/pages/Dashboard.tsx",
+        "lines": [
+          252
+        ]
+      }
+    ],
+    "functions": [
+      "sendListingDeletedEmail",
+      "renderBrandEmail"
+    ],
+    "template": "renderBrandEmail",
+    "subjectExample": "Listing Deleted",
+    "payloadKeys": [
+      "to",
+      "subject",
+      "html"
+    ],
+    "attachments": false,
+    "providerPath": "edge->resend",
+    "env": [
+      "RESEND_API_KEY",
+      "SUPABASE_URL"
+    ]
+  },
+  {
+    "id": "listing_updated_email",
+    "purpose": "Listing updated notification",
+    "triggers": [
+      "listing updated"
+    ],
+    "callSites": [
+      {
+        "file": "src/pages/EditListing.tsx",
+        "lines": [
+          405
+        ]
+      }
+    ],
+    "functions": [
+      "sendListingUpdatedEmail",
+      "renderBrandEmail"
+    ],
+    "template": "renderBrandEmail",
+    "subjectExample": "Listing Updated",
+    "payloadKeys": [
+      "to",
+      "subject",
+      "html"
+    ],
+    "attachments": false,
+    "providerPath": "edge->resend",
+    "env": [
+      "RESEND_API_KEY",
+      "SUPABASE_URL"
+    ]
+  },
+  {
+    "id": "listing_submission_email",
+    "purpose": "Listing submission confirmation",
+    "triggers": [
+      "user posts listing"
+    ],
+    "callSites": [
+      {
+        "file": "src/pages/PostListing.tsx",
+        "lines": [
+          416
+        ]
+      }
+    ],
+    "functions": [
+      "sendEmail",
+      "renderBrandEmail"
+    ],
+    "template": "renderBrandEmail",
+    "subjectExample": "Listing Submitted",
+    "payloadKeys": [
+      "to",
+      "subject",
+      "html"
+    ],
+    "attachments": false,
+    "providerPath": "edge->resend",
+    "env": [
+      "RESEND_API_KEY",
+      "SUPABASE_URL"
+    ]
+  },
+  {
+    "id": "permission_changed_email",
+    "purpose": "Account permissions updated",
+    "triggers": [
+      "permissions updated"
+    ],
+    "callSites": [
+      {
+        "file": "src/pages/admin/FeaturedSettingsAdmin.tsx",
+        "lines": [
+          138
+        ]
+      },
+      {
+        "file": "src/pages/admin/FeaturedSettingsAdmin.tsx",
+        "lines": [
+          215
+        ]
+      }
+    ],
+    "functions": [
+      "sendPermissionChangedEmail",
+      "renderBrandEmail"
+    ],
+    "template": "renderBrandEmail",
+    "subjectExample": "Account Permissions Updated",
+    "payloadKeys": [
+      "to",
+      "subject",
+      "html"
+    ],
+    "attachments": false,
+    "providerPath": "edge->resend",
+    "env": [
+      "RESEND_API_KEY",
+      "SUPABASE_URL"
+    ]
+  },
+  {
+    "id": "listing_approved_email",
+    "purpose": "Listing approval notification",
+    "triggers": [
+      "listing approved by admin"
+    ],
+    "callSites": [
+      {
+        "file": "src/services/listings.ts",
+        "lines": [
+          295
+        ]
+      }
+    ],
+    "functions": [
+      "sendListingApprovalEmail",
+      "renderBrandEmail"
+    ],
+    "template": "renderBrandEmail",
+    "subjectExample": "Listing Approved",
+    "payloadKeys": [
+      "to",
+      "subject",
+      "html"
+    ],
+    "attachments": false,
+    "providerPath": "edge->resend",
+    "env": [
+      "RESEND_API_KEY",
+      "SUPABASE_URL"
+    ]
+  }
+]
