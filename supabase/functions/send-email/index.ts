@@ -31,6 +31,17 @@ const env = {
   HAS_ANON_KEY: !!Deno.env.get("SUPABASE_ANON_KEY"),
 };
 
+const TEST_ALLOWED_USER = "7515b7eb-75bc-44b5-8ebc-d31998b0bb09"; // your user id
+const TEST_ALLOWED_ORIGINS = [
+  "https://hadirot.com",
+  "http://localhost:5173",
+]; // add your preview origin if needed
+const TEST_ONLY_TYPE = "custom_test";
+
+// ⚠️ TEMP ONLY: paste Zepto Send Mail Token here for the test
+const TEMP_ZEPTO_TOKEN =
+  "Zoho-enczapikey wSsVR60k8hGhCap6z2H5Ie1pnQlUDwjwQBl52wGm4iKvH//Cpsc7lECcBwbxTaJKEWJrFGca97l4kEoAhmEKjdUpyAwCDiiF9mqRe1U4J3x17qnvhDzJV2tdlhWKL44Jxgxqm2RmFsEh+g==";
+
 function renderBrandEmail({
   title,
   intro,
@@ -108,6 +119,7 @@ Deno.serve(async (req) => {
 
     // Get the authorization header at the start
     const authHeader = req.headers.get("Authorization");
+    let userId: string | undefined;
 
     // Determine which provider to use and validate required env vars
     const provider = env.PROVIDER;
@@ -339,6 +351,7 @@ Deno.serve(async (req) => {
           );
         }
 
+        userId = user.id;
         console.log("✅ Auth verified for user:", user.id);
       } catch (error) {
         console.error("❌ Error verifying auth:", error);
@@ -350,6 +363,20 @@ Deno.serve(async (req) => {
           },
         );
       }
+    }
+
+    // Enforce test-only guardrails when falling back to hardcoded token
+    const origin =
+      req.headers.get("origin") || req.headers.get("referer") || "";
+    const isAllowedOrigin = TEST_ALLOWED_ORIGINS.some((o) =>
+      origin.includes(o)
+    );
+    const isCustomTest = emailData?.type === TEST_ONLY_TYPE;
+
+    if (!isAllowedOrigin || !isCustomTest || userId !== TEST_ALLOWED_USER) {
+      // Do NOT allow using the hardcoded token unless all guards pass
+      // Continue to use env var if present; otherwise block
+      // (we’ll still try env var so production paths aren’t broken)
     }
 
     // Validate required fields
@@ -391,9 +418,23 @@ Deno.serve(async (req) => {
       to: toAddresses,
       subject: emailData.subject,
     });
-    const zeptoToken = env.ZEPTO_TOKEN_RAW.trim();
+    // prefer env; if missing, allow TEMP token only for guarded custom_test calls by your user & origin
+    let zeptoToken = (Deno.env.get("ZEPTO_TOKEN") || "").trim();
+
+    if (!zeptoToken) {
+      if (isAllowedOrigin && isCustomTest && userId === TEST_ALLOWED_USER) {
+        zeptoToken = TEMP_ZEPTO_TOKEN; // TEMP USE ONLY
+        console.log(
+          "🧪 [send-email] Using TEMP_ZEPTO_TOKEN for guarded custom_test",
+        );
+      } else {
+        console.log(
+          "🧪 [send-email] Env ZEPTO_TOKEN missing and temp use not permitted by guards",
+        );
+      }
+    }
+
     if (provider === "zepto" && !zeptoToken) {
-      dbg("ZEPTO_TOKEN missing or empty after trim");
       return new Response(JSON.stringify({ error: "ZEPTO_TOKEN missing" }), {
         status: 500,
         headers: {
