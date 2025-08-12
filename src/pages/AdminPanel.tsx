@@ -457,32 +457,17 @@ export function AdminPanel() {
 
     setActionLoading(userId);
     try {
-      // Call the Edge Function to delete the user from both profiles and auth
-      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
-      const token = sessionData?.session?.access_token;
+      const { error } = await supabase.functions.invoke('delete-user', {
+        body: { userId },
+      });
 
-      if (!token) {
-        throw new Error('No valid access token found');
-     }
-
-      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/delete-user`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-      },
-        body: JSON.stringify({ userId }),
-     });
-
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to delete user');
+      if (error) {
+        throw new Error(error.message || 'Failed to delete user');
       }
 
       // Remove the user from the local state to update UI immediately
       setUsers(prev => prev.filter(user => user.id !== userId));
-      
+
       alert('User deleted successfully from both profile and authentication system!');
     } catch (error) {
       console.error('Error deleting user:', error);

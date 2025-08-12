@@ -1,47 +1,6 @@
 import { corsHeaders } from "../_shared/cors.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
-
-const ZEPTO_API_URL = "https://api.zeptomail.com/v1.1/email";
-
-function renderBrandEmail({
-  title,
-  intro,
-  bodyHtml,
-  ctaLabel,
-  ctaHref,
-}: {
-  title: string;
-  intro?: string;
-  bodyHtml: string;
-  ctaLabel?: string;
-  ctaHref?: string;
-}) {
-  const introHtml = intro ? `<p style="margin-top:0;">${intro}</p>` : "";
-  const button =
-    ctaLabel && ctaHref
-      ? `<div style="text-align:center;margin:32px 0;">
-         <a href="${ctaHref}" style="background-color:#7CB342;color:#FFFFFF;padding:12px 24px;text-decoration:none;border-radius:6px;display:inline-block;font-weight:bold;">${ctaLabel}</a>
-       </div>`
-      : "";
-  return `
-    <div style="font-family:Arial,sans-serif;background-color:#F7F9FC;padding:24px;">
-      <div style="max-width:600px;margin:0 auto;background-color:#FFFFFF;border:1px solid #E5E7EB;border-radius:8px;overflow:hidden;">
-        <div style="background-color:#1E4A74;color:#FFFFFF;padding:24px;text-align:center;">
-          <h1 style="margin:0;font-size:24px;">Hadirot</h1>
-        </div>
-        <div style="padding:24px;color:#374151;font-size:16px;line-height:1.5;">
-          <h2 style="margin:0 0 16px 0;font-size:20px;color:#1E4A74;">${title}</h2>
-          ${introHtml}
-          ${bodyHtml}
-          ${button}
-        </div>
-        <div style="background-color:#F7F9FC;color:#6B7280;text-align:center;font-size:12px;padding:16px;">
-          © ${new Date().getFullYear()} Hadirot. All rights reserved.
-        </div>
-      </div>
-    </div>
-  `;
-}
+import { renderBrandEmail, sendViaZepto } from "../_shared/zepto.ts";
 
 interface EmailRequest {
   to: string | string[];
@@ -74,6 +33,7 @@ Deno.serve(async (req) => {
     const zeptoFromAddress = Deno.env.get("ZEPTO_FROM_ADDRESS") || "noreply@hadirot.com";
     const zeptoFromName = Deno.env.get("ZEPTO_FROM_NAME") || "HaDirot";
     const zeptoReplyTo = Deno.env.get("ZEPTO_REPLY_TO");
+    const emailProvider = Deno.env.get("EMAIL_PROVIDER");
 
     if (!zeptoToken) {
       console.error("ZEPTO_TOKEN not found in environment variables");
@@ -322,25 +282,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Prepare the email payload for ZeptoMail
     const toAddresses = Array.isArray(emailData.to) ? emailData.to : [emailData.to];
-    
-    const zeptoPayload = {
-      from: {
-        address: zeptoFromAddress,
-        name: zeptoFromName,
-      },
-      to: toAddresses.map((address) => ({
-        email_address: {
-          address: address,
-        },
-      })),
-      subject: emailData.subject,
-      htmlbody: emailData.html,
-      reply_to: zeptoReplyTo ? [{ address: zeptoReplyTo }] : undefined,
-      track_opens: false,
-      track_clicks: false,
-    };
 
     console.log("📤 Sending email via ZeptoMail:", {
       to: toAddresses,
@@ -350,39 +292,14 @@ Deno.serve(async (req) => {
     });
 
     try {
-      // Send email via ZeptoMail API
-      const zeptoResponse = await fetch(ZEPTO_API_URL, {
-        method: "POST",
-        headers: {
-          Authorization: `Zoho-enczapikey ${zeptoToken}`,
-          "Content-Type": "application/json",
-          Accept: "application/json",
-        },
-        body: JSON.stringify(zeptoPayload),
+      const zeptoData = await sendViaZepto({
+        to: toAddresses,
+        subject: emailData.subject,
+        html: emailData.html,
+        from: zeptoFromAddress,
+        fromName: zeptoFromName,
       });
 
-      if (!zeptoResponse.ok) {
-        const errorData = await zeptoResponse.text();
-        console.error("❌ ZeptoMail API error:", {
-          status: zeptoResponse.status,
-          statusText: zeptoResponse.statusText,
-          errorData: errorData,
-        });
-
-        return new Response(
-          JSON.stringify({
-            error: "Failed to send email",
-            details: "Email service error",
-            zeptoStatus: zeptoResponse.status,
-          }),
-          {
-            status: 500,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          },
-        );
-      }
-
-      const zeptoData = await zeptoResponse.json();
       console.log("✅ Email sent successfully via ZeptoMail:", {
         messageId: zeptoData?.data?.message_id,
         to: toAddresses,

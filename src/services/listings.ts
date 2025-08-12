@@ -584,29 +584,12 @@ export const listingsService = {
   async finalizeTempListingImages(listingId: string, userId: string, tempImages: { filePath: string; publicUrl: string; is_featured: boolean; originalName: string }[]): Promise<void> {
     if (tempImages.length === 0) return;
 
-    const functionUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/move-temp-images`;
-
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.access_token) {
-      throw new Error('Authentication required');
-    }
-
-    const response = await fetch(functionUrl, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${session.access_token}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ 
-        listingId,
-        userId,
-        tempImages
-      }),
+    const { error } = await supabase.functions.invoke('move-temp-images', {
+      body: { listingId, userId, tempImages },
     });
 
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.error || 'Failed to finalize images');
+    if (error) {
+      throw new Error(error.message || 'Failed to finalize images');
     }
   },
 

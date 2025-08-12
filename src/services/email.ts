@@ -1,5 +1,4 @@
 import { supabase } from "../config/supabase";
-import { SUPABASE_URL } from "../config/env";
 
 export interface EmailRequest {
   to: string | string[];
@@ -82,41 +81,19 @@ export const emailService = {
           : emailData.to;
         return await this.sendPasswordResetEmail(toEmail, emailData.subject);
       }
-
-      const headers: Record<string, string> = {
-        "Content-Type": "application/json",
-      };
-
-      const {
-        data: { session },
-        error: sessionError,
-      } = await supabase.auth.getSession();
-
-      if (sessionError || !session) {
-        throw new Error("User must be authenticated to send emails");
-      }
-
-      headers["Authorization"] = `Bearer ${session.access_token}`;
-
-      const functionUrl = `${SUPABASE_URL}/functions/v1/send-email`;
-
-      const response = await fetch(functionUrl, {
-        method: "POST",
-        headers,
-        body: JSON.stringify(emailData),
+      const { data, error } = await supabase.functions.invoke("send-email", {
+        body: emailData,
       });
 
-      const result = await response.json();
-
-      if (!response.ok) {
+      if (error) {
         return {
           success: false,
-          error: result.error || "Failed to send email",
-          details: result.details,
+          error: error.message || "Failed to send email",
+          details: error instanceof Error ? undefined : String(error),
         };
       }
 
-      return result;
+      return data as EmailResponse;
     } catch (error) {
       console.error("Error sending email:", error);
       return {
@@ -369,16 +346,15 @@ export async function requestPasswordReset(
   email: string,
   redirectUrl?: string,
 ) {
-  const endpoint =
-    "https://pxlxdlrjmrkxyygdhvku.functions.supabase.co/send-password-reset";
-  const res = await fetch(endpoint, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ to: email, redirectUrl }), // NOTE: 'to', not 'email'
-  });
-  const json = await res.json().catch(() => ({}));
-  if (!res.ok || !json?.success) {
-    const msg = json?.message || `HTTP ${res.status}`;
+  const { data, error } = await supabase.functions.invoke(
+    "send-password-reset",
+    {
+      body: { to: email, redirectUrl },
+    },
+  );
+
+  if (error || !data?.success) {
+    const msg = error?.message || data?.error || "Unknown error";
     throw new Error(`Password reset failed: ${msg}`);
   }
   return true;
