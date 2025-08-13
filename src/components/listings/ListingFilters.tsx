@@ -85,7 +85,7 @@ export function ListingFilters({
       </div>
 
       <div
-        className={`grid gap-4 auto-rows-fr ${
+        className={`grid gap-4 ${
           isMobile
             ? "grid-cols-1"
             : "grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-7"
@@ -321,8 +321,8 @@ export function ListingFilters({
         </div>
 
         {/* Parking Included & No Fee */}
-        <div className="flex flex-col justify-between h-full min-h-[88px]">
-          <div className="flex items-center">
+        <div className="flex flex-col space-y-2">
+          <label className="flex items-start gap-2">
             <input
               type="checkbox"
               id="parking_included"
@@ -332,15 +332,12 @@ export function ListingFilters({
               }
               className="h-4 w-4 text-[#273140] focus:ring-[#273140] border-gray-300 rounded"
             />
-            <label
-              htmlFor="parking_included"
-              className="ml-2 text-sm font-medium text-gray-700"
-            >
+            <span className="text-sm font-medium text-gray-700">
               Parking Included
-            </label>
-          </div>
+            </span>
+          </label>
 
-          <div className="flex items-center">
+          <label className="flex items-start gap-2">
             <input
               type="checkbox"
               id="no_fee_only"
@@ -350,13 +347,10 @@ export function ListingFilters({
               }
               className="h-4 w-4 text-[#273140] focus:ring-[#273140] border-gray-300 rounded"
             />
-            <label
-              htmlFor="no_fee_only"
-              className="ml-2 text-sm font-medium text-gray-700"
-            >
+            <span className="text-sm font-medium text-gray-700">
               No Fee only
-            </label>
-          </div>
+            </span>
+          </label>
         </div>
       </div>
 
