@@ -228,203 +228,6 @@ export function ListingDetail() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      {/* Images Section - Full Width at Top */}
-      <div className="mb-8">
-        <ImageCarousel 
-          images={carouselImages}
-          heightClass="h-[50vh] lg:h-[60vh]"
-          showThumbnails={true}
-        />
-      </div>
-
-      {/* Main Content Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Listing Details - Takes 2/3 width on desktop */}
-        <div className="lg:col-span-2 space-y-6">
-          {/* Title and Basic Info */}
-          <div>
-            <h1 className="text-3xl font-bold text-[#273140] mb-4">{listing.title}</h1>
-            <div className="flex items-center justify-between mb-4">
-              <div className="text-3xl font-bold text-[#273140]">
-                {formatPrice(listing.price)}/month
-              </div>
-              {listing.is_featured && (
-                <span className="inline-flex items-center bg-accent-500 text-white px-3 py-1 rounded-full text-sm font-medium">
-                  <Star className="w-4 h-4 mr-1 fill-current" />
-                  Featured
-                </span>
-              )}
-            </div>
-          </div>
-
-          {/* Property Details */}
-          <div className="bg-white border border-gray-200 rounded-lg p-6">
-            <h2 className="text-xl font-semibold text-[#273140] mb-4">Property Details</h2>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-              <div className="flex items-center">
-                <Bed className="w-5 h-5 text-gray-600 mr-2" />
-                <span className="text-gray-900">
-                  {listing.bedrooms === 0 ? 'Studio' : `${listing.bedrooms} BR`}
-                </span>
-              </div>
-              <div className="flex items-center">
-                <Bath className="w-5 h-5 text-gray-600 mr-2" />
-                <span className="text-gray-900">{listing.bathrooms} Bath</span>
-              </div>
-              {listing.square_footage && (
-                <div className="flex items-center">
-                  <HomeIcon className="w-5 h-5 text-gray-600 mr-2" />
-                  <span className="text-gray-900">{listing.square_footage} sq ft</span>
-                </div>
-              )}
-              {listing.floor && (
-                <div className="flex items-center">
-                  <HomeIcon className="w-5 h-5 text-gray-600 mr-2" />
-                  <span className="text-gray-900">Floor {listing.floor}</span>
-                </div>
-              )}
-            </div>
-
-            {/* Amenities */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="flex items-center">
-                <Car className="w-5 h-5 text-gray-600 mr-2" />
-                <span className="text-gray-900">
-                  Parking: {listing.parking}
-                </span>
-              </div>
-              <div className="flex items-center">
-                <Flame className="w-5 h-5 text-gray-600 mr-2" />
-                <span className="text-gray-900">
-                  Heat: {listing.heat === 'included' ? 'Included' : 'Tenant Pays'}
-                </span>
-              </div>
-              {listing.washer_dryer_hookup && (
-                <div className="flex items-center">
-                  <WashingMachine className="w-5 h-5 text-green-600 mr-2" />
-                  <span className="text-gray-900">Washer/Dryer Hookup</span>
-                </div>
-              )}
-              {listing.dishwasher && (
-                <div className="flex items-center">
-                  <Droplets className="w-5 h-5 text-green-600 mr-2" />
-                  <span className="text-gray-900">Dishwasher</span>
-                </div>
-              )}
-              <div className="flex items-center">
-                <DollarSign className="w-5 h-5 text-gray-600 mr-2" />
-                <span className="text-gray-900">
-                  {listing.broker_fee ? 'Broker Fee' : 'No Broker Fee'}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* Description */}
-          {listing.description && (
-            <div className="bg-white border border-gray-200 rounded-lg p-6">
-              <h2 className="text-xl font-semibold text-[#273140] mb-4">Description</h2>
-              <div className="prose prose-gray max-w-none">
-                <p className="text-gray-700 leading-relaxed whitespace-pre-wrap">
-                  {listing.description}
-                </p>
-              </div>
-            </div>
-          )}
-
-          {/* Additional Information */}
-          <div className="bg-white border border-gray-200 rounded-lg p-6">
-            <h2 className="text-xl font-semibold text-[#273140] mb-4">Additional Information</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <span className="font-medium text-gray-900">Property Type:</span>
-                <span className="ml-2 text-gray-700">{getPropertyTypeLabel(listing.property_type)}</span>
-              </div>
-              {listing.lease_length && (
-                <div>
-                  <span className="font-medium text-gray-900">Lease Length:</span>
-                  <span className="ml-2 text-gray-700">{listing.lease_length}</span>
-                </div>
-              )}
-              <div>
-                <span className="font-medium text-gray-900">Listed by:</span>
-                <span className="ml-2 text-gray-700">{getRoleLabel()}</span>
-              </div>
-              <div>
-                <span className="font-medium text-gray-900">Views:</span>
-                <span className="ml-2 text-gray-700">{listing.views || 0}</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Location */}
-          <div className="bg-white border border-gray-200 rounded-lg p-6">
-            <h2 className="text-xl font-semibold text-[#273140] mb-4">Location</h2>
-            <div className="flex items-start">
-              <MapPin className="w-5 h-5 text-gray-600 mr-2 mt-0.5 flex-shrink-0" />
-              <div>
-                <p className="text-gray-900 font-medium">{listing.location}</p>
-                {listing.neighborhood && (
-                  <p className="text-gray-600 text-sm mt-1">{listing.neighborhood}</p>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Contact Sidebar - Takes 1/3 width on desktop */}
-        <div className="lg:col-span-1">
-          <div className="sticky top-8 space-y-4">
-            {/* Contact Information */}
-            <div className="bg-white border border-gray-200 rounded-lg p-6">
-              <h2 className="text-xl font-semibold text-[#273140] mb-4">Contact Information</h2>
-              <div className="space-y-3">
-                <div>
-                  <span className="font-medium text-gray-900">Contact:</span>
-                  <p className="text-gray-700">{listing.contact_name}</p>
-                </div>
-                <div>
-                  <span className="font-medium text-gray-900">Phone:</span>
-                  <p className="text-gray-700">{listing.contact_phone}</p>
-                </div>
-              </div>
-            </div>
-
-            {/* Action Buttons */}
-            <div className="space-y-3">
-              <a
-                href={`tel:${listing.contact_phone}`}
-                className="w-full bg-[#273140] text-white py-3 px-4 rounded-lg font-semibold hover:bg-[#1e252f] transition-colors flex items-center justify-center"
-              >
-                <Phone className="w-5 h-5 mr-2" />
-                Call Now
-              </a>
-              
-              {user && (
-                <button
-                  onClick={handleFavoriteToggle}
-                  className={`w-full py-3 px-4 rounded-lg font-semibold transition-colors flex items-center justify-center ${
-                    listing.is_favorited
-                      ? 'bg-red-50 text-red-700 border border-red-200 hover:bg-red-100'
-                      : 'bg-gray-50 text-gray-700 border border-gray-200 hover:bg-gray-100'
-                  }`}
-                >
-                  <Heart 
-                    className={`w-5 h-5 mr-2 ${
-                      listing.is_favorited ? 'fill-current' : ''
-                    }`} 
-                  />
-                  {listing.is_favorited 
-                    ? 'Remove from Favorites' 
-                    : 'Add to Favorites'
-                  }
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
-
       {/* Back Button */}
       <Link
         to="/browse"
@@ -485,10 +288,185 @@ export function ListingDetail() {
                   Featured
                 </span>
               )}
+              <span className="bg-[#667B9A] text-white px-3 py-1 rounded-full text-sm font-medium">
+                {listing.owner?.role === "agent" && listing.owner?.agency
+                  ? listing.owner.agency
+                  : getRoleLabel()}
+              </span>
+            </div>
+          </div>
+
+          {/* Property Details */}
+          <div className="grid grid-cols-2 gap-4 p-4 bg-gray-50 rounded-lg">
+            <div className="flex items-center">
+              <div>
+                <div className="font-semibold">
+                  {listing.bedrooms === 0 ? "Studio" : listing.bedrooms}
+                </div>
+              </div>
+              <Bed className="w-5 h-5 text-[#273140] ml-2" />
+            </div>
+
+            <div className="flex items-center">
+              <div>
+                <div className="font-semibold">{listing.bathrooms}</div>
+              </div>
+              <Bath className="w-5 h-5 text-[#273140] ml-2" />
+            </div>
+
+            {listing.square_footage && (
+              <div className="flex items-center">
+                <div>
+                  <div className="font-semibold">
+                    {formatSquareFootage(listing.square_footage)} sq ft
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div className="flex items-center">
+              <div>
+                <div className="font-semibold text-sm">
+                  {getPropertyTypeLabel()}
+                </div>
+              </div>
+              <HomeIcon className="w-5 h-5 text-[#273140] ml-2" />
             </div>
           </div>
         </aside>
       </section>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        {/* Main Content */}
+        <div className="lg:col-span-2">
+          {/* Description */}
+          {listing.description && (
+            <div className="mb-8">
+              <h2 className="text-2xl font-bold text-[#273140] mb-4">
+                Description
+              </h2>
+              <p className="text-gray-700 leading-relaxed whitespace-pre-wrap">
+                {listing.description}
+              </p>
+            </div>
+          )}
+
+          {/* Amenities */}
+          <div className="mb-8">
+            <h2 className="text-2xl font-bold text-[#273140] mb-4">
+              Features & Amenities
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="flex items-center">
+                <DollarSign className="w-5 h-5 text-[#273140] mr-3" />
+                <span>
+                  {listing.broker_fee ? "Broker Fee Applies" : "No Broker Fee"}
+                </span>
+              </div>
+
+              {listing.parking !== "no" && (
+                <div className="flex items-center">
+                  <Car className="w-5 h-5 text-[#273140] mr-3" />
+                  <span className="capitalize">
+                    {listing.parking.replace("_", " ")}
+                  </span>
+                </div>
+              )}
+
+              {listing.washer_dryer_hookup && (
+                <div className="flex items-center">
+                  <WashingMachine className="w-5 h-5 text-[#273140] mr-3" />
+                  <span>Washer/Dryer Hookup</span>
+                </div>
+              )}
+
+              {listing.dishwasher && (
+                <div className="flex items-center">
+                  <Droplets className="w-5 h-5 text-[#273140] mr-3" />
+                  <span>Dishwasher</span>
+                </div>
+              )}
+
+              <div className="flex items-center">
+                <Flame className="w-5 h-5 text-[#273140] mr-3" />
+                <span>
+                  {listing.heat === "included"
+                    ? "Heat Included"
+                    : "Tenant Pays Heat"}
+                </span>
+              </div>
+
+              {listing.floor && (
+                <div className="flex items-center">
+                  <div className="w-5 h-5 bg-[#273140] rounded mr-3 flex items-center justify-center">
+                    <span className="text-white text-xs font-bold">
+                      {listing.floor}
+                    </span>
+                  </div>
+                  <span>{getOrdinalWordText(listing.floor)} Floor</span>
+                </div>
+              )}
+
+              {listing.lease_length && (
+                <div className="flex items-center">
+                  <Calendar className="w-5 h-5 text-[#273140] mr-3" />
+                  <span>Lease: {listing.lease_length}</span>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Contact Card */}
+        <div className="lg:col-span-1">
+          <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-6 sticky top-8">
+            <h3 className="text-xl font-bold text-[#273140] mb-4">
+              Contact Information
+            </h3>
+
+            <div className="space-y-4">
+              <div className="flex items-center">
+                <User className="w-5 h-5 text-[#273140] mr-3" />
+                <div>
+                  <div className="font-semibold">{listing.contact_name}</div>
+                  <div className="text-sm text-gray-500">{getRoleLabel()}</div>
+                </div>
+              </div>
+
+              <div className="flex items-center">
+                <Phone className="w-5 h-5 text-[#273140] mr-3" />
+                <a
+                  href={`tel:${listing.contact_phone}`}
+                  className="text-[#273140] hover:text-[#1e252f] font-medium transition-colors"
+                >
+                  {formatPhoneNumber(listing.contact_phone)}
+                </a>
+              </div>
+            </div>
+
+            <div className="mt-6 space-y-3">
+              <a
+                href={`tel:${listing.contact_phone}`}
+                className="w-full bg-[#273140] text-white py-3 px-4 rounded-md font-semibold hover:bg-[#1e252f] transition-colors flex items-center justify-center"
+              >
+                <Phone className="w-5 h-5 mr-2" />
+                Call Now
+              </a>
+
+              <a
+                href={`sms:${listing.contact_phone.replace(/\D/g, "")}?body=Hi, I'm interested in your listing: ${listing.title}`}
+                className="w-full bg-accent-500 text-white py-3 px-4 rounded-md font-semibold hover:bg-accent-600 transition-colors flex items-center justify-center"
+              >
+                Send Message
+              </a>
+            </div>
+
+            <div className="mt-4 pt-4 border-t border-gray-200 text-xs text-gray-500">
+              Listed {new Date(listing.created_at).toLocaleDateString()}
+            </div>
+          </div>
+        </div>
+      </div>
 
       {/* Similar Listings */}
       <SimilarListings listing={listing} />
