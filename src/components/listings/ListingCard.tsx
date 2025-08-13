@@ -5,6 +5,8 @@ import { Listing } from "../../config/supabase";
 import { listingsService } from "../../services/listings";
 import { useAuth } from "../../hooks/useAuth";
 import { capitalizeName } from "../../utils/formatters";
+import { gaEvent, gaListing } from "@/lib/ga";
+void gaEvent;
 
 interface ListingCardProps {
   listing: Listing;
@@ -43,6 +45,13 @@ export function ListingCard({
       } else {
         await listingsService.addToFavorites(user.id, listing.id);
         console.log("✅ Added to favorites:", listing.id);
+      }
+
+      const nextIsFav = !isFavorited;
+      if (nextIsFav) {
+        gaListing("listing_favorite", listing.id);
+      } else {
+        gaListing("listing_unfavorite", listing.id);
       }
 
       // Trigger refresh of listings to update UI

@@ -331,6 +331,15 @@ export function BrowseListings() {
     setFilters(newFilters);
     setCurrentPage(1);
 
+    gaEvent("filter_apply", {
+      price_min: newFilters.min_price ?? null,
+      price_max: newFilters.max_price ?? null,
+      bedrooms: newFilters.bedrooms ?? null,
+      neighborhood: newFilters.neighborhoods?.join(",") ?? null,
+      no_fee_only: !!newFilters.no_fee_only,
+      sort: null,
+    });
+
     // Update URL with new filters
     const params = new URLSearchParams();
 
