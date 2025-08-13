@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Eye, EyeOff } from "lucide-react";
 import { useAuth } from "../../hooks/useAuth";
@@ -20,7 +20,10 @@ export function AuthForm({ onAuthSuccess }: AuthFormProps = {}) {
   const [resetMessage, setResetMessage] = useState<string | null>(null);
   const { signIn, signUp } = useAuth();
   const navigate = useNavigate();
-  const emailInputRef = React.useRef<HTMLInputElement>(null);
+  const emailInputRef = useRef<HTMLInputElement>(null);
+  const [signInTemporarilyDisabled, setSignInTemporarilyDisabled] =
+    useState(true);
+  const mountTsRef = useRef<number>(0);
 
   const [formData, setFormData] = useState({
     email: "",
@@ -33,6 +36,10 @@ export function AuthForm({ onAuthSuccess }: AuthFormProps = {}) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!isSignUp) {
+      const elapsed = performance.now() - (mountTsRef.current || 0);
+      if (elapsed < 350 || signInTemporarilyDisabled) return;
+    }
     setLoading(true);
     setError(null);
 
@@ -63,6 +70,21 @@ export function AuthForm({ onAuthSuccess }: AuthFormProps = {}) {
     } finally {
       setLoading(false);
     }
+  };
+
+  useEffect(() => {
+    if (!isSignUp && !showForgotPassword) {
+      setSignInTemporarilyDisabled(true);
+      mountTsRef.current = performance.now();
+      const t = setTimeout(() => setSignInTemporarilyDisabled(false), 350);
+      return () => clearTimeout(t);
+    }
+  }, [isSignUp, showForgotPassword]);
+
+  const onClickSignIn = (e: React.MouseEvent<HTMLButtonElement>) => {
+    const elapsed = performance.now() - (mountTsRef.current || 0);
+    if (elapsed < 350 || signInTemporarilyDisabled) return;
+    handleSubmit(e as any);
   };
 
   const handleInputChange = (
@@ -266,6 +288,7 @@ export function AuthForm({ onAuthSuccess }: AuthFormProps = {}) {
                   name="email"
                   type="email"
                   autoComplete="email"
+                  autoFocus
                   required
                   value={formData.email}
                   onChange={handleInputChange}
@@ -309,8 +332,11 @@ export function AuthForm({ onAuthSuccess }: AuthFormProps = {}) {
 
               <div>
                 <button
-                  type="submit"
-                  disabled={loading}
+                  type={isSignUp ? "submit" : "button"}
+                  disabled={
+                    loading || (!isSignUp && signInTemporarilyDisabled)
+                  }
+                  onClick={!isSignUp ? onClickSignIn : undefined}
                   className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-accent-500 hover:bg-accent-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#4E4B43] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
                   {loading

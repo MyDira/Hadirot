@@ -1,5 +1,6 @@
 import React from "react";
 import { Filter } from "lucide-react";
+import { listingsService } from "../../services/listings";
 
 interface FilterState {
   bedrooms?: number;
@@ -17,7 +18,7 @@ interface ListingFiltersProps {
   filters: FilterState;
   onFiltersChange: (filters: FilterState) => void;
   agencies: string[];
-  allNeighborhoods: string[];
+  allNeighborhoods?: string[];
   isMobile?: boolean;
 }
 
@@ -25,11 +26,22 @@ export function ListingFilters({
   filters,
   onFiltersChange,
   agencies,
-  allNeighborhoods,
+  allNeighborhoods = [],
   isMobile = false,
 }: ListingFiltersProps) {
   const [showNeighborhoodDropdown, setShowNeighborhoodDropdown] =
     React.useState(false);
+  const [neighborhoodOptions, setNeighborhoodOptions] = React.useState<string[]>(
+    allNeighborhoods,
+  );
+
+  React.useEffect(() => {
+    const loadNeighborhoods = async () => {
+      const neighborhoods = await listingsService.getActiveNeighborhoods();
+      setNeighborhoodOptions(neighborhoods);
+    };
+    loadNeighborhoods();
+  }, []);
 
   // Close dropdown when clicking outside
   React.useEffect(() => {
@@ -73,7 +85,11 @@ export function ListingFilters({
       </div>
 
       <div
-        className={`grid gap-4 ${isMobile ? "grid-cols-1" : "grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-7"}`}
+        className={`grid gap-4 ${
+          isMobile
+            ? "grid-cols-1"
+            : "grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-7"
+        }`}
       >
         {/* Bedrooms */}
         <div>
@@ -163,79 +179,88 @@ export function ListingFilters({
           <label className="block text-sm font-medium text-gray-700 mb-1">
             Neighborhoods
           </label>
-          <div className="relative">
-            <div
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus-within:ring-[#273140] focus-within:border-[#273140] h-10 cursor-pointer bg-white flex items-center justify-between"
-              onClick={() =>
-                setShowNeighborhoodDropdown(!showNeighborhoodDropdown)
-              }
-            >
-              <span className="text-sm text-gray-700 truncate">
-                {filters.neighborhoods && filters.neighborhoods.length > 0
-                  ? `${filters.neighborhoods.length} selected`
-                  : "Select neighborhoods..."}
-              </span>
-              <svg
-                className="w-4 h-4 text-gray-400"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
+          {neighborhoodOptions.length > 0 ? (
+            <div className="relative">
+              <div
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus-within:ring-[#273140] focus-within:border-[#273140] h-10 cursor-pointer bg-white flex items-center justify-between"
+                onClick={() =>
+                  setShowNeighborhoodDropdown(!showNeighborhoodDropdown)
+                }
               >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M19 9l-7 7-7-7"
-                />
-              </svg>
-            </div>
-
-            {showNeighborhoodDropdown && (
-              <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
-                {allNeighborhoods.map((neighborhood) => (
-                  <div
-                    key={neighborhood}
-                    className="px-3 py-2 hover:bg-gray-50 cursor-pointer flex items-center"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      const currentNeighborhoods = filters.neighborhoods || [];
-                      const isSelected =
-                        currentNeighborhoods.includes(neighborhood);
-
-                      let newNeighborhoods;
-                      if (isSelected) {
-                        newNeighborhoods = currentNeighborhoods.filter(
-                          (n) => n !== neighborhood,
-                        );
-                      } else {
-                        newNeighborhoods = [
-                          ...currentNeighborhoods,
-                          neighborhood,
-                        ];
-                      }
-
-                      handleFilterChange(
-                        "neighborhoods",
-                        newNeighborhoods.length > 0
-                          ? newNeighborhoods
-                          : undefined,
-                      );
-                    }}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={
-                        filters.neighborhoods?.includes(neighborhood) || false
-                      }
-                      onChange={() => {}} // Handled by parent div onClick
-                      className="mr-2 h-4 w-4 text-[#273140] focus:ring-[#273140] border-gray-300 rounded"
-                    />
-                    <span className="text-sm">{neighborhood}</span>
-                  </div>
-                ))}
+                <span className="text-sm text-gray-700 truncate">
+                  {filters.neighborhoods && filters.neighborhoods.length > 0
+                    ? `${filters.neighborhoods.length} selected`
+                    : "Select neighborhoods..."}
+                </span>
+                <svg
+                  className="w-4 h-4 text-gray-400"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M19 9l-7 7-7-7"
+                  />
+                </svg>
               </div>
-            )}
-          </div>
+
+              {showNeighborhoodDropdown && (
+                <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
+                  {neighborhoodOptions.map((neighborhood) => (
+                    <div
+                      key={neighborhood}
+                      className="px-3 py-2 hover:bg-gray-50 cursor-pointer flex items-center"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        const currentNeighborhoods = filters.neighborhoods || [];
+                        const isSelected =
+                          currentNeighborhoods.includes(neighborhood);
+
+                        let newNeighborhoods;
+                        if (isSelected) {
+                          newNeighborhoods = currentNeighborhoods.filter(
+                            (n) => n !== neighborhood,
+                          );
+                        } else {
+                          newNeighborhoods = [
+                            ...currentNeighborhoods,
+                            neighborhood,
+                          ];
+                        }
+
+                        handleFilterChange(
+                          "neighborhoods",
+                          newNeighborhoods.length > 0
+                            ? newNeighborhoods
+                            : undefined,
+                        );
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={
+                          filters.neighborhoods?.includes(neighborhood) || false
+                        }
+                        onChange={() => {}} // Handled by parent div onClick
+                        className="mr-2 h-4 w-4 text-[#273140] focus:ring-[#273140] border-gray-300 rounded"
+                      />
+                      <span className="text-sm">{neighborhood}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : (
+            <select
+              disabled
+              className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-500"
+            >
+              <option>No neighborhoods available</option>
+            </select>
+          )}
         </div>
 
         {/* Property Type */}
@@ -295,41 +320,36 @@ export function ListingFilters({
           />
         </div>
 
-        {/* Parking Included */}
-        <div className="flex items-center pt-6">
-          <input
-            type="checkbox"
-            id="parking_included"
-            checked={filters.parking_included || false}
-            onChange={(e) =>
-              handleFilterChange("parking_included", e.target.checked)
-            }
-            className="h-4 w-4 text-[#273140] focus:ring-[#273140] border-gray-300 rounded"
-          />
-          <label
-            htmlFor="parking_included"
-            className="ml-2 text-sm font-medium text-gray-700"
-          >
-            Parking Included
+        {/* Parking Included & No Fee */}
+        <div className="flex flex-col space-y-2 justify-end">
+          <label className="flex items-start gap-2">
+            <input
+              type="checkbox"
+              id="parking_included"
+              checked={filters.parking_included || false}
+              onChange={(e) =>
+                handleFilterChange("parking_included", e.target.checked)
+              }
+              className="h-4 w-4 text-[#273140] focus:ring-[#273140] border-gray-300 rounded"
+            />
+            <span className="text-sm font-medium text-gray-700">
+              Parking Included
+            </span>
           </label>
-        </div>
 
-        {/* No Fee only */}
-        <div className="flex items-center pt-6">
-          <input
-            type="checkbox"
-            id="no_fee_only"
-            checked={filters.no_fee_only || false}
-            onChange={(e) =>
-              handleFilterChange("no_fee_only", e.target.checked)
-            }
-            className="h-4 w-4 text-[#273140] focus:ring-[#273140] border-gray-300 rounded"
-          />
-          <label
-            htmlFor="no_fee_only"
-            className="ml-2 text-sm font-medium text-gray-700"
-          >
-            No Fee only
+          <label className="flex items-start gap-2">
+            <input
+              type="checkbox"
+              id="no_fee_only"
+              checked={filters.no_fee_only || false}
+              onChange={(e) =>
+                handleFilterChange("no_fee_only", e.target.checked)
+              }
+              className="h-4 w-4 text-[#273140] focus:ring-[#273140] border-gray-300 rounded"
+            />
+            <span className="text-sm font-medium text-gray-700">
+              No Broker Fee only
+            </span>
           </label>
         </div>
       </div>
