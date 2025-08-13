@@ -20,6 +20,7 @@ export interface DraftData {
   contact_name: string;
   contact_phone: string;
   is_featured: boolean;
+  broker_fee: boolean;
   tempImages?: TempListingImage[];
 }
 

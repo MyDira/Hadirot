@@ -9,6 +9,7 @@ interface FilterState {
   min_price?: number;
   max_price?: number;
   parking_included?: boolean;
+  no_fee_only?: boolean;
   neighborhoods?: string[];
 }
 
@@ -310,6 +311,25 @@ export function ListingFilters({
             className="ml-2 text-sm font-medium text-gray-700"
           >
             Parking Included
+          </label>
+        </div>
+
+        {/* No Fee only */}
+        <div className="flex items-center pt-6">
+          <input
+            type="checkbox"
+            id="no_fee_only"
+            checked={filters.no_fee_only || false}
+            onChange={(e) =>
+              handleFilterChange("no_fee_only", e.target.checked)
+            }
+            className="h-4 w-4 text-[#273140] focus:ring-[#273140] border-gray-300 rounded"
+          />
+          <label
+            htmlFor="no_fee_only"
+            className="ml-2 text-sm font-medium text-gray-700"
+          >
+            No Fee only
           </label>
         </div>
       </div>

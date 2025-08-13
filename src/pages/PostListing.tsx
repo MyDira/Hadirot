@@ -34,6 +34,7 @@ interface ListingFormData {
   contact_name: string;
   contact_phone: string;
   is_featured: boolean;
+  broker_fee: boolean;
 }
 
 export function PostListing() {
@@ -69,6 +70,7 @@ export function PostListing() {
     contact_name: profile?.full_name || "",
     contact_phone: profile?.phone || "",
     is_featured: false,
+    broker_fee: false,
   });
 
   // Load draft data on component mount
@@ -155,6 +157,7 @@ export function PostListing() {
           contact_name: draftData.contact_name || profile?.full_name || "",
           contact_phone: draftData.contact_phone || profile?.phone || "",
           is_featured: draftData.is_featured || false,
+          broker_fee: draftData.broker_fee || false,
         });
 
         // Restore temp images if they exist
@@ -740,6 +743,24 @@ export function PostListing() {
               <label className="ml-2 text-sm font-medium text-gray-700">
                 Dishwasher
               </label>
+            </div>
+
+            <div>
+              <label className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  name="broker_fee"
+                  checked={formData.broker_fee}
+                  onChange={handleInputChange}
+                  className="h-4 w-4 text-[#273140] focus:ring-[#273140] border-gray-300 rounded"
+                />
+                <span className="text-sm font-medium text-gray-700">
+                  Broker Fee
+                </span>
+              </label>
+              <p className="text-xs text-gray-500">
+                Check this if a broker fee applies.
+              </p>
             </div>
 
             <div className="flex items-center">

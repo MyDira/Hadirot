@@ -15,6 +15,7 @@ interface FilterState {
   min_price?: number;
   max_price?: number;
   parking_included?: boolean;
+  no_fee_only?: boolean;
   neighborhoods?: string[];
 }
 
@@ -85,6 +86,10 @@ export function BrowseListings() {
     const parking_included = searchParams.get("parking_included");
     if (parking_included === "true") urlFilters.parking_included = true;
 
+    const no_fee_only = searchParams.get("no_fee_only");
+    if (no_fee_only === "1" || no_fee_only === "true")
+      urlFilters.no_fee_only = true;
+
     const neighborhoods = searchParams.get("neighborhoods");
     if (neighborhoods) {
       urlFilters.neighborhoods = neighborhoods.split(",").filter(Boolean);
@@ -107,11 +112,13 @@ export function BrowseListings() {
       setLoading(true);
 
       // const offset = (currentPage - 1) * ITEMS_PER_PAGE; // This offset is no longer directly used for standard listings fetch
+      const { no_fee_only, ...restFilters } = filters;
+      const serviceFilters = { ...restFilters, noFeeOnly: no_fee_only };
 
       // 1. Get accurate total count for pagination (all listings matching filters)
       const { totalCount: actualTotalCount } =
         await listingsService.getListings(
-          filters,
+          serviceFilters,
           undefined,
           user?.id,
           0,
@@ -124,7 +131,7 @@ export function BrowseListings() {
       let allFeaturedListings: Listing[] = [];
       try {
         const { data: featuredData } = await listingsService.getListings(
-          { ...filters, is_featured_only: true },
+          { ...serviceFilters, is_featured_only: true },
           undefined,
           user?.id,
           0,
@@ -168,7 +175,7 @@ export function BrowseListings() {
 
       // Fetch standard listings for the current page
       const { data: rawStandardListings } = await listingsService.getListings(
-        filters,
+        serviceFilters,
         NUM_STANDARD_SLOTS_PER_PAGE, // Limit to the number of standard slots we need
         user?.id,
         standardOffset, // Offset based on the number of standard slots per page
@@ -339,6 +346,7 @@ export function BrowseListings() {
     if (newFilters.max_price)
       params.set("max_price", newFilters.max_price.toString());
     if (newFilters.parking_included) params.set("parking_included", "true");
+    if (newFilters.no_fee_only) params.set("no_fee_only", "1");
 
     if (newFilters.neighborhoods && newFilters.neighborhoods.length > 0) {
       params.set("neighborhoods", newFilters.neighborhoods.join(","));

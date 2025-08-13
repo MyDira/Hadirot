@@ -2,8 +2,26 @@ import { supabase, Listing } from '../config/supabase';
 import { capitalizeName } from '../utils/formatters';
 import { emailService } from './email';
 
+interface GetListingsFilters {
+  bedrooms?: number;
+  property_type?: string;
+  min_price?: number;
+  max_price?: number;
+  parking_included?: boolean;
+  neighborhoods?: string[];
+  is_featured_only?: boolean;
+  noFeeOnly?: boolean;
+}
+
 export const listingsService = {
-  async getListings(filters = {}, limit?: number, userId?: string, offset = 0, applyPagination: boolean = true, is_featured_only?: boolean) {
+  async getListings(
+    filters: GetListingsFilters = {},
+    limit?: number,
+    userId?: string,
+    offset = 0,
+    applyPagination: boolean = true,
+    is_featured_only?: boolean,
+  ) {
     let query = supabase
       .from('listings')
       .select(`
@@ -34,6 +52,9 @@ export const listingsService = {
     }
     if (filters.neighborhoods && filters.neighborhoods.length > 0) {
       query = query.in('neighborhood', filters.neighborhoods);
+    }
+    if (filters.noFeeOnly) {
+      query = query.eq('broker_fee', false);
     }
 
     // Filter for featured-only listings if requested via filters
@@ -119,7 +140,11 @@ export const listingsService = {
     return { ...data, is_favorited };
   },
 
-  async createListing(listingData: Omit<Listing, 'id' | 'created_at' | 'updated_at'>) {
+  async createListing(
+    listingData: Omit<Listing, 'id' | 'created_at' | 'updated_at'> & {
+      broker_fee?: boolean;
+    },
+  ) {
     // If trying to feature a listing on creation, check permissions and limits
     if (listingData.is_featured) {
       // Get user profile to check permissions
@@ -174,6 +199,8 @@ export const listingsService = {
     if (listingData.contact_name) {
       listingData.contact_name = capitalizeName(listingData.contact_name);
     }
+
+    listingData.broker_fee = listingData.broker_fee ?? false;
 
     const { data, error } = await supabase // Ensure neighborhood and washer_dryer_hookup are handled
       .from('listings')
