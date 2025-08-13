@@ -6,6 +6,7 @@ import { ListingFilters } from "../components/listings/ListingFilters";
 import { Listing } from "../config/supabase";
 import { listingsService } from "../services/listings";
 import { useAuth } from "../hooks/useAuth";
+import { gaEvent, gaListing } from "@/lib/ga";
 
 interface FilterState {
   bedrooms?: number;
@@ -369,6 +370,34 @@ export function BrowseListings() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
+  useEffect(() => {
+    if (!displayListings || displayListings.length === 0) return;
+    const pageNumber = currentPage ?? 1;
+    gaEvent("listing_impression_batch", {
+      page: pageNumber,
+      result_count: displayListings.length,
+      items: displayListings.map((l: any, idx: number) => ({
+        listing_id: String(l.id),
+        price: Number(l.price ?? 0),
+        bedrooms: Number(l.bedrooms ?? 0),
+        neighborhood: l.neighborhood ?? l.area ?? l.location ?? undefined,
+        is_featured: !!(l.is_featured ?? l.featured),
+        position: idx + 1,
+      })),
+    });
+  }, [displayListings, currentPage]);
+
+  const handleCardClick = (l: any, idx: number) => {
+    gaListing("listing_click", l.id, {
+      title: l.title ?? undefined,
+      price: Number(l.price ?? 0),
+      bedrooms: Number(l.bedrooms ?? 0),
+      neighborhood: l.neighborhood ?? undefined,
+      is_featured: !!(l.is_featured ?? l.featured),
+      position: idx + 1,
+    });
+  };
+
   const handleFavoriteChange = () => {
     // Reload user favorites when any favorite is toggled
     loadUserFavorites();
@@ -494,13 +523,14 @@ export function BrowseListings() {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {displayListings.map((listing) => (
+          {displayListings.map((listing, idx) => (
             <div key={listing.key}>
               <ListingCard
                 listing={listing}
                 isFavorited={userFavorites.includes(listing.id)}
                 onFavoriteChange={handleFavoriteChange}
                 showFeaturedBadge={listing.showFeaturedBadge}
+                onClick={() => handleCardClick(listing, idx)}
               />
             </div>
           ))}
