@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { Car, Heart, Phone, User, ArrowLeft, Flame, Droplets, WashingMachine, MapPin, Mail, Edit, Trash2, Star, Bed, Bath, Square, BookDashed as Dishwasher, Thermometer, DollarSign } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
+import { listingsService } from "../services/listings";
 import { SimilarListings } from "../components/listings/SimilarListings";
 import { ImageCarousel } from "../components/media/ImageCarousel";
 
