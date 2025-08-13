@@ -231,7 +231,7 @@ export function ListingDetail() {
       {/* Images Section - Full Width at Top */}
       <div className="mb-8">
         <ImageCarousel 
-          images={images}
+          images={carouselImages}
           heightClass="h-[50vh] lg:h-[60vh]"
           showThumbnails={true}
         />
@@ -273,13 +273,13 @@ export function ListingDetail() {
               </div>
               {listing.square_footage && (
                 <div className="flex items-center">
-                  <Home className="w-5 h-5 text-gray-600 mr-2" />
+                  <HomeIcon className="w-5 h-5 text-gray-600 mr-2" />
                   <span className="text-gray-900">{listing.square_footage} sq ft</span>
                 </div>
               )}
               {listing.floor && (
                 <div className="flex items-center">
-                  <Building className="w-5 h-5 text-gray-600 mr-2" />
+                  <HomeIcon className="w-5 h-5 text-gray-600 mr-2" />
                   <span className="text-gray-900">Floor {listing.floor}</span>
                 </div>
               )}
@@ -290,24 +290,24 @@ export function ListingDetail() {
               <div className="flex items-center">
                 <Car className="w-5 h-5 text-gray-600 mr-2" />
                 <span className="text-gray-900">
-                  Parking: {getParkingLabel(listing.parking)}
+                  Parking: {listing.parking}
                 </span>
               </div>
               <div className="flex items-center">
-                <Zap className="w-5 h-5 text-gray-600 mr-2" />
+                <Flame className="w-5 h-5 text-gray-600 mr-2" />
                 <span className="text-gray-900">
                   Heat: {listing.heat === 'included' ? 'Included' : 'Tenant Pays'}
                 </span>
               </div>
               {listing.washer_dryer_hookup && (
                 <div className="flex items-center">
-                  <CheckCircle className="w-5 h-5 text-green-600 mr-2" />
+                  <WashingMachine className="w-5 h-5 text-green-600 mr-2" />
                   <span className="text-gray-900">Washer/Dryer Hookup</span>
                 </div>
               )}
               {listing.dishwasher && (
                 <div className="flex items-center">
-                  <CheckCircle className="w-5 h-5 text-green-600 mr-2" />
+                  <Droplets className="w-5 h-5 text-green-600 mr-2" />
                   <span className="text-gray-900">Dishwasher</span>
                 </div>
               )}
@@ -348,7 +348,7 @@ export function ListingDetail() {
               )}
               <div>
                 <span className="font-medium text-gray-900">Listed by:</span>
-                <span className="ml-2 text-gray-700">{getPosterLabel()}</span>
+                <span className="ml-2 text-gray-700">{getRoleLabel()}</span>
               </div>
               <div>
                 <span className="font-medium text-gray-900">Views:</span>
@@ -403,23 +403,20 @@ export function ListingDetail() {
               {user && (
                 <button
                   onClick={handleFavoriteToggle}
-                  disabled={favoriteLoading}
                   className={`w-full py-3 px-4 rounded-lg font-semibold transition-colors flex items-center justify-center ${
                     listing.is_favorited
                       ? 'bg-red-50 text-red-700 border border-red-200 hover:bg-red-100'
                       : 'bg-gray-50 text-gray-700 border border-gray-200 hover:bg-gray-100'
-                  } ${favoriteLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  }`}
                 >
                   <Heart 
                     className={`w-5 h-5 mr-2 ${
                       listing.is_favorited ? 'fill-current' : ''
                     }`} 
                   />
-                  {favoriteLoading 
-                    ? 'Updating...' 
-                    : listing.is_favorited 
-                      ? 'Remove from Favorites' 
-                      : 'Add to Favorites'
+                  {listing.is_favorited 
+                    ? 'Remove from Favorites' 
+                    : 'Add to Favorites'
                   }
                 </button>
               )}
@@ -488,6 +485,11 @@ export function ListingDetail() {
                   Featured
                 </span>
               )}
+            </div>
+          </div>
+        </aside>
+      </section>
+
       {/* Similar Listings */}
       <SimilarListings listing={listing} />
     </div>
