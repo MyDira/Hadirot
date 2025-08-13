@@ -279,15 +279,24 @@ export function ListingDetail() {
             </h1>
           </section>
 
-          {/* Location + Tag */}
+          {/* Location + Tag (mobile-safe truncation) */}
           <section id="ld-location-and-tag">
             <div className="flex items-center gap-2">
-              <div className="flex items-center text-gray-600">
-                <MapPin className="w-5 h-5 mr-2" />
-                <span className="text-lg">
-                  {listing.location}
-                  {listing.neighborhood && `, ${listing.neighborhood}`}
-                </span>
+              {/* LEFT: Location (flexible, truncates first) */}
+              <div className="flex-1 min-w-0">
+                <div
+                  className="truncate"
+                  title={`${listing?.location ?? ""}${listing?.location && listing?.neighborhood ? " • " : ""}${listing?.neighborhood ?? ""}`}
+                >
+                  {/* EXISTING LOCATION JSX HERE (icons/text unchanged) */}
+                  <div className="flex items-center text-gray-600">
+                    <MapPin className="w-5 h-5 mr-2" />
+                    <span className="text-lg">
+                      {listing.location}
+                      {listing.neighborhood && `, ${listing.neighborhood}`}
+                    </span>
+                  </div>
+                </div>
               </div>
               {listing.is_featured && (
                 <span className="inline-flex items-center bg-accent-500 text-white text-xs px-2 py-0.5 rounded">
@@ -295,12 +304,24 @@ export function ListingDetail() {
                   Featured
                 </span>
               )}
-              <div className="ml-auto">
-                <span className="bg-[#667B9A] text-white px-3 py-1 rounded-full text-sm font-medium">
-                  {listing.owner?.role === "agent" && listing.owner?.agency
-                    ? listing.owner.agency
-                    : getRoleLabel()}
-                </span>
+              {/* RIGHT: Poster tag (landlord/agency) — fixed size, truncates if too long */}
+              <div className="ml-2 flex-shrink-0 min-w-0 max-w-[50%] sm:max-w-none text-right overflow-hidden">
+                {/* A single-line, no-wrap container so the badge/text truncates cleanly */}
+                <div
+                  className="inline-flex items-center gap-1 whitespace-nowrap truncate"
+                  title={
+                    listing.owner?.role === "agent" && listing.owner?.agency
+                      ? listing.owner.agency
+                      : getRoleLabel()
+                  }
+                >
+                  {/* EXISTING TAG/BADGE JSX HERE (unchanged). */}
+                  <span className="bg-[#667B9A] text-white px-3 py-1 rounded-full text-sm font-medium">
+                    {listing.owner?.role === "agent" && listing.owner?.agency
+                      ? listing.owner.agency
+                      : getRoleLabel()}
+                  </span>
+                </div>
               </div>
             </div>
           </section>
