@@ -11,7 +11,6 @@ import {
   User,
   Calendar,
   Home as HomeIcon,
-  Square,
   ArrowLeft,
   Flame,
   Droplets,
@@ -22,6 +21,7 @@ import { Listing } from "../config/supabase";
 import { listingsService } from "../services/listings";
 import { useAuth } from "../hooks/useAuth";
 import { SimilarListings } from "../components/listings/SimilarListings";
+import ImageCarousel from "@/components/listing/ImageCarousel";
 
 export function ListingDetail() {
   const { id } = useParams<{ id: string }>();
@@ -30,7 +30,6 @@ export function ListingDetail() {
   const [listing, setListing] = useState<Listing | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const hasViewedRef = React.useRef(false);
 
   const getOrdinalSuffixText = (num: number): string => {
@@ -225,6 +224,7 @@ export function ListingDetail() {
       return a.sort_order - b.sort_order;
     }) || [];
 
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       {/* Back Button */}
@@ -236,17 +236,14 @@ export function ListingDetail() {
         Back to Browse
       </Link>
 
-      {/* Image Gallery */}
-      {images.length > 0 ? (
-        <div className="mb-8">
-          {/* Main Image Viewer */}
-          <div className="relative mb-4">
-            <img
-              src={images[currentImageIndex].image_url}
-              alt={listing.title}
-              className="w-full h-96 object-contain bg-gray-100 rounded-lg"
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-10">
+        {/* LEFT: Images */}
+        <div className="lg:col-span-7">
+          <div className="relative">
+            <ImageCarousel
+              images={images.map((img) => ({ url: img.image_url, alt: listing.title }))}
+              className="mb-0"
             />
-
             <button
               onClick={handleFavoriteToggle}
               className="absolute top-4 right-4 p-3 bg-white rounded-full shadow-lg hover:shadow-xl transition-shadow"
@@ -259,181 +256,88 @@ export function ListingDetail() {
                 }`}
               />
             </button>
-
-            {images.length > 1 && (
-              <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex space-x-2">
-                {images.map((_, index) => (
-                  <button
-                    key={index}
-                    onClick={() => setCurrentImageIndex(index)}
-                    className={`w-3 h-3 rounded-full transition-colors ${
-                      index === currentImageIndex
-                        ? "bg-white"
-                        : "bg-white bg-opacity-50"
-                    }`}
-                  />
-                ))}
-              </div>
-            )}
           </div>
 
-          {/* Thumbnail Strip */}
-          {images.length > 1 && (
-            <div className="relative">
-              <div className="flex items-center">
-                {/* Left Arrow */}
-                <button
-                  onClick={() => {
-                    const container = document.getElementById(
-                      "thumbnail-container",
-                    );
-                    if (container) {
-                      container.scrollBy({ left: -200, behavior: "smooth" });
-                    }
-                  }}
-                  className="flex-shrink-0 p-2 mr-2 bg-white rounded-full shadow-md hover:shadow-lg transition-shadow z-10"
-                  aria-label="Scroll thumbnails left"
-                >
-                  <svg
-                    className="w-4 h-4 text-gray-600"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M15 19l-7-7 7-7"
-                    />
-                  </svg>
-                </button>
-
-                {/* Scrollable Thumbnail Container */}
-                <div
-                  id="thumbnail-container"
-                  className="flex-1 flex gap-3 overflow-x-auto scrollbar-hide scroll-smooth"
-                  style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
-                >
-                  {images.map((image, index) => (
-                    <button
-                      key={index}
-                      onClick={() => setCurrentImageIndex(index)}
-                      className={`flex-shrink-0 relative rounded-lg overflow-hidden transition-all ${
-                        index === currentImageIndex
-                          ? "ring-2 ring-[#4E4B43] shadow-md"
-                          : "hover:ring-2 hover:ring-gray-300"
-                      }`}
-                    >
-                      <img
-                        src={image.image_url}
-                        alt={`${listing.title} ${index + 1}`}
-                        className="w-20 h-16 object-contain bg-gray-50 rounded-lg"
-                      />
-                      {image.is_featured && (
-                        <div className="absolute top-1 right-1">
-                          <Star className="w-3 h-3 text-[#D29D86] fill-current drop-shadow-sm" />
-                        </div>
-                      )}
-                      {index === currentImageIndex && (
-                        <div className="absolute inset-0 bg-[#4E4B43] bg-opacity-10 rounded-lg"></div>
-                      )}
-                    </button>
-                  ))}
-                </div>
-
-                {/* Right Arrow */}
-                <button
-                  onClick={() => {
-                    const container = document.getElementById(
-                      "thumbnail-container",
-                    );
-                    if (container) {
-                      container.scrollBy({ left: 200, behavior: "smooth" });
-                    }
-                  }}
-                  className="flex-shrink-0 p-2 ml-2 bg-white rounded-full shadow-md hover:shadow-lg transition-shadow z-10"
-                  aria-label="Scroll thumbnails right"
-                >
-                  <svg
-                    className="w-4 h-4 text-gray-600"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M9 5l7 7-7 7"
-                    />
-                  </svg>
-                </button>
-              </div>
-            </div>
+          {listing.description && (
+            <section id="ld-description" className="mt-0 pt-0">
+              <h2 className="text-2xl font-bold text-[#273140] mb-4">
+                Description
+              </h2>
+              <p className="text-gray-700 leading-relaxed whitespace-pre-wrap">
+                {listing.description}
+              </p>
+            </section>
           )}
         </div>
-      ) : (
-        <div className="mb-8">
-          <div className="w-full h-96 bg-brand-50 flex items-center justify-center border border-gray-100 rounded-lg">
-            <svg
-              viewBox="0 0 24 24"
-              className="w-24 h-24 text-brand-700"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.5"
-            >
-              <path d="M3 10.5L12 3l9 7.5v9a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 19.5v-9z" />
-              <path d="M9 21V12h6v9" />
-            </svg>
-            <span className="ml-3 text-brand-700/90 text-sm">
-              No image available
-            </span>
-          </div>
-        </div>
-      )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Main Content */}
-        <div className="lg:col-span-2">
-          {/* Header */}
-          <div className="mb-6">
-            <div className="flex items-start justify-between mb-4">
-              <div>
-                <h1 className="text-3xl font-bold text-[#273140] mb-2">
-                  {listing.title}
-                </h1>
-                <div className="flex items-center text-gray-600 mb-2">
-                  <MapPin className="w-5 h-5 mr-2" />
-                  <span className="text-lg">
-                    {listing.location}
-                    {listing.neighborhood && `, ${listing.neighborhood}`}
-                  </span>
-                </div>
-                <div className="text-3xl font-bold text-[#273140]">
-                  {formatPrice(listing.price)}
-                  <span className="text-lg font-normal text-gray-500">
-                    /month
-                  </span>
+        {/* RIGHT: Info stack */}
+        <div className="lg:col-span-5 flex flex-col gap-3 text-[0.95rem] md:text-[0.985rem] leading-relaxed">
+          {/* Title */}
+          <section id="ld-title">
+            <h1 className="text-2xl md:text-[1.65rem] font-semibold text-[#273140] mb-2">
+              {listing.title}
+            </h1>
+          </section>
+
+          {/* Location + Tag (mobile-safe truncation) */}
+          <section id="ld-location-and-tag">
+            <div className="flex items-center gap-2">
+              {/* LEFT: Location (flexible, truncates first) */}
+              <div className="flex-1 min-w-0">
+                <div
+                  className="truncate"
+                  title={`${listing?.location ?? ""}${listing?.location && listing?.neighborhood ? " • " : ""}${listing?.neighborhood ?? ""}`}
+                >
+                  {/* EXISTING LOCATION JSX HERE (icons/text unchanged) */}
+                  <div className="flex items-center text-gray-600">
+                    <MapPin className="w-5 h-5 mr-2" />
+                    <span className="text-lg">
+                      {listing.location}
+                      {listing.neighborhood && `, ${listing.neighborhood}`}
+                    </span>
+                  </div>
                 </div>
               </div>
-
-              <div className="flex flex-wrap gap-2">
-                {listing.is_featured && (
-                  <span className="inline-flex items-center bg-accent-500 text-white text-xs px-2 py-0.5 rounded">
-                    <Star className="w-3 h-3 mr-1" />
-                    Featured
-                  </span>
-                )}
-                <span className="bg-[#667B9A] text-white px-3 py-1 rounded-full text-sm font-medium">
-                  {listing.owner?.role === "agent" && listing.owner?.agency
-                    ? listing.owner.agency
-                    : getRoleLabel()}
+              {listing.is_featured && (
+                <span className="inline-flex items-center bg-accent-500 text-white text-xs px-2 py-0.5 rounded">
+                  <Star className="w-3 h-3 mr-1" />
+                  Featured
                 </span>
+              )}
+              {/* RIGHT: Poster tag (landlord/agency) — fixed size, truncates if too long */}
+              <div className="ml-2 flex-shrink-0 min-w-0 max-w-[50%] sm:max-w-none text-right overflow-hidden">
+                {/* A single-line, no-wrap container so the badge/text truncates cleanly */}
+                <div
+                  className="inline-flex items-center gap-1 whitespace-nowrap truncate"
+                  title={
+                    listing.owner?.role === "agent" && listing.owner?.agency
+                      ? listing.owner.agency
+                      : getRoleLabel()
+                  }
+                >
+                  {/* EXISTING TAG/BADGE JSX HERE (unchanged). */}
+                  <span className="bg-[#667B9A] text-white px-3 py-1 rounded-full text-sm font-medium">
+                    {listing.owner?.role === "agent" && listing.owner?.agency
+                      ? listing.owner.agency
+                      : getRoleLabel()}
+                  </span>
+                </div>
               </div>
             </div>
+          </section>
 
-            {/* Property Details */}
+          {/* Price */}
+          <section id="ld-price">
+            <div className="text-3xl font-bold text-[#273140]">
+              {formatPrice(listing.price)}
+              <span className="text-lg font-normal text-gray-500">
+                /month
+              </span>
+            </div>
+          </section>
+
+          {/* Basic info */}
+          <section id="ld-basic-info">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 bg-gray-50 rounded-lg">
               <div className="flex items-center">
                 <div>
@@ -470,135 +374,124 @@ export function ListingDetail() {
                 <HomeIcon className="w-5 h-5 text-[#273140] ml-2" />
               </div>
             </div>
-          </div>
+          </section>
 
-          {/* Description */}
-          {listing.description && (
-            <div className="mb-8">
-              <h2 className="text-2xl font-bold text-[#273140] mb-4">
-                Description
-              </h2>
-              <p className="text-gray-700 leading-relaxed whitespace-pre-wrap">
-                {listing.description}
-              </p>
-            </div>
-          )}
+          {/* Contact Information card */}
+          <section id="ld-contact-card" className="text-base">
+            <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-6 sticky top-8">
+              <h3 className="text-xl font-bold text-[#273140] mb-4">
+                Contact Information
+              </h3>
 
-          {/* Amenities */}
-          <div className="mb-8">
-            <h2 className="text-2xl font-bold text-[#273140] mb-4">
-              Features & Amenities
-            </h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="flex items-center">
-                <DollarSign className="w-5 h-5 text-[#273140] mr-3" />
-                <span>
-                  {listing.broker_fee ? "Broker Fee Applies" : "No Broker Fee"}
-                </span>
-              </div>
-
-              {listing.parking !== "no" && (
+              <div className="space-y-4">
                 <div className="flex items-center">
-                  <Car className="w-5 h-5 text-[#273140] mr-3" />
-                  <span className="capitalize">
-                    {listing.parking.replace("_", " ")}
-                  </span>
-                </div>
-              )}
-
-              {listing.washer_dryer_hookup && (
-                <div className="flex items-center">
-                  <WashingMachine className="w-5 h-5 text-[#273140] mr-3" />
-                  <span>Washer/Dryer Hookup</span>
-                </div>
-              )}
-
-              {listing.dishwasher && (
-                <div className="flex items-center">
-                  <Droplets className="w-5 h-5 text-[#273140] mr-3" />
-                  <span>Dishwasher</span>
-                </div>
-              )}
-
-              <div className="flex items-center">
-                <Flame className="w-5 h-5 text-[#273140] mr-3" />
-                <span>
-                  {listing.heat === "included"
-                    ? "Heat Included"
-                    : "Tenant Pays Heat"}
-                </span>
-              </div>
-
-              {listing.floor && (
-                <div className="flex items-center">
-                  <div className="w-5 h-5 bg-[#273140] rounded mr-3 flex items-center justify-center">
-                    <span className="text-white text-xs font-bold">
-                      {listing.floor}
-                    </span>
+                  <User className="w-5 h-5 text-[#273140] mr-3" />
+                  <div>
+                    <div className="font-semibold">{listing.contact_name}</div>
+                    <div className="text-sm text-gray-500">{getRoleLabel()}</div>
                   </div>
-                  <span>{getOrdinalWordText(listing.floor)} Floor</span>
                 </div>
-              )}
 
-              {listing.lease_length && (
                 <div className="flex items-center">
-                  <Calendar className="w-5 h-5 text-[#273140] mr-3" />
-                  <span>Lease: {listing.lease_length}</span>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Contact Card */}
-        <div className="lg:col-span-1">
-          <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-6 sticky top-8">
-            <h3 className="text-xl font-bold text-[#273140] mb-4">
-              Contact Information
-            </h3>
-
-            <div className="space-y-4">
-              <div className="flex items-center">
-                <User className="w-5 h-5 text-[#273140] mr-3" />
-                <div>
-                  <div className="font-semibold">{listing.contact_name}</div>
-                  <div className="text-sm text-gray-500">{getRoleLabel()}</div>
+                  <Phone className="w-5 h-5 text-[#273140] mr-3" />
+                  <a
+                    href={`tel:${listing.contact_phone}`}
+                    className="text-[#273140] hover:text-[#1e252f] font-medium transition-colors"
+                  >
+                    {formatPhoneNumber(listing.contact_phone)}
+                  </a>
                 </div>
               </div>
 
-              <div className="flex items-center">
-                <Phone className="w-5 h-5 text-[#273140] mr-3" />
+              <div className="mt-6 space-y-3">
                 <a
                   href={`tel:${listing.contact_phone}`}
-                  className="text-[#273140] hover:text-[#1e252f] font-medium transition-colors"
+                  className="w-full bg-[#273140] text-white py-3 px-4 rounded-md font-semibold hover:bg-[#1e252f] transition-colors flex items-center justify-center"
                 >
-                  {formatPhoneNumber(listing.contact_phone)}
+                  <Phone className="w-5 h-5 mr-2" />
+                  Call Now
+                </a>
+
+                <a
+                  href={`sms:${listing.contact_phone.replace(/\D/g, "")}?body=Hi, I'm interested in your listing: ${listing.title}`}
+                  className="w-full bg-accent-500 text-white py-3 px-4 rounded-md font-semibold hover:bg-accent-600 transition-colors flex items-center justify-center"
+                >
+                  Send Message
                 </a>
               </div>
-            </div>
 
-            <div className="mt-6 space-y-3">
-              <a
-                href={`tel:${listing.contact_phone}`}
-                className="w-full bg-[#273140] text-white py-3 px-4 rounded-md font-semibold hover:bg-[#1e252f] transition-colors flex items-center justify-center"
-              >
-                <Phone className="w-5 h-5 mr-2" />
-                Call Now
-              </a>
-
-              <a
-                href={`sms:${listing.contact_phone.replace(/\D/g, "")}?body=Hi, I'm interested in your listing: ${listing.title}`}
-                className="w-full bg-accent-500 text-white py-3 px-4 rounded-md font-semibold hover:bg-accent-600 transition-colors flex items-center justify-center"
-              >
-                Send Message
-              </a>
+              <div className="mt-4 pt-4 border-t border-gray-200 text-xs text-gray-500">
+                Listed {new Date(listing.created_at).toLocaleDateString()}
+              </div>
             </div>
+          </section>
 
-            <div className="mt-4 pt-4 border-t border-gray-200 text-xs text-gray-500">
-              Listed {new Date(listing.created_at).toLocaleDateString()}
+          {/* Property Details */}
+          <section id="ld-details">
+            <div className="mb-8">
+              <h2 className="text-2xl font-bold text-[#273140] mb-4">
+                Features & Amenities
+              </h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="flex items-center">
+                  <DollarSign className="w-5 h-5 text-[#273140] mr-3" />
+                  <span>
+                    {listing.broker_fee ? "Broker Fee Applies" : "No Broker Fee"}
+                  </span>
+                </div>
+
+                {listing.parking !== "no" && (
+                  <div className="flex items-center">
+                    <Car className="w-5 h-5 text-[#273140] mr-3" />
+                    <span className="capitalize">
+                      {listing.parking.replace("_", " ")}
+                    </span>
+                  </div>
+                )}
+
+                {listing.washer_dryer_hookup && (
+                  <div className="flex items-center">
+                    <WashingMachine className="w-5 h-5 text-[#273140] mr-3" />
+                    <span>Washer/Dryer Hookup</span>
+                  </div>
+                )}
+
+                {listing.dishwasher && (
+                  <div className="flex items-center">
+                    <Droplets className="w-5 h-5 text-[#273140] mr-3" />
+                    <span>Dishwasher</span>
+                  </div>
+                )}
+
+                <div className="flex items-center">
+                  <Flame className="w-5 h-5 text-[#273140] mr-3" />
+                  <span>
+                    {listing.heat === "included" ? "Heat Included" : "Tenant Pays Heat"}
+                  </span>
+                </div>
+
+                {listing.floor && (
+                  <div className="flex items-center">
+                    <div className="w-5 h-5 bg-[#273140] rounded mr-3 flex items-center justify-center">
+                      <span className="text-white text-xs font-bold">
+                        {listing.floor}
+                      </span>
+                    </div>
+                    <span>{getOrdinalWordText(listing.floor)} Floor</span>
+                  </div>
+                )}
+
+                {listing.lease_length && (
+                  <div className="flex items-center">
+                    <Calendar className="w-5 h-5 text-[#273140] mr-3" />
+                    <span>Lease: {listing.lease_length}</span>
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
+          </section>
         </div>
+
       </div>
 
       {/* Similar Listings */}
@@ -606,3 +499,4 @@ export function ListingDetail() {
     </div>
   );
 }
+
