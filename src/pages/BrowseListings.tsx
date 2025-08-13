@@ -6,6 +6,7 @@ import { ListingFilters } from "../components/listings/ListingFilters";
 import { Listing } from "../config/supabase";
 import { listingsService } from "../services/listings";
 import { useAuth } from "../hooks/useAuth";
+import { track, listingEvent } from "@/lib/analytics";
 
 interface FilterState {
   bedrooms?: number;
@@ -326,6 +327,24 @@ export function BrowseListings() {
     }
   };
 
+  useEffect(() => {
+    if (!displayListings || displayListings.length === 0) return;
+
+    track("listing_impression_batch", {
+      page: currentPage,
+      result_count: displayListings.length,
+      items: displayListings.map((l, idx) => ({
+        listing_id: String(l.id),
+        price: Number(l.price ?? 0),
+        bedrooms: Number(l.bedrooms ?? 0),
+        neighborhood:
+          l.neighborhood ?? l.area ?? l.location ?? undefined,
+        is_featured: !!(l.is_featured ?? l.featured),
+        position: idx + 1,
+      })),
+    });
+  }, [displayListings, currentPage]);
+
   const handleFiltersChange = (newFilters: FilterState) => {
     setFilters(newFilters);
     setCurrentPage(1);
@@ -494,16 +513,38 @@ export function BrowseListings() {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {displayListings.map((listing) => (
-            <div key={listing.key}>
-              <ListingCard
-                listing={listing}
-                isFavorited={userFavorites.includes(listing.id)}
-                onFavoriteChange={handleFavoriteChange}
-                showFeaturedBadge={listing.showFeaturedBadge}
-              />
-            </div>
-          ))}
+          {displayListings.map((listing, idx) => {
+            const handleCardClick = () => {
+              listingEvent(
+                "listing_click",
+                {
+                  listing_id: String(listing.id),
+                  title: listing.title ?? listing.headline ?? undefined,
+                  price: Number(listing.price ?? 0),
+                  bedrooms: Number(listing.bedrooms ?? 0),
+                  neighborhood:
+                    listing.neighborhood ??
+                    listing.area ??
+                    listing.location ??
+                    undefined,
+                  is_featured: !!(listing.is_featured ?? listing.featured),
+                },
+                { position: idx + 1 },
+              );
+            };
+
+            return (
+              <div key={listing.key}>
+                <ListingCard
+                  listing={listing}
+                  isFavorited={userFavorites.includes(listing.id)}
+                  onFavoriteChange={handleFavoriteChange}
+                  showFeaturedBadge={listing.showFeaturedBadge}
+                  onClick={handleCardClick}
+                />
+              </div>
+            );
+          })}
         </div>
       )}
 

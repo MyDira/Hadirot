@@ -11,6 +11,7 @@ interface ListingCardProps {
   isFavorited?: boolean;
   onFavoriteChange?: () => void;
   showFeaturedBadge?: boolean;
+  onClick?: (e: React.MouseEvent) => void;
 }
 
 export function ListingCard({
@@ -18,6 +19,7 @@ export function ListingCard({
   isFavorited = false,
   onFavoriteChange,
   showFeaturedBadge = true,
+  onClick,
 }: ListingCardProps) {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -76,6 +78,7 @@ export function ListingCard({
     <Link
       to={`/listing/${listing.id}`}
       className="group block bg-white border border-gray-200 rounded-lg shadow-sm hover:shadow transition overflow-hidden"
+      onClick={onClick}
     >
       <div className="relative aspect-[3/2]">
         {featuredImage ? (
