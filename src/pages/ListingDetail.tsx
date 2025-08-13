@@ -1,29 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
-import {
-  Car,
-  Heart,
-  Phone,
-  User,
-  ArrowLeft,
-  Flame,
-  Droplets,
-  WashingMachine,
-  MapPin,
-  Mail,
-  Edit,
-  Trash2,
-  Star,
-  Bed,
-  Bath,
-  Square,
-  Dishwasher,
-  Thermometer,
-  DollarSign,
-} from "lucide-react";
-import { Listing } from "../config/supabase";
-import { listingsService } from "../services/listings";
-import { useAuth } from "../hooks/useAuth";
+import { Car, Heart, Phone, User, ArrowLeft, Flame, Droplets, WashingMachine, MapPin, Mail, Edit, Trash2, Star, Bed, Bath, Square, BookDashed as Dishwasher, Thermometer, DollarSign } from "lucide-react" useAuth } from "../hooks/useAuth";
 import { SimilarListings } from "../components/listings/SimilarListings";
 import { ImageCarousel } from "../components/media/ImageCarousel";
 
@@ -250,34 +227,18 @@ export function ListingDetail() {
 
       <section className="space-y-8">
         {/* Top: media + info */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Left Column - Images */}
-          <div className="lg:col-span-2">
+        <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)] gap-8 items-start">
+          {/* LEFT: Images */}
+          <div id="listing-media" className="relative">
             <ImageCarousel
               images={carouselImages}
-              initialIndex={0}
               fit="contain"
-              heightClass="h-[50vh] lg:h-[60vh]"
-              showThumbnails={true}
+              heightClass="h-[44vh] lg:h-[56vh]"
+              showThumbnails
             />
-            
-            {/* Description */}
-            {listing.description && (
-              <div className="mt-6">
-                <h3 className="text-lg font-semibold text-[#273140] mb-3">Description</h3>
-                <div className="prose prose-sm max-w-none text-gray-700">
-                  <p className="whitespace-pre-wrap">{listing.description}</p>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Right Column - Details */}
-          <div className="space-y-6">
-            {/* Favorite Button */}
             <button
               onClick={handleFavoriteToggle}
-              className="absolute top-4 right-4 p-3 bg-white rounded-full shadow-lg hover:shadow-xl transition-shadow z-10 lg:relative lg:top-0 lg:right-0 lg:self-start lg:ml-auto lg:mb-4"
+              className="absolute top-4 right-4 p-3 bg-white rounded-full shadow-lg hover:shadow-xl transition-shadow z-10"
             >
               <Heart
                 className={`w-6 h-6 ${
@@ -287,135 +248,185 @@ export function ListingDetail() {
                 }`}
               />
             </button>
+          </div>
 
-            {/* Title and Price */}
-            <div>
-              <h1 className="text-3xl font-bold text-[#273140] mb-2">
-                {listing.title}
-              </h1>
-              <div className="text-3xl font-bold text-[#667B9A] mb-4">
-                {formatPrice(listing.price)}/month
+          {/* RIGHT: Info stack */}
+          <aside id="listing-info" className="flex flex-col gap-4">
+            {/* Title + tags */}
+            <div className="flex flex-col gap-2">
+              <div className="flex items-start justify-between gap-3">
+                <h1 className="text-2xl font-semibold leading-tight">
+                  {listing.title}
+                </h1>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                {listing.is_featured && (
+                  <span className="inline-flex items-center rounded px-2 py-0.5 text-xs bg-accent-500 text-white">
+                    Featured
+                  </span>
+                )}
+                {listedByLabel && (
+                  <span className="inline-flex items-center rounded px-2 py-0.5 text-xs bg-muted">
+                    {listedByLabel}
+                  </span>
+                )}
               </div>
             </div>
 
             {/* Location */}
-            <div className="flex items-center text-gray-600 mb-4">
-              <MapPin className="w-5 h-5 mr-2 flex-shrink-0" />
-              <div className="flex items-center gap-3 flex-wrap">
-                <span className="text-lg">{listing.location}</span>
-                <span className="inline-flex items-center bg-blue-100 text-blue-800 px-2.5 py-0.5 rounded-full text-xs font-medium">
-                  {listing.owner?.role === 'agent' && listing.owner?.agency 
-                    ? listing.owner.agency 
-                    : 'Owner'}
+            <div>
+              <div className="text-sm text-gray-600">
+                {listing.location}
+                {listing.neighborhood && ` • ${listing.neighborhood}`}
+              </div>
+            </div>
+
+            {/* Price */}
+            <div>
+              <div className="text-2xl font-semibold">
+                {formatPrice(listing.price)}
+                <span className="text-lg font-normal text-gray-500">
+                  /month
                 </span>
+              </div>
+            </div>
+
+            {/* Basic info group */}
+            <div className="flex flex-wrap items-center gap-3 text-sm">
+              <span className="inline-flex items-center rounded bg-muted px-2 py-1">
+                {listing.bedrooms === 0 ? "Studio" : `${listing.bedrooms} bd`}
+              </span>
+              <span className="inline-flex items-center rounded bg-muted px-2 py-1">
+                {listing.bathrooms} ba
+              </span>
+              <span className="inline-flex items-center rounded bg-muted px-2 py-1">
+                {listing.broker_fee ? "Broker Fee" : "No Broker Fee"}
+              </span>
+              <span className="inline-flex items-center rounded bg-muted px-2 py-1">
+                {getPropertyTypeLabel()}
+              </span>
+            </div>
+
+            {/* Contact Information card */}
+            <div id="contact-card">
+              <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-6 sticky top-8">
+                <h3 className="text-xl font-bold text-[#273140] mb-4">
+                  Contact Information
+                </h3>
+
+                <div className="space-y-4">
+                  <div className="flex items-center">
+                    <User className="w-5 h-5 text-[#273140] mr-3" />
+                    <div>
+                      <div className="font-semibold">{listing.contact_name}</div>
+                      <div className="text-sm text-gray-500">{getRoleLabel()}</div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center">
+                    <Phone className="w-5 h-5 text-[#273140] mr-3" />
+                    <a
+                      href={`tel:${listing.contact_phone}`}
+                      className="text-[#273140] hover:text-[#1e252f] font-medium transition-colors"
+                    >
+                      {formatPhoneNumber(listing.contact_phone)}
+                    </a>
+                  </div>
+                </div>
+
+                <div className="mt-6 space-y-3">
+                  <a
+                    href={`tel:${listing.contact_phone}`}
+                    className="w-full bg-[#273140] text-white py-3 px-4 rounded-md font-semibold hover:bg-[#1e252f] transition-colors flex items-center justify-center"
+                  >
+                    <Phone className="w-5 h-5 mr-2" />
+                    Call Now
+                  </a>
+
+                  <a
+                    href={`sms:${listing.contact_phone.replace(/\D/g, "")}?body=Hi, I'm interested in your listing: ${listing.title}`}
+                    className="w-full bg-accent-500 text-white py-3 px-4 rounded-md font-semibold hover:bg-accent-600 transition-colors flex items-center justify-center"
+                  >
+                    Send Message
+                  </a>
+                </div>
+
+                <div className="mt-4 pt-4 border-t border-gray-200 text-xs text-gray-500">
+                  Listed {new Date(listing.created_at).toLocaleDateString()}
+                </div>
               </div>
             </div>
 
             {/* Property Details */}
-            <div className="space-y-3 mb-6">
-              <div className="flex items-center text-gray-700">
-                <Bed className="w-4 h-4 mr-2 text-gray-500" />
-                <span className="font-medium">
-                  {listing.bedrooms === 0 ? 'Studio' : `${listing.bedrooms} Bedroom${listing.bedrooms > 1 ? 's' : ''}`}
-                </span>
-              </div>
-              
-              <div className="flex items-center text-gray-700">
-                <Bath className="w-4 h-4 mr-2 text-gray-500" />
-                <span className="font-medium">{listing.bathrooms} Bathroom{listing.bathrooms > 1 ? 's' : ''}</span>
-              </div>
-
-              {listing.square_footage && (
-                <div className="flex items-center text-gray-700">
-                  <Square className="w-4 h-4 mr-2 text-gray-500" />
-                  <span className="font-medium">{listing.square_footage.toLocaleString()} sq ft</span>
-                </div>
-              )}
-
-              {listing.floor && (
-                <div className="flex items-center text-gray-700">
-                  <span className="font-medium">Floor {listing.floor}</span>
-                </div>
-              )}
-
-              <div className="flex items-center text-gray-700">
-                <Car className="w-4 h-4 mr-2 text-gray-500" />
-                <span className="font-medium">
-                  Parking: {listing.parking === 'yes' ? 'Available' : 
-                           listing.parking === 'included' ? 'Included' :
-                           listing.parking === 'street' ? 'Street Parking' : 'None'}
-                </span>
-              </div>
-
-              {listing.washer_dryer_hookup && (
-                <div className="flex items-center text-gray-700">
-                  <WashingMachine className="w-4 h-4 mr-2 text-gray-500" />
-                  <span className="font-medium">Washer/Dryer Hookup</span>
-                </div>
-              )}
-
-              {listing.dishwasher && (
-                <div className="flex items-center text-gray-700">
-                  <Dishwasher className="w-4 h-4 mr-2 text-gray-500" />
-                  <span className="font-medium">Dishwasher</span>
-                </div>
-              )}
-
-              <div className="flex items-center text-gray-700">
-                <Thermometer className="w-4 h-4 mr-2 text-gray-500" />
-                <span className="font-medium">
-                  Heat: {listing.heat === 'included' ? 'Included' : 'Tenant Pays'}
-                </span>
-              </div>
-
-              <div className="flex items-center text-gray-700">
-                <DollarSign className="w-4 h-4 mr-2 text-gray-500" />
-                <span className="font-medium">
-                  {listing.broker_fee ? 'Broker Fee Required' : 'No Broker Fee'}
-                </span>
+            <div id="property-details" className="p-4 bg-gray-50 rounded-lg">
+              <h3 className="font-semibold mb-3">Property Details</h3>
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                {listing.square_footage && (
+                  <div>{formatSquareFootage(listing.square_footage)} sq ft</div>
+                )}
+                <div>{getPropertyTypeLabel()}</div>
+                {listing.floor && (
+                  <div>{getOrdinalWordText(listing.floor)} Floor</div>
+                )}
+                {listing.lease_length && <div>Lease: {listing.lease_length}</div>}
               </div>
             </div>
 
-            {/* Contact Information */}
-            <div className="border-t border-gray-200 pt-4 mb-6">
-              <h3 className="text-lg font-semibold text-[#273140] mb-3">Contact Information</h3>
-              <div className="space-y-2">
-                <p className="font-medium">{listing.contact_name}</p>
-                <div className="flex items-center mt-2">
-                  <Phone className="w-4 h-4 mr-2 text-gray-500" />
-                  <a 
-                    href={`tel:${listing.contact_phone}`}
-                    className="text-[#667B9A] hover:text-[#273140] transition-colors"
-                  >
-                    {listing.contact_phone}
-                  </a>
+            {/* Amenities */}
+            <div id="amenities">
+              <h3 className="text-xl font-bold text-[#273140] mb-4">Amenities</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {listing.parking !== "no" && (
+                  <div className="flex items-center">
+                    <Car className="w-5 h-5 text-[#273140] mr-3" />
+                    <span className="capitalize">
+                      {listing.parking.replace("_", " ")}
+                    </span>
+                  </div>
+                )}
+
+                {listing.washer_dryer_hookup && (
+                  <div className="flex items-center">
+                    <WashingMachine className="w-5 h-5 text-[#273140] mr-3" />
+                    <span>Washer/Dryer Hookup</span>
+                  </div>
+                )}
+
+                {listing.dishwasher && (
+                  <div className="flex items-center">
+                    <Droplets className="w-5 h-5 text-[#273140] mr-3" />
+                    <span>Dishwasher</span>
+                  </div>
+                )}
+
+                <div className="flex items-center">
+                  <Flame className="w-5 h-5 text-[#273140] mr-3" />
+                  <span>
+                    {listing.heat === "included"
+                      ? "Heat Included"
+                      : "Tenant Pays Heat"}
+                  </span>
                 </div>
               </div>
             </div>
-
-            {/* Action Buttons */}
-            <div className="space-y-3">
-              <a
-                href={`tel:${listing.contact_phone}`}
-                className="w-full bg-[#273140] text-white py-3 px-4 rounded-md font-semibold hover:bg-[#1e252f] transition-colors flex items-center justify-center"
-              >
-                <Phone className="w-5 h-5 mr-2" />
-                Call Now
-              </a>
-
-              <a
-                href={`sms:${listing.contact_phone.replace(/\D/g, "")}?body=Hi, I'm interested in your listing: ${listing.title}`}
-                className="w-full bg-accent-500 text-white py-3 px-4 rounded-md font-semibold hover:bg-accent-600 transition-colors flex items-center justify-center"
-              >
-                Send Message
-              </a>
-            </div>
-          </div>
+          </aside>
         </div>
 
-        {/* Similar Listings */}
-        <SimilarListings listing={listing} />
+        {/* Description below both columns */}
+        {listing.description && (
+          <div id="description" className="prose max-w-none">
+            <h2 className="text-2xl font-bold text-[#273140] mb-4">
+              Description
+            </h2>
+            <p className="text-gray-700 leading-relaxed whitespace-pre-wrap">
+              {listing.description}
+            </p>
+          </div>
+        )}
       </section>
+
+      {/* Similar Listings */}
+      <SimilarListings listing={listing} />
     </div>
   );
 }
