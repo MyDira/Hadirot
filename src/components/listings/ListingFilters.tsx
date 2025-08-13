@@ -348,7 +348,7 @@ export function ListingFilters({
               className="h-4 w-4 text-[#273140] focus:ring-[#273140] border-gray-300 rounded"
             />
             <span className="text-sm font-medium text-gray-700">
-              No Fee only
+              No Broker Fee only
             </span>
           </label>
         </div>
