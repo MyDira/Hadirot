@@ -744,23 +744,35 @@ export const listingsService = {
    return data;
  },
 
-async getUniqueNeighborhoods(): Promise<string[]> {
+async getActiveNeighborhoods(): Promise<string[]> {
   const { data, error } = await supabase
     .from('listings')
     .select('neighborhood')
     .eq('is_active', true)
-    .eq('approved', true)
-    .not('neighborhood', 'is', null)
-    .neq('neighborhood', '');
+    .eq('approved', true);
 
   if (error) {
     console.error('Error fetching neighborhoods:', error);
     return [];
   }
 
-  // Extract unique neighborhoods and sort them
-  const neighborhoods = [...new Set(data.map(item => item.neighborhood))];
-  return neighborhoods.sort();
+  const neighborhoods = [...new Set(
+    (data || [])
+      .map((item) => (item.neighborhood || '').trim())
+      .filter(
+        (n) =>
+          n &&
+          n !== '-' &&
+          n.replace(/\s/g, '') !== '' &&
+          n.length > 0,
+      ),
+  )].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+
+  return neighborhoods;
+},
+
+async getUniqueNeighborhoods(): Promise<string[]> {
+  return this.getActiveNeighborhoods();
 },
 
   async getGlobalFeaturedCount(): Promise<number> {

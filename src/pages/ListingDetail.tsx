@@ -420,8 +420,8 @@ export function ListingDetail() {
 
               <div className="flex flex-wrap gap-2">
                 {listing.is_featured && (
-                  <span className="bg-accent-500 text-white px-3 py-1 rounded-full text-sm font-medium flex items-center">
-                    <Star className="w-4 h-4 mr-1" />
+                  <span className="inline-flex items-center bg-accent-500 text-white text-xs px-2 py-0.5 rounded">
+                    <Star className="w-3 h-3 mr-1" />
                     Featured
                   </span>
                 )}

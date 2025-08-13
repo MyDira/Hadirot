@@ -159,7 +159,7 @@ export function ListingCard({
         <div className="mt-2 pt-2 border-t border-gray-100 flex items-center justify-between">
           <span className="text-xs text-gray-600">by {getPosterLabel()}</span>
           {listing.is_featured && showFeaturedBadge && (
-            <span className="inline-flex items-center rounded px-2 py-0.5 text-xs font-medium bg-brand-600 text-white">
+            <span className="inline-flex items-center bg-accent-500 text-white text-xs px-2 py-0.5 rounded">
               Featured
             </span>
           )}
