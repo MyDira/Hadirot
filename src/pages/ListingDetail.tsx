@@ -22,6 +22,38 @@ import { Listing } from "../config/supabase";
 import { listingsService } from "../services/listings";
 import { useAuth } from "../hooks/useAuth";
 import { SimilarListings } from "../components/listings/SimilarListings";
+import { track, listingEvent } from "@/lib/analytics";
+
+const thresholds = [25, 50, 75, 100] as const;
+type Depth = (typeof thresholds)[number];
+
+function getScrollPercent(): number {
+  const el = document.documentElement;
+  const body = document.body;
+  const scrollTop = el.scrollTop || body.scrollTop;
+  const scrollHeight = (el.scrollHeight || body.scrollHeight) - el.clientHeight;
+  if (scrollHeight <= 0) return 100;
+  return Math.min(100, Math.max(0, Math.round((scrollTop / scrollHeight) * 100)));
+}
+
+function setupScrollDepth(listingId: string) {
+  const fired = new Set<Depth>();
+  const onScroll = () => {
+    const pct = getScrollPercent();
+    for (const t of thresholds) {
+      if (pct >= t && !fired.has(t)) {
+        fired.add(t);
+        track("listing_scroll", { listing_id: listingId, depth: t });
+      }
+    }
+    if (fired.size === thresholds.length) {
+      window.removeEventListener("scroll", onScroll);
+    }
+  };
+  window.addEventListener("scroll", onScroll, { passive: true });
+  onScroll();
+  return () => window.removeEventListener("scroll", onScroll);
+}
 
 export function ListingDetail() {
   const { id } = useParams<{ id: string }>();
@@ -113,6 +145,31 @@ export function ListingDetail() {
       incrementView();
     }
   }, [id]); // Only depends on id, not user or other state
+
+  useEffect(() => {
+    if (!listing) return;
+    listingEvent("listing_view", {
+      listing_id: String(listing.id),
+      title: listing.title ?? listing.headline ?? undefined,
+      neighborhood: listing.neighborhood ?? listing.area ?? listing.location ?? undefined,
+      price: Number(listing.price ?? 0),
+      bedrooms: Number(listing.bedrooms ?? 0),
+      bathrooms: Number(listing.bathrooms ?? 0),
+      agent_id: listing.agent_id ? String(listing.agent_id) : undefined,
+      agent_name: listing.agent_name ?? undefined,
+      is_featured: !!(listing.is_featured ?? listing.featured),
+    });
+  }, [listing]);
+
+  useEffect(() => {
+    if (!listing) return;
+    return setupScrollDepth(String(listing.id));
+  }, [listing]);
+
+  useEffect(() => {
+    if (!listing) return;
+    track("image_view", { listing_id: String(listing.id), index: currentImageIndex });
+  }, [listing, currentImageIndex]);
 
   const loadListing = async () => {
     if (!id) return;
