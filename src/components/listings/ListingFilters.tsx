@@ -10,7 +10,7 @@ interface FilterState {
   min_price?: number;
   max_price?: number;
   parking_included?: boolean;
-  no_fee_only?: boolean;
+  no_broker_fee_only?: boolean;
   neighborhoods?: string[];
 }
 
