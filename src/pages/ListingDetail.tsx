@@ -364,13 +364,26 @@ export function ListingDetail() {
               <h3 className="font-semibold mb-3">Property Details</h3>
               <div className="grid grid-cols-2 gap-4 text-sm">
                 {listing.square_footage && (
-                  <div>{formatSquareFootage(listing.square_footage)} sq ft</div>
+                  <div className="flex items-center">
+                    <Square className="w-4 h-4 mr-2 text-gray-600" />
+                    {formatSquareFootage(listing.square_footage)} sq ft
+                  </div>
                 )}
                 <div>{getPropertyTypeLabel()}</div>
                 {listing.floor && (
                   <div>{getOrdinalWordText(listing.floor)} Floor</div>
                 )}
                 {listing.lease_length && <div>Lease: {listing.lease_length}</div>}
+                <div className="flex items-center">
+                  <Bed className="w-4 h-4 mr-2 text-gray-600" />
+                  <span className="text-sm text-gray-600">
+                    {listing.bedrooms === 0 ? "Studio" : `${listing.bedrooms}`}
+                  </span>
+                </div>
+                <div className="flex items-center">
+                  <Bath className="w-4 h-4 mr-2 text-gray-600" />
+                  <span className="text-sm text-gray-600">{listing.bathrooms}</span>
+                </div>
               </div>
             </div>
 
@@ -384,9 +397,8 @@ export function ListingDetail() {
                     <span className="capitalize">
                       {listing.parking.replace("_", " ")}
                     </span>
-                    <Square className="w-4 h-4 mr-2 text-gray-600" />
                   </div>
-                      {listing.square_footage.toLocaleString()} sq ft
+                )}
 
                 {listing.washer_dryer_hookup && (
                   <div className="flex items-center">
@@ -398,8 +410,6 @@ export function ListingDetail() {
                 {listing.dishwasher && (
                   <div className="flex items-center">
                     <Droplets className="w-5 h-5 text-[#273140] mr-3" />
-            </div>
-
                     <span>Dishwasher</span>
                   </div>
                 )}
@@ -407,15 +417,11 @@ export function ListingDetail() {
                 <div className="flex items-center">
                   <Flame className="w-5 h-5 text-[#273140] mr-3" />
                   <span>
-                    {listing.heat === "included"
-                  <Bed className="w-4 h-4 mr-2 text-gray-600" />
-                  <span className="text-sm text-gray-600">
-                    {listing.bedrooms === 0 ? "Studio" : `${listing.bedrooms}`}
+                    {listing.heat === "included" ? "Heat Included" : "Heat Not Included"}
                   </span>
                 </div>
               </div>
-                  <Bath className="w-4 h-4 mr-2 text-gray-600" />
-                  <span className="text-sm text-gray-600">{listing.bathrooms}</span>
+            </div>
           </aside>
         </div>
 
