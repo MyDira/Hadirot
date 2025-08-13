@@ -22,6 +22,19 @@ import { listingsService } from "../services/listings";
 import { useAuth } from "../hooks/useAuth";
 import { SimilarListings } from "../components/listings/SimilarListings";
 import ImageCarousel from "@/components/listing/ImageCarousel";
+import { gaEvent, gaListing } from "@/lib/ga";
+void gaEvent;
+
+const SCROLL_THRESHOLDS = [25, 50, 75, 100] as const;
+
+function getScrollPercent(): number {
+  const el = document.documentElement;
+  const body = document.body;
+  const scrollTop = el.scrollTop || body.scrollTop;
+  const scrollHeight = (el.scrollHeight || body.scrollHeight) - el.clientHeight;
+  if (scrollHeight <= 0) return 100;
+  return Math.min(100, Math.max(0, Math.round((scrollTop / scrollHeight) * 100)));
+}
 
 export function ListingDetail() {
   const { id } = useParams<{ id: string }>();
@@ -113,6 +126,41 @@ export function ListingDetail() {
     }
   }, [id]); // Only depends on id, not user or other state
 
+  useEffect(() => {
+    if (!listing?.id) return;
+    gaListing("listing_view", listing.id, {
+      price: Number(listing.price ?? 0),
+      bedrooms: Number(listing.bedrooms ?? 0),
+      bathrooms: Number(listing.bathrooms ?? 0),
+      neighborhood:
+        listing.neighborhood ?? listing.area ?? listing.location ?? undefined,
+      is_featured: !!(listing.is_featured ?? listing.featured),
+    });
+  }, [listing?.id]);
+
+  useEffect(() => {
+    if (!listing?.id) return;
+    const fired = new Set<number>();
+
+    const onScroll = () => {
+      const pct = getScrollPercent();
+      for (const t of SCROLL_THRESHOLDS) {
+        if (pct >= t && !fired.has(t)) {
+          fired.add(t);
+          gaListing("listing_scroll", listing.id, { depth: t });
+        }
+      }
+      if (fired.size === SCROLL_THRESHOLDS.length) {
+        window.removeEventListener("scroll", onScroll);
+      }
+    };
+
+    window.addEventListener("scroll", onScroll, { passive: true });
+    // Fire once in case the page opens deep
+    onScroll();
+    return () => window.removeEventListener("scroll", onScroll);
+  }, [listing?.id]);
+
   const loadListing = async () => {
     if (!id) return;
 
@@ -147,10 +195,18 @@ export function ListingDetail() {
         await listingsService.addToFavorites(user.id, listing.id);
       }
 
+      const nextIsFav = !listing.is_favorited;
+
       // Update local state immediately for better UX
       setListing((prev) =>
-        prev ? { ...prev, is_favorited: !prev.is_favorited } : null,
+        prev ? { ...prev, is_favorited: nextIsFav } : null,
       );
+
+      if (nextIsFav) {
+        gaListing("listing_favorite", listing.id);
+      } else {
+        gaListing("listing_unfavorite", listing.id);
+      }
     } catch (error) {
       console.error("Error toggling favorite:", error);
       alert("Failed to update favorite. Please try again.");
@@ -160,6 +216,16 @@ export function ListingDetail() {
         prev ? { ...prev, is_favorited: !prev.is_favorited } : null,
       );
     }
+  };
+
+  const handleCallClick = () => {
+    if (!listing?.id) return;
+    gaListing("listing_contact_click", listing.id, { contact_method: "phone" });
+  };
+
+  const handleMessageClick = () => {
+    if (!listing?.id) return;
+    gaListing("listing_contact_click", listing.id, { contact_method: "sms" });
   };
 
   if (loading || authLoading) {
@@ -397,6 +463,7 @@ export function ListingDetail() {
                   <a
                     href={`tel:${listing.contact_phone}`}
                     className="text-[#273140] hover:text-[#1e252f] font-medium transition-colors"
+                    onClick={handleCallClick}
                   >
                     {formatPhoneNumber(listing.contact_phone)}
                   </a>
@@ -407,6 +474,7 @@ export function ListingDetail() {
                 <a
                   href={`tel:${listing.contact_phone}`}
                   className="w-full bg-[#273140] text-white py-3 px-4 rounded-md font-semibold hover:bg-[#1e252f] transition-colors flex items-center justify-center"
+                  onClick={handleCallClick}
                 >
                   <Phone className="w-5 h-5 mr-2" />
                   Call Now
@@ -415,6 +483,7 @@ export function ListingDetail() {
                 <a
                   href={`sms:${listing.contact_phone.replace(/\D/g, "")}?body=Hi, I'm interested in your listing: ${listing.title}`}
                   className="w-full bg-accent-500 text-white py-3 px-4 rounded-md font-semibold hover:bg-accent-600 transition-colors flex items-center justify-center"
+                  onClick={handleMessageClick}
                 >
                   Send Message
                 </a>

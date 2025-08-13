@@ -5,12 +5,15 @@ import { Listing } from "../../config/supabase";
 import { listingsService } from "../../services/listings";
 import { useAuth } from "../../hooks/useAuth";
 import { capitalizeName } from "../../utils/formatters";
+import { gaEvent, gaListing } from "@/lib/ga";
+void gaEvent;
 
 interface ListingCardProps {
   listing: Listing;
   isFavorited?: boolean;
   onFavoriteChange?: () => void;
   showFeaturedBadge?: boolean;
+  onClick?: () => void;
 }
 
 export function ListingCard({
@@ -18,6 +21,7 @@ export function ListingCard({
   isFavorited = false,
   onFavoriteChange,
   showFeaturedBadge = true,
+  onClick,
 }: ListingCardProps) {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -41,6 +45,13 @@ export function ListingCard({
       } else {
         await listingsService.addToFavorites(user.id, listing.id);
         console.log("✅ Added to favorites:", listing.id);
+      }
+
+      const nextIsFav = !isFavorited;
+      if (nextIsFav) {
+        gaListing("listing_favorite", listing.id);
+      } else {
+        gaListing("listing_unfavorite", listing.id);
       }
 
       // Trigger refresh of listings to update UI
@@ -76,6 +87,7 @@ export function ListingCard({
     <Link
       to={`/listing/${listing.id}`}
       className="group block bg-white border border-gray-200 rounded-lg shadow-sm hover:shadow transition overflow-hidden"
+      onClick={onClick}
     >
       <div className="relative aspect-[3/2]">
         {featuredImage ? (
