@@ -22,6 +22,18 @@ import { listingsService } from "../services/listings";
 import { useAuth } from "../hooks/useAuth";
 import { SimilarListings } from "../components/listings/SimilarListings";
 import ImageCarousel from "@/components/listing/ImageCarousel";
+import { gaEvent, gaListing } from "@/lib/ga";
+
+const SCROLL_THRESHOLDS = [25, 50, 75, 100] as const;
+
+function getScrollPercent(): number {
+  const el = document.documentElement;
+  const body = document.body;
+  const scrollTop = el.scrollTop || body.scrollTop;
+  const scrollHeight = (el.scrollHeight || body.scrollHeight) - el.clientHeight;
+  if (scrollHeight <= 0) return 100;
+  return Math.min(100, Math.max(0, Math.round((scrollTop / scrollHeight) * 100)));
+}
 
 export function ListingDetail() {
   const { id } = useParams<{ id: string }>();
@@ -112,6 +124,41 @@ export function ListingDetail() {
       incrementView();
     }
   }, [id]); // Only depends on id, not user or other state
+
+  useEffect(() => {
+    if (!listing?.id) return;
+    gaListing("listing_view", listing.id, {
+      price: Number(listing.price ?? 0),
+      bedrooms: Number(listing.bedrooms ?? 0),
+      bathrooms: Number(listing.bathrooms ?? 0),
+      neighborhood:
+        listing.neighborhood ?? listing.area ?? listing.location ?? undefined,
+      is_featured: !!(listing.is_featured ?? listing.featured),
+    });
+  }, [listing?.id]);
+
+  useEffect(() => {
+    if (!listing?.id) return;
+    const fired = new Set<number>();
+
+    const onScroll = () => {
+      const pct = getScrollPercent();
+      for (const t of SCROLL_THRESHOLDS) {
+        if (pct >= t && !fired.has(t)) {
+          fired.add(t);
+          gaListing("listing_scroll", listing.id, { depth: t });
+        }
+      }
+      if (fired.size === SCROLL_THRESHOLDS.length) {
+        window.removeEventListener("scroll", onScroll);
+      }
+    };
+
+    window.addEventListener("scroll", onScroll, { passive: true });
+    // Fire once in case the page opens deep
+    onScroll();
+    return () => window.removeEventListener("scroll", onScroll);
+  }, [listing?.id]);
 
   const loadListing = async () => {
     if (!id) return;
