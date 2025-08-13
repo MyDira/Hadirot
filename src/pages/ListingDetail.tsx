@@ -242,6 +242,7 @@ export function ListingDetail() {
           <div className="relative">
             <ImageCarousel
               images={images.map((img) => ({ url: img.image_url, alt: listing.title }))}
+              className="mb-0"
             />
             <button
               onClick={handleFavoriteToggle}
@@ -256,20 +257,31 @@ export function ListingDetail() {
               />
             </button>
           </div>
+
+          {listing.description && (
+            <section id="ld-description" className="mt-0 pt-0">
+              <h2 className="text-2xl font-bold text-[#273140] mb-4">
+                Description
+              </h2>
+              <p className="text-gray-700 leading-relaxed whitespace-pre-wrap">
+                {listing.description}
+              </p>
+            </section>
+          )}
         </div>
 
         {/* RIGHT: Info stack */}
-        <div className="lg:col-span-5 flex flex-col gap-4">
+        <div className="lg:col-span-5 flex flex-col gap-3 text-[0.95rem] md:text-[0.985rem] leading-relaxed">
           {/* Title */}
           <section id="ld-title">
-            <h1 className="text-3xl font-bold text-[#273140] mb-2">
+            <h1 className="text-2xl md:text-[1.65rem] font-semibold text-[#273140] mb-2">
               {listing.title}
             </h1>
           </section>
 
           {/* Location + Tag */}
           <section id="ld-location-and-tag">
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex items-center gap-2">
               <div className="flex items-center text-gray-600">
                 <MapPin className="w-5 h-5 mr-2" />
                 <span className="text-lg">
@@ -283,11 +295,13 @@ export function ListingDetail() {
                   Featured
                 </span>
               )}
-              <span className="bg-[#667B9A] text-white px-3 py-1 rounded-full text-sm font-medium">
-                {listing.owner?.role === "agent" && listing.owner?.agency
-                  ? listing.owner.agency
-                  : getRoleLabel()}
-              </span>
+              <div className="ml-auto">
+                <span className="bg-[#667B9A] text-white px-3 py-1 rounded-full text-sm font-medium">
+                  {listing.owner?.role === "agent" && listing.owner?.agency
+                    ? listing.owner.agency
+                    : getRoleLabel()}
+                </span>
+              </div>
             </div>
           </section>
 
@@ -342,7 +356,7 @@ export function ListingDetail() {
           </section>
 
           {/* Contact Information card */}
-          <section id="ld-contact-card">
+          <section id="ld-contact-card" className="text-base">
             <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-6 sticky top-8">
               <h3 className="text-xl font-bold text-[#273140] mb-4">
                 Contact Information
@@ -457,19 +471,6 @@ export function ListingDetail() {
           </section>
         </div>
 
-        {/* DESCRIPTION */}
-        <div className="lg:col-span-7 lg:col-start-1">
-          {listing.description && (
-            <section id="ld-description" className="mt-2">
-              <h2 className="text-2xl font-bold text-[#273140] mb-4">
-                Description
-              </h2>
-              <p className="text-gray-700 leading-relaxed whitespace-pre-wrap">
-                {listing.description}
-              </p>
-            </section>
-          )}
-        </div>
       </div>
 
       {/* Similar Listings */}

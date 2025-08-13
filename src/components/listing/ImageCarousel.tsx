@@ -5,7 +5,6 @@ function clsx(...classes: (string | false | null | undefined)[]) {
   return classes.filter(Boolean).join(" ");
 }
 
-
 type ImageCarouselProps = {
   images: { url: string; alt?: string }[];
   className?: string;
@@ -35,7 +34,12 @@ export default function ImageCarousel({ images, className }: ImageCarouselProps)
 
   if (!safeImages.length) {
     return (
-      <div className={clsx("relative w-full bg-neutral-100 rounded-xl aspect-[4/3] flex items-center justify-center", className)}>
+      <div
+        className={clsx(
+          "relative w-full bg-neutral-100 rounded-xl aspect-[4/3] flex items-center justify-center",
+          className
+        )}
+      >
         <span className="text-sm text-neutral-500">No images available</span>
       </div>
     );
@@ -45,30 +49,32 @@ export default function ImageCarousel({ images, className }: ImageCarouselProps)
 
   return (
     <div className={clsx("relative w-full rounded-xl overflow-hidden", className)}>
+      {/* Stage */}
       <div className="relative w-full bg-neutral-100 aspect-[4/3] flex items-center justify-center">
-        {/* Navigation */}
+        {/* Left arrow */}
         {safeImages.length > 1 && (
           <>
             <button
               type="button"
               aria-label="Previous image"
               onClick={prev}
-              className="absolute inset-y-0 left-2 my-auto rounded-full p-2 bg-black/40 hover:bg-black/60 text-white"
+              className="absolute top-1/2 -translate-y-1/2 left-2 w-9 h-9 rounded-full flex items-center justify-center bg-black/40 hover:bg-black/60 text-white focus:outline-none focus:ring focus:ring-white/40"
             >
               <ChevronLeft className="w-5 h-5" />
             </button>
+            {/* Right arrow */}
             <button
               type="button"
               aria-label="Next image"
               onClick={next}
-              className="absolute inset-y-0 right-2 my-auto rounded-full p-2 bg-black/40 hover:bg-black/60 text-white"
+              className="absolute top-1/2 -translate-y-1/2 right-2 w-9 h-9 rounded-full flex items-center justify-center bg-black/40 hover:bg-black/60 text-white focus:outline-none focus:ring focus:ring-white/40"
             >
               <ChevronRight className="w-5 h-5" />
             </button>
           </>
         )}
 
-        {/* Image */}
+        {/* Main image (no cropping) */}
         <img
           src={img.url}
           alt={img.alt ?? "Listing image"}
@@ -77,19 +83,26 @@ export default function ImageCarousel({ images, className }: ImageCarouselProps)
         />
       </div>
 
-      {/* Dots */}
+      {/* Thumbnail strip */}
       {safeImages.length > 1 && (
-        <div className="flex items-center justify-center gap-2 py-3">
-          {safeImages.map((_, i) => (
+        <div className="flex items-center justify-center gap-2 py-3 px-2 overflow-x-auto">
+          {safeImages.map((thumb, i) => (
             <button
               key={i}
               aria-label={`Go to image ${i + 1}`}
               onClick={() => setCurrent(i)}
               className={clsx(
-                "h-2.5 rounded-full transition-all",
-                i === current ? "w-6 bg-neutral-800" : "w-2.5 bg-neutral-300 hover:bg-neutral-400"
+                "relative flex-shrink-0 w-16 h-16 rounded-md border-2 transition-all",
+                i === current ? "border-neutral-800" : "border-neutral-300 hover:border-neutral-400"
               )}
-            />
+            >
+              <img
+                src={thumb.url}
+                alt={thumb.alt ?? `Thumbnail ${i + 1}`}
+                className="w-full h-full object-cover rounded-[6px]"
+                draggable={false}
+              />
+            </button>
           ))}
         </div>
       )}
