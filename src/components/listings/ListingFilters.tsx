@@ -321,7 +321,7 @@ export function ListingFilters({
         </div>
 
         {/* Parking Included & No Fee */}
-        <div className="flex flex-col space-y-2">
+        <div className="flex flex-col space-y-2 justify-end">
           <label className="flex items-start gap-2">
             <input
               type="checkbox"
