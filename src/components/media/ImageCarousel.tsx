@@ -98,7 +98,7 @@ export function ImageCarousel({
   return (
     <div
       className={cn(
-        "grid grid-rows-[auto_auto] lg:grid-rows-1 lg:grid-cols-[1fr_120px] gap-3",
+        "flex flex-col gap-3",
         className,
       )}
     >
@@ -107,7 +107,7 @@ export function ImageCarousel({
         aria-label="Listing images"
         tabIndex={0}
         className={cn(
-          "relative w-full overflow-hidden rounded-xl bg-neutral-900",
+          "relative w-full overflow-hidden rounded-xl bg-white",
           heightClass,
         )}
         onKeyDown={handleKey}
@@ -180,7 +180,7 @@ export function ImageCarousel({
 
       {showThumbnails && images.length > 1 && (
         <div
-          className="mt-2 lg:mt-0 flex lg:flex-col gap-2 overflow-x-auto lg:overflow-y-auto py-1 lg:py-0"
+          className="mt-2 flex gap-2 overflow-x-auto py-1 w-full"
           aria-label="Image thumbnails"
         >
           {images.map((img, i) => {
@@ -192,7 +192,7 @@ export function ImageCarousel({
                 onClick={() => goTo(i)}
                 className={cn(
                   "relative flex-shrink-0 overflow-hidden rounded-md",
-                  "w-24 h-16 lg:w-full lg:h-20",
+                  "w-24 h-16",
                   active ? "ring-2 ring-accent-500" : "ring-1 ring-black/10",
                 )}
                 aria-current={active ? "true" : "false"}
