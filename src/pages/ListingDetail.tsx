@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
-import { Car, Heart, Phone, User, ArrowLeft, Flame, Droplets, WashingMachine, MapPin, Mail, Edit, Trash2, Star, Bed, Bath, Square, BookDashed as Dishwasher, Thermometer, DollarSign, Map } from "lucide-react";
+import { Car, Heart, Phone, User, ArrowLeft, Flame, Droplets, WashingMachine, MapPin, Mail, Edit, Trash2, Star, Bed, Bath, Square, BookDashed as Dishwasher, Thermometer, DollarSign } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
 import { listingsService } from "../services/listings";
 import { SimilarListings } from "../components/listings/SimilarListings";
@@ -364,26 +364,13 @@ export function ListingDetail() {
               <h3 className="font-semibold mb-3">Property Details</h3>
               <div className="grid grid-cols-2 gap-4 text-sm">
                 {listing.square_footage && (
-                  <div className="flex items-center">
-                    <Square className="w-4 h-4 mr-2 text-gray-600" />
-                    {formatSquareFootage(listing.square_footage)} sq ft
-                  </div>
+                  <div>{formatSquareFootage(listing.square_footage)} sq ft</div>
                 )}
                 <div>{getPropertyTypeLabel()}</div>
                 {listing.floor && (
                   <div>{getOrdinalWordText(listing.floor)} Floor</div>
                 )}
                 {listing.lease_length && <div>Lease: {listing.lease_length}</div>}
-                <div className="flex items-center">
-                  <Bed className="w-4 h-4 mr-2 text-gray-600" />
-                  <span className="text-sm text-gray-600">
-                    {listing.bedrooms === 0 ? "Studio" : `${listing.bedrooms}`}
-                  </span>
-                </div>
-                <div className="flex items-center">
-                  <Bath className="w-4 h-4 mr-2 text-gray-600" />
-                  <span className="text-sm text-gray-600">{listing.bathrooms}</span>
-                </div>
               </div>
             </div>
 
@@ -417,7 +404,9 @@ export function ListingDetail() {
                 <div className="flex items-center">
                   <Flame className="w-5 h-5 text-[#273140] mr-3" />
                   <span>
-                    {listing.heat === "included" ? "Heat Included" : "Heat Not Included"}
+                    {listing.heat === "included"
+                      ? "Heat Included"
+                      : "Tenant Pays Heat"}
                   </span>
                 </div>
               </div>
