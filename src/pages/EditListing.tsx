@@ -32,6 +32,7 @@ interface ListingFormData {
   property_type: PropertyType;
   contact_name: string;
   contact_phone: string;
+  broker_fee: boolean;
 }
 
 interface ProcessedImage {
@@ -76,6 +77,7 @@ export function EditListing() {
     property_type: "apartment_house",
     contact_name: "",
     contact_phone: "",
+    broker_fee: false,
   });
 
   useEffect(() => {
@@ -126,6 +128,7 @@ export function EditListing() {
         property_type: data.property_type,
         contact_name: data.contact_name,
         contact_phone: data.contact_phone,
+        broker_fee: data.broker_fee,
       });
       // Check if using custom neighborhood
       const standardNeighborhoods = [
@@ -730,6 +733,24 @@ export function EditListing() {
               <label className="ml-2 text-sm font-medium text-gray-700">
                 Dishwasher
               </label>
+            </div>
+
+            <div>
+              <label className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  name="broker_fee"
+                  checked={formData.broker_fee}
+                  onChange={handleInputChange}
+                  className="h-4 w-4 text-[#273140] focus:ring-[#273140] border-gray-300 rounded"
+                />
+                <span className="text-sm font-medium text-gray-700">
+                  Broker Fee
+                </span>
+              </label>
+              <p className="text-xs text-gray-500">
+                Check this if a broker fee applies.
+              </p>
             </div>
           </div>
         </div>
