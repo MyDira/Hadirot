@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
-import { Car, Heart, Phone, User, ArrowLeft, Flame, Droplets, WashingMachine, MapPin, Mail, Edit, Trash2, Star, Bed, Bath, Square, BookDashed as Dishwasher, Thermometer, DollarSign } from "lucide-react";
+import { Car, Heart, Phone, User, ArrowLeft, Flame, Droplets, WashingMachine, MapPin, Mail, Edit, Trash2, Star, Bed, Bath, Square, BookDashed as Dishwasher, Thermometer, DollarSign, Map } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
 import { listingsService } from "../services/listings";
 import { SimilarListings } from "../components/listings/SimilarListings";
@@ -384,8 +384,9 @@ export function ListingDetail() {
                     <span className="capitalize">
                       {listing.parking.replace("_", " ")}
                     </span>
+                    <Square className="w-4 h-4 mr-2 text-gray-600" />
                   </div>
-                )}
+                      {listing.square_footage.toLocaleString()} sq ft
 
                 {listing.washer_dryer_hookup && (
                   <div className="flex items-center">
@@ -397,6 +398,8 @@ export function ListingDetail() {
                 {listing.dishwasher && (
                   <div className="flex items-center">
                     <Droplets className="w-5 h-5 text-[#273140] mr-3" />
+            </div>
+
                     <span>Dishwasher</span>
                   </div>
                 )}
@@ -405,12 +408,14 @@ export function ListingDetail() {
                   <Flame className="w-5 h-5 text-[#273140] mr-3" />
                   <span>
                     {listing.heat === "included"
-                      ? "Heat Included"
-                      : "Tenant Pays Heat"}
+                  <Bed className="w-4 h-4 mr-2 text-gray-600" />
+                  <span className="text-sm text-gray-600">
+                    {listing.bedrooms === 0 ? "Studio" : `${listing.bedrooms}`}
                   </span>
                 </div>
               </div>
-            </div>
+                  <Bath className="w-4 h-4 mr-2 text-gray-600" />
+                  <span className="text-sm text-gray-600">{listing.bathrooms}</span>
           </aside>
         </div>
 
