@@ -8,6 +8,7 @@ import { draftListingsService, DraftData } from "../services/draftListings";
 import { Modal } from "../components/shared/Modal";
 import { AuthForm } from "../components/auth/AuthForm";
 import { compressImage } from "../utils/imageUtils";
+import { gaEvent } from "@/lib/ga";
 import {
   PropertyType,
   ParkingType,
@@ -41,6 +42,7 @@ export function PostListing() {
   const { user, profile } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const userRole = profile?.role;
   const [loading, setLoading] = useState(false);
   const [tempImages, setTempImages] = useState<TempListingImage[]>([]);
   const [uploadingImages, setUploadingImages] = useState<{
@@ -111,6 +113,11 @@ export function PostListing() {
       }));
     }
   }, [profile]);
+
+  useEffect(() => {
+    if (!userRole) return;
+    gaEvent("post_start", { role: userRole });
+  }, [userRole]);
 
   const loadDraftData = async () => {
     try {
@@ -367,6 +374,7 @@ export function PostListing() {
           : neighborhoodSelectValue;
 
       if (neighborhoodSelectValue === "other" && neighborhood === "") {
+        gaEvent("post_submit", { role: userRole, success: false, validation_errors: 1 });
         alert("Please enter a neighborhood");
         setLoading(false);
         return;
@@ -380,6 +388,11 @@ export function PostListing() {
         is_active: false,
         approved: false,
       } as any);
+
+      gaEvent("post_submit_success", {
+        role: userRole,
+        listing_id: listing.id,
+      });
 
       // Process images: upload local base64 images to draft bucket first, then finalize all images
       if (tempImages.length > 0) {
@@ -454,6 +467,7 @@ export function PostListing() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    gaEvent("post_submit", { role: userRole });
 
     if (!user) {
       setShowAuthModal(true);
