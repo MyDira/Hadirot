@@ -11,7 +11,6 @@ import {
   User,
   Calendar,
   Home as HomeIcon,
-  Square,
   ArrowLeft,
   Flame,
   Droplets,
@@ -22,6 +21,7 @@ import { Listing } from "../config/supabase";
 import { listingsService } from "../services/listings";
 import { useAuth } from "../hooks/useAuth";
 import { SimilarListings } from "../components/listings/SimilarListings";
+import { ImageCarousel } from "../components/media/ImageCarousel";
 
 export function ListingDetail() {
   const { id } = useParams<{ id: string }>();
@@ -30,7 +30,6 @@ export function ListingDetail() {
   const [listing, setListing] = useState<Listing | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const hasViewedRef = React.useRef(false);
 
   const getOrdinalSuffixText = (num: number): string => {
@@ -218,12 +217,14 @@ export function ListingDetail() {
     }
   };
 
-  const images =
-    listing.listing_images?.sort((a, b) => {
-      if (a.is_featured && !b.is_featured) return -1;
-      if (!a.is_featured && b.is_featured) return 1;
-      return a.sort_order - b.sort_order;
-    }) || [];
+  const carouselImages =
+    listing.listing_images
+      ?.sort((a, b) => {
+        if (a.is_featured && !b.is_featured) return -1;
+        if (!a.is_featured && b.is_featured) return 1;
+        return a.sort_order - b.sort_order;
+      })
+      .map((img) => ({ url: img.image_url, alt: listing.title })) || [];
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -235,243 +236,109 @@ export function ListingDetail() {
         <ArrowLeft className="w-4 h-4 mr-2" />
         Back to Browse
       </Link>
-
-      {/* Image Gallery */}
-      {images.length > 0 ? (
-        <div className="mb-8">
-          {/* Main Image Viewer */}
-          <div className="relative mb-4">
-            <img
-              src={images[currentImageIndex].image_url}
-              alt={listing.title}
-              className="w-full h-96 object-contain bg-gray-100 rounded-lg"
+      <section className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+        {/* Left: Media */}
+        <div className="relative">
+          <ImageCarousel
+            images={carouselImages}
+            fit="contain"
+            heightClass="h-[44vh] lg:h-[56vh]"
+            showThumbnails
+          />
+          <button
+            onClick={handleFavoriteToggle}
+            className="absolute top-4 right-4 p-3 bg-white rounded-full shadow-lg hover:shadow-xl transition-shadow z-10"
+          >
+            <Heart
+              className={`w-6 h-6 ${
+                listing.is_favorited
+                  ? "text-red-500 fill-current"
+                  : "text-gray-400 hover:text-red-500"
+              }`}
             />
-
-            <button
-              onClick={handleFavoriteToggle}
-              className="absolute top-4 right-4 p-3 bg-white rounded-full shadow-lg hover:shadow-xl transition-shadow"
-            >
-              <Heart
-                className={`w-6 h-6 ${
-                  listing.is_favorited
-                    ? "text-red-500 fill-current"
-                    : "text-gray-400 hover:text-red-500"
-                }`}
-              />
-            </button>
-
-            {images.length > 1 && (
-              <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex space-x-2">
-                {images.map((_, index) => (
-                  <button
-                    key={index}
-                    onClick={() => setCurrentImageIndex(index)}
-                    className={`w-3 h-3 rounded-full transition-colors ${
-                      index === currentImageIndex
-                        ? "bg-white"
-                        : "bg-white bg-opacity-50"
-                    }`}
-                  />
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Thumbnail Strip */}
-          {images.length > 1 && (
-            <div className="relative">
-              <div className="flex items-center">
-                {/* Left Arrow */}
-                <button
-                  onClick={() => {
-                    const container = document.getElementById(
-                      "thumbnail-container",
-                    );
-                    if (container) {
-                      container.scrollBy({ left: -200, behavior: "smooth" });
-                    }
-                  }}
-                  className="flex-shrink-0 p-2 mr-2 bg-white rounded-full shadow-md hover:shadow-lg transition-shadow z-10"
-                  aria-label="Scroll thumbnails left"
-                >
-                  <svg
-                    className="w-4 h-4 text-gray-600"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M15 19l-7-7 7-7"
-                    />
-                  </svg>
-                </button>
-
-                {/* Scrollable Thumbnail Container */}
-                <div
-                  id="thumbnail-container"
-                  className="flex-1 flex gap-3 overflow-x-auto scrollbar-hide scroll-smooth"
-                  style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
-                >
-                  {images.map((image, index) => (
-                    <button
-                      key={index}
-                      onClick={() => setCurrentImageIndex(index)}
-                      className={`flex-shrink-0 relative rounded-lg overflow-hidden transition-all ${
-                        index === currentImageIndex
-                          ? "ring-2 ring-[#4E4B43] shadow-md"
-                          : "hover:ring-2 hover:ring-gray-300"
-                      }`}
-                    >
-                      <img
-                        src={image.image_url}
-                        alt={`${listing.title} ${index + 1}`}
-                        className="w-20 h-16 object-contain bg-gray-50 rounded-lg"
-                      />
-                      {image.is_featured && (
-                        <div className="absolute top-1 right-1">
-                          <Star className="w-3 h-3 text-[#D29D86] fill-current drop-shadow-sm" />
-                        </div>
-                      )}
-                      {index === currentImageIndex && (
-                        <div className="absolute inset-0 bg-[#4E4B43] bg-opacity-10 rounded-lg"></div>
-                      )}
-                    </button>
-                  ))}
-                </div>
-
-                {/* Right Arrow */}
-                <button
-                  onClick={() => {
-                    const container = document.getElementById(
-                      "thumbnail-container",
-                    );
-                    if (container) {
-                      container.scrollBy({ left: 200, behavior: "smooth" });
-                    }
-                  }}
-                  className="flex-shrink-0 p-2 ml-2 bg-white rounded-full shadow-md hover:shadow-lg transition-shadow z-10"
-                  aria-label="Scroll thumbnails right"
-                >
-                  <svg
-                    className="w-4 h-4 text-gray-600"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M9 5l7 7-7 7"
-                    />
-                  </svg>
-                </button>
-              </div>
-            </div>
-          )}
+          </button>
         </div>
-      ) : (
-        <div className="mb-8">
-          <div className="w-full h-96 bg-brand-50 flex items-center justify-center border border-gray-100 rounded-lg">
-            <svg
-              viewBox="0 0 24 24"
-              className="w-24 h-24 text-brand-700"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.5"
-            >
-              <path d="M3 10.5L12 3l9 7.5v9a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 19.5v-9z" />
-              <path d="M9 21V12h6v9" />
-            </svg>
-            <span className="ml-3 text-brand-700/90 text-sm">
-              No image available
-            </span>
-          </div>
-        </div>
-      )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Main Content */}
-        <div className="lg:col-span-2">
-          {/* Header */}
-          <div className="mb-6">
-            <div className="flex items-start justify-between mb-4">
-              <div>
-                <h1 className="text-3xl font-bold text-[#273140] mb-2">
-                  {listing.title}
-                </h1>
-                <div className="flex items-center text-gray-600 mb-2">
-                  <MapPin className="w-5 h-5 mr-2" />
-                  <span className="text-lg">
-                    {listing.location}
-                    {listing.neighborhood && `, ${listing.neighborhood}`}
-                  </span>
-                </div>
-                <div className="text-3xl font-bold text-[#273140]">
-                  {formatPrice(listing.price)}
-                  <span className="text-lg font-normal text-gray-500">
-                    /month
-                  </span>
-                </div>
+        {/* Right: Key details */}
+        <aside className="flex flex-col gap-4">
+          <div className="flex items-start justify-between">
+            <div>
+              <h1 className="text-3xl font-bold text-[#273140] mb-2">
+                {listing.title}
+              </h1>
+              <div className="flex items-center text-gray-600 mb-2">
+                <MapPin className="w-5 h-5 mr-2" />
+                <span className="text-lg">
+                  {listing.location}
+                  {listing.neighborhood && `, ${listing.neighborhood}`}
+                </span>
               </div>
-
-              <div className="flex flex-wrap gap-2">
-                {listing.is_featured && (
-                  <span className="inline-flex items-center bg-accent-500 text-white text-xs px-2 py-0.5 rounded">
-                    <Star className="w-3 h-3 mr-1" />
-                    Featured
-                  </span>
-                )}
-                <span className="bg-[#667B9A] text-white px-3 py-1 rounded-full text-sm font-medium">
-                  {listing.owner?.role === "agent" && listing.owner?.agency
-                    ? listing.owner.agency
-                    : getRoleLabel()}
+              <div className="text-3xl font-bold text-[#273140]">
+                {formatPrice(listing.price)}
+                <span className="text-lg font-normal text-gray-500">
+                  /month
                 </span>
               </div>
             </div>
 
-            {/* Property Details */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 bg-gray-50 rounded-lg">
-              <div className="flex items-center">
-                <div>
-                  <div className="font-semibold">
-                    {listing.bedrooms === 0 ? "Studio" : listing.bedrooms}
-                  </div>
-                </div>
-                <Bed className="w-5 h-5 text-[#273140] ml-2" />
-              </div>
-
-              <div className="flex items-center">
-                <div>
-                  <div className="font-semibold">{listing.bathrooms}</div>
-                </div>
-                <Bath className="w-5 h-5 text-[#273140] ml-2" />
-              </div>
-
-              {listing.square_footage && (
-                <div className="flex items-center">
-                  <div>
-                    <div className="font-semibold">
-                      {formatSquareFootage(listing.square_footage)} sq ft
-                    </div>
-                  </div>
-                </div>
+            <div className="flex flex-wrap gap-2">
+              {listing.is_featured && (
+                <span className="inline-flex items-center bg-accent-500 text-white text-xs px-2 py-0.5 rounded">
+                  <Star className="w-3 h-3 mr-1" />
+                  Featured
+                </span>
               )}
-
-              <div className="flex items-center">
-                <div>
-                  <div className="font-semibold text-sm">
-                    {getPropertyTypeLabel()}
-                  </div>
-                </div>
-                <HomeIcon className="w-5 h-5 text-[#273140] ml-2" />
-              </div>
+              <span className="bg-[#667B9A] text-white px-3 py-1 rounded-full text-sm font-medium">
+                {listing.owner?.role === "agent" && listing.owner?.agency
+                  ? listing.owner.agency
+                  : getRoleLabel()}
+              </span>
             </div>
           </div>
 
+          {/* Property Details */}
+          <div className="grid grid-cols-2 gap-4 p-4 bg-gray-50 rounded-lg">
+            <div className="flex items-center">
+              <div>
+                <div className="font-semibold">
+                  {listing.bedrooms === 0 ? "Studio" : listing.bedrooms}
+                </div>
+              </div>
+              <Bed className="w-5 h-5 text-[#273140] ml-2" />
+            </div>
+
+            <div className="flex items-center">
+              <div>
+                <div className="font-semibold">{listing.bathrooms}</div>
+              </div>
+              <Bath className="w-5 h-5 text-[#273140] ml-2" />
+            </div>
+
+            {listing.square_footage && (
+              <div className="flex items-center">
+                <div>
+                  <div className="font-semibold">
+                    {formatSquareFootage(listing.square_footage)} sq ft
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div className="flex items-center">
+              <div>
+                <div className="font-semibold text-sm">
+                  {getPropertyTypeLabel()}
+                </div>
+              </div>
+              <HomeIcon className="w-5 h-5 text-[#273140] ml-2" />
+            </div>
+          </div>
+        </aside>
+      </section>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        {/* Main Content */}
+        <div className="lg:col-span-2">
           {/* Description */}
           {listing.description && (
             <div className="mb-8">
