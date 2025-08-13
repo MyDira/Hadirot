@@ -19,6 +19,7 @@ import { Contact } from './pages/Contact';
 import { Privacy } from './pages/Privacy';
 import { Terms } from './pages/Terms';
 import { useAuth } from './hooks/useAuth';
+import GASmokeTest from '@/dev/gaSmokeTest';
 
 function ScrollToTop() {
   const location = useLocation();
@@ -30,11 +31,19 @@ function ScrollToTop() {
   return null;
 }
 
+function ShouldMountSmoke() {
+  const isDev = typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.PROD === false;
+  const params = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+  const flagged = params?.get('ga_test') === '1';
+  return (isDev || flagged) ? <GASmokeTest /> : null;
+}
+
 function App() {
   const { user } = useAuth();
 
   return (
     <Router>
+      <ShouldMountSmoke />
       <ScrollToTop />
       <Routes>
         <Route
@@ -70,3 +79,4 @@ function App() {
 }
 
 export default App;
+
