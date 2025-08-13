@@ -127,7 +127,7 @@ export function ListingCard({
           </span>
         </div>
 
-        {/* Property specs - bedrooms, bathrooms, parking */}
+        {/* Property specs - bedrooms, bathrooms, parking, broker fee */}
         <div className="flex items-center text-gray-600 mb-2">
           <div className="flex items-center mr-3">
             <span className="text-sm mr-1">
@@ -139,7 +139,12 @@ export function ListingCard({
             <span className="text-sm mr-1">{listing.bathrooms}</span>
             <Bath className="w-4 h-4" />
           </div>
-          {hasParking && <span className="text-sm text-gray-600">Parking</span>}
+          {hasParking && (
+            <span className="text-sm text-gray-600 mr-3">Parking</span>
+          )}
+          <span className="px-2 py-0.5 text-xs rounded bg-muted">
+            {listing.broker_fee ? "Broker Fee" : "No Fee"}
+          </span>
         </div>
 
         {/* Location - cross streets */}
