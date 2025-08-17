@@ -4,6 +4,7 @@ import { Layout } from './components/shared/Layout';
 import { Home } from './pages/Home';
 import { BrowseListings } from './pages/BrowseListings';
 import { AuthForm } from './components/auth/AuthForm';
+import PasswordRecoveryGate from './components/auth/PasswordRecoveryGate';
 import { PostListing } from './pages/PostListing';
 import { EditListing } from './pages/EditListing';
 import { ListingDetail } from './pages/ListingDetail';
@@ -67,7 +68,14 @@ function App() {
                 <Route path="/contact" element={<Contact />} />
                 <Route path="/privacy" element={<Privacy />} />
                 <Route path="/terms" element={<Terms />} />
-                <Route path="/auth" element={<AuthForm />} />
+                <Route
+                  path="/auth"
+                  element={
+                    <PasswordRecoveryGate onSuccessPath="/">
+                      <AuthForm />
+                    </PasswordRecoveryGate>
+                  }
+                />
                 <Route path="*" element={<Navigate to="/" replace />} />
               </Routes>
             </Layout>
