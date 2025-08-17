@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@500;600&text=$€£¥0123456789,.%+-–&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -8,6 +10,8 @@
   --bg-soft: #fafafa;
   --bg-card: #ffffff;
   --border-subtle: #e5e7eb;
+  --num-font: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI",
+              Roboto, "Helvetica Neue", Arial, sans-serif;
 }
 
 html,
@@ -36,6 +40,14 @@ h5,
 h6,
 .brand-heading {
   font-family: var(--brand-serif);
+}
+
+.num-font {
+  font-family: var(--num-font);
+  font-variant-numeric: lining-nums tabular-nums;
+  font-feature-settings: "lnum" 1, "tnum" 1; /* extra safety */
+  letter-spacing: 0.01em; /* subtle, improves readability on prices */
+  line-height: 1;         /* tighter baseline for inline icons */
 }
 
 /* Hide scrollbar for thumbnail strip */

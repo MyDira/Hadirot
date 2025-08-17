@@ -395,7 +395,7 @@ export function ListingDetail() {
           {/* Price */}
           <section id="ld-price">
             <div className="text-3xl font-bold text-[#273140]">
-              {formatPrice(listing.price)}
+              <span className="num-font">{formatPrice(listing.price)}</span>
               <span className="text-lg font-normal text-gray-500">
                 /month
               </span>
@@ -405,39 +405,48 @@ export function ListingDetail() {
           {/* Basic info */}
           <section id="ld-basic-info">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 bg-gray-50 rounded-lg">
-              <div className="flex items-center">
+              <div className="flex items-center leading-none">
                 <div>
                   <div className="font-semibold">
-                    {listing.bedrooms === 0 ? "Studio" : listing.bedrooms}
+                    {listing.bedrooms === 0 ? (
+                      "Studio"
+                    ) : (
+                      <span className="num-font">{listing.bedrooms}</span>
+                    )}
                   </div>
                 </div>
-                <Bed className="w-5 h-5 text-[#273140] ml-2" />
+                <Bed className="w-5 h-5 text-[#273140] ml-2 align-middle" />
               </div>
 
-              <div className="flex items-center">
+              <div className="flex items-center leading-none">
                 <div>
-                  <div className="font-semibold">{listing.bathrooms}</div>
+                  <div className="font-semibold">
+                    <span className="num-font">{listing.bathrooms}</span>
+                  </div>
                 </div>
-                <Bath className="w-5 h-5 text-[#273140] ml-2" />
+                <Bath className="w-5 h-5 text-[#273140] ml-2 align-middle" />
               </div>
 
               {listing.square_footage && (
-                <div className="flex items-center">
+                <div className="flex items-center leading-none">
                   <div>
                     <div className="font-semibold">
-                      {formatSquareFootage(listing.square_footage)} sq ft
+                      <span className="num-font">
+                        {formatSquareFootage(listing.square_footage)}
+                      </span>{" "}
+                      sq ft
                     </div>
                   </div>
                 </div>
               )}
 
-              <div className="flex items-center">
+              <div className="flex items-center leading-none">
                 <div>
                   <div className="font-semibold text-sm">
                     {getPropertyTypeLabel()}
                   </div>
                 </div>
-                <HomeIcon className="w-5 h-5 text-[#273140] ml-2" />
+                <HomeIcon className="w-5 h-5 text-[#273140] ml-2 align-middle" />
               </div>
             </div>
           </section>
