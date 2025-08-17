@@ -24,6 +24,7 @@ import { SimilarListings } from "../components/listings/SimilarListings";
 import ImageCarousel from "@/components/listing/ImageCarousel";
 import { gaEvent, gaListing } from "@/lib/ga";
 void gaEvent;
+import NumericText from "@/components/common/NumericText";
 
 const SCROLL_THRESHOLDS = [25, 50, 75, 100] as const;
 
@@ -357,10 +358,10 @@ export function ListingDetail() {
                   {/* EXISTING LOCATION JSX HERE (icons/text unchanged) */}
                   <div className="flex items-center text-gray-600">
                     <MapPin className="w-5 h-5 mr-2" />
-                    <span className="text-lg">
-                      {listing.location}
-                      {listing.neighborhood && `, ${listing.neighborhood}`}
-                    </span>
+                    <NumericText
+                      className="text-lg"
+                      text={`${listing.location}${listing.neighborhood ? `, ${listing.neighborhood}` : ""}`}
+                    />
                   </div>
                 </div>
               </div>
@@ -395,7 +396,7 @@ export function ListingDetail() {
           {/* Price */}
           <section id="ld-price">
             <div className="text-3xl font-bold text-[#273140]">
-              {formatPrice(listing.price)}
+              <span className="num-font">{formatPrice(listing.price)}</span>
               <span className="text-lg font-normal text-gray-500">
                 /month
               </span>
@@ -405,39 +406,48 @@ export function ListingDetail() {
           {/* Basic info */}
           <section id="ld-basic-info">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 bg-gray-50 rounded-lg">
-              <div className="flex items-center">
+              <div className="flex items-center leading-none">
                 <div>
                   <div className="font-semibold">
-                    {listing.bedrooms === 0 ? "Studio" : listing.bedrooms}
+                    {listing.bedrooms === 0 ? (
+                      "Studio"
+                    ) : (
+                      <span className="num-font">{listing.bedrooms}</span>
+                    )}
                   </div>
                 </div>
-                <Bed className="w-5 h-5 text-[#273140] ml-2" />
+                <Bed className="w-5 h-5 text-[#273140] ml-2 align-middle" />
               </div>
 
-              <div className="flex items-center">
+              <div className="flex items-center leading-none">
                 <div>
-                  <div className="font-semibold">{listing.bathrooms}</div>
+                  <div className="font-semibold">
+                    <span className="num-font">{listing.bathrooms}</span>
+                  </div>
                 </div>
-                <Bath className="w-5 h-5 text-[#273140] ml-2" />
+                <Bath className="w-5 h-5 text-[#273140] ml-2 align-middle" />
               </div>
 
               {listing.square_footage && (
-                <div className="flex items-center">
+                <div className="flex items-center leading-none">
                   <div>
                     <div className="font-semibold">
-                      {formatSquareFootage(listing.square_footage)} sq ft
+                      <span className="num-font">
+                        {formatSquareFootage(listing.square_footage)}
+                      </span>{" "}
+                      sq ft
                     </div>
                   </div>
                 </div>
               )}
 
-              <div className="flex items-center">
+              <div className="flex items-center leading-none">
                 <div>
                   <div className="font-semibold text-sm">
                     {getPropertyTypeLabel()}
                   </div>
                 </div>
-                <HomeIcon className="w-5 h-5 text-[#273140] ml-2" />
+                <HomeIcon className="w-5 h-5 text-[#273140] ml-2 align-middle" />
               </div>
             </div>
           </section>

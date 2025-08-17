@@ -7,6 +7,7 @@ import { useAuth } from "../../hooks/useAuth";
 import { capitalizeName } from "../../utils/formatters";
 import { gaEvent, gaListing } from "@/lib/ga";
 void gaEvent;
+import NumericText from "@/components/common/NumericText";
 
 interface ListingCardProps {
   listing: Listing;
@@ -135,25 +136,21 @@ export function ListingCard({
         {/* Price */}
         <div className="mb-2">
           <span className="text-2xl leading-tight font-bold text-brand-900">
-            {formatPrice(listing.price)}
+            <span className="num-font">{formatPrice(listing.price)}</span>
           </span>
         </div>
 
         {/* Property specs - bedrooms, bathrooms, parking, broker fee */}
-        <div className="flex items-center text-gray-600 mb-2">
-          <div className="flex items-center mr-3">
-            <span className="text-sm mr-1">
-              {listing.bedrooms === 0 ? "Studio" : listing.bedrooms}
-            </span>
-            <Bed className="w-4 h-4" />
-          </div>
-          <div className="flex items-center mr-3">
-            <span className="text-sm mr-1">{listing.bathrooms}</span>
-            <Bath className="w-4 h-4" />
-          </div>
-          {hasParking && (
-            <span className="text-sm text-gray-600 mr-3">Parking</span>
+        <div className="inline-flex items-center gap-3 text-gray-600 leading-none mb-2">
+          <Bed className="w-4 h-4 align-middle" />
+          {listing.bedrooms === 0 ? (
+            <span className="text-sm">Studio</span>
+          ) : (
+            <span className="text-sm num-font">{listing.bedrooms}</span>
           )}
+          <Bath className="w-4 h-4 align-middle" />
+          <span className="text-sm num-font">{listing.bathrooms}</span>
+          {hasParking && <span className="text-sm">Parking</span>}
           <span className="px-2 py-0.5 text-xs rounded bg-muted">
             {listing.broker_fee ? "Broker Fee" : "No Fee"}
           </span>
@@ -162,9 +159,10 @@ export function ListingCard({
         {/* Location - cross streets */}
         <div className="flex items-center text-gray-600 mt-2 mb-2">
           <MapPin className="w-4 h-4 mr-2 flex-shrink-0" />
-          <span className="text-sm leading-tight truncate">
-            {listing.location}
-          </span>
+          <NumericText
+            className="text-sm leading-tight truncate flex-1 min-w-0"
+            text={(listing.cross_streets ?? listing.location) || ""}
+          />
         </div>
 
         {/* Poster label and featured */}
