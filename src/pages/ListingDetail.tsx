@@ -24,6 +24,7 @@ import { SimilarListings } from "../components/listings/SimilarListings";
 import ImageCarousel from "@/components/listing/ImageCarousel";
 import { gaEvent, gaListing } from "@/lib/ga";
 void gaEvent;
+import NumericText from "@/components/common/NumericText";
 
 const SCROLL_THRESHOLDS = [25, 50, 75, 100] as const;
 
@@ -357,10 +358,10 @@ export function ListingDetail() {
                   {/* EXISTING LOCATION JSX HERE (icons/text unchanged) */}
                   <div className="flex items-center text-gray-600">
                     <MapPin className="w-5 h-5 mr-2" />
-                    <span className="text-lg">
-                      {listing.location}
-                      {listing.neighborhood && `, ${listing.neighborhood}`}
-                    </span>
+                    <NumericText
+                      className="text-lg"
+                      text={`${listing.location}${listing.neighborhood ? `, ${listing.neighborhood}` : ""}`}
+                    />
                   </div>
                 </div>
               </div>

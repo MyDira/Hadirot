@@ -7,6 +7,7 @@ import { useAuth } from "../../hooks/useAuth";
 import { capitalizeName } from "../../utils/formatters";
 import { gaEvent, gaListing } from "@/lib/ga";
 void gaEvent;
+import NumericText from "@/components/common/NumericText";
 
 interface ListingCardProps {
   listing: Listing;
@@ -158,9 +159,10 @@ export function ListingCard({
         {/* Location - cross streets */}
         <div className="flex items-center text-gray-600 mt-2 mb-2">
           <MapPin className="w-4 h-4 mr-2 flex-shrink-0" />
-          <span className="text-sm leading-tight truncate">
-            {listing.location}
-          </span>
+          <NumericText
+            className="text-sm leading-tight truncate flex-1 min-w-0"
+            text={(listing.cross_streets ?? listing.location) || ""}
+          />
         </div>
 
         {/* Poster label and featured */}
