@@ -24,7 +24,9 @@ export function gaEvent(eventName: string, params: Params = {}): void {
     try {
       gtag("event", eventName, params);
       return;
-    } catch {}
+    } catch (_) {
+      // noop
+    }
   }
   // Fallback: still emit something GTM/GA can pick up later
   pushDataLayer({ event: eventName, ...params });

@@ -101,7 +101,9 @@ Deno.serve(async (req) => {
         const resetEmail = Array.isArray(emailData.to)
           ? emailData.to[0]
           : emailData.to;
-        const redirectUrl = `${Deno.env.get("VITE_SITE_URL") || "http://localhost:5173"}/auth`;
+        const PUBLIC_SITE_URL =
+          Deno.env.get('PUBLIC_SITE_URL') || 'http://localhost:5173';
+        const redirectUrl = `${PUBLIC_SITE_URL.replace(new RegExp('/+$'), '')}/auth`;
 
         console.log("🔗 Generating reset link with params:", {
           email: resetEmail,

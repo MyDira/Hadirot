@@ -49,7 +49,9 @@ Deno.serve(async (req) => {
       },
     });
 
-    const redirectUrl = `${Deno.env.get("VITE_SITE_URL") || "http://localhost:5173"}/auth`;
+    const PUBLIC_SITE_URL =
+      Deno.env.get('PUBLIC_SITE_URL') || 'http://localhost:5173';
+    const redirectUrl = `${PUBLIC_SITE_URL.replace(new RegExp('/+$'), '')}/auth`;
     const email = Array.isArray(to) ? to[0] : to;
 
     const { data, error: linkError } =
