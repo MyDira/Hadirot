@@ -256,8 +256,6 @@ export function ListingDetail() {
 
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: "USD",
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
     }).format(price);
@@ -395,7 +393,8 @@ export function ListingDetail() {
           {/* Price */}
           <section id="ld-price">
             <div className="text-3xl font-bold text-[#273140]">
-              {formatPrice(listing.price)}
+              $
+              <span className="num-clean">{formatPrice(listing.price)}</span>
               <span className="text-lg font-normal text-gray-500">
                 /month
               </span>
@@ -408,7 +407,11 @@ export function ListingDetail() {
               <div className="flex items-center">
                 <div>
                   <div className="font-semibold">
-                    {listing.bedrooms === 0 ? "Studio" : listing.bedrooms}
+                    {listing.bedrooms === 0 ? (
+                      "Studio"
+                    ) : (
+                      <span className="num-clean">{listing.bedrooms}</span>
+                    )}
                   </div>
                 </div>
                 <Bed className="w-5 h-5 text-[#273140] ml-2" />
@@ -416,7 +419,9 @@ export function ListingDetail() {
 
               <div className="flex items-center">
                 <div>
-                  <div className="font-semibold">{listing.bathrooms}</div>
+                  <div className="font-semibold">
+                    <span className="num-clean">{listing.bathrooms}</span>
+                  </div>
                 </div>
                 <Bath className="w-5 h-5 text-[#273140] ml-2" />
               </div>
@@ -425,7 +430,10 @@ export function ListingDetail() {
                 <div className="flex items-center">
                   <div>
                     <div className="font-semibold">
-                      {formatSquareFootage(listing.square_footage)} sq ft
+                      <span className="num-clean">
+                        {formatSquareFootage(listing.square_footage)}
+                      </span>{" "}
+                      sq ft
                     </div>
                   </div>
                 </div>

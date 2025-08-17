@@ -785,7 +785,10 @@ export function AdminPanel() {
                       <div key={listing.id} className="flex items-center justify-between">
                         <div>
                           <p className="font-medium truncate">{listing.title}</p>
-                          <p className="text-sm text-gray-500">${listing.price}/month</p>
+                          <p className="text-sm text-gray-500">
+                            $<span className="num-clean">{listing.price.toLocaleString()}</span>
+                            /month
+                          </p>
                         </div>
                         <span className={`px-2 py-1 text-xs rounded-full ${
                           listing.is_featured ? 'bg-yellow-100 text-yellow-800' : 'bg-gray-100 text-gray-800'
@@ -1350,7 +1353,8 @@ export function AdminPanel() {
                             </div>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                            ${listing.price}/month
+                            $<span className="num-clean">{listing.price.toLocaleString()}</span>
+                            /month
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                             {new Date(listing.created_at).toLocaleDateString()}
@@ -1546,7 +1550,13 @@ export function AdminPanel() {
                                 {listing.title}
                               </div>
                               <div className="text-sm text-gray-500">
-                                {listing.bedrooms === 0 ? 'Studio' : `${listing.bedrooms} bed`}, {listing.bathrooms} bath
+                                {listing.bedrooms === 0 ? (
+                                  'Studio'
+                                ) : (
+                                  <>
+                                    <span className="num-clean">{listing.bedrooms}</span> bed
+                                  </>
+                                )}, <span className="num-clean">{listing.bathrooms}</span> bath
                               </div>
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap">
@@ -1554,7 +1564,7 @@ export function AdminPanel() {
                               <div className="text-sm text-gray-500 capitalize">{listing.owner?.role || 'N/A'}</div>
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                              ${listing.price.toLocaleString()}/month
+                              $<span className="num-clean">{listing.price.toLocaleString()}</span>/month
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                               {new Date(listing.created_at).toLocaleDateString()}

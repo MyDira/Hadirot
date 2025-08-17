@@ -47,3 +47,16 @@ h6,
 .scrollbar-hide::-webkit-scrollbar {
   display: none;
 }
+
+/* -- Numeric utility to force lining + tabular digits (with OpenType fallback) -- */
+.num-clean {
+  font-variant-numeric: lining-nums tabular-nums;
+  /* Fallback for browsers/fonts that ignore font-variant-numeric: */
+  font-feature-settings: "lnum" 1, "tnum" 1;
+}
+
+/* Optional: if the brand serif truly lacks lining figures, uncomment the next line
+   to temporarily switch numerals to the UI sans only for numbers.
+   Keep it commented unless needed after testing.
+*/
+/* .num-clean { font-family: var(--ui-sans, ui-sans-serif, system-ui, -apple-system, "Inter", "Segoe UI"); } */

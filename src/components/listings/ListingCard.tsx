@@ -73,8 +73,6 @@ export function ListingCard({
 
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: "USD",
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
     }).format(price);
@@ -135,20 +133,23 @@ export function ListingCard({
         {/* Price */}
         <div className="mb-2">
           <span className="text-2xl leading-tight font-bold text-brand-900">
-            {formatPrice(listing.price)}
+            $
+            <span className="num-clean">{formatPrice(listing.price)}</span>
           </span>
         </div>
 
         {/* Property specs - bedrooms, bathrooms, parking, broker fee */}
         <div className="flex items-center text-gray-600 mb-2">
           <div className="flex items-center mr-3">
-            <span className="text-sm mr-1">
-              {listing.bedrooms === 0 ? "Studio" : listing.bedrooms}
-            </span>
+            {listing.bedrooms === 0 ? (
+              <span className="text-sm mr-1">Studio</span>
+            ) : (
+              <span className="text-sm mr-1 num-clean">{listing.bedrooms}</span>
+            )}
             <Bed className="w-4 h-4" />
           </div>
           <div className="flex items-center mr-3">
-            <span className="text-sm mr-1">{listing.bathrooms}</span>
+            <span className="text-sm mr-1 num-clean">{listing.bathrooms}</span>
             <Bath className="w-4 h-4" />
           </div>
           {hasParking && (

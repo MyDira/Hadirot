@@ -275,8 +275,6 @@ export default function Dashboard() {
 
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: "USD",
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
     }).format(price);
@@ -444,18 +442,21 @@ export default function Dashboard() {
                                 {listing.title}
                               </Link>
                               <div className="text-sm text-gray-500 truncate">
-                                {listing.bedrooms} bed, {listing.bathrooms} bath
+                                <span className="num-clean">{listing.bedrooms}</span> bed,{' '}
+                                <span className="num-clean">{listing.bathrooms}</span> bath
                               </div>
                             </div>
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {formatPrice(listing.price)}/month
+                          $
+                          <span className="num-clean">{formatPrice(listing.price)}</span>
+                          /month
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-center">
                           <div className="flex items-center text-sm text-gray-900">
                             <Eye className="w-4 h-4 mr-1 text-gray-400" />
-                            {listing.views || 0}
+                            <span className="num-clean">{listing.views || 0}</span>
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
