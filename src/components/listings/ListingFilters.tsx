@@ -1,6 +1,7 @@
 import React from "react";
 import { Filter } from "lucide-react";
 import { listingsService } from "../../services/listings";
+import { trackFilterApply } from "../../lib/analytics";
 
 interface FilterState {
   bedrooms?: number;
@@ -59,10 +60,15 @@ export function ListingFilters({
   }, [showNeighborhoodDropdown]);
 
   const handleFilterChange = (key: keyof FilterState, value: any) => {
-    onFiltersChange({
+    const newFilters = {
       ...filters,
       [key]: value,
-    });
+    };
+    
+    // Track filter application
+    trackFilterApply(newFilters);
+    
+    onFiltersChange(newFilters);
   };
 
   const clearFilters = () => {

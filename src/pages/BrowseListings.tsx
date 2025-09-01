@@ -7,6 +7,8 @@ import { Listing } from "../config/supabase";
 import { listingsService } from "../services/listings";
 import { useAuth } from "../hooks/useAuth";
 import { gaEvent, gaListing } from "@/lib/ga";
+import { trackFilterApply, trackListingImpressionBatch } from "../lib/analytics";
+import { useListingImpressions } from "../hooks/useListingImpressions";
 
 interface FilterState {
   bedrooms?: number;
@@ -35,6 +37,11 @@ export function BrowseListings() {
   const [allNeighborhoods, setAllNeighborhoods] = useState<string[]>([]);
   const [showFiltersMobile, setShowFiltersMobile] = useState(false);
   const { user } = useAuth();
+  
+  // Set up listing impression tracking
+  const { observeElement, unobserveElement } = useListingImpressions({
+    listingIds: displayListings.map(l => l.id),
+  });
 
   const ITEMS_PER_PAGE = 20; // Total listings to display per page
   const NUM_FEATURED_INJECTED_SLOTS = 4;
@@ -339,6 +346,9 @@ export function BrowseListings() {
       no_fee_only: !!newFilters.no_fee_only,
       sort: null,
     });
+    
+    // Track with our analytics system
+    trackFilterApply(newFilters);
 
     // Update URL with new filters
     const params = new URLSearchParams();
@@ -533,7 +543,20 @@ export function BrowseListings() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           {displayListings.map((listing, idx) => (
-            <div key={listing.key}>
+            <div 
+              key={listing.key}
+              ref={(el) => {
+                if (el) {
+                  observeElement(el, listing.id);
+                } else {
+                  // Element is being unmounted
+                  const existingEl = document.querySelector(`[data-listing-id="${listing.id}"]`);
+                  if (existingEl) {
+                    unobserveElement(existingEl);
+                  }
+                }
+              }}
+            >
               <ListingCard
                 listing={listing}
                 isFavorited={userFavorites.includes(listing.id)}

@@ -23,6 +23,7 @@ import { useAuth } from "../hooks/useAuth";
 import { SimilarListings } from "../components/listings/SimilarListings";
 import ImageCarousel from "@/components/listing/ImageCarousel";
 import { gaEvent, gaListing } from "@/lib/ga";
+import { trackListingView } from "../lib/analytics";
 void gaEvent;
 import NumericText from "@/components/common/NumericText";
 
@@ -137,6 +138,9 @@ export function ListingDetail() {
         listing.neighborhood ?? listing.area ?? listing.location ?? undefined,
       is_featured: !!(listing.is_featured ?? listing.featured),
     });
+    
+    // Track with our analytics system
+    trackListingView(listing.id);
   }, [listing?.id]);
 
   useEffect(() => {

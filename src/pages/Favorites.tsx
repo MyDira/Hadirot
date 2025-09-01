@@ -4,11 +4,17 @@ import { ListingCard } from '../components/listings/ListingCard';
 import { Listing } from '../config/supabase';
 import { listingsService } from '../services/listings';
 import { useAuth } from '../hooks/useAuth';
+import { useListingImpressions } from '../hooks/useListingImpressions';
 
 export function Favorites() {
   const { user } = useAuth();
   const [favoriteListings, setFavoriteListings] = useState<Listing[]>([]);
   const [loading, setLoading] = useState(true);
+  
+  // Set up impression tracking for favorite listings
+  const { observeElement, unobserveElement } = useListingImpressions({
+    listingIds: favoriteListings.map(l => l.id),
+  });
 
   useEffect(() => {
     if (user) {
@@ -76,12 +82,20 @@ export function Favorites() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           {favoriteListings.map((listing) => (
-            <ListingCard
+            <div 
               key={listing.id}
-              listing={listing}
-              isFavorited={true}
-              onFavoriteChange={loadFavorites}
-            />
+              ref={(el) => {
+                if (el) {
+                  observeElement(el, listing.id);
+                }
+              }}
+            >
+              <ListingCard
+                listing={listing}
+                isFavorited={true}
+                onFavoriteChange={loadFavorites}
+              />
+            </div>
           ))}
         </div>
       )}

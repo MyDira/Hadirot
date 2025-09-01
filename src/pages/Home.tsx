@@ -12,6 +12,7 @@ import { ListingCard } from "../components/listings/ListingCard";
 import { Listing } from "../config/supabase";
 import { listingsService } from "../services/listings";
 import { useAuth } from "../hooks/useAuth";
+import { useListingImpressions } from "../hooks/useListingImpressions";
 
 export function Home() {
   const [recentListings, setRecentListings] = useState<Listing[]>([]);
@@ -24,6 +25,16 @@ export function Home() {
   const [loadingMore2BR, setLoadingMore2BR] = useState(false);
   const [loadingMore3BR, setLoadingMore3BR] = useState(false);
   const { user } = useAuth();
+  
+  // Set up impression tracking for all listings on home page
+  const allListingIds = [
+    ...recentListings.map(l => l.id),
+    ...twoBedroomListings.map(l => l.id),
+    ...threeBedroomListings.map(l => l.id),
+  ];
+  const { observeElement, unobserveElement } = useListingImpressions({
+    listingIds: allListingIds,
+  });
 
   // Load user favorites on mount and when user changes
   useEffect(() => {
@@ -197,7 +208,15 @@ export function Home() {
             <div className="overflow-x-auto">
               <div className="flex gap-6 pb-4" style={{ width: "max-content" }}>
                 {recentListings.map((listing) => (
-                  <div key={listing.id} className="flex-shrink-0 w-80">
+                  <div 
+                    key={listing.id} 
+                    className="flex-shrink-0 w-80"
+                    ref={(el) => {
+                      if (el) {
+                        observeElement(el, listing.id);
+                      }
+                    }}
+                  >
                     <ListingCard
                       listing={listing}
                       isFavorited={userFavorites.includes(listing.id)}
@@ -249,7 +268,15 @@ export function Home() {
                   style={{ width: "max-content" }}
                 >
                   {twoBedroomListings.map((listing) => (
-                    <div key={listing.id} className="flex-shrink-0 w-80">
+                    <div 
+                      key={listing.id} 
+                      className="flex-shrink-0 w-80"
+                      ref={(el) => {
+                        if (el) {
+                          observeElement(el, listing.id);
+                        }
+                      }}
+                    >
                       <ListingCard
                         listing={listing}
                         isFavorited={userFavorites.includes(listing.id)}
@@ -318,7 +345,15 @@ export function Home() {
                   style={{ width: "max-content" }}
                 >
                   {threeBedroomListings.map((listing) => (
-                    <div key={listing.id} className="flex-shrink-0 w-80">
+                    <div 
+                      key={listing.id} 
+                      className="flex-shrink-0 w-80"
+                      ref={(el) => {
+                        if (el) {
+                          observeElement(el, listing.id);
+                        }
+                      }}
+                    >
                       <ListingCard
                         listing={listing}
                         isFavorited={userFavorites.includes(listing.id)}

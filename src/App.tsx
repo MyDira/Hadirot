@@ -20,6 +20,8 @@ import { Contact } from './pages/Contact';
 import { Privacy } from './pages/Privacy';
 import { Terms } from './pages/Terms';
 import { useAuth } from './hooks/useAuth';
+import { usePageTracking } from './hooks/usePageTracking';
+import { useAnalyticsAuth } from './lib/analytics';
 import GASmokeTest from '@/dev/gaSmokeTest';
 
 function ScrollToTop() {
@@ -41,6 +43,10 @@ function ShouldMountSmoke() {
 
 function App() {
   const { user } = useAuth();
+  
+  // Initialize analytics tracking
+  usePageTracking();
+  useAnalyticsAuth();
 
   return (
     <Router>

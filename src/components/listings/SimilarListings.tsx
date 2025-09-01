@@ -4,6 +4,7 @@ import { ListingCard } from './ListingCard';
 import { Listing } from '../../config/supabase';
 import { listingsService } from '../../services/listings';
 import { useAuth } from '../../hooks/useAuth';
+import { useListingImpressions } from '../../hooks/useListingImpressions';
 
 interface SimilarListingsProps {
   listing: Listing;
@@ -49,6 +50,11 @@ export function SimilarListings({ listing }: SimilarListingsProps) {
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const carouselRef = React.useRef<HTMLDivElement>(null);
+  
+  // Set up impression tracking for similar listings
+  const { observeElement, unobserveElement } = useListingImpressions({
+    listingIds: similarListings.map(l => l.id),
+  });
 
   // Calculate slides from similarListings - must be before any code that uses slides
   const slides = useMemo(() => chunk(similarListings, CARDS_PER_SLIDE), [similarListings]);
@@ -270,6 +276,11 @@ export function SimilarListings({ listing }: SimilarListingsProps) {
                 <div 
                   key={similarListing.id} 
                   className="flex-shrink-0 w-full px-2"
+                  ref={(el) => {
+                    if (el) {
+                      observeElement(el, similarListing.id);
+                    }
+                  }}
                 >
                   <ListingCard
                     listing={similarListing}
@@ -308,6 +319,11 @@ export function SimilarListings({ listing }: SimilarListingsProps) {
                     <div 
                       key={similarListing.id} 
                       className="flex-shrink-0 w-full sm:w-[calc((100%-theme(spacing.6)*1)/2)] md:w-[calc((100%-theme(spacing.6)*2)/3)] lg:w-[calc((100%-theme(spacing.6)*3)/4)]"
+                      ref={(el) => {
+                        if (el) {
+                          observeElement(el, similarListing.id);
+                        }
+                      }}
                     >
                       <ListingCard
                         listing={similarListing}

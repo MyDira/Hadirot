@@ -9,6 +9,7 @@ import { Modal } from "../components/shared/Modal";
 import { AuthForm } from "../components/auth/AuthForm";
 import { compressImage } from "../utils/imageUtils";
 import { gaEvent } from "@/lib/ga";
+import { trackPostStart, trackPostSubmit, trackPostSuccess, trackPostAbandoned, resetPostingState } from "../lib/analytics";
 import {
   PropertyType,
   ParkingType,
@@ -92,6 +93,11 @@ export function PostListing() {
     // Don't save if form is mostly empty
     if (!formData.title.trim() && !formData.location.trim()) {
       return;
+    }
+
+    // Track post start on first meaningful interaction
+    if ((formData.title.trim() || formData.location.trim()) && userRole) {
+      trackPostStart();
     }
 
     const timeoutId = setTimeout(() => {
@@ -393,6 +399,9 @@ export function PostListing() {
         role: userRole,
         listing_id: listing.id,
       });
+      
+      // Track successful submission
+      trackPostSuccess(listing.id);
 
       // Process images: upload local base64 images to draft bucket first, then finalize all images
       if (tempImages.length > 0) {
@@ -406,6 +415,7 @@ export function PostListing() {
       // Delete the draft since we've successfully created the listing
       try {
         await draftListingsService.deleteDraft(user.id);
+        resetPostingState(); // Clear posting state after success
         console.log("✅ Draft deleted after successful listing creation");
       } catch (draftError) {
         console.error(
@@ -468,6 +478,9 @@ export function PostListing() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     gaEvent("post_submit", { role: userRole });
+    
+    // Track submit attempt
+    trackPostSubmit();
 
     if (!user) {
       setShowAuthModal(true);
