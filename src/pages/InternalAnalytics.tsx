@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { 
-  BarChart3, 
-  Users, 
-  Eye, 
-  TrendingUp, 
+import {
+  BarChart3,
+  Users,
+  Eye,
+  TrendingUp,
   Clock,
   FileText,
   Filter,
@@ -78,15 +78,20 @@ export function InternalAnalytics() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Redirect non-admin users
+  // Redirect non-admin users after auth resolves
   useEffect(() => {
-    if (!authLoading && (!user || !profile?.is_admin)) {
+    if (!authLoading && (!user || !profile || profile.is_admin !== true)) {
+      console.log('[InternalAnalytics access]', {
+        userId: user?.id,
+        isAdmin: profile?.is_admin,
+        authLoading,
+      });
       navigate('/');
     }
   }, [user, profile, authLoading, navigate]);
 
   useEffect(() => {
-    if (user && profile?.is_admin) {
+    if (user && profile?.is_admin === true) {
       loadAnalyticsData();
     }
   }, [user, profile]);
@@ -139,17 +144,10 @@ export function InternalAnalytics() {
   };
 
   if (authLoading) {
-    return (
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#273140] mx-auto"></div>
-          <p className="text-gray-600 mt-4">Loading...</p>
-        </div>
-      </div>
-    );
+    return <div className="p-4 text-center text-sm text-gray-500">Checking access...</div>;
   }
 
-  if (!user || !profile?.is_admin) {
+  if (!user || !profile || profile.is_admin !== true) {
     return null; // Will redirect via useEffect
   }
 

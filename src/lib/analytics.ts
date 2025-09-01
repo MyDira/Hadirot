@@ -16,6 +16,7 @@ class AnalyticsTracker {
   private impressionCache = new Map<string, number>();
   private readonly IMPRESSION_THROTTLE_MS = 4000; // 4 seconds
   private utmSentFallback = new Map<string, boolean>();
+  private missingAnonKeyWarned = false;
 
   private getSessionData(): SessionData {
     if (this.sessionData) {
@@ -116,15 +117,27 @@ class AnalyticsTracker {
         }
       }
 
+      const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
+      if (!anonKey && !this.missingAnonKeyWarned) {
+        console.warn('VITE_SUPABASE_ANON_KEY is missing');
+        this.missingAnonKeyWarned = true;
+      }
+
       // Send to Edge Function
       const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/track`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${anonKey}`,
         },
         body: JSON.stringify(eventData),
         keepalive: true, // Ensure events send even during page unload
       });
+
+      if (response.status === 401) {
+        console.debug('analytics track 401; likely missing anon key or function policy');
+        return;
+      }
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
