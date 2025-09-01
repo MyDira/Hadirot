@@ -65,6 +65,7 @@ function App() {
                 <Route path="/admin/featured-settings" element={<FeaturedSettingsAdmin />} />
                 <Route path="/dashboard" element={<Dashboard />} />
                 <Route path="/account-settings" element={<AccountSettings />} />
+               <Route path="/internal-analytics" element={<InternalAnalytics />} />
                 <Route path="/internal-analytics" element={<InternalAnalytics />} />
                 <Route path="/about" element={<About />} />
                 <Route path="/contact" element={<Contact />} />
