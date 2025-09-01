@@ -3,7 +3,7 @@ import { Heart } from 'lucide-react';
 import { ListingCard } from '../components/listings/ListingCard';
 import { Listing } from '../config/supabase';
 import { listingsService } from '../services/listings';
-import { useAuth } from '../hooks/useAuth';
+import { useAuth } from '@/hooks/useAuth';
 import { useListingImpressions } from '../hooks/useListingImpressions';
 
 export function Favorites() {

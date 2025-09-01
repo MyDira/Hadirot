@@ -1,5 +1,5 @@
 import React from 'react';
-import { useAuth } from '../hooks/useAuth';
+import { useAuth } from '@/hooks/useAuth';
 
 // assumes you already have VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY set
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;

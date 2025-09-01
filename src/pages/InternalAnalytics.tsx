@@ -10,7 +10,7 @@ import {
   Filter,
   ArrowLeft
 } from 'lucide-react';
-import { useAuth } from '@/hooks/useAuth';
+import { useAuth, AUTH_CONTEXT_ID } from '@/hooks/useAuth';
 import { supabase } from '../config/supabase';
 
 interface AnalyticsSummary {
@@ -70,30 +70,41 @@ function Sparkline({ data, className = '' }: { data: number[]; className?: strin
 }
 
 export function InternalAnalytics() {
-  const { user, profile, loading: authLoading } = useAuth();
   const navigate = useNavigate();
+  const { user, profile, loading, authContextId } = useAuth();
   const isAdmin = profile?.is_admin === true;
   const [summary, setSummary] = useState<AnalyticsSummary | null>(null);
   const [topListings, setTopListings] = useState<TopListing[]>([]);
   const [topFilters, setTopFilters] = useState<TopFilter[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [dataLoading, setDataLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Log auth state changes
   useEffect(() => {
-    console.log('[InternalAnalytics access]', {
-      loading: authLoading,
-      profilePresent: !!profile,
+    const payload = {
+      loading,
+      userPresent: !!user,
+      profilePresent: profile !== undefined,
       isAdmin,
-    });
-  }, [authLoading, profile, isAdmin]);
+      authContextId,
+    };
+    if (authContextId !== AUTH_CONTEXT_ID) {
+      console.warn('[InternalAnalytics access] auth context mismatch', payload);
+    } else {
+      console.log('[InternalAnalytics access]', payload);
+    }
+    if (!loading && profile === undefined) {
+      console.warn(
+        '[InternalAnalytics] profile undefined after loading; route outside provider or duplicate hook import.',
+      );
+    }
+  }, [loading, user, profile, isAdmin, authContextId]);
 
-  // Redirect non-admin users after auth resolves
   useEffect(() => {
-    if (!authLoading && (!user || !profile || !isAdmin)) {
+    if (loading || (user && profile === undefined)) return;
+    if (!user || !profile || !isAdmin) {
       navigate('/', { replace: true });
     }
-  }, [authLoading, user, profile, isAdmin, navigate]);
+  }, [loading, user, profile, isAdmin, navigate]);
 
   useEffect(() => {
     if (user && isAdmin) {
@@ -103,7 +114,7 @@ export function InternalAnalytics() {
 
   const loadAnalyticsData = async () => {
     try {
-      setLoading(true);
+      setDataLoading(true);
       setError(null);
 
       // Load summary data
@@ -144,11 +155,11 @@ export function InternalAnalytics() {
       console.error('Error loading analytics data:', error);
       setError('Failed to load analytics data. Please try again.');
     } finally {
-      setLoading(false);
+      setDataLoading(false);
     }
   };
 
-  if (authLoading) {
+  if (loading || (user && profile === undefined)) {
     return <div className="p-4 text-center text-sm text-gray-500">Checking access...</div>;
   }
 
@@ -156,7 +167,7 @@ export function InternalAnalytics() {
     return null; // Will redirect via useEffect
   }
 
-  if (loading) {
+  if (dataLoading) {
     return (
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="mb-8">

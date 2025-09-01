@@ -1,21 +1,46 @@
-import { useState, useEffect } from "react";
+import React, { createContext, useContext, useEffect, useState } from "react";
 import { User } from "@supabase/supabase-js";
 import { supabase, Profile } from "../config/supabase";
 import { emailService } from "../services/email";
 
-export function useAuth() {
+export const AUTH_CONTEXT_ID = "auth/v1";
+
+interface AuthContextValue {
+  user: User | null;
+  session: any;
+  profile: Profile | null | undefined;
+  loading: boolean;
+  refreshProfile: () => Promise<void>;
+  signUp: (
+    email: string,
+    password: string,
+    profileData: {
+      full_name: string;
+      role: string;
+      phone?: string;
+      agency?: string;
+    },
+  ) => Promise<any>;
+  signIn: (email: string, password: string) => Promise<any>;
+  signOut: () => Promise<void>;
+  authContextId: string;
+}
+
+const AuthContext = createContext<AuthContextValue | undefined>(undefined);
+
+export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<any>(null);
-  const [profile, setProfile] = useState<Profile | null>(null);
+  const [profile, setProfile] = useState<Profile | null | undefined>(undefined);
   const [loading, setLoading] = useState(true);
 
   const refreshProfile = async () => {
     if (!session?.user) {
+      setProfile(null);
       setLoading(false);
       return;
     }
 
-    console.log("🔍 refreshProfile running for:", session.user.id);
     try {
       const { data, error } = await supabase
         .from("profiles")
@@ -27,15 +52,15 @@ export function useAuth() {
 
       if (error) {
         console.error("❌ Error fetching profile:", error);
+        setProfile(null);
       } else {
         setProfile(data);
-        console.log("✅ Profile refreshed in useAuth:", data);
       }
     } catch (err) {
       console.error("⚠️ refreshProfile error:", err);
+      setProfile(null);
     } finally {
       setLoading(false);
-      console.log("🎯 setLoading(false) called");
     }
   };
 
@@ -43,7 +68,6 @@ export function useAuth() {
     refreshProfile();
   }, [session]);
 
-  // Also add this timeout fallback as a safeguard
   useEffect(() => {
     const timeout = setTimeout(() => {
       if (loading) {
@@ -57,27 +81,27 @@ export function useAuth() {
   useEffect(() => {
     let isMounted = true;
 
-    // Get initial session with error handling for invalid refresh tokens
     const initializeSession = async () => {
       try {
-        const { data: { session }, error } = await supabase.auth.getSession();
-        
+        const {
+          data: { session },
+          error,
+        } = await supabase.auth.getSession();
+
         if (error) {
           console.error("Session initialization error:", error);
-          // If it's a refresh token error, clear the session
-          if (error.message?.includes('Invalid Refresh Token')) {
+          if (error.message?.includes("Invalid Refresh Token")) {
             await supabase.auth.signOut();
             return;
           }
         }
-        
+
         if (isMounted) {
           setSession(session);
           setUser(session?.user ?? null);
         }
       } catch (err) {
         console.error("Failed to initialize session:", err);
-        // Clear any invalid session state
         if (isMounted) {
           await supabase.auth.signOut();
         }
@@ -86,7 +110,6 @@ export function useAuth() {
 
     initializeSession();
 
-    // Listen for auth changes
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
@@ -128,7 +151,6 @@ export function useAuth() {
 
       if (profileError) throw profileError;
 
-      // Immediately set the profile state with the new profile data
       setProfile({
         id: data.user.id,
         email: email,
@@ -166,8 +188,8 @@ export function useAuth() {
     if (error) throw error;
   };
 
-  return {
-    user: session?.user,
+  const value: AuthContextValue = {
+    user: session?.user ?? null,
     session,
     profile,
     loading,
@@ -175,5 +197,22 @@ export function useAuth() {
     signUp,
     signIn,
     signOut,
+    authContextId: AUTH_CONTEXT_ID,
   };
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
+
+export function useAuth() {
+  const ctx = useContext(AuthContext);
+  if (!ctx) {
+    if (import.meta.env.DEV) {
+      console.warn(
+        "useAuth called outside of AuthProvider or hook imported from different path",
+      );
+    }
+    throw new Error("useAuth must be used within an AuthProvider");
+  }
+  return ctx;
+}
+

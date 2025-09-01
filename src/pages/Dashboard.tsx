@@ -10,7 +10,7 @@ import {
   EyeOff,
   AlertTriangle,
 } from "lucide-react";
-import { useAuth } from "../hooks/useAuth";
+import { useAuth } from "@/hooks/useAuth";
 import { Listing } from "../config/supabase";
 import { listingsService } from "../services/listings";
 import { profilesService } from "../services/profiles";
