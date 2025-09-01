@@ -55,21 +55,51 @@ export function useAuth() {
   }, [loading]);
 
   useEffect(() => {
-    // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-    });
+    let isMounted = true;
+
+    // Get initial session with error handling for invalid refresh tokens
+    const initializeSession = async () => {
+      try {
+        const { data: { session }, error } = await supabase.auth.getSession();
+        
+        if (error) {
+          console.error("Session initialization error:", error);
+          // If it's a refresh token error, clear the session
+          if (error.message?.includes('Invalid Refresh Token')) {
+            await supabase.auth.signOut();
+            return;
+          }
+        }
+        
+        if (isMounted) {
+          setSession(session);
+          setUser(session?.user ?? null);
+        }
+      } catch (err) {
+        console.error("Failed to initialize session:", err);
+        // Clear any invalid session state
+        if (isMounted) {
+          await supabase.auth.signOut();
+        }
+      }
+    };
+
+    initializeSession();
 
     // Listen for auth changes
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-      setUser(session?.user ?? null);
+      if (isMounted) {
+        setSession(session);
+        setUser(session?.user ?? null);
+      }
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      isMounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
   const signUp = async (
