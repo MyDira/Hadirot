@@ -7,13 +7,6 @@ interface TrackProperties {
 
 interface SessionData {
   session_id: string;
-  utm_params?: {
-    utm_source?: string;
-    utm_medium?: string;
-    utm_campaign?: string;
-    utm_content?: string;
-    utm_term?: string;
-  };
 }
 
 class AnalyticsTracker {
@@ -22,6 +15,7 @@ class AnalyticsTracker {
   private postingSucceeded = false;
   private impressionCache = new Map<string, number>();
   private readonly IMPRESSION_THROTTLE_MS = 4000; // 4 seconds
+  private utmSentFallback = new Map<string, boolean>();
 
   private getSessionData(): SessionData {
     if (this.sessionData) {
@@ -43,25 +37,9 @@ class AnalyticsTracker {
 
     // Generate new session
     const session_id = crypto.randomUUID();
-    
-    // Capture UTM parameters on first session
-    const utmParams: SessionData['utm_params'] = {};
-    const urlParams = new URLSearchParams(window.location.search);
-    
-    const utmKeys = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term'];
-    let hasUtm = false;
-    
-    for (const key of utmKeys) {
-      const value = urlParams.get(key);
-      if (value) {
-        utmParams[key as keyof SessionData['utm_params']] = value;
-        hasUtm = true;
-      }
-    }
 
     this.sessionData = {
       session_id,
-      utm_params: hasUtm ? utmParams : undefined,
     };
 
     // Persist to localStorage
@@ -104,9 +82,38 @@ class AnalyticsTracker {
         },
       };
 
-      // Add UTM parameters to first page_view of session
-      if (eventName === 'page_view' && sessionData.utm_params) {
-        eventData.props.attribution = sessionData.utm_params;
+      // Attach UTM parameters only on first page_view of the session
+      if (eventName === 'page_view') {
+        const flagKey = `had_utm_sent_v1:${sessionData.session_id}`;
+        let utmAlreadySent = false;
+        try {
+          utmAlreadySent = localStorage.getItem(flagKey) === '1';
+        } catch {
+          utmAlreadySent = this.utmSentFallback.get(sessionData.session_id) === true;
+        }
+
+        if (!utmAlreadySent) {
+          const urlParams = new URLSearchParams(window.location.search);
+          const utmKeys = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term'];
+          const utmParams: Record<string, string> = {};
+
+          for (const key of utmKeys) {
+            const value = urlParams.get(key);
+            if (value) {
+              utmParams[key] = value;
+            }
+          }
+
+          if (Object.keys(utmParams).length > 0) {
+            eventData.props.attribution = utmParams;
+          }
+
+          try {
+            localStorage.setItem(flagKey, '1');
+          } catch {
+            this.utmSentFallback.set(sessionData.session_id, true);
+          }
+        }
       }
 
       // Send to Edge Function
