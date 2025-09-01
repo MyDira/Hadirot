@@ -10,7 +10,7 @@ import {
   Filter,
   ArrowLeft
 } from 'lucide-react';
-import { useAuth } from '../hooks/useAuth';
+import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '../config/supabase';
 
 interface AnalyticsSummary {
@@ -72,6 +72,7 @@ function Sparkline({ data, className = '' }: { data: number[]; className?: strin
 export function InternalAnalytics() {
   const { user, profile, loading: authLoading } = useAuth();
   const navigate = useNavigate();
+  const isAdmin = profile?.is_admin === true;
   const [summary, setSummary] = useState<AnalyticsSummary | null>(null);
   const [topListings, setTopListings] = useState<TopListing[]>([]);
   const [topFilters, setTopFilters] = useState<TopFilter[]>([]);
@@ -80,21 +81,21 @@ export function InternalAnalytics() {
 
   // Redirect non-admin users after auth resolves
   useEffect(() => {
-    if (!authLoading && (!user || !profile || profile.is_admin !== true)) {
+    if (!authLoading && (!user || !isAdmin)) {
       console.log('[InternalAnalytics access]', {
         userId: user?.id,
-        isAdmin: profile?.is_admin,
+        isAdmin,
         authLoading,
       });
-      navigate('/');
+      navigate('/', { replace: true });
     }
-  }, [user, profile, authLoading, navigate]);
+  }, [user, isAdmin, authLoading, navigate]);
 
   useEffect(() => {
-    if (user && profile?.is_admin === true) {
+    if (user && isAdmin) {
       loadAnalyticsData();
     }
-  }, [user, profile]);
+  }, [user, isAdmin]);
 
   const loadAnalyticsData = async () => {
     try {
@@ -147,7 +148,7 @@ export function InternalAnalytics() {
     return <div className="p-4 text-center text-sm text-gray-500">Checking access...</div>;
   }
 
-  if (!user || !profile || profile.is_admin !== true) {
+  if (!user || !isAdmin) {
     return null; // Will redirect via useEffect
   }
 
