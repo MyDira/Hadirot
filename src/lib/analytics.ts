@@ -1,14 +1,6 @@
 import React from 'react';
 import { useAuth } from '@/hooks/useAuth';
-
-// assumes you already have VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY set
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
-
-function fnUrl(name: string) {
-  // standard Supabase Functions URL
-  return `${SUPABASE_URL}/functions/v1/${name}`;
-}
+import { supabase } from '@/config/supabase';
 
 interface TrackProperties {
   [key: string]: any;
@@ -25,7 +17,6 @@ class AnalyticsTracker {
   private impressionCache = new Map<string, number>();
   private readonly IMPRESSION_THROTTLE_MS = 4000; // 4 seconds
   private utmSentFallback = new Map<string, boolean>();
-  private missingAnonKeyWarned = false;
 
   private getSessionData(): SessionData {
     if (this.sessionData) {
@@ -126,37 +117,18 @@ class AnalyticsTracker {
         }
       }
 
-      const anonKey = SUPABASE_ANON_KEY as string | undefined;
-      if (!anonKey && !this.missingAnonKeyWarned) {
-        console.warn('VITE_SUPABASE_ANON_KEY is missing');
-        this.missingAnonKeyWarned = true;
-      }
-
-      // Send to Edge Function
-      const response = await fetch(fnUrl('track'), {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${anonKey}`,
-          'apikey': anonKey ?? '',
-        },
-        body: JSON.stringify(eventData),
-        keepalive: true, // Ensure events send even during page unload
+      // Send to Edge Function using Supabase client
+      const { data, error } = await supabase.functions.invoke('track', {
+        body: eventData,
       });
 
-      if (!response.ok) {
-        if (response.status === 401 || response.status === 403) {
-          console.debug(`[analytics.track] ${response.status} auth error (swallowed)`);
-          return;
-        }
-        const text = await response.text().catch(() => '');
-        console.debug('[analytics.track] non-OK status', response.status, text);
+      if (error) {
+        console.debug('[analytics.track] error (swallowed):', error);
         return;
-      } else {
-        const result = await response.json();
-        if (result.skipped) {
-          console.log('Analytics event skipped:', result.skipped);
-        }
+      }
+
+      if (data?.skipped) {
+        console.log('Analytics event skipped:', data.skipped);
       }
     } catch (error) {
       console.warn('Analytics tracking error:', error);
