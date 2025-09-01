@@ -15,6 +15,7 @@ import { StaticPageEditor } from './pages/admin/StaticPageEditor';
 import { FooterEditor } from './pages/admin/FooterEditor';
 import { FeaturedSettingsAdmin } from './pages/admin/FeaturedSettingsAdmin';
 import { AccountSettings } from './pages/AccountSettings';
+import { InternalAnalytics } from './pages/InternalAnalytics';
 import { About } from './pages/About';
 import { Contact } from './pages/Contact';
 import { Privacy } from './pages/Privacy';
@@ -64,6 +65,7 @@ function App() {
                 <Route path="/admin/featured-settings" element={<FeaturedSettingsAdmin />} />
                 <Route path="/dashboard" element={<Dashboard />} />
                 <Route path="/account-settings" element={<AccountSettings />} />
+                <Route path="/internal-analytics" element={<InternalAnalytics />} />
                 <Route path="/about" element={<About />} />
                 <Route path="/contact" element={<Contact />} />
                 <Route path="/privacy" element={<Privacy />} />
