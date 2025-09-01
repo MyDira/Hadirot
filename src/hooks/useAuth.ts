@@ -29,7 +29,7 @@ export function useAuth() {
         console.error("❌ Error fetching profile:", error);
       } else {
         setProfile(data);
-        console.log("✅ Profile refreshed:", data);
+        console.log("✅ Profile refreshed in useAuth:", data);
       }
     } catch (err) {
       console.error("⚠️ refreshProfile error:", err);

@@ -80,6 +80,8 @@ export function Layout({ children }: LayoutProps) {
     };
   }, [showUserMenu]);
 
+  console.log({ layoutLoading: loading, layoutProfile: profile });
+
   const handleSignOut = async () => {
     try {
       await signOut();
@@ -408,14 +410,6 @@ export function Layout({ children }: LayoutProps) {
                             className="flex items-center px-4 py-3 text-base font-medium text-gray-600 hover:text-[#273140] hover:bg-gray-50 rounded-md transition-colors"
                           >
                             <BarChart3 className="w-5 h-5 mr-3" />
-                            Analytics
-                          </Link>
-                          <Link
-                            to="/internal-analytics"
-                            className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                            onClick={() => setShowUserMenu(false)}
-                          >
-                            <BarChart3 className="w-4 h-4 mr-2" />
                             Analytics
                           </Link>
                         </>
