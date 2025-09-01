@@ -16,7 +16,7 @@ import {
   FooterRichTextData,
   FooterLinkData,
 } from "../../config/supabase";
-import { useAuth } from "../../hooks/useAuth";
+import { useAuth } from "@/hooks/useAuth";
 
 export function FooterEditor() {
   const { user, profile } = useAuth();

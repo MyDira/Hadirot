@@ -1,5 +1,6 @@
 import React from 'react';
-import { useAuth } from '../hooks/useAuth';
+import { useAuth } from '@/hooks/useAuth';
+import { supabase } from '@/config/supabase';
 
 interface TrackProperties {
   [key: string]: any;
@@ -116,28 +117,18 @@ class AnalyticsTracker {
         }
       }
 
-      // Send to Edge Function
-      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/track`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(eventData),
-        keepalive: true, // Ensure events send even during page unload
+      // Send to Edge Function using Supabase client
+      const { data, error } = await supabase.functions.invoke('track', {
+        body: eventData,
       });
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        console.warn('Analytics tracking failed:', {
-          status: response.status,
-          error: errorData,
-          eventName,
-        });
-      } else {
-        const result = await response.json();
-        if (result.skipped) {
-          console.log('Analytics event skipped:', result.skipped);
-        }
+      if (error) {
+        console.debug('[analytics.track] error (swallowed):', error);
+        return;
+      }
+
+      if (data?.skipped) {
+        console.log('Analytics event skipped:', data.skipped);
       }
     } catch (error) {
       console.warn('Analytics tracking error:', error);

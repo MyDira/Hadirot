@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Upload, X, Star } from "lucide-react";
-import { useAuth } from "../hooks/useAuth";
+import { useAuth } from "@/hooks/useAuth";
 import { listingsService } from "../services/listings";
 import { emailService, renderBrandEmail } from "../services/email";
 import { draftListingsService, DraftData } from "../services/draftListings";

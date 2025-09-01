@@ -16,7 +16,7 @@ import {
   Menu,
   X,
 } from "lucide-react";
-import { useAuth } from "../../hooks/useAuth";
+import { useAuth, AUTH_CONTEXT_ID } from "@/hooks/useAuth";
 import { usePageTracking } from "../../hooks/usePageTracking";
 import { useAnalyticsAuth } from "../../lib/analytics";
 import { Footer } from "./Footer";
@@ -27,7 +27,7 @@ interface LayoutProps {
 }
 
 export function Layout({ children }: LayoutProps) {
-  const { user, profile, signOut, loading } = useAuth();
+  const { user, profile, signOut, loading, authContextId } = useAuth();
   
   // Initialize analytics tracking
   usePageTracking();
@@ -80,7 +80,20 @@ export function Layout({ children }: LayoutProps) {
     };
   }, [showUserMenu]);
 
-  console.log({ layoutLoading: loading, layoutProfile: profile });
+  useEffect(() => {
+    const payload = {
+      loading,
+      userPresent: !!user,
+      profilePresent: profile !== undefined,
+      isAdmin: !!profile?.is_admin,
+      authContextId,
+    };
+    if (authContextId !== AUTH_CONTEXT_ID) {
+      console.warn("[Layout] auth context mismatch", payload);
+    } else {
+      console.log("[Layout] auth", payload);
+    }
+  }, [loading, user, profile, authContextId]);
 
   const handleSignOut = async () => {
     try {

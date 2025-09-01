@@ -11,7 +11,7 @@ import {
   X,
   AlertTriangle,
 } from "lucide-react";
-import { useAuth } from "../../hooks/useAuth";
+import { useAuth } from "@/hooks/useAuth";
 import { listingsService } from "../../services/listings";
 import { profilesService } from "../../services/profiles";
 import { emailService } from "../../services/email";

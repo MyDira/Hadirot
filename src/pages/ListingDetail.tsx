@@ -19,7 +19,7 @@ import {
 } from "lucide-react";
 import { Listing } from "../config/supabase";
 import { listingsService } from "../services/listings";
-import { useAuth } from "../hooks/useAuth";
+import { useAuth } from "@/hooks/useAuth";
 import { SimilarListings } from "../components/listings/SimilarListings";
 import ImageCarousel from "@/components/listing/ImageCarousel";
 import { gaEvent, gaListing } from "@/lib/ga";

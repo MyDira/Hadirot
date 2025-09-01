@@ -3,7 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { Bed, Bath, MapPin, Heart } from "lucide-react";
 import { Listing } from "../../config/supabase";
 import { listingsService } from "../../services/listings";
-import { useAuth } from "../../hooks/useAuth";
+import { useAuth } from "@/hooks/useAuth";
 import { capitalizeName } from "../../utils/formatters";
 import { gaEvent, gaListing } from "@/lib/ga";
 void gaEvent;

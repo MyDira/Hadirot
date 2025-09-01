@@ -20,7 +20,7 @@ import { About } from './pages/About';
 import { Contact } from './pages/Contact';
 import { Privacy } from './pages/Privacy';
 import { Terms } from './pages/Terms';
-import { useAuth } from './hooks/useAuth';
+import { useAuth } from '@/hooks/useAuth';
 import GASmokeTest from '@/dev/gaSmokeTest';
 
 function ScrollToTop() {

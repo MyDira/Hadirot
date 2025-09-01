@@ -20,7 +20,7 @@ import LinkExtension from "@tiptap/extension-link";
 import { staticPagesService, StaticPage } from "../../services/staticPages";
 import { footerService } from "../../services/footer";
 import { FooterSection } from "../../config/supabase";
-import { useAuth } from "../../hooks/useAuth";
+import { useAuth } from "@/hooks/useAuth";
 import "@/styles/editor.css";
 
 export function StaticPageEditor() {

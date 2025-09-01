@@ -11,7 +11,7 @@ import {
   Briefcase,
   Lock,
 } from "lucide-react";
-import { useAuth } from "../hooks/useAuth";
+import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "../config/supabase";
 
 interface ProfileFormData {
