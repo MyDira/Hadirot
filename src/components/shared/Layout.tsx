@@ -16,6 +16,8 @@ import {
   X,
 } from "lucide-react";
 import { useAuth } from "../../hooks/useAuth";
+import { usePageTracking } from "../../hooks/usePageTracking";
+import { useAnalyticsAuth } from "../../lib/analytics";
 import { Footer } from "./Footer";
 import { capitalizeName } from "../../utils/formatters";
 
@@ -25,6 +27,11 @@ interface LayoutProps {
 
 export function Layout({ children }: LayoutProps) {
   const { user, profile, signOut, loading } = useAuth();
+  
+  // Initialize analytics tracking
+  usePageTracking();
+  useAnalyticsAuth();
+  
   const navigate = useNavigate();
   const location = useLocation();
   const [showUserMenu, setShowUserMenu] = useState(false);
