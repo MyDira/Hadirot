@@ -151,7 +151,7 @@ class AnalyticsTracker {
         }
         const text = await response.text().catch(() => '');
         console.debug('[analytics.track] non-OK status', response.status, text);
-        throw new Error(`analytics track failed: ${response.status}`);
+        return;
       } else {
         const result = await response.json();
         if (result.skipped) {

@@ -79,17 +79,21 @@ export function InternalAnalytics() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Log auth state changes
+  useEffect(() => {
+    console.log('[InternalAnalytics access]', {
+      loading: authLoading,
+      profilePresent: !!profile,
+      isAdmin,
+    });
+  }, [authLoading, profile, isAdmin]);
+
   // Redirect non-admin users after auth resolves
   useEffect(() => {
-    if (!authLoading && (!user || !isAdmin)) {
-      console.log('[InternalAnalytics access]', {
-        userId: user?.id,
-        isAdmin,
-        authLoading,
-      });
+    if (!authLoading && (!user || !profile || !isAdmin)) {
       navigate('/', { replace: true });
     }
-  }, [user, isAdmin, authLoading, navigate]);
+  }, [authLoading, user, profile, isAdmin, navigate]);
 
   useEffect(() => {
     if (user && isAdmin) {
@@ -148,7 +152,7 @@ export function InternalAnalytics() {
     return <div className="p-4 text-center text-sm text-gray-500">Checking access...</div>;
   }
 
-  if (!user || !isAdmin) {
+  if (!user || !profile || !isAdmin) {
     return null; // Will redirect via useEffect
   }
 
