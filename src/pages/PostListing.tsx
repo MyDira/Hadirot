@@ -85,6 +85,8 @@ export function PostListing() {
   useEffect(() => {
     if (user) {
       loadDraftData();
+      // Clear post start tracking when user logs in to prevent duplicate tracking
+      sessionStorage.removeItem('post_start_tracked');
     }
   }, [user]);
 
@@ -97,7 +99,12 @@ export function PostListing() {
 
     // Track post start on first meaningful interaction
     if ((formData.title.trim() || formData.location.trim()) && userRole) {
-      trackPostStart();
+      // Only track post start once per session
+      const hasTrackedStart = sessionStorage.getItem('post_start_tracked');
+      if (!hasTrackedStart) {
+        trackPostStart();
+        sessionStorage.setItem('post_start_tracked', 'true');
+      }
     }
 
     const timeoutId = setTimeout(() => {
@@ -120,10 +127,6 @@ export function PostListing() {
     }
   }, [profile]);
 
-  useEffect(() => {
-    if (!userRole) return;
-    gaEvent("post_start", { role: userRole });
-  }, [userRole]);
 
   const loadDraftData = async () => {
     try {
@@ -477,15 +480,15 @@ export function PostListing() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    gaEvent("post_submit", { role: userRole });
-    
-    // Track submit attempt
-    trackPostSubmit();
 
     if (!user) {
       setShowAuthModal(true);
       return;
     }
+
+    // Track submit attempt only when actually submitting
+    gaEvent("post_submit", { role: userRole });
+    trackPostSubmit();
 
     // If user is already logged in, proceed with submission
     await submitListingContent();

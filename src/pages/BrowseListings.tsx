@@ -391,19 +391,28 @@ export function BrowseListings() {
 
   useEffect(() => {
     if (!displayListings || displayListings.length === 0) return;
-    const pageNumber = currentPage ?? 1;
-    gaEvent("listing_impression_batch", {
-      page: pageNumber,
-      result_count: displayListings.length,
-      items: displayListings.map((l: any, idx: number) => ({
-        listing_id: String(l.id),
-        price: Number(l.price ?? 0),
-        bedrooms: Number(l.bedrooms ?? 0),
-        neighborhood: l.neighborhood ?? l.area ?? l.location ?? undefined,
-        is_featured: !!(l.is_featured ?? l.featured),
-        position: idx + 1,
-      })),
-    });
+    
+    // Only track impression batch once per page load
+    const batchKey = `impression_batch_${currentPage}_${displayListings.length}`;
+    const hasTracked = sessionStorage.getItem(batchKey);
+    
+    if (!hasTracked) {
+      const pageNumber = currentPage ?? 1;
+      gaEvent("listing_impression_batch", {
+        page: pageNumber,
+        result_count: displayListings.length,
+        items: displayListings.map((l: any, idx: number) => ({
+          listing_id: String(l.id),
+          price: Number(l.price ?? 0),
+          bedrooms: Number(l.bedrooms ?? 0),
+          neighborhood: l.neighborhood ?? l.area ?? l.location ?? undefined,
+          is_featured: !!(l.is_featured ?? l.featured),
+          position: idx + 1,
+        })),
+      });
+      
+      sessionStorage.setItem(batchKey, 'true');
+    }
   }, [displayListings, currentPage]);
 
   const handleCardClick = (l: any, idx: number) => {

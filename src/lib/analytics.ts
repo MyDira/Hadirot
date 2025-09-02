@@ -171,9 +171,11 @@ class AnalyticsTracker {
 
   // Post funnel tracking with state management
   async trackPostStart(): Promise<void> {
-    this.postingStarted = true;
-    this.postingSucceeded = false;
-    await this.track('listing_post_start');
+    if (!this.postingStarted) {
+      this.postingStarted = true;
+      this.postingSucceeded = false;
+      await this.track('listing_post_start');
+    }
   }
 
   async trackPostSubmit(): Promise<void> {
@@ -232,19 +234,39 @@ export function useAnalyticsAuth() {
 
 // Setup page unload tracking for post abandonment
 if (typeof window !== 'undefined') {
-  // Track post abandonment on page unload
+  let abandonmentTracked = false;
+
   const handleBeforeUnload = () => {
-    analytics.trackPostAbandoned();
+    if (!abandonmentTracked) {
+      analytics.trackPostAbandoned();
+      abandonmentTracked = true;
+    }
   };
 
   const handleVisibilityChange = () => {
-    if (document.visibilityState === 'hidden') {
+    if (document.visibilityState === 'hidden' && !abandonmentTracked) {
       analytics.trackPostAbandoned();
+      abandonmentTracked = true;
+    }
+  };
+
+  // Reset abandonment tracking when user navigates to post page
+  const handleLocationChange = () => {
+    if (window.location.pathname === '/post') {
+      abandonmentTracked = false;
     }
   };
 
   window.addEventListener('beforeunload', handleBeforeUnload);
   document.addEventListener('visibilitychange', handleVisibilityChange);
+  window.addEventListener('popstate', handleLocationChange);
+  
+  // Also listen for programmatic navigation
+  const originalPushState = history.pushState;
+  history.pushState = function(...args) {
+    originalPushState.apply(history, args);
+    handleLocationChange();
+  };
 }
 
 export default analytics;
