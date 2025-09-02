@@ -14,8 +14,6 @@ class AnalyticsTracker {
   private sessionData: SessionData | null = null;
   private postingStarted = false;
   private postingSucceeded = false;
-  private impressionCache = new Map<string, number>();
-  private readonly IMPRESSION_THROTTLE_MS = 4000; // 4 seconds
   private utmSentFallback = new Map<string, boolean>();
 
   private getSessionData(): SessionData {
@@ -147,26 +145,6 @@ class AnalyticsTracker {
 
   async trackListingImpressionBatch(listingIds: string[]): Promise<void> {
     if (!listingIds.length) return;
-
-    // Create cache key from sorted IDs
-    const cacheKey = [...listingIds].sort().join(',');
-    const now = Date.now();
-    const lastSent = this.impressionCache.get(cacheKey);
-
-    // Throttle duplicate impressions
-    if (lastSent && (now - lastSent) < this.IMPRESSION_THROTTLE_MS) {
-      return;
-    }
-
-    this.impressionCache.set(cacheKey, now);
-    
-    // Clean old cache entries (keep only last 10 minutes)
-    const tenMinutesAgo = now - (10 * 60 * 1000);
-    for (const [key, timestamp] of this.impressionCache.entries()) {
-      if (timestamp < tenMinutesAgo) {
-        this.impressionCache.delete(key);
-      }
-    }
 
     await this.track('listing_impression_batch', { ids: listingIds });
   }

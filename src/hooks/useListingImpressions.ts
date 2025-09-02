@@ -14,27 +14,31 @@ export function useListingImpressions({
 }: UseListingImpressionsOptions) {
   const observerRef = useRef<IntersectionObserver | null>(null);
   const elementsRef = useRef<Set<Element>>(new Set());
-  const visibleListingsRef = useRef<Set<string>>(new Set());
+  const trackedListingsRef = useRef<Set<string>>(new Set());
 
   const handleIntersection = useCallback((entries: IntersectionObserverEntry[]) => {
-    const currentlyVisible = new Set<string>();
+    const newlyVisibleListings: string[] = [];
 
     entries.forEach((entry) => {
       const listingId = entry.target.getAttribute('data-listing-id');
       if (!listingId) return;
 
       if (entry.isIntersecting) {
-        currentlyVisible.add(listingId);
-        visibleListingsRef.current.add(listingId);
+        // Only track if we haven't already tracked this listing
+        if (!trackedListingsRef.current.has(listingId)) {
+          newlyVisibleListings.push(listingId);
+          trackedListingsRef.current.add(listingId);
+        }
       } else {
-        visibleListingsRef.current.delete(listingId);
+        // Remove from tracked set when it leaves viewport
+        // This allows re-tracking if user scrolls back to it later
+        trackedListingsRef.current.delete(listingId);
       }
     });
 
-    // If we have visible listings, track them
-    if (visibleListingsRef.current.size > 0) {
-      const visibleIds = Array.from(visibleListingsRef.current);
-      trackListingImpressionBatch(visibleIds);
+    // Only track newly visible listings
+    if (newlyVisibleListings.length > 0) {
+      trackListingImpressionBatch(newlyVisibleListings);
     }
   }, []);
 
@@ -66,10 +70,10 @@ export function useListingImpressions({
     observerRef.current.unobserve(element);
     elementsRef.current.delete(element);
     
-    // Remove from visible set if it was being tracked
+    // Remove from tracked set if it was being tracked
     const listingId = element.getAttribute('data-listing-id');
     if (listingId) {
-      visibleListingsRef.current.delete(listingId);
+      trackedListingsRef.current.delete(listingId);
     }
   }, []);
 
@@ -80,7 +84,7 @@ export function useListingImpressions({
         observerRef.current.disconnect();
       }
       elementsRef.current.clear();
-      visibleListingsRef.current.clear();
+      trackedListingsRef.current.clear();
     };
   }, []);
 
