@@ -5,8 +5,7 @@ import { gaEvent } from "./ga";
 const KEY_STARTED = "analytics:post:started";
 const KEY_SUCCEEDED = "analytics:post:succeeded";
 const AN_DEBUG =
-  (import.meta?.env?.VITE_ANALYTICS_DEBUG ??
-    process.env.VITE_ANALYTICS_DEBUG) === "1";
+  import.meta?.env?.VITE_ANALYTICS_DEBUG === "1";
 
 function readBool(k: string) {
   try {
