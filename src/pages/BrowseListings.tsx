@@ -395,7 +395,7 @@ export function BrowseListings() {
     // Only track impression batch once per page load
     const batchKey = `impression_batch_${currentPage}_${displayListings.length}`;
     const hasTracked = sessionStorage.getItem(batchKey);
-    
+
     if (!hasTracked) {
       const pageNumber = currentPage ?? 1;
       gaEvent("listing_impression_batch", {
@@ -410,7 +410,7 @@ export function BrowseListings() {
           position: idx + 1,
         })),
       });
-      
+
       sessionStorage.setItem(batchKey, 'true');
     }
   }, [displayListings, currentPage]);

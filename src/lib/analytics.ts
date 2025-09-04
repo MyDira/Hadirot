@@ -13,7 +13,6 @@ interface SessionData {
 class AnalyticsTracker {
   private sessionData: SessionData | null = null;
   private postingStarted = false;
-  private postingSucceeded = false;
   private utmSentFallback = new Map<string, boolean>();
 
   private getSessionData(): SessionData {
@@ -172,19 +171,25 @@ class AnalyticsTracker {
   // Post funnel tracking with state management
   async trackPostStart(): Promise<void> {
     if (!this.postingStarted) {
+      sessionStorage.setItem('posting_started', 'true');
+      sessionStorage.removeItem('posting_succeeded');
       this.postingStarted = true;
-      this.postingSucceeded = false;
       await this.track('listing_post_start');
     }
   }
 
   async trackPostSubmit(): Promise<void> {
-    await this.track('listing_post_submit');
+    if (sessionStorage.getItem('posting_started') === 'true') {
+      await this.track('listing_post_submit');
+    }
   }
 
   async trackPostSuccess(listingId: string): Promise<void> {
-    this.postingSucceeded = true;
-    await this.track('listing_post_submit_success', { listing_id: listingId });
+    if (sessionStorage.getItem('posting_started') === 'true') {
+      sessionStorage.setItem('posting_succeeded', 'true');
+      this.postingStarted = false; // End the session
+      await this.track('listing_post_submit_success', { listing_id: listingId });
+    }
   }
 
   async trackPostAbandoned(): Promise<void> {
@@ -192,13 +197,16 @@ class AnalyticsTracker {
     if (this.postingStarted && !this.postingSucceeded) {
       await this.track('listing_post_abandoned');
       this.postingStarted = false;
+      sessionStorage.removeItem('posting_started');
+      sessionStorage.removeItem('posting_succeeded');
     }
   }
 
   // Reset posting state (useful for cleanup)
   resetPostingState(): void {
     this.postingStarted = false;
-    this.postingSucceeded = false;
+    sessionStorage.removeItem('posting_started');
+    sessionStorage.removeItem('posting_succeeded');
   }
 }
 
@@ -237,19 +245,21 @@ if (typeof window !== 'undefined') {
   let abandonmentTracked = false;
 
   const handleBeforeUnload = () => {
-    if (!abandonmentTracked) {
+    if (sessionStorage.getItem('posting_started') === 'true' && sessionStorage.getItem('posting_succeeded') !== 'true') {
       analytics.trackPostAbandoned();
-      abandonmentTracked = true;
+      sessionStorage.removeItem('posting_started'); // Clear state after tracking
     }
   };
 
   const handleVisibilityChange = () => {
-    if (document.visibilityState === 'hidden' && !abandonmentTracked) {
+    if (document.visibilityState === 'hidden' && sessionStorage.getItem('posting_started') === 'true' && sessionStorage.getItem('posting_succeeded') !== 'true') {
       analytics.trackPostAbandoned();
-      abandonmentTracked = true;
+      sessionStorage.removeItem('posting_started'); // Clear state after tracking
     }
   };
 
+  // This is crucial for single-page applications where beforeunload might not fire
+  // and visibilitychange might not be enough.
   // Reset abandonment tracking when user navigates to post page
   const handleLocationChange = () => {
     if (window.location.pathname === '/post') {

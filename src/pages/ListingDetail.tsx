@@ -133,7 +133,7 @@ export function ListingDetail() {
     // Only track listing view once per page load
     const viewKey = `listing_view_${listing.id}`;
     const hasTracked = sessionStorage.getItem(viewKey);
-    
+
     if (!hasTracked) {
       gaListing("listing_view", listing.id, {
         price: Number(listing.price ?? 0),
@@ -141,12 +141,12 @@ export function ListingDetail() {
         bathrooms: Number(listing.bathrooms ?? 0),
         neighborhood:
           listing.neighborhood ?? listing.area ?? listing.location ?? undefined,
-        is_featured: !!(listing.is_featured ?? listing.featured),
+        is_featured: !!(listing.is_featured),
       });
-      
+
       // Track with our analytics system
       trackListingView(listing.id);
-      
+
       sessionStorage.setItem(viewKey, 'true');
     }
   }, [listing?.id]);

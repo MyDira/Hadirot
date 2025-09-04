@@ -486,8 +486,6 @@ export function PostListing() {
       return;
     }
 
-    // Track submit attempt only when actually submitting
-    gaEvent("post_submit", { role: userRole });
     trackPostSubmit();
 
     // If user is already logged in, proceed with submission
