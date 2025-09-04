@@ -7,7 +7,7 @@ import { Listing } from "../config/supabase";
 import { listingsService } from "../services/listings";
 import { useAuth } from "@/hooks/useAuth";
 import { gaEvent, gaListing } from "@/lib/ga";
-import { trackFilterApply, trackListingImpressionBatch } from "../lib/analytics";
+import { trackFilterApply } from "../lib/analytics";
 import { useListingImpressions } from "../hooks/useListingImpressions";
 
 interface FilterState {
