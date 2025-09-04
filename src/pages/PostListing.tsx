@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Upload, X, Star } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
@@ -76,17 +76,19 @@ export function PostListing() {
     broker_fee: false,
   });
 
+  const [hasDraft, setHasDraft] = useState<boolean | null>(null);
+  const hasInteractedRef = useRef(false);
+  const startTrackedRef = useRef(false);
+
   // Load draft data on component mount
   useEffect(() => {
-    loadDraftData();
+    loadDraftData().then(setHasDraft);
   }, []);
 
   // Load draft data when user logs in
   useEffect(() => {
     if (user) {
-      loadDraftData();
-      // Clear post start tracking when user logs in to prevent duplicate tracking
-      sessionStorage.removeItem('post_start_tracked');
+      loadDraftData().then(setHasDraft);
     }
   }, [user]);
 
@@ -97,11 +99,6 @@ export function PostListing() {
       return;
     }
 
-    // Track post start on first meaningful interaction
-    if (formData.title.trim() || formData.location.trim()) {
-      trackPostStart();
-    }
-
     const timeoutId = setTimeout(() => {
       // Save draft even if user is not logged in (use a temporary identifier)
       const identifier = user?.id || "anonymous";
@@ -110,6 +107,21 @@ export function PostListing() {
 
     return () => clearTimeout(timeoutId);
   }, [formData, tempImages, user?.id]);
+
+  // Track post start after first user interaction when no draft exists
+  useEffect(() => {
+    if (hasDraft === false && hasInteractedRef.current && !startTrackedRef.current) {
+      trackPostStart();
+      startTrackedRef.current = true;
+    }
+  }, [hasDraft]);
+
+  // Track abandonment if user navigates away without completing post
+  useEffect(() => {
+    return () => {
+      trackPostAbandoned();
+    };
+  }, []);
 
   // Update contact info when user profile loads
   useEffect(() => {
@@ -123,7 +135,7 @@ export function PostListing() {
   }, [profile]);
 
 
-  const loadDraftData = async () => {
+  const loadDraftData = async (): Promise<boolean> => {
     try {
       let draftData: DraftData | null = null;
 
@@ -199,10 +211,12 @@ export function PostListing() {
         }
 
         console.log("✅ Draft data loaded successfully");
+        return true;
       }
     } catch (error) {
       console.error("Error loading draft data:", error);
     }
+    return false;
   };
 
   const saveDraftData = async (identifier: string) => {
@@ -227,6 +241,7 @@ export function PostListing() {
   ) => {
     const { name, value } = e.target;
     const type = e.target.type;
+
 
     if (type === "checkbox") {
       const checked = (e.target as HTMLInputElement).checked;
@@ -264,6 +279,8 @@ export function PostListing() {
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
+
+    handleFirstInteraction();
 
     if (!user) {
       alert("Please sign in to upload images");
@@ -343,6 +360,7 @@ export function PostListing() {
   };
 
   const removeImage = (index: number) => {
+    handleFirstInteraction();
     setTempImages((prev) => {
       const newImages = prev.filter((_, i) => i !== index);
       // If we removed the featured image, make the first one featured
@@ -354,6 +372,7 @@ export function PostListing() {
   };
 
   const setFeaturedImage = (index: number) => {
+    handleFirstInteraction();
     setTempImages((prev) =>
       prev.map((img, i) => ({
         ...img,
@@ -369,10 +388,6 @@ export function PostListing() {
       );
       return;
     }
-
-    // Track submission attempt
-    trackPostSubmit();
-
     setLoading(true);
     try {
       const neighborhood =
@@ -385,6 +400,9 @@ export function PostListing() {
         setLoading(false);
         return;
       }
+
+      // Track submission attempt only after validation passes
+      trackPostSubmit();
 
       // Create the listing first
       const listing = await listingsService.createListing({
@@ -473,6 +491,10 @@ export function PostListing() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    handleFirstInteraction();
+
+    if (loading) return;
+
     if (!user) {
       setShowAuthModal(true);
       return;
@@ -485,6 +507,14 @@ export function PostListing() {
   const handleAuthSuccess = async () => {
     setShowAuthModal(false);
     // User can now continue editing the form and add images
+  };
+
+  const handleFirstInteraction = () => {
+    hasInteractedRef.current = true;
+    if (hasDraft === false && !startTrackedRef.current) {
+      trackPostStart();
+      startTrackedRef.current = true;
+    }
   };
 
   return (
@@ -501,7 +531,12 @@ export function PostListing() {
         </p>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-8">
+      <form
+        onSubmit={handleSubmit}
+        onFocus={handleFirstInteraction}
+        onChange={handleFirstInteraction}
+        className="space-y-8"
+      >
         {/* Basic Information */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
           <h2 className="text-xl font-semibold text-[#273140] mb-4">

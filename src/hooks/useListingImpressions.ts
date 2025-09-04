@@ -23,16 +23,9 @@ export function useListingImpressions({
       const listingId = entry.target.getAttribute('data-listing-id');
       if (!listingId) return;
 
-      if (entry.isIntersecting) {
-        // Only track if we haven't already tracked this listing
-        if (!trackedListingsRef.current.has(listingId)) {
-          newlyVisibleListings.push(listingId);
-          trackedListingsRef.current.add(listingId);
-        }
-      } else {
-        // Remove from tracked set when it leaves viewport
-        // This allows re-tracking if user scrolls back to it later
-        trackedListingsRef.current.delete(listingId);
+      if (entry.isIntersecting && !trackedListingsRef.current.has(listingId)) {
+        newlyVisibleListings.push(listingId);
+        trackedListingsRef.current.add(listingId);
       }
     });
 
@@ -69,12 +62,6 @@ export function useListingImpressions({
 
     observerRef.current.unobserve(element);
     elementsRef.current.delete(element);
-    
-    // Remove from tracked set if it was being tracked
-    const listingId = element.getAttribute('data-listing-id');
-    if (listingId) {
-      trackedListingsRef.current.delete(listingId);
-    }
   }, []);
 
   // Cleanup on unmount
