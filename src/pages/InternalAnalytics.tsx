@@ -47,14 +47,24 @@ function Sparkline({ data, className = '' }: { data: number[]; className?: strin
     return <div className={`h-8 bg-gray-100 rounded ${className}`} />;
   }
 
-  const max = Math.max(...data, 1); // Avoid division by zero
-  const min = Math.min(...data);
-  const range = max - min || 1;
+  // Filter out any non-numeric values and NaN
+  const validData = data.filter(value => typeof value === 'number' && !isNaN(value) && isFinite(value));
   
-  const points = data.map((value, index) => {
-    const x = (index / (data.length - 1)) * 100;
+  if (validData.length === 0) {
+    return <div className={`h-8 bg-gray-100 rounded ${className}`} />;
+  }
+  
+  const max = Math.max(...validData, 1); // Avoid division by zero
+  const min = Math.min(...validData);
+  const range = max - min || 1; // Ensure range is never 0
+  
+  const points = validData.map((value, index) => {
+    const x = validData.length === 1 ? 50 : (index / (validData.length - 1)) * 100;
     const y = 100 - ((value - min) / range) * 100;
-    return `${x},${y}`;
+    // Ensure coordinates are valid numbers
+    const safeX = isFinite(x) ? x : 0;
+    const safeY = isFinite(y) ? y : 50;
+    return `${safeX},${safeY}`;
   }).join(' ');
 
   return (

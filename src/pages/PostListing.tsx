@@ -111,6 +111,7 @@ export function PostListing() {
   // Track post start after first user interaction when no draft exists
   useEffect(() => {
     if (hasDraft === false && hasInteractedRef.current && !startTrackedRef.current) {
+      console.log('[PostListing] Tracking post start - hasDraft:', hasDraft, 'hasInteracted:', hasInteractedRef.current, 'startTracked:', startTrackedRef.current);
       trackPostStart();
       startTrackedRef.current = true;
     }
@@ -510,8 +511,14 @@ export function PostListing() {
   };
 
   const handleFirstInteraction = () => {
+    console.log('[PostListing] First interaction detected - previous state:', {
+      hasInteracted: hasInteractedRef.current,
+      hasDraft,
+      startTracked: startTrackedRef.current
+    });
     hasInteractedRef.current = true;
     if (hasDraft === false && !startTrackedRef.current) {
+      console.log('[PostListing] Triggering post start from handleFirstInteraction');
       trackPostStart();
       startTrackedRef.current = true;
     }

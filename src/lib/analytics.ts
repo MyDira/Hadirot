@@ -4,7 +4,8 @@ import { supabase } from '@/config/supabase';
 
 // Simple debug flag controlled by env (off by default)
 // Vite exposes env vars on import.meta.env
-const ANALYTICS_DEBUG = ((import.meta as any)?.env?.VITE_ANALYTICS_DEBUG ?? 'false') === 'true';
+const ANALYTICS_DEBUG = ((import.meta as any)?.env?.VITE_ANALYTICS_DEBUG ?? 'false') === 'true' || 
+                        ((import.meta as any)?.env?.DEV ?? false);
 
 interface TrackProperties {
   [key: string]: any;
@@ -213,29 +214,47 @@ class AnalyticsTracker {
 
   // Post funnel tracking with state management
   private getPostingSessionId(): string | null {
+    if (ANALYTICS_DEBUG) {
+      console.log('[analytics] getPostingSessionId - current:', this.postingSessionId);
+    }
     if (this.postingSessionId) return this.postingSessionId;
     const id = this.sessionGet('posting_session_id');
     this.postingSessionId = id;
+    if (ANALYTICS_DEBUG) {
+      console.log('[analytics] getPostingSessionId - from storage:', id);
+    }
     return id;
   }
 
   private ensurePostingSession(): string {
     let id = this.getPostingSessionId();
+    if (ANALYTICS_DEBUG) {
+      console.log('[analytics] ensurePostingSession - existing id:', id);
+    }
     if (!id) {
       id = Date.now().toString();
       this.postingSessionId = id;
       this.sessionSet('posting_session_id', id);
+      if (ANALYTICS_DEBUG) {
+        console.log('[analytics] ensurePostingSession - created new id:', id);
+      }
     }
     return id;
   }
 
   private clearPostingSession(): void {
     const id = this.getPostingSessionId();
+    if (ANALYTICS_DEBUG) {
+      console.log('[analytics] clearPostingSession - clearing id:', id);
+    }
     if (id) {
       ['started', 'submitted', 'succeeded', 'abandoned'].forEach((flag) =>
         this.sessionRemove(`posting_${flag}_${id}`),
       );
       this.sessionRemove('posting_session_id');
+      if (ANALYTICS_DEBUG) {
+        console.log('[analytics] clearPostingSession - cleared all flags for id:', id);
+      }
     }
     this.postingSessionId = null;
   }
@@ -243,56 +262,96 @@ class AnalyticsTracker {
   async trackPostStart(): Promise<void> {
     const sessionId = this.ensurePostingSession();
     const startedKey = `posting_started_${sessionId}`;
-    if (!this.sessionGet(startedKey)) {
-      if (ANALYTICS_DEBUG) console.log('[analytics] post_start');
+    const hasStarted = this.sessionGet(startedKey);
+    
+    if (ANALYTICS_DEBUG) {
+      console.log('[analytics] trackPostStart - sessionId:', sessionId, 'hasStarted:', hasStarted);
+    }
+    
+    if (!hasStarted) {
+      if (ANALYTICS_DEBUG) console.log('[analytics] post_start - tracking event');
       this.sessionSet(startedKey, 'true');
       this.sessionRemove(`posting_succeeded_${sessionId}`);
       this.sessionRemove(`posting_submitted_${sessionId}`);
       this.sessionRemove(`posting_abandoned_${sessionId}`);
       await this.track('listing_post_start');
+    } else {
+      if (ANALYTICS_DEBUG) console.log('[analytics] post_start - already tracked, skipping');
     }
   }
 
   async trackPostSubmit(): Promise<void> {
     const sessionId = this.ensurePostingSession();
     const hasSubmitted = this.sessionGet(`posting_submitted_${sessionId}`);
+    
+    if (ANALYTICS_DEBUG) {
+      console.log('[analytics] trackPostSubmit - sessionId:', sessionId, 'hasSubmitted:', hasSubmitted);
+    }
+    
     if (hasSubmitted !== 'true') {
-      if (ANALYTICS_DEBUG) console.log('[analytics] post_submit');
+      if (ANALYTICS_DEBUG) console.log('[analytics] post_submit - tracking event');
       this.sessionSet(`posting_submitted_${sessionId}`, 'true');
       await this.track('listing_post_submit');
+    } else {
+      if (ANALYTICS_DEBUG) console.log('[analytics] post_submit - already tracked, skipping');
     }
   }
 
   async trackPostSuccess(listingId: string): Promise<void> {
     const sessionId = this.getPostingSessionId();
+    if (ANALYTICS_DEBUG) {
+      console.log('[analytics] trackPostSuccess - sessionId:', sessionId, 'listingId:', listingId);
+    }
     if (!sessionId) return;
     const hasSucceeded = this.sessionGet(`posting_succeeded_${sessionId}`);
+    
+    if (ANALYTICS_DEBUG) {
+      console.log('[analytics] trackPostSuccess - hasSucceeded:', hasSucceeded);
+    }
+    
     if (hasSucceeded !== 'true') {
-      if (ANALYTICS_DEBUG) console.log('[analytics] post_success');
+      if (ANALYTICS_DEBUG) console.log('[analytics] post_success - tracking event and clearing session');
       this.sessionSet(`posting_succeeded_${sessionId}`, 'true');
       await this.track('listing_post_submit_success', { listing_id: listingId });
       this.clearPostingSession();
+    } else {
+      if (ANALYTICS_DEBUG) console.log('[analytics] post_success - already tracked, skipping');
     }
   }
 
   async trackPostAbandoned(): Promise<void> {
     const sessionId = this.getPostingSessionId();
+    if (ANALYTICS_DEBUG) {
+      console.log('[analytics] trackPostAbandoned - sessionId:', sessionId);
+    }
     if (!sessionId) return;
     const hasStarted = this.sessionGet(`posting_started_${sessionId}`);
     const hasSucceeded = this.sessionGet(`posting_succeeded_${sessionId}`);
     const hasAbandoned = this.sessionGet(`posting_abandoned_${sessionId}`);
 
+    if (ANALYTICS_DEBUG) {
+      console.log('[analytics] trackPostAbandoned - flags:', {
+        hasStarted,
+        hasSucceeded,
+        hasAbandoned
+      });
+    }
     // Only track abandonment if posting was started but not succeeded
     if (hasStarted === 'true' && hasSucceeded !== 'true' && hasAbandoned !== 'true') {
-      if (ANALYTICS_DEBUG) console.log('[analytics] post_abandoned');
+      if (ANALYTICS_DEBUG) console.log('[analytics] post_abandoned - tracking event and clearing session');
       this.sessionSet(`posting_abandoned_${sessionId}`, 'true');
       await this.track('listing_post_abandoned');
       this.clearPostingSession();
+    } else {
+      if (ANALYTICS_DEBUG) console.log('[analytics] post_abandoned - conditions not met, skipping');
     }
   }
 
   // Reset posting state (useful for cleanup)
   resetPostingState(): void {
+    if (ANALYTICS_DEBUG) {
+      console.log('[analytics] resetPostingState - manually clearing posting state');
+    }
     this.clearPostingSession();
   }
 }
