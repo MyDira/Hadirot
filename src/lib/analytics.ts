@@ -2,6 +2,10 @@ import React from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/config/supabase';
 
+// Simple debug flag controlled by env (off by default)
+// Vite exposes env vars on import.meta.env
+const ANALYTICS_DEBUG = ((import.meta as any)?.env?.VITE_ANALYTICS_DEBUG ?? 'false') === 'true';
+
 interface TrackProperties {
   [key: string]: any;
 }
@@ -13,6 +17,30 @@ interface SessionData {
 class AnalyticsTracker {
   private sessionData: SessionData | null = null;
   private utmSentFallback = new Map<string, boolean>();
+
+  private sessionGet(key: string): string | null {
+    try {
+      return sessionStorage.getItem(key);
+    } catch {
+      return null;
+    }
+  }
+
+  private sessionSet(key: string, value: string): void {
+    try {
+      sessionStorage.setItem(key, value);
+    } catch {
+      /* ignore */
+    }
+  }
+
+  private sessionRemove(key: string): void {
+    try {
+      sessionStorage.removeItem(key);
+    } catch {
+      /* ignore */
+    }
+  }
 
   private getSessionData(): SessionData {
     if (this.sessionData) {
@@ -65,7 +93,7 @@ class AnalyticsTracker {
     try {
       const sessionData = this.getSessionData();
       const userId = this.getCurrentUserId();
-      
+
       // Prepare base event data
       const eventData = {
         event_name: eventName,
@@ -78,6 +106,10 @@ class AnalyticsTracker {
           schema_version: 1,
         },
       };
+
+      if (ANALYTICS_DEBUG) {
+        console.log('[analytics] emit', eventName, properties);
+      }
 
       // Attach UTM parameters only on first page_view of the session
       if (eventName === 'page_view') {
@@ -140,25 +172,22 @@ class AnalyticsTracker {
   async trackListingView(listingId: string): Promise<void> {
     // Prevent duplicate tracking within the same session
     const viewKey = `listing_view_tracked_${listingId}`;
-    const hasTracked = sessionStorage.getItem(viewKey);
-    
+    const hasTracked = this.sessionGet(viewKey);
+
     if (!hasTracked) {
       await this.track('listing_view', { listing_id: listingId });
-      sessionStorage.setItem(viewKey, 'true');
+      this.sessionSet(viewKey, 'true');
     }
   }
 
   async trackListingImpressionBatch(listingIds: string[]): Promise<void> {
     if (!listingIds.length) return;
 
-    // Create a unique key for this batch to prevent duplicate tracking
-    const batchKey = `impression_batch_${listingIds.sort().join(',')}_${Date.now()}`;
-    const hasTracked = sessionStorage.getItem(batchKey);
-    
-    if (!hasTracked) {
-      await this.track('listing_impression_batch', { ids: listingIds });
-      sessionStorage.setItem(batchKey, 'true');
-    }
+    const newIds = listingIds.filter((id) => !this.sessionGet(`listing_impression_${id}`));
+    if (!newIds.length) return;
+
+    await this.track('listing_impression_batch', { ids: newIds });
+    newIds.forEach((id) => this.sessionSet(`listing_impression_${id}`, 'true'));
   }
 
   async trackFilterApply(filters: Record<string, any>): Promise<void> {
@@ -183,48 +212,58 @@ class AnalyticsTracker {
 
   // Post funnel tracking with state management
   async trackPostStart(): Promise<void> {
-    const hasStarted = sessionStorage.getItem('posting_started');
+    const hasStarted = this.sessionGet('posting_started');
     if (!hasStarted) {
-      sessionStorage.setItem('posting_started', 'true');
-      sessionStorage.removeItem('posting_succeeded');
+      if (ANALYTICS_DEBUG) console.log('[analytics] post_start');
+      this.sessionSet('posting_started', 'true');
+      this.sessionRemove('posting_succeeded');
+      this.sessionRemove('posting_submitted');
       await this.track('listing_post_start');
     }
   }
 
   async trackPostSubmit(): Promise<void> {
-    const hasStarted = sessionStorage.getItem('posting_started');
-    if (hasStarted === 'true') {
+    const hasStarted = this.sessionGet('posting_started');
+    const hasSubmitted = this.sessionGet('posting_submitted');
+    if (hasStarted === 'true' && hasSubmitted !== 'true') {
+      if (ANALYTICS_DEBUG) console.log('[analytics] post_submit');
+      this.sessionSet('posting_submitted', 'true');
       await this.track('listing_post_submit');
     }
   }
 
   async trackPostSuccess(listingId: string): Promise<void> {
-    const hasStarted = sessionStorage.getItem('posting_started');
+    const hasStarted = this.sessionGet('posting_started');
     if (hasStarted === 'true') {
-      sessionStorage.setItem('posting_succeeded', 'true');
+      if (ANALYTICS_DEBUG) console.log('[analytics] post_success');
+      this.sessionSet('posting_succeeded', 'true');
       await this.track('listing_post_submit_success', { listing_id: listingId });
       // Clear posting state after success
-      sessionStorage.removeItem('posting_started');
-      sessionStorage.removeItem('posting_succeeded');
+      this.sessionRemove('posting_started');
+      this.sessionRemove('posting_succeeded');
+      this.sessionRemove('posting_submitted');
     }
   }
 
   async trackPostAbandoned(): Promise<void> {
-    const hasStarted = sessionStorage.getItem('posting_started');
-    const hasSucceeded = sessionStorage.getItem('posting_succeeded');
-    
+    const hasStarted = this.sessionGet('posting_started');
+    const hasSucceeded = this.sessionGet('posting_succeeded');
+
     // Only track abandonment if posting was started but not succeeded
     if (hasStarted === 'true' && hasSucceeded !== 'true') {
+      if (ANALYTICS_DEBUG) console.log('[analytics] post_abandoned');
       await this.track('listing_post_abandoned');
-      sessionStorage.removeItem('posting_started');
-      sessionStorage.removeItem('posting_succeeded');
+      this.sessionRemove('posting_started');
+      this.sessionRemove('posting_succeeded');
+      this.sessionRemove('posting_submitted');
     }
   }
 
   // Reset posting state (useful for cleanup)
   resetPostingState(): void {
-    sessionStorage.removeItem('posting_started');
-    sessionStorage.removeItem('posting_succeeded');
+    this.sessionRemove('posting_started');
+    this.sessionRemove('posting_succeeded');
+    this.sessionRemove('posting_submitted');
   }
 }
 
@@ -260,41 +299,18 @@ export function useAnalyticsAuth() {
 
 // Setup page unload tracking for post abandonment
 if (typeof window !== 'undefined') {
-  let abandonmentTracked = false;
-
   const handleBeforeUnload = () => {
-    if (sessionStorage.getItem('posting_started') === 'true' && sessionStorage.getItem('posting_succeeded') !== 'true') {
-      analytics.trackPostAbandoned();
-      sessionStorage.removeItem('posting_started'); // Clear state after tracking
-    }
+    analytics.trackPostAbandoned();
   };
 
   const handleVisibilityChange = () => {
-    if (document.visibilityState === 'hidden' && sessionStorage.getItem('posting_started') === 'true' && sessionStorage.getItem('posting_succeeded') !== 'true') {
+    if (document.visibilityState === 'hidden') {
       analytics.trackPostAbandoned();
-      sessionStorage.removeItem('posting_started'); // Clear state after tracking
-    }
-  };
-
-  // This is crucial for single-page applications where beforeunload might not fire
-  // and visibilitychange might not be enough.
-  // Reset abandonment tracking when user navigates to post page
-  const handleLocationChange = () => {
-    if (window.location.pathname === '/post') {
-      abandonmentTracked = false;
     }
   };
 
   window.addEventListener('beforeunload', handleBeforeUnload);
   document.addEventListener('visibilitychange', handleVisibilityChange);
-  window.addEventListener('popstate', handleLocationChange);
-  
-  // Also listen for programmatic navigation
-  const originalPushState = history.pushState;
-  history.pushState = function(...args) {
-    originalPushState.apply(history, args);
-    handleLocationChange();
-  };
 }
 
 export default analytics;

@@ -85,8 +85,6 @@ export function PostListing() {
   useEffect(() => {
     if (user) {
       loadDraftData();
-      // Clear post start tracking when user logs in to prevent duplicate tracking
-      sessionStorage.removeItem('post_start_tracked');
     }
   }, [user]);
 
@@ -110,6 +108,13 @@ export function PostListing() {
 
     return () => clearTimeout(timeoutId);
   }, [formData, tempImages, user?.id]);
+
+  // Track abandonment if user navigates away without completing post
+  useEffect(() => {
+    return () => {
+      trackPostAbandoned();
+    };
+  }, []);
 
   // Update contact info when user profile loads
   useEffect(() => {
