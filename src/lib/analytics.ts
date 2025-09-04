@@ -15,10 +15,24 @@ interface SessionData {
   session_id: string;
 }
 
+// Global singleton instance to prevent multiple instantiations
+let globalAnalyticsInstance: AnalyticsTracker | null = null;
+
 class AnalyticsTracker {
   private sessionData: SessionData | null = null;
   private utmSentFallback = new Map<string, boolean>();
   private postingSessionId: string | null = null;
+
+  constructor() {
+    // Ensure singleton pattern
+    if (globalAnalyticsInstance) {
+      if (ANALYTICS_DEBUG) {
+        console.warn('[analytics] Attempted to create multiple AnalyticsTracker instances, returning existing instance');
+      }
+      return globalAnalyticsInstance;
+    }
+    globalAnalyticsInstance = this;
+  }
 
   private sessionGet(key: string): string | null {
     try {
@@ -113,6 +127,16 @@ class AnalyticsTracker {
         console.log('[analytics] emit', eventName, properties);
       }
 
+      // Log right before sending to backend
+      if (ANALYTICS_DEBUG) {
+        console.log('[analytics] sending to backend:', {
+          eventName,
+          session_id: sessionData.session_id,
+          user_id: userId,
+          timestamp: new Date().toISOString()
+        });
+      }
+
       // Attach UTM parameters only on first page_view of the session
       if (eventName === 'page_view') {
         const flagKey = `had_utm_sent_v1:${sessionData.session_id}`;
@@ -154,11 +178,16 @@ class AnalyticsTracker {
 
       if (error) {
         console.debug('[analytics.track] error (swallowed):', error);
+        if (ANALYTICS_DEBUG) {
+          console.log('[analytics] backend error:', error);
+        }
         return;
       }
 
       if (data?.skipped) {
-        console.log('Analytics event skipped:', data.skipped);
+        if (ANALYTICS_DEBUG) {
+          console.log('[analytics] event skipped by backend:', data.skipped);
+        }
       }
     } catch (error) {
       console.warn('Analytics tracking error:', error);

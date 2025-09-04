@@ -80,6 +80,15 @@ export function PostListing() {
   const hasInteractedRef = useRef(false);
   const startTrackedRef = useRef(false);
 
+  // Track post start after first user interaction when no draft exists
+  useEffect(() => {
+    if (hasDraft === false && hasInteractedRef.current && !startTrackedRef.current) {
+      console.log('[PostListing] Tracking post start - hasDraft:', hasDraft, 'hasInteracted:', hasInteractedRef.current, 'startTracked:', startTrackedRef.current);
+      trackPostStart();
+      startTrackedRef.current = true;
+    }
+  }, [hasDraft]);
+
   // Load draft data on component mount
   useEffect(() => {
     loadDraftData().then(setHasDraft);
@@ -107,22 +116,6 @@ export function PostListing() {
 
     return () => clearTimeout(timeoutId);
   }, [formData, tempImages, user?.id]);
-
-  // Track post start after first user interaction when no draft exists
-  useEffect(() => {
-    if (hasDraft === false && hasInteractedRef.current && !startTrackedRef.current) {
-      console.log('[PostListing] Tracking post start - hasDraft:', hasDraft, 'hasInteracted:', hasInteractedRef.current, 'startTracked:', startTrackedRef.current);
-      trackPostStart();
-      startTrackedRef.current = true;
-    }
-  }, [hasDraft]);
-
-  // Track abandonment if user navigates away without completing post
-  useEffect(() => {
-    return () => {
-      trackPostAbandoned();
-    };
-  }, []);
 
   // Update contact info when user profile loads
   useEffect(() => {
