@@ -22,9 +22,7 @@ import { listingsService } from "../services/listings";
 import { useAuth } from "@/hooks/useAuth";
 import { SimilarListings } from "../components/listings/SimilarListings";
 import ImageCarousel from "@/components/listing/ImageCarousel";
-import { gaEvent, gaListing } from "@/lib/ga";
-import { trackListingView } from "../lib/analytics";
-void gaEvent;
+import { gaListing } from "@/lib/ga";
 import NumericText from "@/components/common/NumericText";
 
 const SCROLL_THRESHOLDS = [25, 50, 75, 100] as const;
@@ -46,6 +44,7 @@ export function ListingDetail() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const hasViewedRef = React.useRef(false);
+  const pageLoadId = React.useRef(`${Date.now()}-${Math.random().toString(36).slice(2)}`);
 
   const getOrdinalSuffixText = (num: number): string => {
     const j = num % 10;
@@ -130,25 +129,17 @@ export function ListingDetail() {
 
   useEffect(() => {
     if (!listing?.id) return;
-    // Only track listing view once per page load
-    const viewKey = `listing_view_${listing.id}_${Date.now()}`;
-    const hasTracked = sessionStorage.getItem(viewKey);
-
-    if (!hasTracked) {
-      gaListing("listing_view", listing.id, {
-        price: Number(listing.price ?? 0),
-        bedrooms: Number(listing.bedrooms ?? 0),
-        bathrooms: Number(listing.bathrooms ?? 0),
-        neighborhood:
-          listing.neighborhood ?? listing.area ?? listing.location ?? undefined,
-        is_featured: !!(listing.is_featured),
-      });
-
-      // Track with our analytics system
-      trackListingView(listing.id);
-
-      sessionStorage.setItem(viewKey, 'true');
-    }
+    const key = `an:view:${listing.id}:${pageLoadId.current}`;
+    if (sessionStorage.getItem(key)) return;
+    sessionStorage.setItem(key, "1");
+    gaListing("listing_view", listing.id, {
+      price: Number(listing.price ?? 0),
+      bedrooms: Number(listing.bedrooms ?? 0),
+      bathrooms: Number(listing.bathrooms ?? 0),
+      neighborhood:
+        listing.neighborhood ?? listing.area ?? listing.location ?? undefined,
+      is_featured: !!listing.is_featured,
+    });
   }, [listing?.id]);
 
   useEffect(() => {

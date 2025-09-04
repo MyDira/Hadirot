@@ -7,7 +7,6 @@ import { Listing } from "../config/supabase";
 import { listingsService } from "../services/listings";
 import { useAuth } from "@/hooks/useAuth";
 import { gaEvent, gaListing } from "@/lib/ga";
-import { trackFilterApply, trackListingImpressionBatch } from "../lib/analytics";
 import { useListingImpressions } from "../hooks/useListingImpressions";
 
 interface FilterState {
@@ -37,10 +36,28 @@ export function BrowseListings() {
   const [allNeighborhoods, setAllNeighborhoods] = useState<string[]>([]);
   const [showFiltersMobile, setShowFiltersMobile] = useState(false);
   const { user } = useAuth();
-  
+
+  function markOnce(key: string): boolean {
+    try {
+      if (sessionStorage.getItem(key)) return false;
+      sessionStorage.setItem(key, "1");
+      return true;
+    } catch {
+      return true;
+    }
+  }
+
+  const sendImpressionBatch = (ids: string[]) => {
+    if (!ids.length) return;
+    const key = `an:impr:batch:${location.pathname}:${ids[0]}-${ids[ids.length-1]}:${ids.length}`;
+    if (!markOnce(key)) return;
+    gaEvent("listing_impression_batch", { ids, count: ids.length });
+  };
+
   // Set up listing impression tracking
   const { observeElement, unobserveElement } = useListingImpressions({
     listingIds: displayListings.map(l => l.id),
+    onImpressionBatch: sendImpressionBatch,
   });
 
   const ITEMS_PER_PAGE = 20; // Total listings to display per page
@@ -347,9 +364,6 @@ export function BrowseListings() {
       sort: null,
     });
     
-    // Track with our analytics system
-    trackFilterApply(newFilters);
-
     // Update URL with new filters
     const params = new URLSearchParams();
 
@@ -389,31 +403,6 @@ export function BrowseListings() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  useEffect(() => {
-    if (!displayListings || displayListings.length === 0) return;
-    
-    // Only track impression batch once per page load
-    const batchKey = `impression_batch_p${currentPage}_c${displayListings.length}`;
-    const hasTracked = sessionStorage.getItem(batchKey);
-
-    if (!hasTracked) {
-      const pageNumber = currentPage ?? 1;
-      gaEvent("listing_impression_batch", {
-        page: pageNumber,
-        result_count: displayListings.length,
-        items: displayListings.map((l: any, idx: number) => ({
-          listing_id: String(l.id),
-          price: Number(l.price ?? 0),
-          bedrooms: Number(l.bedrooms ?? 0),
-          neighborhood: l.neighborhood ?? l.area ?? l.location ?? undefined,
-          is_featured: !!(l.is_featured ?? l.featured),
-          position: idx + 1,
-        })),
-      });
-
-      sessionStorage.setItem(batchKey, 'true');
-    }
-  }, [displayListings, currentPage]);
 
   const handleCardClick = (l: any, idx: number) => {
     // Only track click once per listing per session

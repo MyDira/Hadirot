@@ -1,46 +1,71 @@
 import { useEffect, useRef, useCallback } from 'react';
-import { trackListingImpressionBatch } from '../lib/analytics';
+import { gaEvent } from '@/lib/ga';
 
 interface UseListingImpressionsOptions {
   listingIds: string[];
   threshold?: number; // Percentage of element that must be visible (0-1)
   rootMargin?: string; // Margin around the root
+  onImpressionBatch?: (ids: string[]) => void;
+}
+
+function markOnce(key: string): boolean {
+  try {
+    if (sessionStorage.getItem(key)) return false;
+    sessionStorage.setItem(key, '1');
+    return true;
+  } catch {
+    return true;
+  }
 }
 
 export function useListingImpressions({
-  listingIds,
+  listingIds: _listingIds,
   threshold = 0.5,
-  rootMargin = '0px'
+  rootMargin = '0px',
+  onImpressionBatch,
 }: UseListingImpressionsOptions) {
   const observerRef = useRef<IntersectionObserver | null>(null);
   const elementsRef = useRef<Set<Element>>(new Set());
   const trackedListingsRef = useRef<Set<string>>(new Set());
 
-  const handleIntersection = useCallback((entries: IntersectionObserverEntry[]) => {
-    const newlyVisibleListings: string[] = [];
+  const handleIntersection = useCallback(
+    (entries: IntersectionObserverEntry[]) => {
+      const newlyVisibleListings: string[] = [];
 
-    entries.forEach((entry) => {
-      const listingId = entry.target.getAttribute('data-listing-id');
-      if (!listingId) return;
+      entries.forEach((entry) => {
+        const listingId = entry.target.getAttribute('data-listing-id');
+        if (!listingId) return;
 
-      if (entry.isIntersecting) {
-        // Only track if we haven't already tracked this listing
-        if (!trackedListingsRef.current.has(listingId)) {
-          newlyVisibleListings.push(listingId);
-          trackedListingsRef.current.add(listingId);
+        if (entry.isIntersecting) {
+          // Only track if we haven't already tracked this listing
+          if (!trackedListingsRef.current.has(listingId)) {
+            newlyVisibleListings.push(listingId);
+            trackedListingsRef.current.add(listingId);
+          }
+        } else {
+          // Remove from tracked set when it leaves viewport
+          // This allows re-tracking if user scrolls back to it later
+          trackedListingsRef.current.delete(listingId);
         }
-      } else {
-        // Remove from tracked set when it leaves viewport
-        // This allows re-tracking if user scrolls back to it later
-        trackedListingsRef.current.delete(listingId);
-      }
-    });
+      });
 
-    // Only track newly visible listings
-    if (newlyVisibleListings.length > 0) {
-      trackListingImpressionBatch(newlyVisibleListings);
-    }
-  }, []);
+      // Only track newly visible listings
+      if (newlyVisibleListings.length > 0) {
+        if (onImpressionBatch) {
+          onImpressionBatch(newlyVisibleListings);
+        } else {
+          const key = `an:impr:batch:${location.pathname}:${newlyVisibleListings[0]}-${newlyVisibleListings[newlyVisibleListings.length - 1]}:${newlyVisibleListings.length}`;
+          if (markOnce(key)) {
+            gaEvent('listing_impression_batch', {
+              ids: newlyVisibleListings,
+              count: newlyVisibleListings.length,
+            });
+          }
+        }
+      }
+    },
+    [onImpressionBatch]
+  );
 
   useEffect(() => {
     // Create intersection observer
@@ -69,7 +94,7 @@ export function useListingImpressions({
 
     observerRef.current.unobserve(element);
     elementsRef.current.delete(element);
-    
+
     // Remove from tracked set if it was being tracked
     const listingId = element.getAttribute('data-listing-id');
     if (listingId) {

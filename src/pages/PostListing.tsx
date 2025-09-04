@@ -8,8 +8,7 @@ import { draftListingsService, DraftData } from "../services/draftListings";
 import { Modal } from "../components/shared/Modal";
 import { AuthForm } from "../components/auth/AuthForm";
 import { compressImage } from "../utils/imageUtils";
-import { gaEvent } from "@/lib/ga";
-import { trackPostStart, trackPostSubmit, trackPostSuccess, trackPostAbandoned, resetPostingState } from "../lib/analytics";
+import { analytics } from "@/lib/analytics";
 import {
   PropertyType,
   ParkingType,
@@ -76,6 +75,18 @@ export function PostListing() {
     broker_fee: false,
   });
 
+  useEffect(() => {
+    analytics.bindLifecycleListeners();
+  }, []);
+
+  const [started, setStarted] = useState(false);
+  const onFirstInteract = () => {
+    if (!started) {
+      analytics.trackPostStart({ source: "PostListing" });
+      setStarted(true);
+    }
+  };
+
   // Load draft data on component mount
   useEffect(() => {
     loadDraftData();
@@ -85,8 +96,6 @@ export function PostListing() {
   useEffect(() => {
     if (user) {
       loadDraftData();
-      // Clear post start tracking when user logs in to prevent duplicate tracking
-      sessionStorage.removeItem('post_start_tracked');
     }
   }, [user]);
 
@@ -97,10 +106,6 @@ export function PostListing() {
       return;
     }
 
-    // Track post start on first meaningful interaction
-    if (formData.title.trim() || formData.location.trim()) {
-      trackPostStart();
-    }
 
     const timeoutId = setTimeout(() => {
       // Save draft even if user is not logged in (use a temporary identifier)
@@ -371,7 +376,6 @@ export function PostListing() {
     }
 
     // Track submission attempt
-    trackPostSubmit();
 
     setLoading(true);
     try {
@@ -396,7 +400,7 @@ export function PostListing() {
       } as any);
 
       // Track successful submission
-      trackPostSuccess(listing.id);
+      analytics.trackPostSuccess({ listingId: listing.id, role: userRole });
 
       // Process images: upload local base64 images to draft bucket first, then finalize all images
       if (tempImages.length > 0) {
@@ -410,7 +414,6 @@ export function PostListing() {
       // Delete the draft since we've successfully created the listing
       try {
         await draftListingsService.deleteDraft(user.id);
-        resetPostingState(); // Clear posting state after success
         console.log("✅ Draft deleted after successful listing creation");
       } catch (draftError) {
         console.error(
@@ -478,7 +481,8 @@ export function PostListing() {
       return;
     }
 
-    // If user is already logged in, proceed with submission
+    analytics.trackPostSubmit({ role: userRole });
+
     await submitListingContent();
   };
 
@@ -501,7 +505,7 @@ export function PostListing() {
         </p>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-8">
+      <form onSubmit={handleSubmit} onFocusCapture={onFirstInteract} onChangeCapture={onFirstInteract} className="space-y-8">
         {/* Basic Information */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
           <h2 className="text-xl font-semibold text-[#273140] mb-4">

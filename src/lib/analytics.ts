@@ -1,243 +1,141 @@
-import React from 'react';
-import { useAuth } from '@/hooks/useAuth';
-import { supabase } from '@/config/supabase';
+import React from "react";
+import { useAuth } from "@/hooks/useAuth";
+import { gaEvent } from "./ga";
 
-interface TrackProperties {
-  [key: string]: any;
+const KEY_STARTED = "analytics:post:started";
+const KEY_SUCCEEDED = "analytics:post:succeeded";
+const AN_DEBUG =
+  (import.meta?.env?.VITE_ANALYTICS_DEBUG ??
+    process.env.VITE_ANALYTICS_DEBUG) === "1";
+
+function readBool(k: string) {
+  try {
+    return sessionStorage.getItem(k) === "1";
+  } catch {
+    return false;
+  }
 }
 
-interface SessionData {
-  session_id: string;
+function writeBool(k: string, v: boolean) {
+  try {
+    if (v) {
+      sessionStorage.setItem(k, "1");
+    } else {
+      sessionStorage.removeItem(k);
+    }
+  } catch {
+    // ignore
+  }
 }
 
-class AnalyticsTracker {
-  private sessionData: SessionData | null = null;
-  private utmSentFallback = new Map<string, boolean>();
+export class Analytics {
+  private _postingStarted = false;
+  private _postingSucceeded = false;
+  private _listenersBound = false;
 
-  private getSessionData(): SessionData {
-    if (this.sessionData) {
-      return this.sessionData;
-    }
-
-    // Try to load existing session from localStorage
-    try {
-      const stored = localStorage.getItem('analytics_session');
-      if (stored) {
-        this.sessionData = JSON.parse(stored);
-        if (this.sessionData?.session_id) {
-          return this.sessionData;
-        }
-      }
-    } catch (error) {
-      console.warn('Failed to load analytics session from localStorage:', error);
-    }
-
-    // Generate new session
-    const session_id = crypto.randomUUID();
-
-    this.sessionData = {
-      session_id,
-    };
-
-    // Persist to localStorage
-    try {
-      localStorage.setItem('analytics_session', JSON.stringify(this.sessionData));
-    } catch (error) {
-      console.warn('Failed to save analytics session to localStorage:', error);
-    }
-
-    return this.sessionData;
+  constructor() {
+    this._postingStarted = readBool(KEY_STARTED);
+    this._postingSucceeded = readBool(KEY_SUCCEEDED);
   }
 
-  private getCurrentUserId(): string | undefined {
-    // This is a bit tricky since we can't use hooks here
-    // We'll need to access the auth state differently
+  private log(...args: any[]) {
+    if (AN_DEBUG) console.info("[AN]", ...args);
+  }
+
+  private emit(name: string, payload?: Record<string, any>) {
+    this.log("emit", name, payload);
     try {
-      // Try to get user from the auth context if available
-      const authData = (window as any).__auth_user_id;
-      return authData || undefined;
+      gaEvent(name, payload ?? {});
     } catch {
-      return undefined;
+      // noop
     }
   }
 
-  async track(eventName: string, properties: TrackProperties = {}): Promise<void> {
-    try {
-      const sessionData = this.getSessionData();
-      const userId = this.getCurrentUserId();
-      
-      // Prepare base event data
-      const eventData = {
-        event_name: eventName,
-        session_id: sessionData.session_id,
-        user_id: userId,
-        page: window.location.pathname,
-        referrer: document.referrer || undefined,
-        props: {
-          ...properties,
-          schema_version: 1,
-        },
-      };
+  bindLifecycleListeners() {
+    if (this._listenersBound) return;
+    this._listenersBound = true;
 
-      // Attach UTM parameters only on first page_view of the session
-      if (eventName === 'page_view') {
-        const flagKey = `had_utm_sent_v1:${sessionData.session_id}`;
-        let utmAlreadySent = false;
-        try {
-          utmAlreadySent = localStorage.getItem(flagKey) === '1';
-        } catch {
-          utmAlreadySent = this.utmSentFallback.get(sessionData.session_id) === true;
-        }
+    const onHide = () => this.trackPostAbandoned({ reason: "visibilitychange" });
+    const onUnload = () => this.trackPostAbandoned({ reason: "beforeunload" });
 
-        if (!utmAlreadySent) {
-          const urlParams = new URLSearchParams(window.location.search);
-          const utmKeys = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term'];
-          const utmParams: Record<string, string> = {};
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "hidden") onHide();
+    });
+    window.addEventListener("beforeunload", onUnload);
+  }
 
-          for (const key of utmKeys) {
-            const value = urlParams.get(key);
-            if (value) {
-              utmParams[key] = value;
-            }
-          }
-
-          if (Object.keys(utmParams).length > 0) {
-            eventData.props.attribution = utmParams;
-          }
-
-          try {
-            localStorage.setItem(flagKey, '1');
-          } catch {
-            this.utmSentFallback.set(sessionData.session_id, true);
-          }
-        }
-      }
-
-      // Send to Edge Function using Supabase client
-      const { data, error } = await supabase.functions.invoke('track', {
-        body: eventData,
-      });
-
-      if (error) {
-        console.debug('[analytics.track] error (swallowed):', error);
-        return;
-      }
-
-      if (data?.skipped) {
-        console.log('Analytics event skipped:', data.skipped);
-      }
-    } catch (error) {
-      console.warn('Analytics tracking error:', error);
-      // Don't throw - analytics failures shouldn't break the app
+  trackPostStart(ctx: Record<string, any> = {}) {
+    if (this._postingStarted) {
+      this.log("skip start (already started)");
+      return;
     }
+    this._postingStarted = true;
+    writeBool(KEY_STARTED, true);
+    this.emit("listing_post_start", ctx);
   }
 
-  // Specialized methods for common events
-  async trackPageView(): Promise<void> {
-    await this.track('page_view');
-  }
-
-  async trackListingView(listingId: string): Promise<void> {
-    // Prevent duplicate tracking within the same session
-    const viewKey = `listing_view_tracked_${listingId}`;
-    const hasTracked = sessionStorage.getItem(viewKey);
-    
-    if (!hasTracked) {
-      await this.track('listing_view', { listing_id: listingId });
-      sessionStorage.setItem(viewKey, 'true');
+  trackPostSubmit(ctx: Record<string, any> = {}) {
+    if (!this._postingStarted || this._postingSucceeded) {
+      this.log("skip submit");
+      return;
     }
+    this.emit("listing_post_submit", ctx);
   }
 
-  async trackListingImpressionBatch(listingIds: string[]): Promise<void> {
-    if (!listingIds.length) return;
-
-    // Create a unique key for this batch to prevent duplicate tracking
-    const batchKey = `impression_batch_${listingIds.sort().join(',')}_${Date.now()}`;
-    const hasTracked = sessionStorage.getItem(batchKey);
-    
-    if (!hasTracked) {
-      await this.track('listing_impression_batch', { ids: listingIds });
-      sessionStorage.setItem(batchKey, 'true');
+  trackPostSuccess(ctx: Record<string, any> = {}) {
+    if (!this._postingStarted) {
+      this.log("skip success (not started)");
+      return;
     }
-  }
-
-  async trackFilterApply(filters: Record<string, any>): Promise<void> {
-    // Standardize filter properties
-    const standardizedFilters: Record<string, any> = {};
-    
-    if (filters.bedrooms !== undefined) standardizedFilters.beds = filters.bedrooms;
-    if (filters.min_price !== undefined) standardizedFilters.price_min = filters.min_price;
-    if (filters.max_price !== undefined) standardizedFilters.price_max = filters.max_price;
-    if (filters.neighborhoods) standardizedFilters.neighborhood = filters.neighborhoods;
-    if (filters.poster_type) standardizedFilters.role = filters.poster_type;
-    if (filters.property_type) standardizedFilters.property_type = filters.property_type;
-    if (filters.parking_included) standardizedFilters.parking_included = filters.parking_included;
-    if (filters.no_fee_only) standardizedFilters.no_fee_only = filters.no_fee_only;
-
-    await this.track('filter_apply', { filters: standardizedFilters });
-  }
-
-  async trackSearchQuery(query: string): Promise<void> {
-    await this.track('search_query', { q: query });
-  }
-
-  // Post funnel tracking with state management
-  async trackPostStart(): Promise<void> {
-    const hasStarted = sessionStorage.getItem('posting_started');
-    if (!hasStarted) {
-      sessionStorage.setItem('posting_started', 'true');
-      sessionStorage.removeItem('posting_succeeded');
-      await this.track('listing_post_start');
+    if (this._postingSucceeded) {
+      this.log("skip success (already succeeded)");
+      return;
     }
+    this.emit("listing_post_success", ctx);
+    this._postingSucceeded = true;
+    writeBool(KEY_SUCCEEDED, true);
+    this.resetPostingState();
   }
 
-  async trackPostSubmit(): Promise<void> {
-    const hasStarted = sessionStorage.getItem('posting_started');
-    if (hasStarted === 'true') {
-      await this.track('listing_post_submit');
+  trackPostAbandoned(ctx: Record<string, any> = {}) {
+    if (!this._postingStarted) {
+      this.log("skip abandoned (not started)");
+      return;
     }
-  }
-
-  async trackPostSuccess(listingId: string): Promise<void> {
-    const hasStarted = sessionStorage.getItem('posting_started');
-    if (hasStarted === 'true') {
-      sessionStorage.setItem('posting_succeeded', 'true');
-      await this.track('listing_post_submit_success', { listing_id: listingId });
-      // Clear posting state after success
-      sessionStorage.removeItem('posting_started');
-      sessionStorage.removeItem('posting_succeeded');
+    if (this._postingSucceeded) {
+      this.log("skip abandoned (already succeeded)");
+      return;
     }
+    this.emit("listing_post_abandoned", ctx);
+    this.resetPostingState();
   }
 
-  async trackPostAbandoned(): Promise<void> {
-    const hasStarted = sessionStorage.getItem('posting_started');
-    const hasSucceeded = sessionStorage.getItem('posting_succeeded');
-    
-    // Only track abandonment if posting was started but not succeeded
-    if (hasStarted === 'true' && hasSucceeded !== 'true') {
-      await this.track('listing_post_abandoned');
-      sessionStorage.removeItem('posting_started');
-      sessionStorage.removeItem('posting_succeeded');
-    }
+  resetPostingState() {
+    this.log("reset posting state");
+    this._postingStarted = false;
+    this._postingSucceeded = false;
+    writeBool(KEY_STARTED, false);
+    writeBool(KEY_SUCCEEDED, false);
   }
 
-  // Reset posting state (useful for cleanup)
-  resetPostingState(): void {
-    sessionStorage.removeItem('posting_started');
-    sessionStorage.removeItem('posting_succeeded');
+  // Generic helpers
+  trackPageView(ctx: Record<string, any> = {}) {
+    this.emit("page_view", ctx);
+  }
+
+  trackFilterApply(filters: Record<string, any>) {
+    this.emit("filter_apply", { filters });
   }
 }
 
-// Create singleton instance
-const analytics = new AnalyticsTracker();
+let instance: Analytics | null = null;
+export const analytics = (() => {
+  if (!instance) instance = new Analytics();
+  return instance;
+})();
 
-// Export the main track function and specialized methods
-export const track = analytics.track.bind(analytics);
 export const trackPageView = analytics.trackPageView.bind(analytics);
-export const trackListingView = analytics.trackListingView.bind(analytics);
-export const trackListingImpressionBatch = analytics.trackListingImpressionBatch.bind(analytics);
 export const trackFilterApply = analytics.trackFilterApply.bind(analytics);
-export const trackSearchQuery = analytics.trackSearchQuery.bind(analytics);
 export const trackPostStart = analytics.trackPostStart.bind(analytics);
 export const trackPostSubmit = analytics.trackPostSubmit.bind(analytics);
 export const trackPostSuccess = analytics.trackPostSuccess.bind(analytics);
@@ -247,54 +145,14 @@ export const resetPostingState = analytics.resetPostingState.bind(analytics);
 // Hook to provide user ID to analytics
 export function useAnalyticsAuth() {
   const { user } = useAuth();
-  
+
   React.useEffect(() => {
-    // Store user ID globally so analytics can access it
     (window as any).__auth_user_id = user?.id;
-    
     return () => {
       (window as any).__auth_user_id = undefined;
     };
   }, [user?.id]);
 }
 
-// Setup page unload tracking for post abandonment
-if (typeof window !== 'undefined') {
-  let abandonmentTracked = false;
-
-  const handleBeforeUnload = () => {
-    if (sessionStorage.getItem('posting_started') === 'true' && sessionStorage.getItem('posting_succeeded') !== 'true') {
-      analytics.trackPostAbandoned();
-      sessionStorage.removeItem('posting_started'); // Clear state after tracking
-    }
-  };
-
-  const handleVisibilityChange = () => {
-    if (document.visibilityState === 'hidden' && sessionStorage.getItem('posting_started') === 'true' && sessionStorage.getItem('posting_succeeded') !== 'true') {
-      analytics.trackPostAbandoned();
-      sessionStorage.removeItem('posting_started'); // Clear state after tracking
-    }
-  };
-
-  // This is crucial for single-page applications where beforeunload might not fire
-  // and visibilitychange might not be enough.
-  // Reset abandonment tracking when user navigates to post page
-  const handleLocationChange = () => {
-    if (window.location.pathname === '/post') {
-      abandonmentTracked = false;
-    }
-  };
-
-  window.addEventListener('beforeunload', handleBeforeUnload);
-  document.addEventListener('visibilitychange', handleVisibilityChange);
-  window.addEventListener('popstate', handleLocationChange);
-  
-  // Also listen for programmatic navigation
-  const originalPushState = history.pushState;
-  history.pushState = function(...args) {
-    originalPushState.apply(history, args);
-    handleLocationChange();
-  };
-}
-
 export default analytics;
+
