@@ -177,8 +177,9 @@ class AnalyticsTracker {
     const hasTracked = this.sessionGet(viewKey);
 
     if (!hasTracked) {
-      await this.track('listing_view', { listing_id: listingId });
+      // Set flag immediately to prevent race conditions
       this.sessionSet(viewKey, 'true');
+      await this.track('listing_view', { listing_id: listingId });
     }
   }
 
@@ -188,8 +189,9 @@ class AnalyticsTracker {
     const newIds = listingIds.filter((id) => !this.sessionGet(`listing_impression_${id}`));
     if (!newIds.length) return;
 
-    await this.track('listing_impression_batch', { ids: newIds });
+    // Set flags immediately to prevent race conditions
     newIds.forEach((id) => this.sessionSet(`listing_impression_${id}`, 'true'));
+    await this.track('listing_impression_batch', { ids: newIds });
   }
 
   async trackFilterApply(filters: Record<string, any>): Promise<void> {
@@ -270,6 +272,7 @@ class AnalyticsTracker {
     
     if (!hasStarted) {
       if (ANALYTICS_DEBUG) console.log('[analytics] post_start - tracking event');
+      // Set flag immediately to prevent race conditions
       this.sessionSet(startedKey, 'true');
       this.sessionRemove(`posting_succeeded_${sessionId}`);
       this.sessionRemove(`posting_submitted_${sessionId}`);
@@ -290,6 +293,7 @@ class AnalyticsTracker {
     
     if (hasSubmitted !== 'true') {
       if (ANALYTICS_DEBUG) console.log('[analytics] post_submit - tracking event');
+      // Set flag immediately to prevent race conditions
       this.sessionSet(`posting_submitted_${sessionId}`, 'true');
       await this.track('listing_post_submit');
     } else {
@@ -311,6 +315,7 @@ class AnalyticsTracker {
     
     if (hasSucceeded !== 'true') {
       if (ANALYTICS_DEBUG) console.log('[analytics] post_success - tracking event and clearing session');
+      // Set flag immediately to prevent race conditions
       this.sessionSet(`posting_succeeded_${sessionId}`, 'true');
       await this.track('listing_post_submit_success', { listing_id: listingId });
       this.clearPostingSession();
@@ -339,6 +344,7 @@ class AnalyticsTracker {
     // Only track abandonment if posting was started but not succeeded
     if (hasStarted === 'true' && hasSucceeded !== 'true' && hasAbandoned !== 'true') {
       if (ANALYTICS_DEBUG) console.log('[analytics] post_abandoned - tracking event and clearing session');
+      // Set flag immediately to prevent race conditions
       this.sessionSet(`posting_abandoned_${sessionId}`, 'true');
       await this.track('listing_post_abandoned');
       this.clearPostingSession();
