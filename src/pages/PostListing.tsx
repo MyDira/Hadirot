@@ -98,13 +98,8 @@ export function PostListing() {
     }
 
     // Track post start on first meaningful interaction
-    if ((formData.title.trim() || formData.location.trim()) && userRole) {
-      // Only track post start once per session
-      const hasTrackedStart = sessionStorage.getItem('post_start_tracked');
-      if (!hasTrackedStart) {
-        trackPostStart();
-        sessionStorage.setItem('post_start_tracked', 'true');
-      }
+    if (formData.title.trim() || formData.location.trim()) {
+      trackPostStart();
     }
 
     const timeoutId = setTimeout(() => {
@@ -375,6 +370,9 @@ export function PostListing() {
       return;
     }
 
+    // Track submission attempt
+    trackPostSubmit();
+
     setLoading(true);
     try {
       const neighborhood =
@@ -383,7 +381,6 @@ export function PostListing() {
           : neighborhoodSelectValue;
 
       if (neighborhoodSelectValue === "other" && neighborhood === "") {
-        gaEvent("post_submit", { role: userRole, success: false, validation_errors: 1 });
         alert("Please enter a neighborhood");
         setLoading(false);
         return;
@@ -398,11 +395,6 @@ export function PostListing() {
         approved: false,
       } as any);
 
-      gaEvent("post_submit_success", {
-        role: userRole,
-        listing_id: listing.id,
-      });
-      
       // Track successful submission
       trackPostSuccess(listing.id);
 
@@ -485,8 +477,6 @@ export function PostListing() {
       setShowAuthModal(true);
       return;
     }
-
-    trackPostSubmit();
 
     // If user is already logged in, proceed with submission
     await submitListingContent();

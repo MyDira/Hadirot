@@ -12,7 +12,6 @@ interface SessionData {
 
 class AnalyticsTracker {
   private sessionData: SessionData | null = null;
-  private postingStarted = false;
   private utmSentFallback = new Map<string, boolean>();
 
   private getSessionData(): SessionData {
@@ -139,13 +138,27 @@ class AnalyticsTracker {
   }
 
   async trackListingView(listingId: string): Promise<void> {
-    await this.track('listing_view', { listing_id: listingId });
+    // Prevent duplicate tracking within the same session
+    const viewKey = `listing_view_tracked_${listingId}`;
+    const hasTracked = sessionStorage.getItem(viewKey);
+    
+    if (!hasTracked) {
+      await this.track('listing_view', { listing_id: listingId });
+      sessionStorage.setItem(viewKey, 'true');
+    }
   }
 
   async trackListingImpressionBatch(listingIds: string[]): Promise<void> {
     if (!listingIds.length) return;
 
-    await this.track('listing_impression_batch', { ids: listingIds });
+    // Create a unique key for this batch to prevent duplicate tracking
+    const batchKey = `impression_batch_${listingIds.sort().join(',')}_${Date.now()}`;
+    const hasTracked = sessionStorage.getItem(batchKey);
+    
+    if (!hasTracked) {
+      await this.track('listing_impression_batch', { ids: listingIds });
+      sessionStorage.setItem(batchKey, 'true');
+    }
   }
 
   async trackFilterApply(filters: Record<string, any>): Promise<void> {
@@ -170,33 +183,39 @@ class AnalyticsTracker {
 
   // Post funnel tracking with state management
   async trackPostStart(): Promise<void> {
-    if (!this.postingStarted) {
+    const hasStarted = sessionStorage.getItem('posting_started');
+    if (!hasStarted) {
       sessionStorage.setItem('posting_started', 'true');
       sessionStorage.removeItem('posting_succeeded');
-      this.postingStarted = true;
       await this.track('listing_post_start');
     }
   }
 
   async trackPostSubmit(): Promise<void> {
-    if (sessionStorage.getItem('posting_started') === 'true') {
+    const hasStarted = sessionStorage.getItem('posting_started');
+    if (hasStarted === 'true') {
       await this.track('listing_post_submit');
     }
   }
 
   async trackPostSuccess(listingId: string): Promise<void> {
-    if (sessionStorage.getItem('posting_started') === 'true') {
+    const hasStarted = sessionStorage.getItem('posting_started');
+    if (hasStarted === 'true') {
       sessionStorage.setItem('posting_succeeded', 'true');
-      this.postingStarted = false; // End the session
       await this.track('listing_post_submit_success', { listing_id: listingId });
+      // Clear posting state after success
+      sessionStorage.removeItem('posting_started');
+      sessionStorage.removeItem('posting_succeeded');
     }
   }
 
   async trackPostAbandoned(): Promise<void> {
+    const hasStarted = sessionStorage.getItem('posting_started');
+    const hasSucceeded = sessionStorage.getItem('posting_succeeded');
+    
     // Only track abandonment if posting was started but not succeeded
-    if (this.postingStarted && !this.postingSucceeded) {
+    if (hasStarted === 'true' && hasSucceeded !== 'true') {
       await this.track('listing_post_abandoned');
-      this.postingStarted = false;
       sessionStorage.removeItem('posting_started');
       sessionStorage.removeItem('posting_succeeded');
     }
@@ -204,7 +223,6 @@ class AnalyticsTracker {
 
   // Reset posting state (useful for cleanup)
   resetPostingState(): void {
-    this.postingStarted = false;
     sessionStorage.removeItem('posting_started');
     sessionStorage.removeItem('posting_succeeded');
   }

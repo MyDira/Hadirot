@@ -131,7 +131,7 @@ export function ListingDetail() {
   useEffect(() => {
     if (!listing?.id) return;
     // Only track listing view once per page load
-    const viewKey = `listing_view_${listing.id}`;
+    const viewKey = `listing_view_${listing.id}_${Date.now()}`;
     const hasTracked = sessionStorage.getItem(viewKey);
 
     if (!hasTracked) {

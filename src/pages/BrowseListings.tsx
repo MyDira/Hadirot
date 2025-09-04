@@ -393,7 +393,7 @@ export function BrowseListings() {
     if (!displayListings || displayListings.length === 0) return;
     
     // Only track impression batch once per page load
-    const batchKey = `impression_batch_${currentPage}_${displayListings.length}`;
+    const batchKey = `impression_batch_p${currentPage}_c${displayListings.length}`;
     const hasTracked = sessionStorage.getItem(batchKey);
 
     if (!hasTracked) {
@@ -416,6 +416,14 @@ export function BrowseListings() {
   }, [displayListings, currentPage]);
 
   const handleCardClick = (l: any, idx: number) => {
+    // Only track click once per listing per session
+    const clickKey = `listing_click_${l.id}`;
+    const hasTracked = sessionStorage.getItem(clickKey);
+    
+    if (!hasTracked) {
+      sessionStorage.setItem(clickKey, 'true');
+    }
+    
     gaListing("listing_click", l.id, {
       title: l.title ?? undefined,
       price: Number(l.price ?? 0),
