@@ -103,26 +103,34 @@ Deno.serve(async (req) => {
     // Get user agent and IP for enrichment and bot detection
     const userAgent = req.headers.get('User-Agent') || '';
     const rawIP = getClientIP(req);
-    
-    // Check for test bypass header
-    const allowBot = req.headers.get('x-allow-bot') === 'true';
-    
-    // Bot filtering (unless bypassed for testing)
-    if (!allowBot && isBot(userAgent)) {
-      console.log('🤖 Bot detected, skipping analytics:', userAgent);
-      return new Response(JSON.stringify({ success: true, skipped: 'bot' }), {
-        status: 200,
+
+    // Parse request body (support sendBeacon text/plain or empty CT)
+    let trackData: TrackRequest;
+    try {
+      const contentType = req.headers.get('content-type') || '';
+      if (!contentType || contentType.includes('text/plain')) {
+        const text = await req.text();
+        trackData = JSON.parse(text);
+      } else {
+        trackData = await req.json();
+      }
+    } catch (error) {
+      return new Response(JSON.stringify({ error: 'Invalid JSON in request body' }), {
+        status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    // Parse request body
-    let trackData: TrackRequest;
-    try {
-      trackData = await req.json();
-    } catch (error) {
-      return new Response(JSON.stringify({ error: 'Invalid JSON in request body' }), {
-        status: 400,
+    // Check for test bypass header
+    const allowBot =
+      req.headers.get('x-allow-bot') === 'true' ||
+      trackData.event_name === 'listing_post_abandoned';
+
+    // Bot filtering (unless bypassed for testing or specific events)
+    if (!allowBot && isBot(userAgent)) {
+      console.log('🤖 Bot detected, skipping analytics:', userAgent);
+      return new Response(JSON.stringify({ success: true, skipped: 'bot' }), {
+        status: 200,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
