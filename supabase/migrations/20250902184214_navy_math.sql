@@ -302,7 +302,7 @@ BEGIN
     RAISE EXCEPTION 'Access denied. Admin privileges required.';
   END IF;
   
-  today_date := (now() at time zone 'utc')::date;
+  today_date := date(timezone('America/New_York', now()));
   start_dt := today_date - (days_back - 1);
   end_dt := today_date;
   
@@ -313,7 +313,7 @@ BEGIN
       ts,
       LAG(ts) OVER (PARTITION BY session_id ORDER BY ts) as prev_ts
     FROM analytics_events
-    WHERE ts::date = today_date
+    WHERE timezone('America/New_York', ts)::date = today_date
   ),
   today_session_gaps AS (
     SELECT 
@@ -364,7 +364,7 @@ BEGIN
       COUNT(CASE WHEN event_name IN ('listing_post_submit_success', 'listing_post_success', 'post_submit_success') THEN 1 END) as today_post_success,
       COUNT(CASE WHEN event_name IN ('listing_post_abandoned', 'post_abandoned') THEN 1 END) as today_post_abandoned
     FROM analytics_events
-    WHERE ts::date = today_date
+    WHERE timezone('America/New_York', ts)::date = today_date
   ),
   sparkline_data AS (
     SELECT array_agg(daily_dau ORDER BY date) as dau_array
@@ -430,7 +430,7 @@ BEGIN
     RAISE EXCEPTION 'Access denied. Admin privileges required.';
   END IF;
   
-  today_date := (now() at time zone 'utc')::date;
+  today_date := date(timezone('America/New_York', now()));
   start_dt := today_date - (days_back - 1);
   
   RETURN QUERY
@@ -449,7 +449,7 @@ BEGIN
       COUNT(*) as views
     FROM analytics_events
     WHERE event_name = 'listing_view'
-      AND ts::date = today_date
+      AND timezone('America/New_York', ts)::date = today_date
       AND props ? 'listing_id'
     GROUP BY 1
   ),
@@ -464,7 +464,7 @@ BEGIN
            ) as listing_id
          ) expanded
     WHERE ae.event_name = 'listing_impression_batch'
-      AND ae.ts::date = today_date
+      AND timezone('America/New_York', ae.ts)::date = today_date
     GROUP BY 1
   ),
   combined_stats AS (
@@ -515,7 +515,7 @@ BEGIN
     RAISE EXCEPTION 'Access denied. Admin privileges required.';
   END IF;
   
-  today_date := (now() at time zone 'utc')::date;
+  today_date := date(timezone('America/New_York', now()));
   start_dt := today_date - (days_back - 1);
   
   RETURN QUERY
@@ -539,7 +539,7 @@ BEGIN
         (props->'filters'->>jsonb_object_keys(props->'filters')) as val
       FROM analytics_events
       WHERE event_name = 'filter_apply'
-        AND ts::date = today_date
+        AND timezone('America/New_York', ts)::date = today_date
         AND props ? 'filters'
         AND jsonb_typeof(props->'filters') = 'object'
     ) expanded

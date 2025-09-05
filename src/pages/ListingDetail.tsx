@@ -128,27 +128,23 @@ export function ListingDetail() {
     }
   }, [id]); // Only depends on id, not user or other state
 
+  const trackedListingId = React.useRef<string | null>(null);
   useEffect(() => {
     if (!listing?.id) return;
-    // Only track listing view once per page load
-    const viewKey = `listing_view_${listing.id}_${Date.now()}`;
-    const hasTracked = sessionStorage.getItem(viewKey);
+    if (trackedListingId.current === listing.id) return;
 
-    if (!hasTracked) {
-      gaListing("listing_view", listing.id, {
-        price: Number(listing.price ?? 0),
-        bedrooms: Number(listing.bedrooms ?? 0),
-        bathrooms: Number(listing.bathrooms ?? 0),
-        neighborhood:
-          listing.neighborhood ?? listing.area ?? listing.location ?? undefined,
-        is_featured: !!(listing.is_featured),
-      });
+    gaListing("listing_view", listing.id, {
+      price: Number(listing.price ?? 0),
+      bedrooms: Number(listing.bedrooms ?? 0),
+      bathrooms: Number(listing.bathrooms ?? 0),
+      neighborhood:
+        listing.neighborhood ?? listing.area ?? listing.location ?? undefined,
+      is_featured: !!(listing.is_featured),
+    });
 
-      // Track with our analytics system
-      trackListingView(listing.id);
+    trackListingView(listing.id);
 
-      sessionStorage.setItem(viewKey, 'true');
-    }
+    trackedListingId.current = listing.id;
   }, [listing?.id]);
 
   useEffect(() => {

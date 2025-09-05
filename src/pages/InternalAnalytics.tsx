@@ -119,9 +119,10 @@ export function InternalAnalytics() {
 
       // Load summary data
       const { data: summaryData, error: summaryError } = await supabase
-        .rpc('analytics_summary', { days_back: 7 });
+        .rpc('analytics_summary_v2', { days_back: 0 });
 
       if (summaryError) {
+        console.error('Error loading summary:', summaryError);
         if (summaryError.message.includes('forbidden')) {
           setError('Access denied. Admin privileges required.');
           return;
@@ -133,7 +134,7 @@ export function InternalAnalytics() {
 
       // Load top listings
       const { data: listingsData, error: listingsError } = await supabase
-        .rpc('analytics_top_listings', { days_back: 7, limit_count: 10 });
+        .rpc('analytics_top_listings', { days_back: 1, limit_count: 10 });
 
       if (listingsError) {
         console.error('Error loading top listings:', listingsError);
@@ -143,7 +144,7 @@ export function InternalAnalytics() {
 
       // Load top filters
       const { data: filtersData, error: filtersError } = await supabase
-        .rpc('analytics_top_filters', { days_back: 7, limit_count: 10 });
+        .rpc('analytics_top_filters', { days_back: 1, limit_count: 10 });
 
       if (filtersError) {
         console.error('Error loading top filters:', filtersError);
@@ -242,7 +243,7 @@ export function InternalAnalytics() {
           Analytics Dashboard
         </h1>
         <p className="text-gray-600 mt-2">
-          Last 7 days • {new Date(summary.start_date).toLocaleDateString()} - {new Date(summary.end_date).toLocaleDateString()}
+          Today • {summary.start_date}
         </p>
       </div>
 
@@ -262,7 +263,7 @@ export function InternalAnalytics() {
           </div>
         </div>
 
-        {/* Unique Visitors (7d) */}
+        {/* Unique Visitors */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
           <div className="flex items-center mb-2">
             <Users className="w-5 h-5 text-green-600 mr-2" />
@@ -293,7 +294,7 @@ export function InternalAnalytics() {
             <h3 className="text-sm font-medium text-gray-700">Listing Views</h3>
           </div>
           <div className="text-2xl font-bold text-gray-900">{summary.listing_views_7d}</div>
-          <div className="text-sm text-gray-500">7 days</div>
+          <div className="text-sm text-gray-500">today</div>
         </div>
       </div>
 
@@ -301,7 +302,7 @@ export function InternalAnalytics() {
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-8">
         <h2 className="text-xl font-semibold text-[#273140] mb-6 flex items-center">
           <TrendingUp className="w-6 h-6 mr-2" />
-          Posting Funnel (7 days)
+          Posting Funnel
         </h2>
         
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
