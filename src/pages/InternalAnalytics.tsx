@@ -8,25 +8,20 @@ import {
   Clock,
   FileText,
   Filter,
-  ArrowLeft
 } from 'lucide-react';
 import { useAuth, AUTH_CONTEXT_ID } from '@/hooks/useAuth';
 import { supabase } from '../config/supabase';
 
-interface AnalyticsSummary {
-  start_date: string;
-  end_date: string;
-  dau: number;
-  visitors_7d: number;
-  returns_7d: number;
-  avg_session_minutes: number;
-  listing_views_7d: number;
-  post_starts_7d: number;
-  post_submits_7d: number;
-  post_success_7d: number;
-  post_abandoned_7d: number;
-  dau_sparkline: number[];
+// Uniform RPC helper with console trace
+async function rpc<T>(name: string, args: any) {
+  const { data, error } = await supabase.rpc(name, args);
+  console.log('[Analytics RPC]', name, { args, data, error });
+  if (error) throw new Error(`${name}: ${error.code} ${error.message}`);
+  return data as T;
 }
+
+// Small guard to avoid NaN in UI
+const numOr0 = (n: unknown) => (typeof n === 'number' && Number.isFinite(n) ? n : 0);
 
 interface TopListing {
   listing_id: string;
@@ -73,7 +68,20 @@ export function InternalAnalytics() {
   const navigate = useNavigate();
   const { user, profile, loading, authContextId } = useAuth();
   const isAdmin = profile?.is_admin === true;
-  const [summary, setSummary] = useState<AnalyticsSummary | null>(null);
+  const [dailyActive, setDailyActive] = useState(0);
+  const [uniqueVisitors, setUniqueVisitors] = useState(0);
+  const [avgSession, setAvgSession] = useState(0);
+  const [listingViews, setListingViews] = useState(0);
+  const [funnel, setFunnel] = useState({
+    starts: 0,
+    submits: 0,
+    successes: 0,
+    abandoned: 0,
+    successRate: 0,
+    abandonRate: 0,
+  });
+  const [dateStr, setDateStr] = useState('');
+  const [dauSparkline, setDauSparkline] = useState<number[]>([]);
   const [topListings, setTopListings] = useState<TopListing[]>([]);
   const [topFilters, setTopFilters] = useState<TopFilter[]>([]);
   const [dataLoading, setDataLoading] = useState(true);
@@ -112,28 +120,71 @@ export function InternalAnalytics() {
     }
   }, [user, isAdmin]);
 
+  type KpisRow = {
+    daily_active: number;
+    unique_visitors: number;
+    avg_session_minutes: number;
+    listing_views: number;
+  };
+
+  type SummaryRow = {
+    post_starts: number;
+    post_submits: number;
+    post_successes: number;
+    post_abandoned: number;
+  };
+
+  useEffect(() => {
+    let alive = true;
+
+    (async () => {
+      try {
+        // today only
+        const [kpisArr, funnelArr] = await Promise.all([
+          rpc<KpisRow[]>('analytics_kpis', { days_back: 0 }),
+          rpc<SummaryRow[]>('analytics_summary', { days_back: 0 }),
+        ]);
+
+        const k = kpisArr?.[0] ?? { daily_active: 0, unique_visitors: 0, avg_session_minutes: 0, listing_views: 0 };
+        const f = funnelArr?.[0] ?? { post_starts: 0, post_submits: 0, post_successes: 0, post_abandoned: 0 };
+
+        if (!alive) return;
+
+        setDailyActive(numOr0(k.daily_active));
+        setUniqueVisitors(numOr0(k.unique_visitors));
+        setAvgSession(Math.round(numOr0(k.avg_session_minutes)));
+        setListingViews(numOr0(k.listing_views));
+
+        setFunnel({
+          starts: numOr0(f.post_starts),
+          submits: numOr0(f.post_submits),
+          successes: numOr0(f.post_successes),
+          abandoned: numOr0(f.post_abandoned),
+          successRate: f.post_starts > 0 ? Math.round((f.post_successes / f.post_starts) * 100) : 0,
+          abandonRate: f.post_starts > 0 ? Math.round((f.post_abandoned / f.post_starts) * 100) : 0,
+        });
+
+        setDateStr(
+          new Date().toLocaleDateString('en-US', { timeZone: 'America/New_York' })
+        );
+      } catch (err) {
+        console.error('Error loading analytics (top half):', err);
+      }
+    })();
+
+    return () => {
+      alive = false;
+    };
+  }, []);
+
   const loadAnalyticsData = async () => {
     try {
       setDataLoading(true);
       setError(null);
 
-      // Load summary data
-      const { data: summaryData, error: summaryError } = await supabase
-        .rpc('analytics_summary', { days_back: 7 });
-
-      if (summaryError) {
-        if (summaryError.message.includes('forbidden')) {
-          setError('Access denied. Admin privileges required.');
-          return;
-        }
-        throw summaryError;
-      }
-
-      setSummary(summaryData?.[0] || null);
-
       // Load top listings
       const { data: listingsData, error: listingsError } = await supabase
-        .rpc('analytics_top_listings', { days_back: 7, limit_count: 10 });
+        .rpc('analytics_top_listings', { days_back: 0, limit_count: 10 });
 
       if (listingsError) {
         console.error('Error loading top listings:', listingsError);
@@ -143,7 +194,7 @@ export function InternalAnalytics() {
 
       // Load top filters
       const { data: filtersData, error: filtersError } = await supabase
-        .rpc('analytics_top_filters', { days_back: 7, limit_count: 10 });
+        .rpc('analytics_top_filters', { days_back: 0, limit_count: 10 });
 
       if (filtersError) {
         console.error('Error loading top filters:', filtersError);
@@ -202,37 +253,6 @@ export function InternalAnalytics() {
     );
   }
 
-  if (!summary) {
-    return (
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-[#273140] flex items-center">
-            <BarChart3 className="w-8 h-8 mr-3" />
-            Analytics Dashboard
-          </h1>
-        </div>
-        <div className="text-center py-12">
-          <div className="bg-gray-50 border border-gray-200 rounded-lg p-6 max-w-md mx-auto">
-            <BarChart3 className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-            <p className="text-gray-600">No analytics data available yet.</p>
-            <p className="text-sm text-gray-500 mt-2">
-              Data will appear as users interact with your site.
-            </p>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // Calculate funnel percentages
-  const successRate = summary.post_submits_7d > 0 
-    ? Math.round((summary.post_success_7d / summary.post_submits_7d) * 100)
-    : 0;
-  
-  const abandonRate = summary.post_starts_7d > 0
-    ? Math.round((summary.post_abandoned_7d / summary.post_starts_7d) * 100)
-    : 0;
-
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       {/* Header */}
@@ -242,7 +262,7 @@ export function InternalAnalytics() {
           Analytics Dashboard
         </h1>
         <p className="text-gray-600 mt-2">
-          Last 7 days • {new Date(summary.start_date).toLocaleDateString()} - {new Date(summary.end_date).toLocaleDateString()}
+          Today • {dateStr}
         </p>
       </div>
 
@@ -256,22 +276,20 @@ export function InternalAnalytics() {
               <h3 className="text-sm font-medium text-gray-700">Daily Active</h3>
             </div>
           </div>
-          <div className="text-2xl font-bold text-gray-900 mb-2">{summary.dau}</div>
+          <div className="text-2xl font-bold text-gray-900 mb-2">{Number.isFinite(dailyActive) ? dailyActive : 0}</div>
           <div className="text-blue-600">
-            <Sparkline data={summary.dau_sparkline} />
+            <Sparkline data={dauSparkline} />
           </div>
         </div>
 
-        {/* Unique Visitors (7d) */}
+        {/* Unique Visitors */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
           <div className="flex items-center mb-2">
             <Users className="w-5 h-5 text-green-600 mr-2" />
             <h3 className="text-sm font-medium text-gray-700">Unique Visitors</h3>
           </div>
-          <div className="text-2xl font-bold text-gray-900">{summary.visitors_7d}</div>
-          <div className="text-sm text-gray-500">
-            {summary.returns_7d} returning
-          </div>
+          <div className="text-2xl font-bold text-gray-900">{Number.isFinite(uniqueVisitors) ? uniqueVisitors : 0}</div>
+          <div className="text-sm text-gray-500">&nbsp;</div>
         </div>
 
         {/* Average Session Length */}
@@ -281,7 +299,7 @@ export function InternalAnalytics() {
             <h3 className="text-sm font-medium text-gray-700">Avg Session</h3>
           </div>
           <div className="text-2xl font-bold text-gray-900">
-            {Math.round(summary.avg_session_minutes)}m
+            {Number.isFinite(avgSession) ? avgSession : 0}m
           </div>
           <div className="text-sm text-gray-500">minutes</div>
         </div>
@@ -292,8 +310,8 @@ export function InternalAnalytics() {
             <Eye className="w-5 h-5 text-orange-600 mr-2" />
             <h3 className="text-sm font-medium text-gray-700">Listing Views</h3>
           </div>
-          <div className="text-2xl font-bold text-gray-900">{summary.listing_views_7d}</div>
-          <div className="text-sm text-gray-500">7 days</div>
+          <div className="text-2xl font-bold text-gray-900">{Number.isFinite(listingViews) ? listingViews : 0}</div>
+          <div className="text-sm text-gray-500">today</div>
         </div>
       </div>
 
@@ -301,43 +319,43 @@ export function InternalAnalytics() {
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-8">
         <h2 className="text-xl font-semibold text-[#273140] mb-6 flex items-center">
           <TrendingUp className="w-6 h-6 mr-2" />
-          Posting Funnel (7 days)
+          Posting Funnel
         </h2>
         
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div className="text-center">
             <div className="bg-blue-100 rounded-lg p-4 mb-2">
-              <div className="text-2xl font-bold text-blue-800">{summary.post_starts_7d}</div>
+              <div className="text-2xl font-bold text-blue-800">{Number.isFinite(funnel.starts) ? funnel.starts : 0}</div>
               <div className="text-sm text-blue-600">Started</div>
             </div>
           </div>
           
           <div className="text-center">
             <div className="bg-yellow-100 rounded-lg p-4 mb-2">
-              <div className="text-2xl font-bold text-yellow-800">{summary.post_submits_7d}</div>
+              <div className="text-2xl font-bold text-yellow-800">{Number.isFinite(funnel.submits) ? funnel.submits : 0}</div>
               <div className="text-sm text-yellow-600">Submitted</div>
             </div>
           </div>
           
           <div className="text-center">
             <div className="bg-green-100 rounded-lg p-4 mb-2">
-              <div className="text-2xl font-bold text-green-800">{summary.post_success_7d}</div>
+              <div className="text-2xl font-bold text-green-800">{Number.isFinite(funnel.successes) ? funnel.successes : 0}</div>
               <div className="text-sm text-green-600">Success</div>
             </div>
           </div>
-          
+
           <div className="text-center">
             <div className="bg-red-100 rounded-lg p-4 mb-2">
-              <div className="text-2xl font-bold text-red-800">{summary.post_abandoned_7d}</div>
+              <div className="text-2xl font-bold text-red-800">{Number.isFinite(funnel.abandoned) ? funnel.abandoned : 0}</div>
               <div className="text-sm text-red-600">Abandoned</div>
             </div>
           </div>
         </div>
 
         <div className="mt-4 text-center text-sm text-gray-600">
-          Success Rate: <span className="font-semibold text-green-600">{successRate}%</span>
+          Success Rate: <span className="font-semibold text-green-600">{Number.isFinite(funnel.successRate) ? funnel.successRate : 0}%</span>
           {' • '}
-          Abandon Rate: <span className="font-semibold text-red-600">{abandonRate}%</span>
+          Abandon Rate: <span className="font-semibold text-red-600">{Number.isFinite(funnel.abandonRate) ? funnel.abandonRate : 0}%</span>
         </div>
       </div>
 
