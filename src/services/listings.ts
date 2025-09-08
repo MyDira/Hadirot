@@ -20,7 +20,7 @@ export const listingsService = {
   async getListings(
     filters: GetListingsFilters = {},
     limit?: number,
-    userId?: string,
+    _userId?: string,
     offset = 0,
     applyPagination: boolean = true,
     is_featured_only?: boolean,
@@ -91,14 +91,8 @@ export const listingsService = {
       query = query.eq('is_featured', true).gt('featured_expires_at', new Date().toISOString());
     }
 
-    // Apply access conditions based on authentication
-    if (userId) {
-      // For authenticated users: show approved+active listings OR their own listings
-      query = query.or(`and(is_active.eq.true,approved.eq.true),user_id.eq.${userId}`);
-    } else {
-      // For unauthenticated users: only show approved+active listings
-      query = query.eq('is_active', true).eq('approved', true);
-    }
+    // Always limit results to active & approved listings
+    query = query.eq('is_active', true).eq('approved', true);
     
     query = query.order('created_at', { ascending: false });
 
