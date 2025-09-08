@@ -11,6 +11,9 @@ interface GetListingsFilters {
   neighborhoods?: string[];
   is_featured_only?: boolean;
   noFeeOnly?: boolean;
+  poster_type?: string;
+  agency_name?: string;
+  whoListing?: 'owner' | 'agent:any' | `agent:${string}`;
 }
 
 export const listingsService = {
@@ -55,6 +58,32 @@ export const listingsService = {
     }
     if (filters.noFeeOnly) {
       query = query.eq('broker_fee', false);
+    }
+
+    // Map whoListing to poster_type/agency_name for backward compatibility
+    let posterType = filters.poster_type;
+    let agencyName = filters.agency_name;
+    if (filters.whoListing) {
+      if (filters.whoListing === 'owner') {
+        posterType = 'landlord';
+        agencyName = undefined;
+      } else if (filters.whoListing === 'agent:any') {
+        posterType = 'agency';
+        agencyName = undefined;
+      } else if (filters.whoListing.startsWith('agent:')) {
+        posterType = 'agency';
+        agencyName = filters.whoListing.replace('agent:', '');
+      }
+    }
+
+    if (posterType === 'landlord') {
+      query = query.in('owner.role', ['landlord', 'tenant']);
+    } else if (posterType === 'agency') {
+      query = query.eq('owner.role', 'agent');
+    }
+
+    if (agencyName) {
+      query = query.eq('owner.agency', agencyName);
     }
 
     // Filter for featured-only listings if requested via filters
@@ -138,6 +167,29 @@ export const listingsService = {
     }
 
     return { ...data, is_favorited };
+  },
+
+  // Returns sorted unique agency names that currently have at least one active/approved agent listing.
+  async getUniqueActiveAgencies(): Promise<string[]> {
+    const { data, error } = await supabase
+      .from('listings')
+      .select(
+        `owner:profiles!listings_user_id_fkey(role, agency)`
+      )
+      .eq('is_active', true)
+      .eq('approved', true)
+      .eq('owner.role', 'agent');
+
+    if (error) {
+      console.error('Error fetching agencies:', error);
+      return [];
+    }
+
+    const agencies = (data || [])
+      .map((row: any) => row.owner?.agency)
+      .filter((a: string | null | undefined): a is string => !!a);
+
+    return Array.from(new Set(agencies)).sort();
   },
 
   async createListing(

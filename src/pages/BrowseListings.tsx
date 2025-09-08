@@ -14,6 +14,7 @@ interface FilterState {
   bedrooms?: number;
   poster_type?: string;
   agency_name?: string;
+  whoListing?: string;
   property_type?: string;
   min_price?: number;
   max_price?: number;
@@ -33,7 +34,7 @@ export function BrowseListings() {
   const [totalCount, setTotalCount] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
   const [filters, setFilters] = useState<FilterState>({});
-  const [agencies, setAgencies] = useState<string[]>([]);
+  const [activeAgencies, setActiveAgencies] = useState<string[]>([]);
   const [allNeighborhoods, setAllNeighborhoods] = useState<string[]>([]);
   const [showFiltersMobile, setShowFiltersMobile] = useState(false);
   const { user } = useAuth();
@@ -81,6 +82,15 @@ export function BrowseListings() {
     const agency_name = searchParams.get("agency_name");
     if (agency_name && poster_type === "agency")
       urlFilters.agency_name = agency_name;
+
+    // Derive whoListing from legacy params
+    if (poster_type === "landlord") {
+      urlFilters.whoListing = "owner";
+    } else if (poster_type === "agency") {
+      urlFilters.whoListing = agency_name
+        ? `agent:${agency_name}`
+        : "agent:any";
+    }
 
     const property_type = searchParams.get("property_type");
     if (property_type) urlFilters.property_type = property_type;
@@ -190,25 +200,7 @@ export function BrowseListings() {
         true, // Apply pagination
       );
 
-      // Apply frontend filtering if necessary (this part remains the same as before)
-      let standardListings = rawStandardListings;
-      if (filters.poster_type === "landlord") {
-        standardListings = standardListings.filter(
-          (l) =>
-            l.owner &&
-            (l.owner.role === "landlord" || l.owner.role === "tenant"),
-        );
-      }
-      if (filters.poster_type === "agency") {
-        standardListings = standardListings.filter(
-          (l) => l.owner && l.owner.role === "agent",
-        );
-      }
-      if (filters.agency_name) {
-        standardListings = standardListings.filter(
-          (l) => l.owner && l.owner.agency === filters.agency_name,
-        );
-      }
+      const standardListings = rawStandardListings;
 
       console.log("📦 Standard listings fetched:", standardListings.length);
 
@@ -299,25 +291,9 @@ export function BrowseListings() {
 
       setDisplayListings(finalListings);
 
-      // 7. Extract unique agencies for filter dropdown
-      const { data: allData } = await listingsService.getListings(
-        {},
-        undefined,
-        user?.id,
-        0,
-        false,
-      );
-      const uniqueAgencies = Array.from(
-        new Set(
-          allData
-            .filter(
-              (listing) =>
-                listing.owner?.role === "agent" && listing.owner?.agency,
-            )
-            .map((listing) => listing.owner!.agency!),
-        ),
-      ).sort();
-      setAgencies(uniqueAgencies);
+      // Update list of active agencies for filter dropdown
+      const agencyList = await listingsService.getUniqueActiveAgencies();
+      setActiveAgencies(agencyList);
     } catch (error) {
       console.error("Error loading listings:", error);
     } finally {
@@ -479,7 +455,7 @@ export function BrowseListings() {
         <ListingFilters
           filters={filters}
           onFiltersChange={handleFiltersChange}
-          agencies={agencies}
+          agencies={activeAgencies}
           allNeighborhoods={allNeighborhoods}
         />
       </div>
@@ -513,7 +489,7 @@ export function BrowseListings() {
                   handleFiltersChange(newFilters);
                   setShowFiltersMobile(false);
                 }}
-                agencies={agencies}
+                agencies={activeAgencies}
                 allNeighborhoods={allNeighborhoods}
                 isMobile={true}
               />

@@ -6,6 +6,7 @@ interface FilterState {
   bedrooms?: number;
   poster_type?: string;
   agency_name?: string;
+  whoListing?: string;
   property_type?: string;
   min_price?: number;
   max_price?: number;
@@ -17,7 +18,7 @@ interface FilterState {
 interface ListingFiltersProps {
   filters: FilterState;
   onFiltersChange: (filters: FilterState) => void;
-  agencies: string[];
+  agencies?: string[];
   allNeighborhoods?: string[];
   isMobile?: boolean;
 }
@@ -25,7 +26,7 @@ interface ListingFiltersProps {
 export function ListingFilters({
   filters,
   onFiltersChange,
-  agencies,
+  agencies = [],
   allNeighborhoods = [],
   isMobile = false,
 }: ListingFiltersProps) {
@@ -133,14 +134,24 @@ export function ListingFilters({
             Who is Listing?
           </label>
           <select
-            value={filters.poster_type || ""}
+            value={filters.whoListing || ""}
             onChange={(e) => {
-              const newPosterType = e.target.value;
-              const newFilters = { ...filters, poster_type: newPosterType };
+              const value = e.target.value;
+              const newFilters = { ...filters, whoListing: value || undefined } as FilterState;
 
-              // Clear agency_name if not selecting 'agency'
-              if (newPosterType !== "agency") {
+              // Map to legacy fields for backward compatibility
+              if (!value) {
+                delete newFilters.poster_type;
                 delete newFilters.agency_name;
+              } else if (value === "owner") {
+                newFilters.poster_type = "landlord";
+                delete newFilters.agency_name;
+              } else if (value === "agent:any") {
+                newFilters.poster_type = "agency";
+                delete newFilters.agency_name;
+              } else if (value.startsWith("agent:")) {
+                newFilters.poster_type = "agency";
+                newFilters.agency_name = value.replace("agent:", "");
               }
 
               onFiltersChange(newFilters);
@@ -148,33 +159,19 @@ export function ListingFilters({
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
           >
             <option value="">All Posters</option>
-            <option value="landlord">Landlord</option>
-            <option value="agency">Agency</option>
+            <option value="owner">All Owners</option>
+            <option value="agent:any">All Agents</option>
+            {agencies.length > 0 && (
+              <optgroup label="Specific Agencies">
+                {agencies.map((agency) => (
+                  <option key={agency} value={`agent:${agency}`}>
+                    {agency}
+                  </option>
+                ))}
+              </optgroup>
+            )}
           </select>
         </div>
-
-        {/* Agency Name - only show when poster_type is 'agency' */}
-        {filters.poster_type === "agency" && (
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Agency Name
-            </label>
-            <select
-              value={filters.agency_name || ""}
-              onChange={(e) =>
-                handleFilterChange("agency_name", e.target.value)
-              }
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
-            >
-              <option value="">All Agencies</option>
-              {agencies.map((agency) => (
-                <option key={agency} value={agency}>
-                  {agency}
-                </option>
-              ))}
-            </select>
-          </div>
-        )}
 
         {/* Neighborhoods */}
         <div>
