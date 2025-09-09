@@ -11,13 +11,16 @@ interface GetListingsFilters {
   neighborhoods?: string[];
   is_featured_only?: boolean;
   noFeeOnly?: boolean;
+  poster_type?: string;
+  agency_name?: string;
+  whoListing?: 'owner' | 'agent:any' | `agent:${string}`;
 }
 
 export const listingsService = {
   async getListings(
     filters: GetListingsFilters = {},
     limit?: number,
-    userId?: string,
+    _userId?: string,
     offset = 0,
     applyPagination: boolean = true,
     is_featured_only?: boolean,
@@ -32,6 +35,8 @@ export const listingsService = {
           role,
           agency
         ),
+        poster_role:owner.role,
+        poster_agency:owner.agency,
         listing_images(*)
       `, { count: 'exact' });
 
@@ -57,19 +62,43 @@ export const listingsService = {
       query = query.eq('broker_fee', false);
     }
 
+    // Normalize and map whoListing to poster_type/agency_name
+    let posterType = filters.poster_type;
+    let agencyName = filters.agency_name;
+
+    // Handle legacy values
+    if (posterType === 'landlord') posterType = 'owner';
+    if (posterType === 'agency') posterType = 'agent';
+
+    if (filters.whoListing) {
+      if (filters.whoListing === 'owner') {
+        posterType = 'owner';
+        agencyName = undefined;
+      } else if (filters.whoListing === 'agent:any') {
+        posterType = 'agent';
+        agencyName = undefined;
+      } else if (filters.whoListing.startsWith('agent:')) {
+        posterType = 'agent';
+        agencyName = filters.whoListing.replace('agent:', '');
+      }
+    }
+
+    if (posterType === 'owner') {
+      query = query.in('owner.role', ['landlord', 'tenant']);
+    } else if (posterType === 'agent') {
+      query = query.eq('owner.role', 'agent');
+      if (agencyName) {
+        query = query.eq('owner.agency', agencyName);
+      }
+    }
+
     // Filter for featured-only listings if requested via filters
     if (filters.is_featured_only || is_featured_only) {
       query = query.eq('is_featured', true).gt('featured_expires_at', new Date().toISOString());
     }
 
-    // Apply access conditions based on authentication
-    if (userId) {
-      // For authenticated users: show approved+active listings OR their own listings
-      query = query.or(`and(is_active.eq.true,approved.eq.true),user_id.eq.${userId}`);
-    } else {
-      // For unauthenticated users: only show approved+active listings
-      query = query.eq('is_active', true).eq('approved', true);
-    }
+    // Always limit results to active & approved listings
+    query = query.eq('is_active', true).eq('approved', true);
     
     query = query.order('created_at', { ascending: false });
 
@@ -138,6 +167,29 @@ export const listingsService = {
     }
 
     return { ...data, is_favorited };
+  },
+
+  // Returns sorted unique agency names that currently have at least one active/approved agent listing.
+  async getUniqueActiveAgencies(): Promise<string[]> {
+    const { data, error } = await supabase
+      .from('listings')
+      .select(
+        `owner:profiles!listings_user_id_fkey(role, agency)`
+      )
+      .eq('is_active', true)
+      .eq('approved', true)
+      .eq('owner.role', 'agent');
+
+    if (error) {
+      console.error('Error fetching agencies:', error);
+      return [];
+    }
+
+    const agencies = (data || [])
+      .map((row: any) => row.owner?.agency)
+      .filter((a: string | null | undefined): a is string => !!a);
+
+    return Array.from(new Set(agencies)).sort();
   },
 
   async createListing(
