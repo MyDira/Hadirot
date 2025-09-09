@@ -84,7 +84,7 @@ export const listingsService = {
     // Apply poster type filters using the profiles table join
     if (posterType === 'owner') {
       // Filter for landlord and tenant roles
-      query = query.or('profiles.role.eq.landlord,profiles.role.eq.tenant', { foreignTable: 'owner' });
+      query = query.or('role.eq.landlord,role.eq.tenant', { foreignTable: 'owner' });
     } else if (posterType === 'agent') {
       // Filter for agent role
       query = query.eq('owner.role', 'agent');
