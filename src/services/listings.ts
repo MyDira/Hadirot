@@ -35,8 +35,6 @@ export const listingsService = {
           role,
           agency
         ),
-        poster_role:owner.role,
-        poster_agency:owner.agency,
         listing_images(*)
       `, { count: 'exact' });
 

@@ -61,8 +61,6 @@ export interface Listing {
   approved: boolean;
   owner?: Profile;
   listing_images?: ListingImage[];
-  poster_role?: string;
-  poster_agency?: string;
   is_favorited?: boolean;
 }
 
