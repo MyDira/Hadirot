@@ -66,10 +66,26 @@ export function ListingCard({
   };
 
   const getPosterLabel = () => {
-    if (listing.owner?.role === "agent" && listing.owner?.agency) {
-      return capitalizeName(listing.owner?.agency || "");
+    const role =
+      listing?.owner?.role ??
+      (listing as any)?.profiles?.role ??
+      (listing as any)?.poster_type ??
+      null;
+
+    const agency =
+      listing?.owner?.agency ??
+      (listing as any)?.profiles?.agency ??
+      null;
+
+    if (role === "agent") {
+      return agency && agency.trim() ? capitalizeName(agency) : "Agent";
     }
-    return "Owner";
+
+    if (role === "landlord" || role === "tenant") {
+      return "Landlord";
+    }
+
+    return agency && agency.trim() ? capitalizeName(agency) : "Listing";
   };
 
   const formatPrice = (price: number) => {
