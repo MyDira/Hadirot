@@ -46,12 +46,13 @@ export const listingsService = {
       }
     }
 
-    // Build the select string with conditional INNER JOIN for owner relation
-    const baseOwnerSelect = posterType || agencyName
-      ? 'owner:profiles!inner(id,full_name,role,agency)'
-      : 'owner:profiles(id,full_name,role,agency)';
+    // Build select string; only use INNER JOIN when filtering for owners
+    const ownerSelect =
+      posterType === 'owner'
+        ? 'owner:profiles!inner(id,full_name,role,agency)'
+        : 'owner:profiles(id,full_name,role,agency)';
 
-    const selectStr = `*,${baseOwnerSelect},listing_images(*)`;
+    const selectStr = `*,${ownerSelect},listing_images(*)`;
     
     console.debug('[svc] select=', selectStr);
     console.debug('[svc] filters=', { posterType, agencyName, ...filters });
@@ -84,8 +85,8 @@ export const listingsService = {
 
     // Apply poster type filters using the profiles table join
     if (posterType === 'owner') {
-      // Filter for landlord and tenant roles
-      query = query.in('role', ['landlord', 'tenant'], { foreignTable: 'owner' });
+      // Filter for landlord and tenant roles scoped to the owner table
+      query = query.or('role.eq.landlord,role.eq.tenant', { foreignTable: 'owner' });
     } else if (posterType === 'agent') {
       // Filter for agent role
       query = query.eq('owner.role', 'agent');
