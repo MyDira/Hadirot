@@ -25,18 +25,40 @@ export const listingsService = {
     applyPagination: boolean = true,
     is_featured_only?: boolean,
   ) {
+    // Normalize and map whoListing to poster_type/agency_name
+    let posterType = filters.poster_type;
+    let agencyName = filters.agency_name;
+
+    // Handle legacy values
+    if (posterType === 'landlord') posterType = 'owner';
+    if (posterType === 'agency') posterType = 'agent';
+
+    if (filters.whoListing) {
+      if (filters.whoListing === 'owner') {
+        posterType = 'owner';
+        agencyName = undefined;
+      } else if (filters.whoListing === 'agent:any') {
+        posterType = 'agent';
+        agencyName = undefined;
+      } else if (filters.whoListing.startsWith('agent:')) {
+        posterType = 'agent';
+        agencyName = filters.whoListing.replace('agent:', '');
+      }
+    }
+
+    // Build the select string with conditional INNER JOIN for owner relation
+    const baseOwnerSelect = posterType || agencyName
+      ? 'owner:profiles!inner(id,full_name,role,agency)'
+      : 'owner:profiles(id,full_name,role,agency)';
+
+    const selectStr = `*,${baseOwnerSelect},listing_images(*)`;
+    
+    console.debug('[svc] select=', selectStr);
+    console.debug('[svc] filters=', { posterType, agencyName, ...filters });
+
     let query = supabase
       .from('listings')
-      .select(`
-        *,
-        owner:profiles!listings_user_id_fkey(
-          id,
-          full_name,
-          role,
-          agency
-        ),
-        listing_images(*)
-      `, { count: 'exact' });
+      .select(selectStr, { count: 'exact' });
 
     if (filters.bedrooms !== undefined) {
       query = query.eq('bedrooms', filters.bedrooms);
@@ -60,31 +82,10 @@ export const listingsService = {
       query = query.eq('broker_fee', false);
     }
 
-    // Normalize and map whoListing to poster_type/agency_name
-    let posterType = filters.poster_type;
-    let agencyName = filters.agency_name;
-
-    // Handle legacy values
-    if (posterType === 'landlord') posterType = 'owner';
-    if (posterType === 'agency') posterType = 'agent';
-
-    if (filters.whoListing) {
-      if (filters.whoListing === 'owner') {
-        posterType = 'owner';
-        agencyName = undefined;
-      } else if (filters.whoListing === 'agent:any') {
-        posterType = 'agent';
-        agencyName = undefined;
-      } else if (filters.whoListing.startsWith('agent:')) {
-        posterType = 'agent';
-        agencyName = filters.whoListing.replace('agent:', '');
-      }
-    }
-
     // Apply poster type filters using the profiles table join
     if (posterType === 'owner') {
       // Filter for landlord and tenant roles
-      query = query.or('role.eq.landlord,role.eq.tenant', { foreignTable: 'owner' });
+      query = query.in('role', ['landlord', 'tenant'], { foreignTable: 'owner' });
     } else if (posterType === 'agent') {
       // Filter for agent role
       query = query.eq('owner.role', 'agent');
@@ -115,7 +116,18 @@ export const listingsService = {
 
     if (error) {
       console.error("Error loading listings:", error);
+      console.error("Query details:", { selectStr, posterType, agencyName });
       return { data: [], totalCount: 0 };
+    }
+
+    // Log sample of first 3 rows for debugging
+    if (data && data.length > 0) {
+      console.debug('[svc] sample', data.slice(0, 3).map(r => ({
+        id: r.id,
+        ownerNull: r.owner == null,
+        ownerRole: r.owner?.role,
+        ownerAgency: r.owner?.agency,
+      })));
     }
 
     return { data: data || [], totalCount: count || 0 };

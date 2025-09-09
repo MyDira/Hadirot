@@ -66,9 +66,8 @@ export function ListingCard({
   };
 
   const getPosterLabel = () => {
-    const role = listing?.owner?.role ?? null;
-
-    const agency = listing?.owner?.agency ?? null;
+    const role = listing?.owner?.role ?? listing?.profiles?.role ?? listing?.poster_type ?? null;
+    const agency = listing?.owner?.agency ?? listing?.profiles?.agency ?? null;
 
     if (role === "agent") {
       return agency && agency.trim() ? capitalizeName(agency) : "Agent";
