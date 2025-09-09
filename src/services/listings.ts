@@ -90,8 +90,8 @@ export const listingsService = {
       query = query.or('role.eq.agent', { foreignTable: 'owner' });
 
       if (agencyName) {
-        // Use .filter to guarantee scoping to 'owner'
-        query = query.filter('agency', 'eq', agencyName, { foreignTable: 'owner' });
+        // Force scoping by using the embedded column path
+        query = query.eq('owner.agency', agencyName);
       }
     }
 
