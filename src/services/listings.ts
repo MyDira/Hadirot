@@ -26,8 +26,8 @@ export const listingsService = {
     is_featured_only?: boolean,
   ) {
     // Normalize and map whoListing to poster_type/agency_name
-    let posterType = filters.poster_type;
-    let agencyName = filters.agency_name;
+    let posterType = filters?.poster_type;
+    let agencyName = filters?.agency_name || undefined;
 
     // Handle legacy values
     if (posterType === 'landlord') posterType = 'owner';
@@ -47,14 +47,12 @@ export const listingsService = {
     }
 
     // Build the select string with conditional INNER JOIN for owner relation
-    const baseOwnerSelect = posterType || agencyName
-      ? 'owner:profiles!inner(id,full_name,role,agency)'
-      : 'owner:profiles(id,full_name,role,agency)';
+    const baseOwnerSelect =
+      posterType === 'owner' || posterType === 'agent' || !!agencyName
+        ? 'owner:profiles!inner(id,full_name,role,agency)'
+        : 'owner:profiles(id,full_name,role,agency)';
 
     const selectStr = `*,${baseOwnerSelect},listing_images(*)`;
-    
-    console.debug('[svc] select=', selectStr);
-    console.debug('[svc] filters=', { posterType, agencyName, ...filters });
 
     let query = supabase
       .from('listings')
@@ -82,14 +80,17 @@ export const listingsService = {
       query = query.eq('broker_fee', false);
     }
 
-    // Apply poster type filters using the profiles table join
+    // Apply poster predicates scoped to the owner foreign table
     if (posterType === 'owner') {
-      // Filter for landlord and tenant roles
-      query = query.in('role', ['landlord', 'tenant'], { foreignTable: 'owner' });
+      // landlord OR tenant — must be scoped to the 'owner' table
+      query = query.or('role.eq.landlord,role.eq.tenant', { foreignTable: 'owner' });
+
     } else if (posterType === 'agent') {
-      // Filter for agent role
-      query = query.eq('owner.role', 'agent');
+      // Use .or() because .eq(..., { foreignTable }) can serialize at root in some setups
+      query = query.or('role.eq.agent', { foreignTable: 'owner' });
+
       if (agencyName) {
+        // Force scoping by using the embedded column path
         query = query.eq('owner.agency', agencyName);
       }
     }
