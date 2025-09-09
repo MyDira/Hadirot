@@ -8,7 +8,6 @@ import { capitalizeName } from "../../utils/formatters";
 import { gaEvent, gaListing } from "@/lib/ga";
 void gaEvent;
 import NumericText from "@/components/common/NumericText";
-import { computePrimaryListingImage } from "../../utils/stockImage";
 
 interface ListingCardProps {
   listing: Listing;
@@ -27,23 +26,9 @@ export function ListingCard({
 }: ListingCardProps) {
   const { user } = useAuth();
   const navigate = useNavigate();
-  
-  // Get the primary image (real or stock)
-  const sortedImages = listing.listing_images?.sort((a, b) => {
-    if (a.is_featured && !b.is_featured) return -1;
-    if (!a.is_featured && b.is_featured) return 1;
-    return a.sort_order - b.sort_order;
-  });
-  
-  const { url: primaryImageUrl, isStock } = computePrimaryListingImage(
-    sortedImages,
-    {
-      id: listing.id,
-      addressLine: listing.location,
-      city: listing.neighborhood,
-      price: listing.price,
-    }
-  );
+  const featuredImage =
+    listing.listing_images?.find((img) => img.is_featured) ||
+    listing.listing_images?.[0];
 
   const handleFavoriteToggle = async (e: React.MouseEvent) => {
     e.preventDefault();
@@ -106,16 +91,29 @@ export function ListingCard({
       onClick={onClick}
     >
       <div className="relative aspect-[3/2]">
-        <img
-          src={primaryImageUrl}
-          alt={isStock ? "Stock photo placeholder" : listing.title}
-          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
-          loading="lazy"
-        />
-        
-        {isStock && (
-          <div className="absolute bottom-3 left-3 rounded-full bg-black/35 px-3 py-1 text-xs font-medium text-white backdrop-blur-sm">
-            Stock photo
+        {featuredImage ? (
+          <img
+            src={featuredImage.image_url}
+            alt={listing.title}
+            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+          />
+        ) : (
+          <div className="aspect-[3/2] w-full bg-brand-50 flex items-center justify-center border-b border-gray-100">
+            <svg
+              width="56"
+              height="56"
+              viewBox="0 0 24 24"
+              className="text-brand-700"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.5"
+            >
+              <path d="M3 10.5L12 3l9 7.5v9a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 19.5v-9z" />
+              <path d="M9 21V12h6v9" />
+            </svg>
+            <span className="ml-3 text-brand-700/90 text-sm md:text-base">
+              No image available
+            </span>
           </div>
         )}
 

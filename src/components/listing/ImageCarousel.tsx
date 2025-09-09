@@ -1,108 +1,112 @@
-import React, { useState } from 'react';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { getStockImageForListing } from '../../utils/stockImage';
+import { useEffect, useMemo, useState, useCallback } from "react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 
-interface ImageCarouselProps {
-  images: Array<{ url: string; alt: string }>;
-  className?: string;
-  listingSeed?: {
-    id?: string | null;
-    addressLine?: string | null;
-    city?: string | null;
-    price?: number | null;
-  };
+function clsx(...classes: (string | false | null | undefined)[]) {
+  return classes.filter(Boolean).join(" ");
 }
 
-export default function ImageCarousel({ 
-  images, 
-  className = '',
-  listingSeed 
-}: ImageCarouselProps) {
-  const [currentIndex, setCurrentIndex] = useState(0);
+type ImageCarouselProps = {
+  images: { url: string; alt?: string }[];
+  className?: string;
+};
 
-  // If no real images, show stock image
-  const hasRealImages = images && images.length > 0;
-  const displayImages = hasRealImages 
-    ? images 
-    : listingSeed 
-      ? [{ 
-          url: getStockImageForListing(listingSeed), 
-          alt: "Stock photo placeholder" 
-        }]
-      : [];
+export default function ImageCarousel({ images, className }: ImageCarouselProps) {
+  const safeImages = useMemo(() => images?.filter(Boolean) ?? [], [images]);
+  const [current, setCurrent] = useState(0);
 
-  if (displayImages.length === 0) {
+  const go = useCallback((idx: number) => {
+    if (!safeImages.length) return;
+    const next = (idx + safeImages.length) % safeImages.length;
+    setCurrent(next);
+  }, [safeImages.length]);
+
+  const prev = useCallback(() => go(current - 1), [current, go]);
+  const next = useCallback(() => go(current + 1), [current, go]);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "ArrowLeft") prev();
+      if (e.key === "ArrowRight") next();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [prev, next]);
+
+  if (!safeImages.length) {
     return (
-      <div className={`relative w-full bg-gray-100 flex items-center justify-center ${className}`}>
-        <div className="text-gray-500 text-center p-8">
-          <p>No images available</p>
-        </div>
+      <div
+        className={clsx(
+          "relative w-full bg-neutral-100 rounded-xl aspect-[4/3] flex items-center justify-center",
+          className
+        )}
+      >
+        <span className="text-sm text-neutral-500">No images available</span>
       </div>
     );
   }
 
-  const nextImage = () => {
-    setCurrentIndex((prev) => (prev + 1) % displayImages.length);
-  };
-
-  const prevImage = () => {
-    setCurrentIndex((prev) => (prev - 1 + displayImages.length) % displayImages.length);
-  };
-
-  const isShowingStock = !hasRealImages;
+  const img = safeImages[current];
 
   return (
-    <div className={`relative w-full ${className}`}>
-      {/* Main image */}
-      <div className="relative w-full h-96 overflow-hidden rounded-lg">
-        <img
-          src={displayImages[currentIndex].url}
-          alt={displayImages[currentIndex].alt}
-          className="w-full h-full object-cover"
-        />
-        
-        {isShowingStock && (
-          <div className="absolute bottom-4 left-4 rounded-full bg-black/35 px-3 py-1 text-sm text-white backdrop-blur-sm">
-            Stock photo
-          </div>
+    <div className={clsx("relative w-full rounded-xl overflow-hidden", className)}>
+      {/* Stage */}
+      <div className="relative w-full bg-neutral-100 aspect-[4/3] flex items-center justify-center">
+        {/* Left arrow */}
+        {safeImages.length > 1 && (
+          <>
+            <button
+              type="button"
+              aria-label="Previous image"
+              onClick={prev}
+              className="absolute top-1/2 -translate-y-1/2 left-2 w-9 h-9 rounded-full flex items-center justify-center bg-black/40 hover:bg-black/60 text-white focus:outline-none focus:ring focus:ring-white/40"
+            >
+              <ChevronLeft className="w-5 h-5" />
+            </button>
+            {/* Right arrow */}
+            <button
+              type="button"
+              aria-label="Next image"
+              onClick={next}
+              className="absolute top-1/2 -translate-y-1/2 right-2 w-9 h-9 rounded-full flex items-center justify-center bg-black/40 hover:bg-black/60 text-white focus:outline-none focus:ring focus:ring-white/40"
+            >
+              <ChevronRight className="w-5 h-5" />
+            </button>
+          </>
         )}
+
+        {/* Main image (no cropping) */}
+        <img
+          src={img.url}
+          alt={img.alt ?? "Listing image"}
+          className="w-full h-full object-contain"
+          draggable={false}
+        />
       </div>
 
-      {/* Navigation arrows - only show if more than 1 image */}
-      {displayImages.length > 1 && (
-        <>
-          <button
-            onClick={prevImage}
-            className="absolute left-4 top-1/2 transform -translate-y-1/2 bg-black bg-opacity-50 text-white p-2 rounded-full hover:bg-opacity-75 transition-all"
-            aria-label="Previous image"
-          >
-            <ChevronLeft size={20} />
-          </button>
-          <button
-            onClick={nextImage}
-            className="absolute right-4 top-1/2 transform -translate-y-1/2 bg-black bg-opacity-50 text-white p-2 rounded-full hover:bg-opacity-75 transition-all"
-            aria-label="Next image"
-          >
-            <ChevronRight size={20} />
-          </button>
-        </>
-      )}
-
-      {/* Dots indicator - only show if more than 1 image */}
-      {displayImages.length > 1 && (
-        <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex space-x-2">
-          {displayImages.map((_, index) => (
+      {/* Thumbnail strip */}
+      {safeImages.length > 1 && (
+        <div className="flex items-center justify-center gap-2 py-3 px-2 overflow-x-auto">
+          {safeImages.map((thumb, i) => (
             <button
-              key={index}
-              onClick={() => setCurrentIndex(index)}
-              className={`w-3 h-3 rounded-full transition-all ${
-                index === currentIndex ? 'bg-white' : 'bg-white bg-opacity-50'
-              }`}
-              aria-label={`Go to image ${index + 1}`}
-            />
+              key={i}
+              aria-label={`Go to image ${i + 1}`}
+              onClick={() => setCurrent(i)}
+              className={clsx(
+                "relative flex-shrink-0 w-16 h-16 rounded-md border-2 transition-all",
+                i === current ? "border-neutral-800" : "border-neutral-300 hover:border-neutral-400"
+              )}
+            >
+              <img
+                src={thumb.url}
+                alt={thumb.alt ?? `Thumbnail ${i + 1}`}
+                className="w-full h-full object-cover rounded-[6px]"
+                draggable={false}
+              />
+            </button>
           ))}
         </div>
       )}
     </div>
   );
 }
+

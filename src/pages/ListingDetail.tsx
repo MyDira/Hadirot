@@ -318,12 +318,6 @@ export function ListingDetail() {
             <ImageCarousel
               images={images.map((img) => ({ url: img.image_url, alt: listing.title }))}
               className="mb-0"
-              listingSeed={{
-                id: listing.id,
-                addressLine: listing.location,
-                city: listing.neighborhood,
-                price: listing.price,
-              }}
             />
             <button
               onClick={handleFavoriteToggle}
