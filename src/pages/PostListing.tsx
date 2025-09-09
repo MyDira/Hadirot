@@ -943,6 +943,10 @@ export function PostListing() {
               </p>
             </div>
           )}
+
+          <p className="mt-2 text-xs text-gray-500">
+            If you don't upload photos, a tasteful stock photo will be shown on your public listing.
+          </p>
         </div>
 
         {/* Contact Information */}
