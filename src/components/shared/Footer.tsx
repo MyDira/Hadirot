@@ -104,7 +104,27 @@ export function Footer() {
                     </h3>
                     <nav className="space-y-2">
                       {links.map((link, index) => {
-                        const href = link.url.startsWith('/') ? link.url : `/${link.url}`;
+                        const isExternal = /^https?:\/\//i.test(link.url);
+                        const href = isExternal
+                          ? link.url
+                          : link.url.startsWith('/')
+                            ? link.url
+                            : `/${link.url}`;
+
+                        if (isExternal) {
+                          return (
+                            <a
+                              key={index}
+                              href={href}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="block text-white/90 hover:text-white transition-colors duration-200"
+                            >
+                              {link.text}
+                            </a>
+                          );
+                        }
+
                         return (
                           <Link
                             key={index}
