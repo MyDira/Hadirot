@@ -103,15 +103,18 @@ export function Footer() {
                       {section.title}
                     </h3>
                     <nav className="space-y-2">
-                      {links.map((link, index) => (
-                        <Link
-                          key={index}
-                          to={link.url}
-                          className="block text-white/90 hover:text-white transition-colors duration-200"
-                        >
-                          {link.text}
-                        </Link>
-                      ))}
+                      {links.map((link, index) => {
+                        const href = link.url.startsWith('/') ? link.url : `/${link.url}`;
+                        return (
+                          <Link
+                            key={index}
+                            to={href}
+                            className="block text-white/90 hover:text-white transition-colors duration-200"
+                          >
+                            {link.text}
+                          </Link>
+                        );
+                      })}
                     </nav>
                   </div>
                 );

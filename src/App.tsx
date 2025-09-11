@@ -22,6 +22,8 @@ import { Privacy } from './pages/Privacy';
 import { Terms } from './pages/Terms';
 import { useAuth } from '@/hooks/useAuth';
 import GASmokeTest from '@/dev/gaSmokeTest';
+import { StaticPage } from './pages/StaticPage';
+import { NotFound } from './pages/NotFound';
 
 function ScrollToTop() {
   const location = useLocation();
@@ -71,6 +73,7 @@ function App() {
                 <Route path="/contact" element={<Contact />} />
                 <Route path="/privacy" element={<Privacy />} />
                 <Route path="/terms" element={<Terms />} />
+                <Route path="/:slug" element={<StaticPage />} />
                 <Route
                   path="/auth"
                   element={
@@ -79,7 +82,7 @@ function App() {
                     </PasswordRecoveryGate>
                   }
                 />
-                <Route path="*" element={<Navigate to="/" replace />} />
+                <Route path="*" element={<NotFound />} />
               </Routes>
             </Layout>
           }
