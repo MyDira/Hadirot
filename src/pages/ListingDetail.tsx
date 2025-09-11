@@ -409,12 +409,16 @@ export function ListingDetail() {
 
           {/* Price */}
           <section id="ld-price">
-            <div className="text-3xl font-bold text-[#273140]">
-              <span className="num-font">{formatPrice(listing.price)}</span>
-              <span className="text-lg font-normal text-gray-500">
-                /month
-              </span>
-            </div>
+            {listing.call_for_price ? (
+              <strong>Call for Price</strong>
+            ) : (
+              listing.price != null && (
+                <div className="text-3xl font-bold text-[#273140]">
+                  <span className="num-font">{formatPrice(listing.price)}</span>
+                  <span className="text-lg font-normal text-gray-500">/month</span>
+                </div>
+              )
+            )}
           </section>
 
           {/* Basic info */}

@@ -159,8 +159,8 @@ export function AdminPanel() {
           bValue = (b.owner?.full_name || '').toLowerCase();
           break;
         case 'price':
-          aValue = a.price;
-          bValue = b.price;
+          aValue = a.price ?? 0;
+          bValue = b.price ?? 0;
           break;
         case 'created_at':
           aValue = new Date(a.created_at).getTime();
@@ -785,7 +785,9 @@ export function AdminPanel() {
                       <div key={listing.id} className="flex items-center justify-between">
                         <div>
                           <p className="font-medium truncate">{listing.title}</p>
-                          <p className="text-sm text-gray-500">${listing.price}/month</p>
+                          <p className="text-sm text-gray-500">
+                            {listing.call_for_price ? 'Call for Price' : `$${listing.price}/month`}
+                          </p>
                         </div>
                         <span className={`px-2 py-1 text-xs rounded-full ${
                           listing.is_featured ? 'bg-yellow-100 text-yellow-800' : 'bg-gray-100 text-gray-800'
@@ -1350,7 +1352,7 @@ export function AdminPanel() {
                             </div>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                            ${listing.price}/month
+                            {listing.call_for_price ? 'Call for Price' : `$${listing.price}/month`}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                             {new Date(listing.created_at).toLocaleDateString()}
@@ -1554,7 +1556,9 @@ export function AdminPanel() {
                               <div className="text-sm text-gray-500 capitalize">{listing.owner?.role || 'N/A'}</div>
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                              ${listing.price.toLocaleString()}/month
+                              {listing.call_for_price
+                                ? 'Call for Price'
+                                : `$${listing.price.toLocaleString()}/month`}
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                               {new Date(listing.created_at).toLocaleDateString()}

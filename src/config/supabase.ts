@@ -40,7 +40,8 @@ export interface Listing {
   bedrooms: number;
   bathrooms: number;
   floor?: number;
-  price: number;
+  price: number | null;
+  call_for_price?: boolean;
   square_footage?: number;
   parking: ParkingType;
   washer_dryer_hookup: boolean;
