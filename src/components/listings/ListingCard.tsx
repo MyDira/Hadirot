@@ -137,9 +137,17 @@ export function ListingCard({
       <div className="p-3">
         {/* Price */}
         <div className="mb-2">
-          <span className="text-2xl leading-tight font-bold text-brand-900">
-            <span className="num-font">{formatPrice(listing.price)}</span>
-          </span>
+          {listing.call_for_price ? (
+            <strong className="text-2xl leading-tight font-bold text-brand-900">
+              Call for Price
+            </strong>
+          ) : (
+            listing.price != null && (
+              <span className="text-2xl leading-tight font-bold text-brand-900">
+                <span className="num-font">{formatPrice(listing.price)}</span>
+              </span>
+            )
+          )}
         </div>
 
         {/* Property specs - bedrooms, bathrooms, parking, broker fee */}

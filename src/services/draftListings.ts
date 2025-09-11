@@ -9,7 +9,8 @@ export interface DraftData {
   bedrooms: number;
   bathrooms: number;
   floor?: number;
-  price: number;
+  price: number | null;
+  call_for_price: boolean;
   square_footage?: number;
   parking: string;
   washer_dryer_hookup: boolean;

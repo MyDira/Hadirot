@@ -22,7 +22,8 @@ interface ListingFormData {
   bedrooms: number;
   bathrooms: number;
   floor?: number;
-  price: number;
+  price: number | null;
+  call_for_price: boolean;
   square_footage?: number;
   parking: ParkingType;
   washer_dryer_hookup: boolean;
@@ -67,7 +68,8 @@ export function EditListing() {
     bedrooms: 1,
     bathrooms: 1,
     floor: undefined,
-    price: 0,
+    price: null,
+    call_for_price: false,
     square_footage: undefined,
     parking: "no",
     washer_dryer_hookup: false,
@@ -118,7 +120,8 @@ export function EditListing() {
         bedrooms: data.bedrooms,
         bathrooms: data.bathrooms,
         floor: data.floor || undefined,
-        price: data.price,
+        price: data.call_for_price ? null : data.price,
+        call_for_price: !!data.call_for_price,
         square_footage: data.square_footage || undefined,
         parking: data.parking,
         washer_dryer_hookup: data.washer_dryer_hookup,
@@ -393,6 +396,8 @@ export function EditListing() {
         ...formData,
         neighborhood,
         updated_at: new Date().toISOString(),
+        price: formData.call_for_price ? null : formData.price,
+        call_for_price: !!formData.call_for_price,
       } as any);
 
       // Upload new images
@@ -638,13 +643,34 @@ export function EditListing() {
               </label>
               <input
                 type="number"
-                name="price"
-                value={formData.price || ""}
-                onChange={handleInputChange}
-                required
+                min={1}
+                step={1}
+                value={formData.price ?? ''}
+                onChange={(e) =>
+                  setFormData((f) => ({
+                    ...f,
+                    price: e.target.value ? Number(e.target.value) : null,
+                  }))
+                }
+                disabled={formData.call_for_price}
+                required={!formData.call_for_price}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
                 placeholder="2500"
               />
+              <label className="flex items-center gap-2 mt-2">
+                <input
+                  type="checkbox"
+                  checked={formData.call_for_price}
+                  onChange={(e) =>
+                    setFormData((f) => ({
+                      ...f,
+                      call_for_price: e.target.checked,
+                      price: e.target.checked ? null : f.price,
+                    }))
+                  }
+                />
+                <span>Call for Price</span>
+              </label>
             </div>
 
             <div>

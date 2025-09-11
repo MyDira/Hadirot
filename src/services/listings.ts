@@ -13,6 +13,16 @@ interface GetListingsFilters {
   noFeeOnly?: boolean;
 }
 
+export type ListingCreateInput = Omit<Listing, 'id' | 'created_at' | 'updated_at'> & {
+  price: number | null;
+  call_for_price?: boolean;
+  broker_fee?: boolean;
+};
+
+export type ListingUpdateInput = Partial<ListingCreateInput> & {
+  id: string;
+};
+
 export const listingsService = {
   async getListings(
     filters: GetListingsFilters = {},
@@ -140,18 +150,14 @@ export const listingsService = {
     return { ...data, is_favorited };
   },
 
-  async createListing(
-    listingData: Omit<Listing, 'id' | 'created_at' | 'updated_at'> & {
-      broker_fee?: boolean;
-    },
-  ) {
+  async createListing(payload: ListingCreateInput) {
     // If trying to feature a listing on creation, check permissions and limits
-    if (listingData.is_featured) {
+    if (payload.is_featured) {
       // Get user profile to check permissions
       const { data: userProfile, error: profileError } = await supabase // Fetch user profile
         .from('profiles')
         .select('is_admin, max_featured_listings_per_user, can_feature_listings')
-        .eq('id', listingData.user_id)
+        .eq('id', payload.user_id)
         .single();
 
       if (profileError || !userProfile) {
@@ -183,7 +189,7 @@ export const listingsService = {
 
       // Check per-user limit (unless user is admin)
       if (!userProfile.is_admin) {
-        const userCount = await this.getFeaturedListingsCountByUser(listingData.user_id);
+      const userCount = await this.getFeaturedListingsCountByUser(payload.user_id);
         if (userCount >= effectiveUserLimit) {
           throw new Error(`You can only feature up to ${effectiveUserLimit} listing${effectiveUserLimit === 1 ? '' : 's'} at a time.`);
         }
@@ -192,37 +198,43 @@ export const listingsService = {
       // Set expiration date to 1 week from now
       const oneWeekFromNow = new Date();
       oneWeekFromNow.setDate(oneWeekFromNow.getDate() + 7);
-      listingData.featured_expires_at = oneWeekFromNow.toISOString();
+      payload.featured_expires_at = oneWeekFromNow.toISOString();
     }
 
     // Capitalize the contact name
-    if (listingData.contact_name) {
-      listingData.contact_name = capitalizeName(listingData.contact_name);
+    if (payload.contact_name) {
+      payload.contact_name = capitalizeName(payload.contact_name);
     }
 
-    listingData.broker_fee = listingData.broker_fee ?? false;
+    payload.broker_fee = payload.broker_fee ?? false;
 
-    const { data, error } = await supabase // Ensure neighborhood and washer_dryer_hookup are handled
+    const data = {
+      ...payload,
+      call_for_price: !!payload.call_for_price,
+      price: payload.call_for_price ? null : payload.price ?? null,
+    };
+
+    const { data: result, error } = await supabase
       .from('listings')
-      .insert(listingData)
+      .insert(data)
       .select()
       .single();
 
     if (error) throw error;
-    return data;
+    return result;
   },
 
-  async updateListing(id: string, listingData: Partial<Listing>) {
-    console.log('[WEB] updateListing called', { id, updates: listingData });
+  async updateListing(id: string, payload: Partial<ListingCreateInput>) {
+    console.log('[WEB] updateListing called', { id, updates: payload });
     // Get the current listing to check for approval status change
     const { data: currentListing } = await supabase
       .from('listings')
-      .select('approved, title, user_id, is_featured, profiles!listings_user_id_fkey(full_name, email, is_admin, can_feature_listings)')
+      .select('approved, title, user_id, is_featured, call_for_price, profiles!listings_user_id_fkey(full_name, email, is_admin, can_feature_listings)')
       .eq('id', id)
       .single();
 
     // If trying to feature a listing, check permissions and limits
-    if (listingData.is_featured === true && currentListing && !currentListing.is_featured) {
+    if (payload.is_featured === true && currentListing && !currentListing.is_featured) {
       // Get fresh user profile data to ensure we have the latest limits
       const { data: userProfile, error: profileError } = await supabase // Fetch user profile
         .from('profiles')
@@ -273,33 +285,42 @@ export const listingsService = {
       // Set expiration date to 1 week from now
       const oneWeekFromNow = new Date();
       oneWeekFromNow.setDate(oneWeekFromNow.getDate() + 7);
-      listingData.featured_expires_at = oneWeekFromNow.toISOString();
+      payload.featured_expires_at = oneWeekFromNow.toISOString();
     }
 
     // If unfeaturing a listing, clear the expiration date
-    if (listingData.is_featured === false) {
-      listingData.featured_expires_at = null;
+    if (payload.is_featured === false) {
+      payload.featured_expires_at = null;
     }
 
     // Capitalize the contact name if it's being updated
-    if (listingData.contact_name) {
-      listingData.contact_name = capitalizeName(listingData.contact_name);
+    if (payload.contact_name) {
+      payload.contact_name = capitalizeName(payload.contact_name);
     }
+    const data = {
+      ...payload,
+      ...(payload.call_for_price !== undefined
+        ? {
+            call_for_price: !!payload.call_for_price,
+            price: payload.call_for_price ? null : payload.price ?? null,
+          }
+        : {}),
+    };
 
-    const { data, error } = await supabase // Ensure neighborhood and washer_dryer_hookup are handled
+    const { data: result, error } = await supabase
       .from('listings')
-      .update(listingData)
+      .update(data)
       .eq('id', id)
       .select()
       .single();
 
     if (error) throw error;
 
-    console.log('[WEB] approval flip check', { wasApproved: currentListing?.approved, nowApproved: listingData?.approved });
+    console.log('[WEB] approval flip check', { wasApproved: currentListing?.approved, nowApproved: payload?.approved });
     const justApproved =
       !!currentListing &&
       currentListing.approved === false &&
-      listingData?.approved === true;
+      payload?.approved === true;
     console.log('[WEB] approval flip check passed?', justApproved);
     if (justApproved) {
       const owner = (currentListing as unknown as { owner?: { email?: string; full_name?: string; id?: string } })?.owner;
@@ -333,7 +354,7 @@ export const listingsService = {
       }
     }
     
-    return data;
+    return result;
   },
 
   async deleteListing(id: string) {

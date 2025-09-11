@@ -273,7 +273,8 @@ export default function Dashboard() {
     }
   };
 
-  const formatPrice = (price: number) => {
+  const formatPrice = (price: number | null) => {
+    if (price == null) return "";
     return new Intl.NumberFormat("en-US", {
       style: "currency",
       currency: "USD",
@@ -450,7 +451,9 @@ export default function Dashboard() {
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {formatPrice(listing.price)}/month
+                          {listing.call_for_price
+                            ? 'Call for Price'
+                            : `${formatPrice(listing.price)}/month`}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-center">
                           <div className="flex items-center text-sm text-gray-900">
