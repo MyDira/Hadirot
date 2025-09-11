@@ -131,7 +131,7 @@ export function EditListing() {
         property_type: data.property_type,
         contact_name: data.contact_name,
         contact_phone: data.contact_phone,
-        broker_fee: data.broker_fee,
+        broker_fee: false,
       });
       // Check if using custom neighborhood
       const standardNeighborhoods = [
@@ -172,6 +172,15 @@ export function EditListing() {
 
     if (type === "checkbox") {
       const checked = (e.target as HTMLInputElement).checked;
+      if (name === "broker_fee") {
+        if (checked) {
+          alert(
+            "Listings with a tenant broker fee are not permitted on HaDirot. Please remove the fee to proceed.",
+          );
+        }
+        setFormData((prev) => ({ ...prev, broker_fee: false }));
+        return;
+      }
       setFormData((prev) => ({ ...prev, [name]: checked }));
     } else if (type === "number") {
       const numValue = value === "" ? undefined : parseFloat(value);
@@ -370,6 +379,14 @@ export function EditListing() {
         return;
       }
 
+      if (formData.broker_fee) {
+        alert(
+          "Listings with a tenant broker fee are not permitted on HaDirot. Please remove the fee to proceed.",
+        );
+        setSaving(false);
+        return;
+      }
+
       // Delete marked images first
       for (const imageId of imagesToDelete) {
         const imageToDelete = existingImages.find((img) => img.id === imageId);
@@ -394,6 +411,7 @@ export function EditListing() {
       // Update the listing
       await listingsService.updateListing(id, {
         ...formData,
+        broker_fee: false,
         neighborhood,
         updated_at: new Date().toISOString(),
         price: formData.call_for_price ? null : formData.price,

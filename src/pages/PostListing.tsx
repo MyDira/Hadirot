@@ -190,7 +190,7 @@ export function PostListing() {
           contact_name: draftData.contact_name || profile?.full_name || "",
           contact_phone: draftData.contact_phone || profile?.phone || "",
           is_featured: draftData.is_featured || false,
-          broker_fee: draftData.broker_fee || false,
+          broker_fee: false,
         });
 
         // Restore temp images if they exist
@@ -232,7 +232,7 @@ export function PostListing() {
   const saveDraftData = async (identifier: string) => {
     setSavingDraft(true);
     try {
-      const draftData: DraftData = formData;
+      const draftData: DraftData = { ...formData, broker_fee: false };
 
       await draftListingsService.saveDraft(draftData, identifier, tempImages);
       console.log("✅ Draft saved automatically for:", identifier);
@@ -255,6 +255,15 @@ export function PostListing() {
 
     if (type === "checkbox") {
       const checked = (e.target as HTMLInputElement).checked;
+      if (name === "broker_fee") {
+        if (checked) {
+          alert(
+            "Listings with a tenant broker fee are not permitted on HaDirot. Please remove the fee to proceed.",
+          );
+        }
+        setFormData((prev) => ({ ...prev, broker_fee: false }));
+        return;
+      }
       setFormData((prev) => ({ ...prev, [name]: checked }));
     } else if (type === "number") {
       const numValue = value === "" ? undefined : parseFloat(value);
@@ -405,8 +414,16 @@ export function PostListing() {
           ? customNeighborhoodInput.trim()
           : neighborhoodSelectValue;
 
-      if (neighborhoodSelectValue === "other" && neighborhood === "") {
-        alert("Please enter a neighborhood");
+    if (neighborhoodSelectValue === "other" && neighborhood === "") {
+      alert("Please enter a neighborhood");
+      setLoading(false);
+      return;
+    }
+
+      if (formData.broker_fee) {
+        alert(
+          "Listings with a tenant broker fee are not permitted on HaDirot. Please remove the fee to proceed.",
+        );
         setLoading(false);
         return;
       }
@@ -417,6 +434,7 @@ export function PostListing() {
       // Create the listing first
       const payload = {
         ...formData,
+        broker_fee: false,
         neighborhood,
         user_id: user.id,
         is_active: false,
