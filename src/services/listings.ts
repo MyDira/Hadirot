@@ -11,6 +11,8 @@ interface GetListingsFilters {
   neighborhoods?: string[];
   is_featured_only?: boolean;
   noFeeOnly?: boolean;
+  poster_type?: string;
+  agency_name?: string;
 }
 
 export type ListingCreateInput = Omit<Listing, 'id' | 'created_at' | 'updated_at'> & {
@@ -24,6 +26,26 @@ export type ListingUpdateInput = Partial<ListingCreateInput> & {
 };
 
 export const listingsService = {
+  async getActiveAgencies(): Promise<string[]> {
+    const { data, error } = await supabase
+      .from('listings')
+      .select('owner:profiles!inner(role,agency)')
+      .eq('is_active', true)
+      .eq('approved', true)
+      .or('role.eq.agent', { foreignTable: 'owner' });
+
+    if (error) {
+      console.error('[svc] getActiveAgencies error', error);
+      return [];
+    }
+
+    const names = (data ?? [])
+      .map((r: any) => r?.owner?.agency)
+      .filter((x: any) => typeof x === 'string' && x.trim().length > 0);
+
+    return Array.from(new Set(names)).sort((a, b) => a.localeCompare(b));
+  },
+
   async getListings(
     filters: GetListingsFilters = {},
     limit?: number,
@@ -32,18 +54,21 @@ export const listingsService = {
     applyPagination: boolean = true,
     is_featured_only?: boolean,
   ) {
+    const posterType = filters?.poster_type as 'owner' | 'agent' | undefined;
+    const agencyName = (filters as any)?.agency_name || undefined;
+
+    const ownerSelect =
+      posterType === 'owner' || posterType === 'agent' || !!agencyName
+        ? 'owner:profiles!inner(id,full_name,role,agency)'
+        : 'owner:profiles(id,full_name,role,agency)';
+
+    const selectStr = `*,${ownerSelect},listing_images(*)`;
+
     let query = supabase
       .from('listings')
-      .select(`
-        *,
-        owner:profiles!listings_user_id_fkey(
-          id,
-          full_name,
-          role,
-          agency
-        ),
-        listing_images(*)
-      `, { count: 'exact' });
+      .select(selectStr, { count: 'exact' })
+      .eq('is_active', true)
+      .eq('approved', true);
 
     if (filters.bedrooms !== undefined) {
       query = query.eq('bedrooms', filters.bedrooms);
@@ -69,18 +94,21 @@ export const listingsService = {
 
     // Filter for featured-only listings if requested via filters
     if (filters.is_featured_only || is_featured_only) {
-      query = query.eq('is_featured', true).gt('featured_expires_at', new Date().toISOString());
+      query = query
+        .eq('is_featured', true)
+        .gt('featured_expires_at', new Date().toISOString());
     }
 
-    // Apply access conditions based on authentication
-    if (userId) {
-      // For authenticated users: show approved+active listings OR their own listings
-      query = query.or(`and(is_active.eq.true,approved.eq.true),user_id.eq.${userId}`);
-    } else {
-      // For unauthenticated users: only show approved+active listings
-      query = query.eq('is_active', true).eq('approved', true);
+    // Apply poster predicates
+    if (posterType === 'owner') {
+      query = query.or('role.eq.landlord,role.eq.tenant', { foreignTable: 'owner' });
+    } else if (posterType === 'agent') {
+      query = query.or('role.eq.agent', { foreignTable: 'owner' });
+      if (agencyName) {
+        query = query.eq('owner.agency', agencyName);
+      }
     }
-    
+
     query = query.order('created_at', { ascending: false });
 
     // Only apply pagination if requested

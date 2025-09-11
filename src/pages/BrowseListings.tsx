@@ -58,6 +58,17 @@ export function BrowseListings() {
     }
   }, [user]);
 
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const names = await listingsService.getActiveAgencies();
+      if (!cancelled) setAgencies(names);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const loadUserFavorites = async () => {
     if (!user) return;
 
@@ -79,7 +90,7 @@ export function BrowseListings() {
     if (poster_type) urlFilters.poster_type = poster_type;
 
     const agency_name = searchParams.get("agency_name");
-    if (agency_name && poster_type === "agency")
+    if (agency_name && poster_type === "agent")
       urlFilters.agency_name = agency_name;
 
     const property_type = searchParams.get("property_type");
@@ -192,14 +203,14 @@ export function BrowseListings() {
 
       // Apply frontend filtering if necessary (this part remains the same as before)
       let standardListings = rawStandardListings;
-      if (filters.poster_type === "landlord") {
+      if (filters.poster_type === "owner") {
         standardListings = standardListings.filter(
           (l) =>
             l.owner &&
             (l.owner.role === "landlord" || l.owner.role === "tenant"),
         );
       }
-      if (filters.poster_type === "agency") {
+      if (filters.poster_type === "agent") {
         standardListings = standardListings.filter(
           (l) => l.owner && l.owner.role === "agent",
         );
@@ -299,25 +310,6 @@ export function BrowseListings() {
 
       setDisplayListings(finalListings);
 
-      // 7. Extract unique agencies for filter dropdown
-      const { data: allData } = await listingsService.getListings(
-        {},
-        undefined,
-        user?.id,
-        0,
-        false,
-      );
-      const uniqueAgencies = Array.from(
-        new Set(
-          allData
-            .filter(
-              (listing) =>
-                listing.owner?.role === "agent" && listing.owner?.agency,
-            )
-            .map((listing) => listing.owner!.agency!),
-        ),
-      ).sort();
-      setAgencies(uniqueAgencies);
     } catch (error) {
       console.error("Error loading listings:", error);
     } finally {
