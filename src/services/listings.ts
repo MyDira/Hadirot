@@ -179,6 +179,13 @@ export const listingsService = {
   },
 
   async createListing(payload: ListingCreateInput) {
+    if (payload.broker_fee === true) {
+      return {
+        data: null,
+        error: { message: "Broker fees are not permitted on HaDirot." },
+      } as any;
+    }
+
     // If trying to feature a listing on creation, check permissions and limits
     if (payload.is_featured) {
       // Get user profile to check permissions
@@ -234,7 +241,7 @@ export const listingsService = {
       payload.contact_name = capitalizeName(payload.contact_name);
     }
 
-    payload.broker_fee = payload.broker_fee ?? false;
+    payload.broker_fee = false;
 
     const data = {
       ...payload,
@@ -253,6 +260,17 @@ export const listingsService = {
   },
 
   async updateListing(id: string, payload: Partial<ListingCreateInput>) {
+    if (payload.broker_fee === true) {
+      return {
+        data: null,
+        error: { message: "Broker fees are not permitted on HaDirot." },
+      } as any;
+    }
+
+    if (payload.broker_fee !== undefined) {
+      payload.broker_fee = false;
+    }
+
     console.log('[WEB] updateListing called', { id, updates: payload });
     // Get the current listing to check for approval status change
     const { data: currentListing } = await supabase
