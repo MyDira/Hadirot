@@ -66,8 +66,9 @@ async function createStaticPage(pageData: {
       id: pageData.id,
       title: pageData.title,
       content: pageData.content,
+      slug: pageData.id,
     })
-    .select()
+    .select('*')
     .single();
 
   if (error) {
