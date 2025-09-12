@@ -103,15 +103,38 @@ export function Footer() {
                       {section.title}
                     </h3>
                     <nav className="space-y-2">
-                      {links.map((link, index) => (
-                        <Link
-                          key={index}
-                          to={link.url}
-                          className="block text-white/90 hover:text-white transition-colors duration-200"
-                        >
-                          {link.text}
-                        </Link>
-                      ))}
+                      {links.map((link, index) => {
+                        const isExternal = /^https?:\/\//i.test(link.url);
+                        const href = isExternal
+                          ? link.url
+                          : link.url.startsWith('/')
+                          ? link.url
+                          : `/${link.url}`;
+
+                        if (isExternal) {
+                          return (
+                            <a
+                              key={index}
+                              href={href}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="block text-white/90 hover:text-white transition-colors duration-200"
+                            >
+                              {link.text}
+                            </a>
+                          );
+                        }
+
+                        return (
+                          <Link
+                            key={index}
+                            to={href}
+                            className="block text-white/90 hover:text-white transition-colors duration-200"
+                          >
+                            {link.text}
+                          </Link>
+                        );
+                      })}
                     </nav>
                   </div>
                 );

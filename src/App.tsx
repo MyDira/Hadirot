@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
 import { Layout } from './components/shared/Layout';
 import { Home } from './pages/Home';
 import { BrowseListings } from './pages/BrowseListings';
@@ -20,6 +20,8 @@ import { About } from './pages/About';
 import { Contact } from './pages/Contact';
 import { Privacy } from './pages/Privacy';
 import { Terms } from './pages/Terms';
+import { StaticPage } from './pages/StaticPage';
+import { NotFound } from './pages/NotFound';
 import { useAuth } from '@/hooks/useAuth';
 import GASmokeTest from '@/dev/gaSmokeTest';
 
@@ -71,6 +73,7 @@ function App() {
                 <Route path="/contact" element={<Contact />} />
                 <Route path="/privacy" element={<Privacy />} />
                 <Route path="/terms" element={<Terms />} />
+                <Route path="/:id" element={<StaticPage />} />
                 <Route
                   path="/auth"
                   element={
@@ -79,7 +82,7 @@ function App() {
                     </PasswordRecoveryGate>
                   }
                 />
-                <Route path="*" element={<Navigate to="/" replace />} />
+                <Route path="*" element={<NotFound />} />
               </Routes>
             </Layout>
           }
