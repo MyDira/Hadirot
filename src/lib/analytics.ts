@@ -378,8 +378,8 @@ export const trackPostSuccess = analytics.trackPostSuccess.bind(analytics);
 export const trackPostAbandoned = analytics.trackPostAbandoned.bind(analytics);
 export const resetPostingState = analytics.resetPostingState.bind(analytics);
 
-// Hook to provide user ID to analytics
-export function trackEvent(eventName: string, properties?: Record<string, any>) {
+// Hook to provide user ID to analytics and track auth state
+export function useAnalyticsAuth() {
   const { user } = useAuth();
   
   React.useEffect(() => {

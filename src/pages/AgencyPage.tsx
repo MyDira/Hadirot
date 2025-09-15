@@ -4,7 +4,7 @@ import { Phone, Globe, Copy, Check, MapPin, Filter } from 'lucide-react';
 import { agenciesService, Agency } from '@/services/agencies';
 import { ListingCard } from '@/components/listings/ListingCard';
 import { NotFound } from './NotFound';
-import { trackEvent } from '@/lib/analytics';
+import { track } from '@/lib/analytics';
 
 export function AgencyPage() {
   const { slug } = useParams<{ slug: string }>();
@@ -34,7 +34,7 @@ export function AgencyPage() {
       if (agencyData) {
         setAgency(agencyData);
         // Track agency page view
-        trackEvent('agency_page_view', {
+        track('agency_page_view', {
           agencyId: agencyData.id,
           slug: agencyData.slug,
         });
@@ -99,7 +99,7 @@ export function AgencyPage() {
     }
 
     // Track filter change
-    trackEvent('filter_change', {
+    track('filter_change', {
       page: 'agency',
       agencyId: agency?.id,
       filterType,
@@ -109,7 +109,7 @@ export function AgencyPage() {
 
   const handlePriceChange = () => {
     setPage(1);
-    trackEvent('filter_change', {
+    track('filter_change', {
       page: 'agency',
       agencyId: agency?.id,
       filterType: 'price',
