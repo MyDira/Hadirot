@@ -188,6 +188,16 @@ export function Layout({ children }: LayoutProps) {
                           <LayoutDashboard className="w-4 h-4 mr-2" />
                           My Dashboard
                         </Link>
+                        {profile?.can_manage_agency && (
+                          <Link
+                            to="/dashboard/agency-settings"
+                            className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                            onClick={() => setShowUserMenu(false)}
+                          >
+                            <LayoutDashboard className="w-4 h-4 mr-2" />
+                            My Agency Page
+                          </Link>
+                        )}
                         <Link
                           to="/favorites"
                           className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
