@@ -1,5 +1,6 @@
 import { supabase, Listing } from '../config/supabase';
 import { capitalizeName } from '../utils/formatters';
+import { agencyNameToSlug } from '../utils/agency';
 
 interface GetListingsFilters {
   bedrooms?: number;
@@ -23,6 +24,15 @@ export type ListingCreateInput = Omit<Listing, 'id' | 'created_at' | 'updated_at
 export type ListingUpdateInput = Partial<ListingCreateInput> & {
   id: string;
 };
+
+interface AgencyListingsQueryOptions {
+  beds?: number | '4+';
+  priceMin?: number;
+  priceMax?: number;
+  sort?: 'newest' | 'price_asc' | 'price_desc';
+  limit?: number;
+  offset?: number;
+}
 
 export const listingsService = {
   async getActiveAgencies(): Promise<string[]> {
@@ -126,6 +136,114 @@ export const listingsService = {
     }
 
     return { data: data || [], totalCount: count || 0 };
+  },
+
+  async getActiveListingsForAgencySlug(
+    slug: string,
+    options: AgencyListingsQueryOptions = {},
+  ): Promise<{ data: Listing[]; count: number; agencyName?: string }> {
+    const normalizedSlug = agencyNameToSlug(slug || '');
+
+    if (!normalizedSlug) {
+      return { data: [], count: 0 };
+    }
+
+    const slugParts = normalizedSlug.split('-').filter(Boolean);
+    const likePattern = slugParts.length > 0 ? `%${slugParts.join('%')}%` : null;
+
+    let profilesQuery = supabase
+      .from('profiles')
+      .select('id, agency')
+      .eq('role', 'agent')
+      .not('agency', 'is', null);
+
+    if (likePattern) {
+      profilesQuery = profilesQuery.ilike('agency', likePattern);
+    }
+
+    const { data: profileRows, error: profilesError } = await profilesQuery;
+
+    if (profilesError) {
+      console.error('[svc] getActiveListingsForAgencySlug profiles error', profilesError);
+      throw profilesError;
+    }
+
+    const matchingProfiles = (profileRows ?? []).filter(
+      (profile): profile is { id: string; agency: string } => {
+        if (!profile?.agency) {
+          return false;
+        }
+
+        return agencyNameToSlug(profile.agency) === normalizedSlug;
+      },
+    );
+
+    const ownerIds = matchingProfiles.map(profile => profile.id);
+    const matchedAgencyName = matchingProfiles[0]?.agency;
+
+    if (ownerIds.length === 0) {
+      return { data: [], count: 0, agencyName: matchedAgencyName };
+    }
+
+    const { beds, priceMin, priceMax, sort = 'newest' } = options;
+    const limit = Number.isFinite(options.limit) && (options.limit ?? 0) > 0 ? Number(options.limit) : 20;
+    const offset = Number.isFinite(options.offset) && (options.offset ?? 0) > 0 ? Number(options.offset) : 0;
+
+    let listingsQuery = supabase
+      .from('listings')
+      .select(
+        `
+          *,
+          owner:profiles!inner(id, full_name, role, agency),
+          listing_images(*)
+        `,
+        { count: 'exact' },
+      )
+      .eq('is_active', true)
+      .eq('approved', true)
+      .in('user_id', ownerIds);
+
+    const normalizedBeds = typeof beds === 'string' ? parseInt(beds, 10) : beds;
+
+    if (typeof normalizedBeds === 'number' && !Number.isNaN(normalizedBeds)) {
+      if (normalizedBeds >= 4) {
+        listingsQuery = listingsQuery.gte('bedrooms', normalizedBeds);
+      } else {
+        listingsQuery = listingsQuery.eq('bedrooms', normalizedBeds);
+      }
+    }
+
+    if (typeof priceMin === 'number') {
+      listingsQuery = listingsQuery.gte('price', priceMin);
+    }
+
+    if (typeof priceMax === 'number') {
+      listingsQuery = listingsQuery.lte('price', priceMax);
+    }
+
+    switch (sort) {
+      case 'price_asc':
+        listingsQuery = listingsQuery.order('price', { ascending: true }).order('created_at', { ascending: false });
+        break;
+      case 'price_desc':
+        listingsQuery = listingsQuery.order('price', { ascending: false }).order('created_at', { ascending: false });
+        break;
+      case 'newest':
+      default:
+        listingsQuery = listingsQuery.order('created_at', { ascending: false });
+        break;
+    }
+
+    listingsQuery = listingsQuery.range(offset, offset + limit - 1);
+
+    const { data, error, count } = await listingsQuery;
+
+    if (error) {
+      console.error('[svc] getActiveListingsForAgencySlug listings error', error);
+      throw error;
+    }
+
+    return { data: data ?? [], count: count ?? 0, agencyName: matchedAgencyName };
   },
 
   async getListing(id: string, userId?: string) {

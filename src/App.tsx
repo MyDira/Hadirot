@@ -11,6 +11,7 @@ import { ListingDetail } from './pages/ListingDetail';
 import { Favorites } from './pages/Favorites';
 import { AdminPanel } from './pages/AdminPanel';
 import { Dashboard } from './pages/Dashboard';
+import { AgencySettings } from './pages/AgencySettings';
 import { StaticPageEditor } from './pages/admin/StaticPageEditor';
 import { FooterEditor } from './pages/admin/FooterEditor';
 import { FeaturedSettingsAdmin } from './pages/admin/FeaturedSettingsAdmin';
@@ -67,6 +68,7 @@ function App() {
                 <Route path="/admin/footer" element={<FooterEditor />} />
                 <Route path="/admin/featured-settings" element={<FeaturedSettingsAdmin />} />
                 <Route path="/dashboard" element={<Dashboard />} />
+                <Route path="/dashboard/agency-settings" element={<AgencySettings />} />
                 <Route path="/account-settings" element={<AccountSettings />} />
                <Route path="/internal-analytics" element={<InternalAnalytics />} />
                 <Route path="/internal-analytics" element={<InternalAnalytics />} />
