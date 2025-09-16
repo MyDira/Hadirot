@@ -166,8 +166,8 @@ export function AgencyPage() {
         `, { count: 'exact' })
         .eq('is_active', true)
         .eq('approved', true)
-        .eq('profiles.role', 'agent')
-        .eq('profiles.agency', foundAgencyName)
+        .eq('owner.role', 'agent')
+        .eq('owner.agency', foundAgencyName)
 
       // Apply filters
       if (filters.bedrooms !== undefined) {
