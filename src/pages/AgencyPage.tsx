@@ -1,12 +1,23 @@
-import React, { useState, useEffect } from "react";
-import { useParams, useSearchParams, Link } from "react-router-dom";
-import { Share2, Filter, X, ChevronLeft, ChevronRight } from "lucide-react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
+import { useParams, useSearchParams } from "react-router-dom";
+import {
+  Share2,
+  Filter,
+  X,
+  ChevronLeft,
+  ChevronRight,
+  Phone,
+  Mail,
+  Globe,
+} from "lucide-react";
 import { ListingCard } from "../components/listings/ListingCard";
-import { Listing, supabase } from "../config/supabase";
-import { listingsService } from "../services/listings";
+import { Listing, Agency } from "@/config/supabase";
+import { listingsService } from "@/services/listings";
+import { agenciesService } from "@/services/agencies";
+import { slugToAgencyLabel } from "@/utils/agency";
 import { useAuth } from "@/hooks/useAuth";
-import { track } from "../lib/analytics";
-import { useListingImpressions } from "../hooks/useListingImpressions";
+import { track } from "@/lib/analytics";
+import { useListingImpressions } from "@/hooks/useListingImpressions";
 
 interface AgencyFilters {
   bedrooms?: number;
@@ -15,35 +26,21 @@ interface AgencyFilters {
   sort?: 'newest' | 'price_asc' | 'price_desc';
 }
 
-// Convert agency name to URL slug
-function agencyNameToSlug(agencyName: string): string {
-  return agencyName
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '');
-}
-
-// Convert URL slug back to potential agency name patterns for matching
-function slugToAgencyPatterns(slug: string): string[] {
-  // Generate multiple potential matches for the agency name
-  const basePattern = slug.replace(/-/g, ' ');
-  const patterns = [
-    basePattern,
-    basePattern.replace(/\b\w/g, l => l.toUpperCase()), // Title Case
-    basePattern.toUpperCase(),
-    slug.replace(/-/g, ''), // No spaces
-    slug.replace(/-/g, '_'), // Underscores
-  ];
-  
-  return [...new Set(patterns)]; // Remove duplicates
-}
-
 export function AgencyPage() {
   const { slug } = useParams<{ slug: string }>();
+  const slugParam = slug ?? "";
+  const derivedAgencyLabel = slugToAgencyLabel(slugParam);
   const [searchParams, setSearchParams] = useSearchParams();
   const { user } = useAuth();
-  
-  const [agencyName, setAgencyName] = useState<string>("");
+
+  const [agencyDisplayName, setAgencyDisplayName] = useState<string>(
+    derivedAgencyLabel,
+  );
+  const [agencyDetails, setAgencyDetails] = useState<Agency | null>(null);
+  const [agencyDetailsLoaded, setAgencyDetailsLoaded] = useState(false);
+  const [matchedAgencyName, setMatchedAgencyName] = useState<string | null>(null);
+  const [profilesLoaded, setProfilesLoaded] = useState(false);
+  const agencyDetailsRef = useRef<Agency | null>(null);
   const [listings, setListings] = useState<Listing[]>([]);
   const [userFavorites, setUserFavorites] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
@@ -51,6 +48,86 @@ export function AgencyPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [showFiltersMobile, setShowFiltersMobile] = useState(false);
   const [filters, setFilters] = useState<AgencyFilters>({});
+  const resolvedAgencyDisplayName =
+    agencyDetails?.name?.trim() ||
+    agencyDisplayName ||
+    derivedAgencyLabel ||
+    (slugParam ? slugParam : "Agency");
+  const agencyExists = useMemo<boolean | null>(() => {
+    if (!slugParam) {
+      return null;
+    }
+
+    if (matchedAgencyName || agencyDetails) {
+      return true;
+    }
+
+    if (profilesLoaded && agencyDetailsLoaded) {
+      return false;
+    }
+
+    return null;
+  }, [
+    slugParam,
+    matchedAgencyName,
+    agencyDetails,
+    profilesLoaded,
+    agencyDetailsLoaded,
+  ]);
+
+  useEffect(() => {
+    setAgencyDisplayName(derivedAgencyLabel);
+    setMatchedAgencyName(null);
+    setProfilesLoaded(false);
+    setAgencyDetails(null);
+    setAgencyDetailsLoaded(false);
+    agencyDetailsRef.current = null;
+  }, [derivedAgencyLabel]);
+
+  useEffect(() => {
+    let isCancelled = false;
+
+    if (!slugParam) {
+      setAgencyDetails(null);
+      agencyDetailsRef.current = null;
+      setAgencyDetailsLoaded(true);
+      return;
+    }
+
+    const loadAgencyDetails = async () => {
+      try {
+        setAgencyDetailsLoaded(false);
+        const data = await agenciesService.getAgencyBySlug(slugParam);
+
+        if (isCancelled) {
+          return;
+        }
+
+        setAgencyDetails(data);
+        agencyDetailsRef.current = data;
+
+        if (data?.name) {
+          setAgencyDisplayName(data.name);
+        }
+      } catch (error) {
+        if (!isCancelled) {
+          console.error("Error loading agency details:", error);
+          setAgencyDetails(null);
+          agencyDetailsRef.current = null;
+        }
+      } finally {
+        if (!isCancelled) {
+          setAgencyDetailsLoaded(true);
+        }
+      }
+    };
+
+    loadAgencyDetails();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [slugParam]);
   
   // Set up listing impression tracking
   const { observeElement } = useListingImpressions({
@@ -91,23 +168,18 @@ export function AgencyPage() {
     }
   }, [user]);
 
-  // Load listings when filters, page, or slug changes
-  useEffect(() => {
-    if (slug) {
-      loadAgencyListings();
-    }
-  }, [slug, filters, currentPage]);
-
   // Set page title based on agency name
   useEffect(() => {
-    if (agencyName) {
-      document.title = `${agencyName} - Listings | HaDirot`;
+    if (resolvedAgencyDisplayName) {
+      document.title = `${resolvedAgencyDisplayName} - Listings | HaDirot`;
+    } else {
+      document.title = "HaDirot Real Estate Listings Platform";
     }
-    
+
     return () => {
       document.title = "HaDirot Real Estate Listings Platform";
     };
-  }, [agencyName]);
+  }, [resolvedAgencyDisplayName]);
 
   const loadUserFavorites = async () => {
     if (!user) return;
@@ -121,119 +193,64 @@ export function AgencyPage() {
   };
 
   const loadAgencyListings = async () => {
-    if (!slug) return;
-    
-    try {
-      setLoading(true);
-      
-      // Generate potential agency name patterns from slug
-      const agencyPatterns = slugToAgencyPatterns(slug);
-      
-      // Find the actual agency name by querying profiles
-      const { data: agencyProfiles, error: agencyError } = await supabase
-        .from('profiles')
-        .select('agency')
-        .eq('role', 'agent')
-        .not('agency', 'is', null)
-        .in('agency', agencyPatterns)
-        .limit(1);
-      
-      if (agencyError) {
-        console.error("Error finding agency:", agencyError);
-        setLoading(false);
-        return;
-      }
-      
-      if (!agencyProfiles || agencyProfiles.length === 0) {
-        console.log("No agency found for slug:", slug);
-        setAgencyName("");
-        setListings([]);
-        setTotalCount(0);
-        setLoading(false);
-        return;
-      }
-      
-      const foundAgencyName = agencyProfiles[0].agency;
-      setAgencyName(foundAgencyName);
-      
-      // Build query for listings
-      let query = supabase
-        .from('listings')
-        .select(`
-          *,
-          owner:profiles!listings_user_id_fkey(id, full_name, role, agency),
-          listing_images(*)
-        `, { count: 'exact' })
-        .eq('is_active', true)
-        .eq('approved', true)
-        .eq('profiles.role', 'agent')
-        .eq('profiles.agency', foundAgencyName);
-
-      // Apply filters
-      if (filters.bedrooms !== undefined) {
-        if (filters.bedrooms >= 4) {
-          query = query.gte('bedrooms', 4);
-        } else {
-          query = query.eq('bedrooms', filters.bedrooms);
-        }
-      }
-      
-      if (filters.min_price) {
-        query = query.gte('price', filters.min_price);
-      }
-      
-      if (filters.max_price) {
-        query = query.lte('price', filters.max_price);
-      }
-
-      // Apply sorting
-      switch (filters.sort) {
-        case 'price_asc':
-          query = query.order('price', { ascending: true });
-          break;
-        case 'price_desc':
-          query = query.order('price', { ascending: false });
-          break;
-        case 'newest':
-        default:
-          query = query.order('created_at', { ascending: false });
-          break;
-      }
-
-      // Apply pagination
-      const offset = (currentPage - 1) * ITEMS_PER_PAGE;
-      query = query.range(offset, offset + ITEMS_PER_PAGE - 1);
-
-      const { data, error, count } = await query;
-
-      if (error) {
-        console.error("Error loading agency listings:", error);
-        console.error("Query details:", { foundAgencyName, filters });
-        setListings([]);
-        setTotalCount(0);
-      } else {
-        console.log("Raw data from query:", data?.length, "listings");
-        console.log("Sample listing owner:", data?.[0]?.owner);
-        
-        setListings(data || []);
-        setTotalCount(count || 0);
-      }
-      
-      // Track agency page view
-      track('agency_page_view', {
-        agency_name: foundAgencyName,
-        agency_slug: slug,
-        listing_count: count || 0,
-      });
-      
-    } catch (error) {
-      console.error("Error in loadAgencyListings:", error);
+    if (!slugParam) {
       setListings([]);
       setTotalCount(0);
+      setAgencyDisplayName(derivedAgencyLabel);
+      setMatchedAgencyName(null);
+      setProfilesLoaded(true);
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setProfilesLoaded(false);
+
+      const offset = (currentPage - 1) * ITEMS_PER_PAGE;
+      const {
+        data,
+        count,
+        agencyName: matchedName,
+      } = await listingsService.getActiveListingsForAgencySlug(slugParam, {
+        beds: filters.bedrooms,
+        priceMin: filters.min_price,
+        priceMax: filters.max_price,
+        sort: filters.sort,
+        limit: ITEMS_PER_PAGE,
+        offset,
+      });
+
+      const resolvedAgencyName = matchedName ?? derivedAgencyLabel;
+      const agencyFoundForView = Boolean(
+        (matchedName && matchedName.length > 0) || agencyDetailsRef.current,
+      );
+
+      setAgencyDisplayName(resolvedAgencyName);
+      setMatchedAgencyName(matchedName ?? null);
+      setListings(data ?? []);
+      setTotalCount(count ?? 0);
+
+      track("agency_page_view", {
+        agency_name: resolvedAgencyName,
+        agency_slug: slugParam,
+        listing_count: count ?? 0,
+        agency_found: agencyFoundForView,
+      });
+    } catch (error) {
+      console.error("Error loading agency listings:", error);
+      setListings([]);
+      setTotalCount(0);
+      setMatchedAgencyName(null);
     } finally {
       setLoading(false);
+      setProfilesLoaded(true);
     }
   };
+
+  // Load listings when filters, page, or slug changes
+  useEffect(() => {
+    loadAgencyListings();
+  }, [slugParam, filters, currentPage]);
 
   const handleFiltersChange = (newFilters: AgencyFilters) => {
     setFilters(newFilters);
@@ -260,8 +277,9 @@ export function AgencyPage() {
     
     // Track filter usage
     track('agency_filter_apply', {
-      agency_name: agencyName,
-      agency_slug: slug,
+      agency_name: resolvedAgencyDisplayName,
+      agency_slug: slugParam,
+      agency_found: agencyExists ?? false,
       filters: newFilters,
     });
   };
@@ -280,15 +298,16 @@ export function AgencyPage() {
 
   const handleShareAgency = async () => {
     const url = window.location.href;
-    
+
     try {
       await navigator.clipboard.writeText(url);
       // You could add a toast notification here
       console.log("Agency page URL copied to clipboard");
       
       track('agency_share', {
-        agency_name: agencyName,
-        agency_slug: slug,
+        agency_name: resolvedAgencyDisplayName,
+        agency_slug: slugParam,
+        agency_found: agencyExists ?? false,
         method: 'copy_link',
       });
     } catch (error) {
@@ -307,6 +326,17 @@ export function AgencyPage() {
     loadUserFavorites();
   };
 
+  const formatWebsiteUrl = (url: string) => {
+    if (!url) {
+      return "#";
+    }
+
+    return /^https?:\/\//i.test(url) ? url : `https://${url}`;
+  };
+
+  const getWebsiteLabel = (url: string) =>
+    url.replace(/^https?:\/\//i, "").replace(/\/$/, "");
+
   if (loading) {
     return (
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -318,49 +348,95 @@ export function AgencyPage() {
     );
   }
 
-  if (!agencyName) {
-    return (
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="text-center py-12">
-          <h1 className="text-2xl font-bold text-gray-900 mb-4">Agency Not Found</h1>
-          <p className="text-gray-600 mb-6">
-            The agency you're looking for doesn't exist or has no active listings.
-          </p>
-          <Link
-            to="/browse"
-            className="inline-flex items-center bg-accent-500 text-white px-6 py-3 rounded-md font-medium hover:bg-accent-600 transition-colors"
-          >
-            Browse All Listings
-          </Link>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       {/* Header */}
-      <div className="mb-8">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h1 className="text-3xl font-bold font-brand text-[#273140] mb-2">
-              {agencyName}
-            </h1>
-            <p className="text-gray-600">
-              {loading
-                ? "Loading..."
-                : `${totalCount} active listing${totalCount === 1 ? '' : 's'}`}
-            </p>
+      <div className="mb-10 space-y-6">
+        {agencyDetails?.banner_url && (
+          <div className="h-48 md:h-60 rounded-2xl overflow-hidden border border-gray-200 shadow-sm">
+            <img
+              src={agencyDetails.banner_url}
+              alt={`${resolvedAgencyDisplayName} banner`}
+              className="w-full h-full object-cover"
+            />
           </div>
-          
+        )}
+
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
+          <div className="flex items-start gap-4">
+            {agencyDetails?.logo_url && (
+              <img
+                src={agencyDetails.logo_url}
+                alt={`${resolvedAgencyDisplayName} logo`}
+                className="w-20 h-20 md:w-24 md:h-24 rounded-full border border-gray-200 shadow-sm object-cover bg-white"
+              />
+            )}
+            <div>
+              <h1 className="text-3xl font-bold font-brand text-[#273140] mb-1">
+                {resolvedAgencyDisplayName}
+              </h1>
+              <p className="text-gray-600">
+                {loading
+                  ? "Loading..."
+                  : `${totalCount} active listing${totalCount === 1 ? "" : "s"}`}
+              </p>
+              {(agencyDetails?.phone ||
+                agencyDetails?.email ||
+                agencyDetails?.website) && (
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-gray-600 mt-3">
+                  {agencyDetails.phone && (
+                    <div className="flex items-center gap-2">
+                      <Phone className="w-4 h-4 text-[#273140]" />
+                      <span>{agencyDetails.phone}</span>
+                    </div>
+                  )}
+                  {agencyDetails.email && (
+                    <a
+                      href={`mailto:${agencyDetails.email}`}
+                      className="flex items-center gap-2 hover:text-[#273140] transition-colors"
+                    >
+                      <Mail className="w-4 h-4 text-[#273140]" />
+                      <span>{agencyDetails.email}</span>
+                    </a>
+                  )}
+                  {agencyDetails.website && (
+                    <a
+                      href={formatWebsiteUrl(agencyDetails.website)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-2 hover:text-[#273140] transition-colors"
+                    >
+                      <Globe className="w-4 h-4 text-[#273140]" />
+                      <span>{getWebsiteLabel(agencyDetails.website)}</span>
+                    </a>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+
           <button
             onClick={handleShareAgency}
-            className="flex items-center bg-white border border-gray-300 px-4 py-2 rounded-md text-gray-700 hover:bg-gray-50 transition-colors"
+            className="flex items-center justify-center bg-white border border-gray-300 px-4 py-2 rounded-md text-gray-700 hover:bg-gray-50 transition-colors shadow-sm"
           >
             <Share2 className="w-4 h-4 mr-2" />
             Share Agency
           </button>
         </div>
+
+        {agencyDetails?.about_html && (
+          <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-6">
+            <h2 className="text-lg font-semibold text-[#273140] mb-3">
+              About {resolvedAgencyDisplayName}
+            </h2>
+            <div
+              className="space-y-3 text-gray-700 leading-relaxed"
+              dangerouslySetInnerHTML={{
+                __html: agencyDetails.about_html ?? "",
+              }}
+            />
+          </div>
+        )}
       </div>
 
       {/* Mobile Filter Button */}
@@ -607,7 +683,9 @@ export function AgencyPage() {
             No listings found
           </h3>
           <p className="text-gray-500">
-            {agencyName} doesn't have any active listings matching your criteria.
+            {agencyExists === false
+              ? `We couldn't find any agents for "${resolvedAgencyDisplayName}".`
+              : `${resolvedAgencyDisplayName} doesn't have any active listings matching your criteria.`}
           </p>
         </div>
       ) : (
