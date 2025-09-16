@@ -23,6 +23,7 @@ export interface Profile {
   is_admin: boolean;
   is_banned?: boolean;
   can_feature_listings?: boolean;
+  can_manage_agency?: boolean;
   max_featured_listings_per_user?: number;
   is_banned?: boolean;
   max_featured_listings_per_user?: number;
@@ -111,4 +112,18 @@ export interface FooterRichTextData {
 export interface FooterLinkData {
   text: string;
   url: string;
+}
+
+export interface Agency {
+  id: string;
+  name: string;
+  slug: string;
+  logo_url?: string | null;
+  banner_url?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  website?: string | null;
+  about_html?: string | null;
+  created_at: string;
+  updated_at: string;
 }
