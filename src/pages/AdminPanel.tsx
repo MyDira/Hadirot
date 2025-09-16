@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { Users, FileText, Settings, Eye, Check, X, Ban, UserCheck, Trash2, ChevronLeft, Shield, TrendingUp, Home, Star, Power, ChevronDown, Search, UserX, Mail, ChevronRight } from 'lucide-react';
 import { requestPasswordReset } from '../services/email';
 import { listingsService } from '../services/listings';
+import { Modal } from '../components/shared/Modal';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase, Profile, Listing } from '../config/supabase';
 
@@ -73,12 +74,17 @@ export function AdminPanel() {
   const [agencies, setAgencies] = useState<string[]>([]);
   const [showApproveSuccess, setShowApproveSuccess] = useState(false);
   const [approvedListingTitle, setApprovedListingTitle] = useState('');
-  const [pendingSort, setPendingSort] = useState<{ field: string; direction: 'asc' | 'desc' }>({ 
-    field: 'created_at', 
-    direction: 'desc' 
+  const [pendingSort, setPendingSort] = useState<{ field: string; direction: 'asc' | 'desc' }>({
+    field: 'created_at',
+    direction: 'desc'
   });
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [dateFilter, setDateFilter] = useState({ startDate: '', endDate: '' });
+  const [selectedUser, setSelectedUser] = useState<Profile | null>(null);
+  const [isUserModalOpen, setIsUserModalOpen] = useState(false);
+  const [agencyAccessValue, setAgencyAccessValue] = useState(false);
+  const [isSavingAgencyAccess, setIsSavingAgencyAccess] = useState(false);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   useEffect(() => {
     if (profile?.is_admin) {
@@ -101,6 +107,19 @@ export function AdminPanel() {
       return () => clearTimeout(timer);
     }
   }, [showApproveSuccess]);
+
+  useEffect(() => {
+    if (selectedUser) {
+      setAgencyAccessValue(Boolean(selectedUser.can_manage_agency));
+    }
+  }, [selectedUser]);
+
+  useEffect(() => {
+    if (toastMessage) {
+      const timer = setTimeout(() => setToastMessage(null), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [toastMessage]);
 
   // Filter pending listings based on search term
   useEffect(() => {
@@ -259,7 +278,7 @@ export function AdminPanel() {
       // Load full data for tables
       const { data: allUsers } = await supabase
         .from('profiles')
-        .select('id, full_name, email, role, phone, agency, is_admin, is_banned, created_at')
+        .select('id, full_name, email, role, phone, agency, is_admin, is_banned, created_at, can_manage_agency')
         .order('created_at', { ascending: false })
         .limit(50);
 
@@ -318,6 +337,79 @@ export function AdminPanel() {
       console.error('Error loading admin data:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const openUserModal = (user: Profile) => {
+    setSelectedUser(user);
+    setAgencyAccessValue(Boolean(user.can_manage_agency));
+    setIsUserModalOpen(true);
+  };
+
+  const closeUserModal = () => {
+    setIsUserModalOpen(false);
+    setSelectedUser(null);
+  };
+
+  const handleSaveAgencyAccess = async () => {
+    if (!selectedUser) {
+      return;
+    }
+
+    if (!profile?.is_admin) {
+      setAgencyAccessValue(Boolean(selectedUser.can_manage_agency));
+      return;
+    }
+
+    setIsSavingAgencyAccess(true);
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ can_manage_agency: agencyAccessValue })
+        .eq('id', selectedUser.id);
+
+      if (error) {
+        console.error('Error updating agency page access:', error);
+        alert('Failed to update agency access. Please try again.');
+        return;
+      }
+
+      const { data: refreshedUser, error: refreshError } = await supabase
+        .from('profiles')
+        .select('id, full_name, email, role, phone, agency, is_admin, is_banned, created_at, updated_at, can_manage_agency')
+        .eq('id', selectedUser.id)
+        .single();
+
+      if (refreshError) {
+        console.error('Error refreshing user row:', refreshError);
+      }
+
+      if (refreshedUser) {
+        const typedUser = refreshedUser as Profile;
+        setSelectedUser(typedUser);
+        setUsers(prev =>
+          prev.map(user => (user.id === typedUser.id ? { ...user, ...typedUser } : user))
+        );
+      } else {
+        setSelectedUser(prev =>
+          prev ? { ...prev, can_manage_agency: agencyAccessValue } : prev
+        );
+        setUsers(prev =>
+          prev.map(user =>
+            user.id === selectedUser.id
+              ? { ...user, can_manage_agency: agencyAccessValue }
+              : user
+          )
+        );
+      }
+
+      setToastMessage('Saved');
+    } catch (error) {
+      console.error('Error updating agency page access:', error);
+      alert('Failed to update agency access. Please try again.');
+      setAgencyAccessValue(Boolean(selectedUser.can_manage_agency));
+    } finally {
+      setIsSavingAgencyAccess(false);
     }
   };
 
@@ -685,6 +777,12 @@ export function AdminPanel() {
         </div>
       )}
 
+      {toastMessage && (
+        <div className="fixed top-32 right-4 z-50 rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white shadow-lg">
+          {toastMessage}
+        </div>
+      )}
+
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-[#4E4B43] mb-2 flex items-center">
           <Shield className="w-8 h-8 mr-3" />
@@ -957,6 +1055,11 @@ export function AdminPanel() {
                             <span className="text-gray-400">{getUserSortIcon('agency')}</span>
                           </button>
                         </th>
+                        {profile?.is_admin && (
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Agency Access
+                          </th>
+                        )}
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                           <button
                             onClick={() => handleUsersSort('created_at')}
@@ -1010,6 +1113,19 @@ export function AdminPanel() {
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                             {user.agency || '-'}
                           </td>
+                          {profile?.is_admin && (
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <span
+                                className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${
+                                  user.can_manage_agency
+                                    ? 'bg-green-100 text-green-800'
+                                    : 'bg-gray-100 text-gray-600'
+                                }`}
+                              >
+                                {user.can_manage_agency ? 'On' : 'Off'}
+                              </span>
+                            </td>
+                          )}
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                             {new Date(user.created_at).toLocaleDateString()}
                           </td>
@@ -1029,6 +1145,15 @@ export function AdminPanel() {
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                             <div className="flex flex-wrap gap-2">
+                              {profile?.is_admin && (
+                                <button
+                                  onClick={() => openUserModal(user)}
+                                  className="text-gray-600 hover:text-gray-800 transition-colors text-xs"
+                                  title="Edit User"
+                                >
+                                  <Settings className="w-4 h-4" />
+                                </button>
+                              )}
                               {/* Make Admin Button */}
                               {!user.is_admin && user.id !== profile.id && (
                                 <button
@@ -1671,11 +1796,11 @@ export function AdminPanel() {
                 )}
               </div>
             </div>
-          )}
+      )}
 
-          {/* Settings Tab */}
-          {activeTab === 'settings' && (
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+      {/* Settings Tab */}
+      {activeTab === 'settings' && (
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
               <h3 className="text-lg font-semibold text-[#4E4B43] mb-6">Platform Settings</h3>
               
               <div className="space-y-6">
@@ -1733,6 +1858,78 @@ export function AdminPanel() {
           )}
         </>
       )}
+
+      <Modal isOpen={isUserModalOpen} onClose={closeUserModal} title="Edit User">
+        {selectedUser && (
+          <div className="space-y-6">
+            <div>
+              <p className="text-sm font-medium text-gray-500">User</p>
+              <p className="text-base font-semibold text-gray-900">{selectedUser.full_name}</p>
+              <p className="text-sm text-gray-500">{selectedUser.email || 'No email'}</p>
+              <p className="text-sm text-gray-500 capitalize">Role: {selectedUser.role}</p>
+              <p className="text-sm text-gray-500">
+                Agency: {selectedUser.agency || 'Not specified'}
+              </p>
+            </div>
+
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <p className="text-sm font-medium text-gray-700">Agency Page Access</p>
+                <p className="text-xs text-gray-500">
+                  Allow this agent to manage their public agency branding and settings.
+                </p>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={agencyAccessValue}
+                aria-label="Toggle agency page access"
+                onClick={() =>
+                  profile?.is_admin &&
+                  !isSavingAgencyAccess &&
+                  setAgencyAccessValue(prev => !prev)
+                }
+                disabled={!profile?.is_admin || isSavingAgencyAccess}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                  agencyAccessValue ? 'bg-[#4E4B43]' : 'bg-gray-300'
+                } ${(!profile?.is_admin || isSavingAgencyAccess) ? 'cursor-not-allowed opacity-60' : ''}`}
+              >
+                <span
+                  className={`inline-block h-5 w-5 transform rounded-full bg-white transition ${
+                    agencyAccessValue ? 'translate-x-5' : 'translate-x-1'
+                  }`}
+                />
+              </button>
+            </div>
+
+            {!profile?.is_admin && (
+              <p className="text-xs text-gray-500">
+                Only super-admins can change this setting.
+              </p>
+            )}
+
+            <div className="flex justify-end space-x-3">
+              <button
+                type="button"
+                onClick={closeUserModal}
+                className="px-4 py-2 text-sm font-medium text-gray-600 bg-gray-100 rounded-md hover:bg-gray-200 transition-colors"
+              >
+                Close
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveAgencyAccess}
+                disabled={!profile?.is_admin || isSavingAgencyAccess}
+                className={`px-4 py-2 text-sm font-medium text-white rounded-md transition-colors ${
+                  profile?.is_admin ? 'bg-[#4E4B43] hover:bg-[#3a3832]' : 'bg-gray-400'
+                } ${isSavingAgencyAccess ? 'cursor-wait opacity-60' : ''}`}
+              >
+                {isSavingAgencyAccess ? 'Saving...' : 'Save'}
+              </button>
+            </div>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 }
