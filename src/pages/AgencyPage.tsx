@@ -165,7 +165,9 @@ export function AgencyPage() {
           listing_images(*)
         `, { count: 'exact' })
         .eq('is_active', true)
-        .eq('approved', true);
+        .eq('approved', true)
+        .eq('profiles.role', 'agent')
+        .eq('profiles.agency', foundAgencyName);
 
       // Apply filters
       if (filters.bedrooms !== undefined) {
@@ -206,24 +208,15 @@ export function AgencyPage() {
 
       if (error) {
         console.error("Error loading agency listings:", error);
+        console.error("Query details:", { foundAgencyName, filters });
         setListings([]);
         setTotalCount(0);
       } else {
-        // Apply frontend filtering for agency (same as BrowseListings)
-        let filteredListings = data || [];
+        console.log("Raw data from query:", data?.length, "listings");
+        console.log("Sample listing owner:", data?.[0]?.owner);
         
-        // Filter by agent role
-        filteredListings = filteredListings.filter(
-          (l) => l.owner && l.owner.role === "agent"
-        );
-        
-        // Filter by specific agency
-        filteredListings = filteredListings.filter(
-          (l) => l.owner && l.owner.agency === foundAgencyName
-        );
-        
-        setListings(filteredListings);
-        setTotalCount(filteredListings.length);
+        setListings(data || []);
+        setTotalCount(count || 0);
       }
       
       // Track agency page view
