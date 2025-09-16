@@ -366,6 +366,7 @@ const analytics = new AnalyticsTracker();
 
 // Export the main track function and specialized methods
 export const track = analytics.track.bind(analytics);
+export const trackEvent = analytics.track.bind(analytics); // Alias for compatibility
 export const trackPageView = analytics.trackPageView.bind(analytics);
 export const trackListingView = analytics.trackListingView.bind(analytics);
 export const trackListingImpressionBatch = analytics.trackListingImpressionBatch.bind(analytics);

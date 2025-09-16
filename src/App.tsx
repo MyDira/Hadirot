@@ -22,6 +22,7 @@ import { Privacy } from './pages/Privacy';
 import { Terms } from './pages/Terms';
 import { StaticPage } from './pages/StaticPage';
 import { NotFound } from './pages/NotFound';
+import { AgencyPage } from './pages/AgencyPage';
 import { useAuth } from '@/hooks/useAuth';
 import GASmokeTest from '@/dev/gaSmokeTest';
 
@@ -73,6 +74,7 @@ function App() {
                 <Route path="/contact" element={<Contact />} />
                 <Route path="/privacy" element={<Privacy />} />
                 <Route path="/terms" element={<Terms />} />
+                <Route path="/agencies/:slug" element={<AgencyPage />} />
                 <Route path="/:id" element={<StaticPage />} />
                 <Route
                   path="/auth"

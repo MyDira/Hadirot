@@ -1,6 +1,5 @@
 import { supabase, Listing } from '../config/supabase';
 import { capitalizeName } from '../utils/formatters';
-import { emailService } from './email';
 
 interface GetListingsFilters {
   bedrooms?: number;
