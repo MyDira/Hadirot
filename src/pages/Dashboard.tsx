@@ -393,19 +393,6 @@ export default function Dashboard() {
               <Plus className="w-4 h-4 mr-2" />
               Create Listing
             </Link>
-            {profile?.can_manage_agency && (
-              <Link
-                to="/dashboard/agency-settings"
-                className={`flex items-center px-3 py-2 text-sm font-medium rounded-md ${
-                  location.pathname === '/dashboard/agency-settings'
-                    ? 'bg-brand-100 text-brand-700'
-                    : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
-                }`}
-              >
-                <Building className="mr-3 h-5 w-5" />
-                My Agency Page
-              </Link>
-            )}
           </div>
         ) : (
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">

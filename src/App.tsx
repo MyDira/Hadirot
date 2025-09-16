@@ -21,8 +21,6 @@ import { Contact } from './pages/Contact';
 import { Privacy } from './pages/Privacy';
 import { Terms } from './pages/Terms';
 import { StaticPage } from './pages/StaticPage';
-import { AgencyPage } from './pages/AgencyPage';
-import { AgencySettings } from './pages/AgencySettings';
 import { NotFound } from './pages/NotFound';
 import { useAuth } from '@/hooks/useAuth';
 import GASmokeTest from '@/dev/gaSmokeTest';
@@ -68,7 +66,6 @@ function App() {
                 <Route path="/admin/footer" element={<FooterEditor />} />
                 <Route path="/admin/featured-settings" element={<FeaturedSettingsAdmin />} />
                 <Route path="/dashboard" element={<Dashboard />} />
-                <Route path="/dashboard/agency-settings" element={<AgencySettings />} />
                 <Route path="/account-settings" element={<AccountSettings />} />
                <Route path="/internal-analytics" element={<InternalAnalytics />} />
                 <Route path="/internal-analytics" element={<InternalAnalytics />} />
@@ -76,7 +73,6 @@ function App() {
                 <Route path="/contact" element={<Contact />} />
                 <Route path="/privacy" element={<Privacy />} />
                 <Route path="/terms" element={<Terms />} />
-                <Route path="/agencies/:slug" element={<AgencyPage />} />
                 <Route path="/:id" element={<StaticPage />} />
                 <Route
                   path="/auth"
@@ -97,3 +93,4 @@ function App() {
 }
 
 export default App;
+

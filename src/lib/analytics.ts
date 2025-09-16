@@ -378,7 +378,7 @@ export const trackPostSuccess = analytics.trackPostSuccess.bind(analytics);
 export const trackPostAbandoned = analytics.trackPostAbandoned.bind(analytics);
 export const resetPostingState = analytics.resetPostingState.bind(analytics);
 
-// Hook to provide user ID to analytics and track auth state
+// Hook to provide user ID to analytics
 export function useAnalyticsAuth() {
   const { user } = useAuth();
   
