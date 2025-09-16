@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useParams, useSearchParams, Link } from "react-router-dom";
 import { Share2, Filter, X, ChevronLeft, ChevronRight } from "lucide-react";
 import { ListingCard } from "../components/listings/ListingCard";
-import { Listing } from "../config/supabase";
+import { Listing, supabase } from "../config/supabase";
 import { listingsService } from "../services/listings";
 import { useAuth } from "@/hooks/useAuth";
 import { track } from "../lib/analytics";
