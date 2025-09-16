@@ -17,10 +17,11 @@ import {
   X,
 } from "lucide-react";
 import { useAuth, AUTH_CONTEXT_ID } from "@/hooks/useAuth";
-import { usePageTracking } from "../../hooks/usePageTracking";
-import { useAnalyticsAuth } from "../../lib/analytics";
+import { usePageTracking } from "@/hooks/usePageTracking";
+import { useAnalyticsAuth } from "@/lib/analytics";
+import { agencyNameToSlug } from "@/utils/agency";
 import { Footer } from "./Footer";
-import { capitalizeName } from "../../utils/formatters";
+import { capitalizeName } from "@/utils/formatters";
 
 interface LayoutProps {
   children: React.ReactNode;
