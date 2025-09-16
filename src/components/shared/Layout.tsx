@@ -368,6 +368,19 @@ export function Layout({ children }: LayoutProps) {
                         <User className="w-5 h-5 mr-3" />
                         Account Settings
                       </Link>
+                      
+                      {/* My Agency Page - only for agents with agency */}
+                      {profile?.role === 'agent' && profile?.agency && (
+                        <Link
+                          to={`/agencies/${agencyNameToSlug(profile.agency)}`}
+                          onClick={() => setIsMobileMenuOpen(false)}
+                          className="flex items-center px-4 py-3 text-base font-medium text-gray-600 hover:text-[#273140] hover:bg-gray-50 rounded-md transition-colors"
+                        >
+                          <Building2 className="w-5 h-5 mr-3" />
+                          My Agency Page
+                        </Link>
+                      )}
+                      
                       <Link
                         to="/dashboard"
                         onClick={() => setIsMobileMenuOpen(false)}
