@@ -165,9 +165,7 @@ export function AgencyPage() {
           listing_images(*)
         `, { count: 'exact' })
         .eq('is_active', true)
-        .eq('approved', true)
-        .eq('owner.role', 'agent')
-        .eq('owner.agency', foundAgencyName)
+        .eq('approved', true);
 
       // Apply filters
       if (filters.bedrooms !== undefined) {
@@ -211,8 +209,21 @@ export function AgencyPage() {
         setListings([]);
         setTotalCount(0);
       } else {
-        setListings(data || []);
-        setTotalCount(count || 0);
+        // Apply frontend filtering for agency (same as BrowseListings)
+        let filteredListings = data || [];
+        
+        // Filter by agent role
+        filteredListings = filteredListings.filter(
+          (l) => l.owner && l.owner.role === "agent"
+        );
+        
+        // Filter by specific agency
+        filteredListings = filteredListings.filter(
+          (l) => l.owner && l.owner.agency === foundAgencyName
+        );
+        
+        setListings(filteredListings);
+        setTotalCount(filteredListings.length);
       }
       
       // Track agency page view
