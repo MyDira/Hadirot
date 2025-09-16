@@ -161,13 +161,13 @@ export function AgencyPage() {
         .from('listings')
         .select(`
           *,
-          owner:profiles!inner(id, full_name, role, agency),
+          owner:profiles!listings_user_id_fkey(id, full_name, role, agency),
           listing_images(*)
         `, { count: 'exact' })
         .eq('is_active', true)
         .eq('approved', true)
-        .eq('owner.role', 'agent')
-        .eq('owner.agency', foundAgencyName)
+        .eq('profiles.role', 'agent')
+        .eq('profiles.agency', foundAgencyName)
 
       // Apply filters
       if (filters.bedrooms !== undefined) {
