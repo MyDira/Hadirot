@@ -17,7 +17,7 @@ import {
   X,
 } from "lucide-react";
 import { useAuth, AUTH_CONTEXT_ID } from "@/hooks/useAuth";
-import { usePageTracking } from "../../hooks/usePageTracking";
+import { usePageTracking } from "@/hooks/usePageTracking";
 import { useAnalyticsAuth } from "../../lib/analytics";
 import { Footer } from "./Footer";
 import { capitalizeName } from "../../utils/formatters";
@@ -424,6 +424,14 @@ export function Layout({ children }: LayoutProps) {
                           >
                             <Star className="w-5 h-5 mr-3" />
                             Featured Settings
+                          </Link>
+                          <Link
+                            to="/internal-analytics"
+                            onClick={() => setIsMobileMenuOpen(false)}
+                            className="flex items-center px-4 py-3 text-base font-medium text-gray-600 hover:text-[#273140] hover:bg-gray-50 rounded-md transition-colors"
+                          >
+                            <BarChart3 className="w-5 h-5 mr-3" />
+                            Analytics
                           </Link>
                           <Link
                             to="/internal-analytics"
