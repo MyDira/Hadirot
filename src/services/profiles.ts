@@ -5,7 +5,7 @@ export const profilesService = {
   async getProfile(userId: string): Promise<Profile | null> {
     const { data, error } = await supabase
       .from('profiles')
-      .select('id, full_name, role, phone, agency, is_admin, created_at, updated_at, is_banned, email, can_feature_listings, max_featured_listings_per_user')
+      .select('id, full_name, role, phone, agency, is_admin, created_at, updated_at, is_banned, email, can_feature_listings, max_featured_listings_per_user, can_manage_agency')
       .eq('id', userId)
       .single();
 
@@ -22,7 +22,7 @@ export const profilesService = {
       .from('profiles')
       .update(updates)
       .eq('id', userId)
-      .select('id, full_name, role, phone, agency, is_admin, created_at, updated_at, is_banned, email, can_feature_listings, max_featured_listings_per_user')
+      .select('id, full_name, role, phone, agency, is_admin, created_at, updated_at, is_banned, email, can_feature_listings, max_featured_listings_per_user, can_manage_agency')
       .single();
 
     if (error) {
@@ -36,7 +36,7 @@ export const profilesService = {
   async getAllProfiles(): Promise<Profile[]> {
     const { data, error } = await supabase
       .from('profiles')
-      .select('id, full_name, role, phone, agency, is_admin, created_at, updated_at, is_banned, email, can_feature_listings, max_featured_listings_per_user')
+      .select('id, full_name, role, phone, agency, is_admin, created_at, updated_at, is_banned, email, can_feature_listings, max_featured_listings_per_user, can_manage_agency')
       .order('created_at', { ascending: false });
 
     if (error) {

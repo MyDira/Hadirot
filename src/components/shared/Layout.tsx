@@ -15,10 +15,13 @@ import {
   BarChart3,
   Menu,
   X,
+  Building2,
+  Paintbrush,
 } from "lucide-react";
 import { useAuth, AUTH_CONTEXT_ID } from "@/hooks/useAuth";
 import { usePageTracking } from "../../hooks/usePageTracking";
 import { useAnalyticsAuth } from "../../lib/analytics";
+import { agencyNameToSlug } from "../../utils/agency";
 import { Footer } from "./Footer";
 import { capitalizeName } from "../../utils/formatters";
 
@@ -94,6 +97,16 @@ export function Layout({ children }: LayoutProps) {
       console.log("[Layout] auth", payload);
     }
   }, [loading, user, profile, authContextId]);
+
+  const agencyName =
+    typeof profile?.agency === "string" ? profile.agency.trim() : "";
+  const canAccessAgencyPage =
+    profile?.role === "agent" &&
+    agencyName.length > 0 &&
+    profile?.can_manage_agency === true;
+  const agencySlug = canAccessAgencyPage
+    ? agencyNameToSlug(agencyName)
+    : null;
 
   const handleSignOut = async () => {
     try {
@@ -188,6 +201,26 @@ export function Layout({ children }: LayoutProps) {
                           <LayoutDashboard className="w-4 h-4 mr-2" />
                           My Dashboard
                         </Link>
+                        {canAccessAgencyPage && agencySlug && (
+                          <Link
+                            to={`/agencies/${agencySlug}`}
+                            className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                            onClick={() => setShowUserMenu(false)}
+                          >
+                            <Building2 className="w-4 h-4 mr-2" />
+                            My Agency Page
+                          </Link>
+                        )}
+                        {canAccessAgencyPage && (
+                          <Link
+                            to="/dashboard/agency-settings"
+                            className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                            onClick={() => setShowUserMenu(false)}
+                          >
+                            <Paintbrush className="w-4 h-4 mr-2" />
+                            Agency Settings
+                          </Link>
+                        )}
                         <Link
                           to="/favorites"
                           className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
@@ -369,10 +402,9 @@ export function Layout({ children }: LayoutProps) {
                         Account Settings
                       </Link>
                       
-                      {/* My Agency Page - only for agents with agency */}
-                      {profile?.role === 'agent' && profile?.agency && (
+                      {canAccessAgencyPage && agencySlug && (
                         <Link
-                          to={`/agencies/${agencyNameToSlug(profile.agency)}`}
+                          to={`/agencies/${agencySlug}`}
                           onClick={() => setIsMobileMenuOpen(false)}
                           className="flex items-center px-4 py-3 text-base font-medium text-gray-600 hover:text-[#273140] hover:bg-gray-50 rounded-md transition-colors"
                         >
@@ -380,7 +412,17 @@ export function Layout({ children }: LayoutProps) {
                           My Agency Page
                         </Link>
                       )}
-                      
+                      {canAccessAgencyPage && (
+                        <Link
+                          to="/dashboard/agency-settings"
+                          onClick={() => setIsMobileMenuOpen(false)}
+                          className="flex items-center px-4 py-3 text-base font-medium text-gray-600 hover:text-[#273140] hover:bg-gray-50 rounded-md transition-colors"
+                        >
+                          <Paintbrush className="w-5 h-5 mr-3" />
+                          Agency Settings
+                        </Link>
+                      )}
+
                       <Link
                         to="/dashboard"
                         onClick={() => setIsMobileMenuOpen(false)}

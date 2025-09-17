@@ -73,12 +73,14 @@ export function AdminPanel() {
   const [agencies, setAgencies] = useState<string[]>([]);
   const [showApproveSuccess, setShowApproveSuccess] = useState(false);
   const [approvedListingTitle, setApprovedListingTitle] = useState('');
-  const [pendingSort, setPendingSort] = useState<{ field: string; direction: 'asc' | 'desc' }>({ 
-    field: 'created_at', 
-    direction: 'desc' 
+  const [pendingSort, setPendingSort] = useState<{ field: string; direction: 'asc' | 'desc' }>({
+    field: 'created_at',
+    direction: 'desc'
   });
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [dateFilter, setDateFilter] = useState({ startDate: '', endDate: '' });
+  const [agencyAccessLoadingId, setAgencyAccessLoadingId] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ message: string; variant: 'success' | 'error' } | null>(null);
 
   useEffect(() => {
     if (profile?.is_admin) {
@@ -101,6 +103,13 @@ export function AdminPanel() {
       return () => clearTimeout(timer);
     }
   }, [showApproveSuccess]);
+
+  useEffect(() => {
+    if (toast) {
+      const timer = setTimeout(() => setToast(null), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [toast]);
 
   // Filter pending listings based on search term
   useEffect(() => {
@@ -259,7 +268,7 @@ export function AdminPanel() {
       // Load full data for tables
       const { data: allUsers } = await supabase
         .from('profiles')
-        .select('id, full_name, email, role, phone, agency, is_admin, is_banned, created_at')
+        .select('id, full_name, email, role, phone, agency, is_admin, is_banned, created_at, can_manage_agency, status')
         .order('created_at', { ascending: false })
         .limit(50);
 
@@ -319,6 +328,98 @@ export function AdminPanel() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleToggleAgencyAccess = async (targetUser: Profile) => {
+    if (!profile?.is_admin) {
+      setToast({ message: 'Only super-admins can change agency access.', variant: 'error' });
+      return;
+    }
+
+    const previousValue = Boolean(targetUser.can_manage_agency);
+    const nextValue = !previousValue;
+
+    setAgencyAccessLoadingId(targetUser.id);
+    setUsers(prev =>
+      prev.map(user =>
+        user.id === targetUser.id ? { ...user, can_manage_agency: nextValue } : user
+      )
+    );
+
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ can_manage_agency: nextValue })
+        .eq('id', targetUser.id);
+
+      if (error) {
+        throw error;
+      }
+
+      const { data: refreshedUser, error: refreshError } = await supabase
+        .from('profiles')
+        .select('id, full_name, email, role, phone, agency, is_admin, is_banned, created_at, updated_at, can_manage_agency, status')
+        .eq('id', targetUser.id)
+        .single();
+
+      if (refreshError) {
+        console.error('Error refreshing user row:', refreshError);
+      }
+
+      if (refreshedUser) {
+        const typedUser = refreshedUser as Profile;
+        setUsers(prev =>
+          prev.map(user => (user.id === typedUser.id ? { ...user, ...typedUser } : user))
+        );
+      }
+
+      setToast({ message: 'Saved', variant: 'success' });
+    } catch (error) {
+      console.error('Error updating agency page access:', error);
+      setUsers(prev =>
+        prev.map(user =>
+          user.id === targetUser.id
+            ? { ...user, can_manage_agency: previousValue }
+            : user
+        )
+      );
+      setToast({ message: 'Failed to update agency access', variant: 'error' });
+    } finally {
+      setAgencyAccessLoadingId(null);
+    }
+  };
+
+  const renderAgencyAccessSwitch = (user: Profile) => {
+    const isOn = Boolean(user.can_manage_agency);
+    const isDisabled = !profile?.is_admin || agencyAccessLoadingId === user.id;
+    const baseTitle = isOn ? 'Disable agency access' : 'Enable agency access';
+    const title = !profile?.is_admin
+      ? 'Only super-admins can change agency access.'
+      : agencyAccessLoadingId === user.id
+        ? 'Updating...'
+        : baseTitle;
+
+    return (
+      <button
+        type="button"
+        role="switch"
+        aria-checked={isOn}
+        aria-label={`${baseTitle} for ${user.full_name || 'user'}`}
+        onClick={() => handleToggleAgencyAccess(user)}
+        disabled={isDisabled}
+        aria-busy={agencyAccessLoadingId === user.id}
+        title={title}
+        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+          isOn ? 'bg-[#4E4B43]' : 'bg-gray-300'
+        } ${isDisabled ? 'cursor-not-allowed opacity-60' : 'hover:bg-[#3a3832]'}`}
+      >
+        <span
+          className={`inline-block h-5 w-5 transform rounded-full bg-white transition ${
+            isOn ? 'translate-x-5' : 'translate-x-1'
+          }`}
+        />
+      </button>
+    );
   };
 
   // Load all listings when sort changes
@@ -685,6 +786,16 @@ export function AdminPanel() {
         </div>
       )}
 
+      {toast && (
+        <div
+          className={`fixed top-32 right-4 z-50 rounded-md px-4 py-2 text-sm font-medium text-white shadow-lg ${
+            toast.variant === 'error' ? 'bg-red-600' : 'bg-green-600'
+          }`}
+        >
+          {toast.message}
+        </div>
+      )}
+
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-[#4E4B43] mb-2 flex items-center">
           <Shield className="w-8 h-8 mr-3" />
@@ -914,181 +1025,308 @@ export function AdminPanel() {
                     All Users ({filteredUsers.length})
                   </h3>
                 </div>
-                <div className="overflow-x-auto">
-                  <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          <button
-                            onClick={() => handleUsersSort('full_name')}
-                            className="flex items-center space-x-1 hover:text-gray-700 transition-colors"
-                          >
-                            <span>Name</span>
-                            <span className="text-gray-400">{getUserSortIcon('full_name')}</span>
-                          </button>
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Email
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          <button
-                            onClick={() => handleUsersSort('phone')}
-                            className="flex items-center space-x-1 hover:text-gray-700 transition-colors"
-                          >
-                            <span>Contact</span>
-                            <span className="text-gray-400">{getUserSortIcon('phone')}</span>
-                          </button>
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          <button
-                            onClick={() => handleUsersSort('role')}
-                            className="flex items-center space-x-1 hover:text-gray-700 transition-colors"
-                          >
-                            <span>Role</span>
-                            <span className="text-gray-400">{getUserSortIcon('role')}</span>
-                          </button>
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          <button
-                            onClick={() => handleUsersSort('agency')}
-                            className="flex items-center space-x-1 hover:text-gray-700 transition-colors"
-                          >
-                            <span>Agency</span>
-                            <span className="text-gray-400">{getUserSortIcon('agency')}</span>
-                          </button>
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          <button
-                            onClick={() => handleUsersSort('created_at')}
-                            className="flex items-center space-x-1 hover:text-gray-700 transition-colors"
-                          >
-                            <span>Joined</span>
-                            <span className="text-gray-400">{getUserSortIcon('created_at')}</span>
-                          </button>
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          <button
-                            onClick={() => handleUsersSort('status')}
-                            className="flex items-center space-x-1 hover:text-gray-700 transition-colors"
-                          >
-                            <span>Status</span>
-                            <span className="text-gray-400">{getUserSortIcon('status')}</span>
-                          </button>
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Actions
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
-                      {paginatedUsers.map((user) => (
-                        <tr key={user.id} className={user.is_banned ? 'bg-red-50' : ''}>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="font-medium text-gray-900">{user.full_name}</div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                            {user.email || 'No email'}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="text-sm text-gray-900">{user.phone || 'No phone'}</div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="relative">
+                <div className="md:hidden divide-y divide-gray-200">
+                  {paginatedUsers.length === 0 ? (
+                    <p className="p-4 text-sm text-gray-500">No users found.</p>
+                  ) : (
+                    paginatedUsers.map((user) => (
+                      <div
+                        key={user.id}
+                        className={`space-y-4 p-4 ${user.is_banned ? 'bg-red-50' : ''}`}
+                      >
+                        <div className="flex items-start justify-between gap-4">
+                          <div>
+                            <p className="font-medium text-gray-900">{user.full_name || 'No name'}</p>
+                            <p className="break-words text-sm text-gray-500">{user.email || 'No email'}</p>
+                          </div>
+                          <div className="flex flex-col items-end gap-1">
+                            <span className="text-xs font-medium uppercase text-gray-500">Agency Access</span>
+                            <div className="flex items-center gap-2">
+                              {renderAgencyAccessSwitch(user)}
+                              <span className="text-xs font-medium text-gray-600">
+                                {user.can_manage_agency ? 'On' : 'Off'}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
+                          <div>
+                            <p className="text-xs font-medium uppercase text-gray-500">Phone</p>
+                            <p className="text-gray-900">{user.phone || 'No phone'}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs font-medium uppercase text-gray-500">Role</p>
+                            <div className="relative mt-1 max-w-[200px]">
                               <select
                                 value={user.role}
                                 onChange={(e) => updateUserRole(user.id, e.target.value)}
-                                disabled={actionLoading === user.id || user.id === profile.id}
-                                className="appearance-none bg-transparent border border-gray-300 rounded px-3 py-1 pr-8 text-sm focus:ring-[#4E4B43] focus:border-[#4E4B43] disabled:opacity-50 disabled:cursor-not-allowed"
+                                disabled={actionLoading === user.id || user.id === profile?.id}
+                                className="w-full appearance-none rounded border border-gray-300 bg-white px-3 py-1 pr-8 text-sm focus:border-[#4E4B43] focus:outline-none focus:ring-1 focus:ring-[#4E4B43] disabled:cursor-not-allowed disabled:opacity-50"
                               >
                                 <option value="tenant">Tenant</option>
                                 <option value="landlord">Landlord</option>
                                 <option value="agent">Agent</option>
                               </select>
-                              <ChevronDown className="absolute right-2 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                              <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
                             </div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                            {user.agency || '-'}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            {new Date(user.created_at).toLocaleDateString()}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="flex flex-col space-y-1">
-                              <span className={`px-2 py-1 text-xs rounded-full ${
-                                user.is_admin ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'
-                              }`}>
-                                {user.is_admin ? 'Admin' : 'User'}
-                              </span>
-                              <span className={`px-2 py-1 text-xs rounded-full ${
-                                user.is_banned ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'
-                              }`}>
-                                {user.is_banned ? 'Banned' : 'Active'}
-                              </span>
-                            </div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                            <div className="flex flex-wrap gap-2">
-                              {/* Make Admin Button */}
-                              {!user.is_admin && user.id !== profile.id && (
-                                <button
-                                  onClick={() => makeAdmin(user.id)}
-                                  disabled={actionLoading === user.id}
-                                  className="text-blue-600 hover:text-blue-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-xs"
-                                  title="Make Admin"
-                                >
-                                  <Shield className="w-4 h-4" />
-                                </button>
-                              )}
-                              
-                              {/* Ban/Unban Button */}
-                              {user.id !== profile.id && (
-                                <button
-                                  onClick={() => toggleBanStatus(user.id, user.is_banned || false)}
-                                  disabled={actionLoading === user.id}
-                                  className={`transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
-                                    user.is_banned 
-                                      ? 'text-green-600 hover:text-green-800' 
-                                      : 'text-orange-600 hover:text-orange-800'
-                                  }`}
-                                  title={user.is_banned ? 'Unban User' : 'Ban User'}
-                                >
-                                  {user.is_banned ? <UserCheck className="w-4 h-4" /> : <UserX className="w-4 h-4" />}
-                                </button>
-                              )}
-                              
-                              {/* Reset Password Button */}
+                          </div>
+                          <div className="sm:col-span-2">
+                            <p className="text-xs font-medium uppercase text-gray-500">Agency</p>
+                            <p className="text-gray-900">{user.agency || '-'}</p>
+                          </div>
+                        </div>
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                          <div className="flex flex-wrap gap-2">
+                            <span className={`rounded-full px-2 py-1 text-xs font-semibold ${
+                              user.is_admin ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'
+                            }`}>
+                              {user.is_admin ? 'Admin' : 'User'}
+                            </span>
+                            <span className={`rounded-full px-2 py-1 text-xs font-semibold ${
+                              user.is_banned ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'
+                            }`}>
+                              {user.is_banned ? 'Banned' : 'Active'}
+                            </span>
+                          </div>
+                          <div className="flex flex-wrap items-center gap-2">
+                            {profile?.is_admin && !user.is_admin && user.id !== profile?.id && (
                               <button
-                                onClick={() => {
-                                  const email = prompt('Enter user email for password reset:');
-                                  if (email) resetPassword(user.id, email);
-                                }}
+                                onClick={() => makeAdmin(user.id)}
                                 disabled={actionLoading === user.id}
-                                className="text-purple-600 hover:text-purple-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                                title="Reset Password"
+                                className="inline-flex items-center rounded border border-blue-200 px-2 py-1 text-xs font-medium text-blue-600 transition-colors hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-50"
                               >
-                                <Mail className="w-4 h-4" />
+                                Promote
                               </button>
-                              
-                              {/* Delete User Button */}
-                              {user.id !== profile.id && (
-                                <button
-                                  onClick={() => deleteUser(user.id, user.full_name)}
-                                  disabled={actionLoading === user.id}
-                                  className="text-red-600 hover:text-red-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                                  title="Delete User"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </button>
-                              )}
-                            </div>
+                            )}
+                            {user.id !== profile?.id && (
+                              <button
+                                onClick={() => toggleBanStatus(user.id, user.is_banned || false)}
+                                disabled={actionLoading === user.id}
+                                className={`inline-flex items-center rounded border px-2 py-1 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+                                  user.is_banned
+                                    ? 'border-green-200 text-green-700 hover:bg-green-50'
+                                    : 'border-orange-200 text-orange-700 hover:bg-orange-50'
+                                }`}
+                              >
+                                {user.is_banned ? 'Unban' : 'Ban'}
+                              </button>
+                            )}
+                            <button
+                              onClick={() => {
+                                const email = prompt('Enter user email for password reset:');
+                                if (email) resetPassword(user.id, email);
+                              }}
+                              disabled={actionLoading === user.id}
+                              className="inline-flex items-center rounded border border-purple-200 px-2 py-1 text-xs font-medium text-purple-700 transition-colors hover:bg-purple-50 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                              Reset Password
+                            </button>
+                            {user.id !== profile?.id && (
+                              <button
+                                onClick={() => deleteUser(user.id, user.full_name)}
+                                disabled={actionLoading === user.id}
+                                className="inline-flex items-center rounded border border-red-200 px-2 py-1 text-xs font-medium text-red-600 transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+                              >
+                                Delete
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+                <div className="hidden md:block">
+                  <table className="min-w-full table-fixed divide-y divide-gray-200">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                          <button
+                            onClick={() => handleUsersSort('full_name')}
+                            className="flex items-center gap-1 transition-colors hover:text-gray-700"
+                          >
+                            <span>Name / Email</span>
+                            <span className="text-gray-400">{getUserSortIcon('full_name')}</span>
+                          </button>
+                        </th>
+                        <th className="hidden px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 lg:table-cell">
+                          <button
+                            onClick={() => handleUsersSort('phone')}
+                            className="flex items-center gap-1 transition-colors hover:text-gray-700"
+                          >
+                            <span>Contact</span>
+                            <span className="text-gray-400">{getUserSortIcon('phone')}</span>
+                          </button>
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                          <button
+                            onClick={() => handleUsersSort('role')}
+                            className="flex items-center gap-1 transition-colors hover:text-gray-700"
+                          >
+                            <span>Role</span>
+                            <span className="text-gray-400">{getUserSortIcon('role')}</span>
+                          </button>
+                        </th>
+                        <th className="hidden px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 xl:table-cell">
+                          <button
+                            onClick={() => handleUsersSort('agency')}
+                            className="flex items-center gap-1 transition-colors hover:text-gray-700"
+                          >
+                            <span>Agency</span>
+                            <span className="text-gray-400">{getUserSortIcon('agency')}</span>
+                          </button>
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                          Agency Access
+                        </th>
+                        <th className="hidden px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 lg:table-cell">
+                          <button
+                            onClick={() => handleUsersSort('status')}
+                            className="flex items-center gap-1 transition-colors hover:text-gray-700"
+                          >
+                            <span>Status</span>
+                            <span className="text-gray-400">{getUserSortIcon('status')}</span>
+                          </button>
+                        </th>
+                        <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500">
+                          Actions
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-200 bg-white">
+                      {paginatedUsers.length === 0 ? (
+                        <tr>
+                          <td colSpan={7} className="px-4 py-6 text-center text-sm text-gray-500">
+                            No users found.
                           </td>
                         </tr>
-                      ))}
+                      ) : (
+                        paginatedUsers.map((user) => (
+                          <tr key={user.id} className={user.is_banned ? 'bg-red-50' : ''}>
+                            <td className="px-4 py-3 align-top">
+                              <div className="flex flex-col">
+                                <span className="font-medium text-gray-900">{user.full_name || 'No name'}</span>
+                                <span className="break-all text-sm text-gray-500">{user.email || 'No email'}</span>
+                                <div className="mt-2 text-sm text-gray-900 lg:hidden">
+                                  <span className="text-xs font-medium uppercase text-gray-500">Phone: </span>
+                                  {user.phone || 'No phone'}
+                                </div>
+                                <div className="mt-2 text-sm text-gray-900 xl:hidden">
+                                  <span className="text-xs font-medium uppercase text-gray-500">Agency: </span>
+                                  {user.agency || '-'}
+                                </div>
+                                <div className="mt-2 flex flex-wrap gap-2 lg:hidden">
+                                  <span className={`rounded-full px-2 py-1 text-xs font-semibold ${
+                                    user.is_admin ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'
+                                  }`}>
+                                    {user.is_admin ? 'Admin' : 'User'}
+                                  </span>
+                                  <span className={`rounded-full px-2 py-1 text-xs font-semibold ${
+                                    user.is_banned ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'
+                                  }`}>
+                                    {user.is_banned ? 'Banned' : 'Active'}
+                                  </span>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="hidden px-4 py-3 text-sm text-gray-900 lg:table-cell">
+                              {user.phone || 'No phone'}
+                            </td>
+                            <td className="px-4 py-3 align-middle">
+                              <div className="relative max-w-[160px]">
+                                <select
+                                  value={user.role}
+                                  onChange={(e) => updateUserRole(user.id, e.target.value)}
+                                  disabled={actionLoading === user.id || user.id === profile?.id}
+                                  className="w-full appearance-none rounded border border-gray-300 bg-white px-3 py-1 pr-8 text-sm focus:border-[#4E4B43] focus:outline-none focus:ring-1 focus:ring-[#4E4B43] disabled:cursor-not-allowed disabled:opacity-50"
+                                >
+                                  <option value="tenant">Tenant</option>
+                                  <option value="landlord">Landlord</option>
+                                  <option value="agent">Agent</option>
+                                </select>
+                                <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                              </div>
+                            </td>
+                            <td className="hidden px-4 py-3 text-sm text-gray-900 xl:table-cell">
+                              {user.agency || '-'}
+                            </td>
+                            <td className="px-4 py-3">
+                              <div className="flex items-center gap-2">
+                                {renderAgencyAccessSwitch(user)}
+                                <span className="text-xs font-medium text-gray-600">
+                                  {user.can_manage_agency ? 'On' : 'Off'}
+                                </span>
+                              </div>
+                            </td>
+                            <td className="hidden px-4 py-3 lg:table-cell">
+                              <div className="flex flex-wrap gap-2">
+                                <span className={`rounded-full px-2 py-1 text-xs font-semibold ${
+                                  user.is_admin ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'
+                                }`}>
+                                  {user.is_admin ? 'Admin' : 'User'}
+                                </span>
+                                <span className={`rounded-full px-2 py-1 text-xs font-semibold ${
+                                  user.is_banned ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'
+                                }`}>
+                                  {user.is_banned ? 'Banned' : 'Active'}
+                                </span>
+                              </div>
+                            </td>
+                            <td className="px-4 py-3 text-right">
+                              <div className="flex flex-wrap items-center justify-end gap-2">
+                                {profile?.is_admin && !user.is_admin && user.id !== profile?.id && (
+                                  <button
+                                    onClick={() => makeAdmin(user.id)}
+                                    disabled={actionLoading === user.id}
+                                    className="hidden rounded border border-blue-200 p-1 text-blue-600 transition-colors hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-50 xl:inline-flex"
+                                    title="Make Admin"
+                                  >
+                                    <Shield className="h-4 w-4" />
+                                  </button>
+                                )}
+                                {user.id !== profile?.id && (
+                                  <button
+                                    onClick={() => toggleBanStatus(user.id, user.is_banned || false)}
+                                    disabled={actionLoading === user.id}
+                                    className={`hidden rounded p-1 transition-colors disabled:cursor-not-allowed disabled:opacity-50 lg:inline-flex ${
+                                      user.is_banned
+                                        ? 'text-green-600 hover:bg-green-50'
+                                        : 'text-orange-600 hover:bg-orange-50'
+                                    }`}
+                                    title={user.is_banned ? 'Unban User' : 'Ban User'}
+                                  >
+                                    {user.is_banned ? <UserCheck className="h-4 w-4" /> : <UserX className="h-4 w-4" />}
+                                  </button>
+                                )}
+                                <button
+                                  onClick={() => {
+                                    const email = prompt('Enter user email for password reset:');
+                                    if (email) resetPassword(user.id, email);
+                                  }}
+                                  disabled={actionLoading === user.id}
+                                  className="hidden rounded p-1 text-purple-600 transition-colors hover:bg-purple-50 disabled:cursor-not-allowed disabled:opacity-50 xl:inline-flex"
+                                  title="Reset Password"
+                                >
+                                  <Mail className="h-4 w-4" />
+                                </button>
+                                {user.id !== profile?.id && (
+                                  <button
+                                    onClick={() => deleteUser(user.id, user.full_name)}
+                                    disabled={actionLoading === user.id}
+                                    className="inline-flex rounded p-1 text-red-600 transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+                                    title="Delete User"
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        ))
+                      )}
                     </tbody>
                   </table>
                 </div>
-
                 {/* Users Pagination */}
                 {totalUserPages > 1 && (
                   <div className="flex items-center justify-between mt-6">
@@ -1671,11 +1909,11 @@ export function AdminPanel() {
                 )}
               </div>
             </div>
-          )}
+      )}
 
-          {/* Settings Tab */}
-          {activeTab === 'settings' && (
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+      {/* Settings Tab */}
+      {activeTab === 'settings' && (
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
               <h3 className="text-lg font-semibold text-[#4E4B43] mb-6">Platform Settings</h3>
               
               <div className="space-y-6">
@@ -1733,6 +1971,7 @@ export function AdminPanel() {
           )}
         </>
       )}
+
     </div>
   );
 }
