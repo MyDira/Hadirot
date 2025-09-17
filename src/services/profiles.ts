@@ -1,11 +1,42 @@
+import type { PostgrestError } from '@supabase/supabase-js';
 import { supabase } from '../config/supabase';
 import type { Profile } from '../config/supabase';
+
+const EMAIL_UNIQUE_MESSAGE = 'That email is already registered.';
+const USERNAME_UNIQUE_MESSAGE = 'That username is taken.';
+
+function isPostgrestError(error: unknown): error is PostgrestError {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'code' in error &&
+    typeof (error as PostgrestError).code === 'string'
+  );
+}
+
+function mapProfileUniqueViolationError(error: PostgrestError): Error {
+  const detailText = `${error.details ?? ''} ${error.message ?? ''}`.toLowerCase();
+
+  if (detailText.includes('email')) {
+    const friendlyError = new Error(EMAIL_UNIQUE_MESSAGE);
+    (friendlyError as any).code = 'PROFILE_EMAIL_TAKEN';
+    return friendlyError;
+  }
+
+  if (detailText.includes('username')) {
+    const friendlyError = new Error(USERNAME_UNIQUE_MESSAGE);
+    (friendlyError as any).code = 'PROFILE_USERNAME_TAKEN';
+    return friendlyError;
+  }
+
+  return error;
+}
 
 export const profilesService = {
   async getProfile(userId: string): Promise<Profile | null> {
     const { data, error } = await supabase
       .from('profiles')
-      .select('id, full_name, role, phone, agency, is_admin, created_at, updated_at, is_banned, email, can_feature_listings, max_featured_listings_per_user')
+      .select('id, full_name, role, phone, agency, is_admin, created_at, updated_at, is_banned, email, can_feature_listings, max_featured_listings_per_user, can_manage_agency')
       .eq('id', userId)
       .single();
 
@@ -22,11 +53,14 @@ export const profilesService = {
       .from('profiles')
       .update(updates)
       .eq('id', userId)
-      .select('id, full_name, role, phone, agency, is_admin, created_at, updated_at, is_banned, email, can_feature_listings, max_featured_listings_per_user')
+      .select('id, full_name, role, phone, agency, is_admin, created_at, updated_at, is_banned, email, can_feature_listings, max_featured_listings_per_user, can_manage_agency')
       .single();
 
     if (error) {
       console.error('Error updating profile:', error);
+      if (isPostgrestError(error) && error.code === '23505') {
+        throw mapProfileUniqueViolationError(error);
+      }
       throw error;
     }
 
@@ -36,7 +70,7 @@ export const profilesService = {
   async getAllProfiles(): Promise<Profile[]> {
     const { data, error } = await supabase
       .from('profiles')
-      .select('id, full_name, role, phone, agency, is_admin, created_at, updated_at, is_banned, email, can_feature_listings, max_featured_listings_per_user')
+      .select('id, full_name, role, phone, agency, is_admin, created_at, updated_at, is_banned, email, can_feature_listings, max_featured_listings_per_user, can_manage_agency')
       .order('created_at', { ascending: false });
 
     if (error) {
