@@ -12,6 +12,8 @@ import {
   Lock,
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
+import { agenciesService } from "@/services/agencies";
+import { agencyNameToSlug } from "@/utils/agency";
 import { supabase } from "../config/supabase";
 
 interface ProfileFormData {
@@ -26,6 +28,9 @@ interface PasswordFormData {
   newPassword: string;
   confirmPassword: string;
 }
+
+const AGENCY_IN_USE_MESSAGE =
+  "This agency name is already in use on Had irot. If you meant to join that agency, ask the admin to enable your access; otherwise pick a unique name.";
 
 export function AccountSettings() {
   const { user, profile, loading: authLoading } = useAuth();
@@ -98,14 +103,61 @@ export function AccountSettings() {
     setMessage(null);
 
     try {
+      let nextAgency: string | null = null;
+
+      if (profileData.role === "agent") {
+        const trimmedAgencyName = profileData.agency.trim();
+
+        if (trimmedAgencyName) {
+          const nextSlug = agencyNameToSlug(trimmedAgencyName);
+
+          if (!nextSlug) {
+            setMessage({
+              type: "error",
+              text: "Please enter a valid agency name.",
+            });
+            return;
+          }
+
+          const currentSlug = profile?.agency
+            ? agencyNameToSlug(profile.agency)
+            : null;
+
+          if (!currentSlug || currentSlug !== nextSlug) {
+            try {
+              const availability =
+                await agenciesService.checkAgencyNameAvailable(
+                  trimmedAgencyName,
+                );
+
+              if (!availability.available) {
+                setMessage({ type: "error", text: AGENCY_IN_USE_MESSAGE });
+                return;
+              }
+            } catch (availabilityError) {
+              console.error(
+                "Error verifying agency availability:",
+                availabilityError,
+              );
+              setMessage({
+                type: "error",
+                text: "We couldn't verify that agency name. Please try again.",
+              });
+              return;
+            }
+          }
+
+          nextAgency = trimmedAgencyName;
+        }
+      }
+
       const { error } = await supabase
         .from("profiles")
         .update({
           full_name: profileData.full_name.trim(),
           phone: profileData.phone.trim() || null,
           role: profileData.role,
-          agency:
-            profileData.role === "agent" ? profileData.agency.trim() : null,
+          agency: profileData.role === "agent" ? nextAgency : null,
           updated_at: new Date().toISOString(),
         })
         .eq("id", user.id);

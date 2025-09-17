@@ -1,6 +1,64 @@
+import type { PostgrestError } from "@supabase/supabase-js";
 import { supabase, Agency } from "../config/supabase";
 import { agencyNameToSlug } from "../utils/agency";
 import { sanitizeHtml } from "../utils/sanitize";
+
+export const AGENCY_NAME_TAKEN_CODE = "AGENCY_NAME_TAKEN" as const;
+
+type AgencyNameTakenError = { code: typeof AGENCY_NAME_TAKEN_CODE };
+
+export interface AgencyNameAvailabilityResult {
+  available: boolean;
+}
+
+function createAgencyNameTakenError(): AgencyNameTakenError {
+  return { code: AGENCY_NAME_TAKEN_CODE };
+}
+
+function isPostgrestError(error: unknown): error is PostgrestError {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    typeof (error as PostgrestError).code === "string"
+  );
+}
+
+function isUniqueViolation(error: unknown): error is PostgrestError {
+  return isPostgrestError(error) && error.code === "23505";
+}
+
+async function checkAgencyNameAvailability(
+  name: string,
+  excludeId?: string,
+): Promise<AgencyNameAvailabilityResult> {
+  const normalizedName = name.trim();
+  const normalizedSlug = agencyNameToSlug(normalizedName);
+
+  if (!normalizedName || !normalizedSlug) {
+    return { available: false };
+  }
+
+  const orFilter = [
+    `name.eq.${encodeURIComponent(normalizedName)}`,
+    `slug.eq.${encodeURIComponent(normalizedSlug)}`,
+  ].join(",");
+
+  let query = supabase.from("agencies").select("id");
+
+  if (excludeId) {
+    query = query.neq("id", excludeId);
+  }
+
+  const { data, error } = await query.or(orFilter).limit(1);
+
+  if (error) {
+    console.error("[svc] checkAgencyNameAvailable error", error);
+    throw error;
+  }
+
+  return { available: !data || data.length === 0 };
+}
 
 export interface AgencyCreateInput {
   name: string;
@@ -71,6 +129,13 @@ function mapAgencyRow(row: Agency | null): Agency | null {
 }
 
 export const agenciesService = {
+  checkAgencyNameAvailable(
+    name: string,
+    excludeId?: string,
+  ): Promise<AgencyNameAvailabilityResult> {
+    return checkAgencyNameAvailability(name, excludeId);
+  },
+
   async getAgencyBySlug(slug: string): Promise<Agency | null> {
     const normalizedSlug = agencyNameToSlug(slug);
 
@@ -100,6 +165,12 @@ export const agenciesService = {
       throw new Error("Agency name and slug are required");
     }
 
+    const { available } = await checkAgencyNameAvailability(normalizedName);
+
+    if (!available) {
+      throw createAgencyNameTakenError();
+    }
+
     const insertPayload = {
       name: normalizedName,
       slug: normalizedSlug,
@@ -119,6 +190,9 @@ export const agenciesService = {
 
     if (error) {
       console.error("[svc] createAgency error", error);
+      if (isUniqueViolation(error)) {
+        throw createAgencyNameTakenError();
+      }
       throw error;
     }
 
@@ -133,6 +207,16 @@ export const agenciesService = {
       if (!normalizedName) {
         throw new Error("Agency name cannot be empty");
       }
+
+      const { available } = await checkAgencyNameAvailability(
+        normalizedName,
+        id,
+      );
+
+      if (!available) {
+        throw createAgencyNameTakenError();
+      }
+
       updates.name = normalizedName;
     }
 
@@ -190,6 +274,9 @@ export const agenciesService = {
 
     if (error) {
       console.error("[svc] updateAgencyById error", error);
+      if (isUniqueViolation(error)) {
+        throw createAgencyNameTakenError();
+      }
       throw error;
     }
 

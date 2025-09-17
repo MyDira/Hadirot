@@ -28,7 +28,7 @@ import StarterKit from "@tiptap/starter-kit";
 import LinkExtension from "@tiptap/extension-link";
 import { useAuth } from "@/hooks/useAuth";
 import { agencyNameToSlug } from "@/utils/agency";
-import { agenciesService } from "@/services/agencies";
+import { agenciesService, AGENCY_NAME_TAKEN_CODE } from "@/services/agencies";
 import { Agency } from "@/config/supabase";
 import { listingsService } from "@/services/listings";
 import "@/styles/editor.css";
@@ -41,6 +41,18 @@ interface FormState {
   email: string;
   website: string;
   about_html: string;
+}
+
+const DUPLICATE_AGENCY_NAME_MESSAGE =
+  "That agency name is already taken. Please choose a unique name.";
+
+function isAgencyNameTakenError(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    (error as { code?: string }).code === AGENCY_NAME_TAKEN_CODE
+  );
 }
 
 export function AgencySettings() {
@@ -69,6 +81,7 @@ export function AgencySettings() {
   const [bannerUploading, setBannerUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [nameError, setNameError] = useState<string | null>(null);
 
   const initialEditorSyncRef = useRef(false);
 
@@ -118,6 +131,7 @@ export function AgencySettings() {
   const loadAgencyDetails = useCallback(async () => {
     if (!slug) {
       setAgency(null);
+      setNameError(null);
       initialEditorSyncRef.current = false;
       setFormState({
         name: agencyName,
@@ -151,9 +165,11 @@ export function AgencySettings() {
 
       initialEditorSyncRef.current = false;
       setFormState(nextState);
+      setNameError(null);
     } catch (err) {
       console.error("Error loading agency settings:", err);
       setAgency(null);
+      setNameError(null);
       initialEditorSyncRef.current = false;
       setFormState({
         name: agencyName,
@@ -196,6 +212,9 @@ export function AgencySettings() {
     (event: React.ChangeEvent<HTMLInputElement>) => {
       const { value } = event.target;
       setSuccess(null);
+      if (field === "name") {
+        setNameError(null);
+      }
       setFormState((prev) => ({ ...prev, [field]: value }));
     };
 
@@ -299,19 +318,42 @@ export function AgencySettings() {
       return;
     }
 
-    setCreating(true);
+    const trimmedName = agencyName.trim();
+    if (!trimmedName) {
+      setError("Agency name is required.");
+      return;
+    }
+
     setError(null);
     setSuccess(null);
+    setNameError(null);
+
+    try {
+      const availability = await agenciesService.checkAgencyNameAvailable(
+        trimmedName,
+      );
+
+      if (!availability.available) {
+        setNameError(DUPLICATE_AGENCY_NAME_MESSAGE);
+        return;
+      }
+    } catch (err) {
+      console.error("Error verifying agency availability:", err);
+      setError("Failed to verify agency name availability. Please try again.");
+      return;
+    }
+
+    setCreating(true);
 
     try {
       const created = await agenciesService.createAgency({
-        name: agencyName,
+        name: trimmedName,
         slug,
       });
 
       setAgency(created);
       const nextState: FormState = {
-        name: created?.name?.trim() || agencyName,
+        name: created?.name?.trim() || trimmedName,
         logo_url: created?.logo_url ?? "",
         banner_url: created?.banner_url ?? "",
         phone: created?.phone ?? "",
@@ -322,10 +364,15 @@ export function AgencySettings() {
 
       initialEditorSyncRef.current = false;
       setFormState(nextState);
+      setNameError(null);
       setSuccess("Agency profile created. You can now customize your branding.");
     } catch (err) {
       console.error("Error creating agency:", err);
-      setError("Failed to create agency profile. Please try again.");
+      if (isAgencyNameTakenError(err)) {
+        setNameError(DUPLICATE_AGENCY_NAME_MESSAGE);
+      } else {
+        setError("Failed to create agency profile. Please try again.");
+      }
     } finally {
       setCreating(false);
     }
@@ -347,8 +394,19 @@ export function AgencySettings() {
     setSaving(true);
     setError(null);
     setSuccess(null);
+    setNameError(null);
 
     try {
+      const availability = await agenciesService.checkAgencyNameAvailable(
+        trimmedName,
+        agency.id,
+      );
+
+      if (!availability.available) {
+        setNameError(DUPLICATE_AGENCY_NAME_MESSAGE);
+        return;
+      }
+
       const payload = {
         name: trimmedName,
         logo_url: toNullable(formState.logo_url),
@@ -379,14 +437,19 @@ export function AgencySettings() {
 
       initialEditorSyncRef.current = false;
       setFormState(nextState);
+      setNameError(null);
       setSuccess("Agency profile updated successfully.");
     } catch (err) {
       console.error("Error saving agency settings:", err);
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Failed to save agency settings. Please try again.",
-      );
+      if (isAgencyNameTakenError(err)) {
+        setNameError(DUPLICATE_AGENCY_NAME_MESSAGE);
+      } else {
+        setError(
+          err instanceof Error
+            ? err.message
+            : "Failed to save agency settings. Please try again.",
+        );
+      }
     } finally {
       setSaving(false);
     }
@@ -500,6 +563,9 @@ export function AgencySettings() {
             )}
             {creating ? "Creating..." : "Create Agency Profile"}
           </button>
+          {nameError && (
+            <p className="mt-4 text-sm text-red-600">{nameError}</p>
+          )}
         </div>
       ) : (
         <form onSubmit={handleSave} className="space-y-8">
@@ -516,6 +582,9 @@ export function AgencySettings() {
                 placeholder="Agency name"
                 maxLength={120}
               />
+              {nameError && (
+                <p className="mt-2 text-sm text-red-600">{nameError}</p>
+              )}
               <p className="mt-1 text-sm text-gray-500">
                 This name appears at the top of your public agency page.
               </p>
