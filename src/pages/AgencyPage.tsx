@@ -15,7 +15,8 @@ import { Listing, Agency } from "@/config/supabase";
 import { listingsService } from "@/services/listings";
 import { agenciesService } from "@/services/agencies";
 import { slugToAgencyLabel } from "@/utils/agency";
-import { normalizeUrlForHref } from "@/utils/url";
+import { formatPhoneForDisplay } from "@/utils/phone";
+import { normalizeUrlForHref, canonicalUrl } from "@/utils/url";
 import { useAuth } from "@/hooks/useAuth";
 import { track } from "@/lib/analytics";
 import { useListingImpressions } from "@/hooks/useListingImpressions";
@@ -321,10 +322,10 @@ export function AgencyPage() {
   };
 
   const handleShareAgency = async () => {
-    const url = window.location.href;
+    const shareLink = canonicalUrl(`/agencies/${slugParam}`);
 
     try {
-      await navigator.clipboard.writeText(url);
+      await navigator.clipboard.writeText(shareLink);
       showShareToast("Link copied to clipboard");
 
       track('agency_share', {
@@ -340,7 +341,7 @@ export function AgencyPage() {
 
     try {
       const input = document.createElement('input');
-      input.value = url;
+      input.value = shareLink;
       document.body.appendChild(input);
       input.select();
       document.execCommand('copy');
@@ -369,9 +370,12 @@ export function AgencyPage() {
     Boolean(filters.min_price) ||
     Boolean(filters.max_price) ||
     (filters.sort && filters.sort !== 'newest');
-  const phoneNumber = agencyDetails?.phone?.trim();
+  const phoneNumberRaw = agencyDetails?.phone;
+  const formattedPhoneNumber = formatPhoneForDisplay(phoneNumberRaw);
+  const hasPhoneNumber = formattedPhoneNumber.length > 0;
   const emailAddress = agencyDetails?.email?.trim();
-  const websiteLabel = agencyDetails?.website?.trim();
+  const websiteValue = agencyDetails?.website ?? "";
+  const hasWebsite = websiteValue.trim().length > 0;
   const sanitizedAboutHtml = agencyDetails?.about_html ?? "";
   const showAboutColumn = sanitizedAboutHtml.trim().length > 0;
 
@@ -420,13 +424,13 @@ export function AgencyPage() {
     },
   ];
 
-  if (phoneNumber) {
+  if (hasPhoneNumber) {
     metaItems.push({
       key: "phone",
       node: (
         <span className="inline-flex items-center gap-1.5">
           <Phone className="w-4 h-4 text-[#273140]" aria-hidden="true" />
-          <span>{phoneNumber}</span>
+          <span>{formattedPhoneNumber}</span>
         </span>
       ),
     });
@@ -447,18 +451,18 @@ export function AgencyPage() {
     });
   }
 
-  if (websiteLabel) {
+  if (hasWebsite) {
     metaItems.push({
       key: "website",
       node: (
         <a
-          href={normalizeUrlForHref(agencyDetails?.website ?? undefined)}
+          href={normalizeUrlForHref(websiteValue)}
           target="_blank"
           rel="noopener noreferrer nofollow"
           className="inline-flex items-center gap-1.5 hover:text-[#273140] transition-colors"
         >
           <Globe className="w-4 h-4 text-[#273140]" aria-hidden="true" />
-          <span>{websiteLabel}</span>
+          <span>{websiteValue}</span>
         </a>
       ),
     });

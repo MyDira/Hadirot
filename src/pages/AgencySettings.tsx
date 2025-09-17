@@ -725,14 +725,14 @@ export function AgencySettings() {
                   Website
                 </label>
                 <input
-                  type="url"
+                  type="text"
                   value={formState.website}
                   onChange={handleInputChange("website")}
                   className="w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-[#273140] focus:outline-none focus:ring-2 focus:ring-[#273140]/20"
-                  placeholder="https://example.com"
+                  placeholder="example.com"
                 />
                 <p className="mt-1 text-xs text-gray-500">
-                  Include the full URL so visitors can navigate directly to your site.
+                  Enter any website or profile link. We'll make sure it opens correctly.
                 </p>
               </div>
             </div>

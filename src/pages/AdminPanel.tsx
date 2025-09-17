@@ -4,6 +4,7 @@ import { Users, FileText, Settings, Eye, Check, X, Trash2, ChevronLeft, Shield, 
 import { listingsService } from '../services/listings';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase, Profile, Listing } from '../config/supabase';
+import { formatPhoneForDisplay } from '@/utils/phone';
 
 interface AdminStats {
   totalUsers: number;
@@ -1054,7 +1055,7 @@ export function AdminPanel() {
                             {new Date(user.created_at).toLocaleDateString()}
                           </td>
                           <td className="hidden xl:table-cell px-4 py-3 align-top text-sm text-gray-900">
-                            {user.phone || 'No phone'}
+                            {formatPhoneForDisplay(user.phone) || 'No phone'}
                           </td>
                           <td className="px-4 py-3 align-top text-right text-sm font-medium">
                             <div className="flex justify-end">
