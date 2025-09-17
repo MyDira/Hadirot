@@ -23,6 +23,7 @@ export interface Profile {
   agency?: string;
   is_admin: boolean;
   is_banned?: boolean;
+  status?: string;
   can_feature_listings?: boolean;
   can_manage_agency?: boolean;
   max_featured_listings_per_user?: number;

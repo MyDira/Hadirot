@@ -1,9 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Users, FileText, Settings, Eye, Check, X, Ban, UserCheck, Trash2, ChevronLeft, Shield, TrendingUp, Home, Star, Power, ChevronDown, Search, UserX, Mail, ChevronRight } from 'lucide-react';
-import { requestPasswordReset } from '../services/email';
+import { Users, FileText, Settings, Eye, Check, X, Trash2, ChevronLeft, Shield, TrendingUp, Home, Star, Power, ChevronDown, Search, ChevronRight } from 'lucide-react';
 import { listingsService } from '../services/listings';
-import { Modal } from '../components/shared/Modal';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase, Profile, Listing } from '../config/supabase';
 
@@ -80,11 +78,8 @@ export function AdminPanel() {
   });
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [dateFilter, setDateFilter] = useState({ startDate: '', endDate: '' });
-  const [selectedUser, setSelectedUser] = useState<Profile | null>(null);
-  const [isUserModalOpen, setIsUserModalOpen] = useState(false);
-  const [agencyAccessValue, setAgencyAccessValue] = useState(false);
-  const [isSavingAgencyAccess, setIsSavingAgencyAccess] = useState(false);
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ message: string; tone: 'success' | 'error' } | null>(null);
+  const [updatingAgencyAccessId, setUpdatingAgencyAccessId] = useState<string | null>(null);
 
   useEffect(() => {
     if (profile?.is_admin) {
@@ -109,17 +104,11 @@ export function AdminPanel() {
   }, [showApproveSuccess]);
 
   useEffect(() => {
-    if (selectedUser) {
-      setAgencyAccessValue(Boolean(selectedUser.can_manage_agency));
-    }
-  }, [selectedUser]);
-
-  useEffect(() => {
-    if (toastMessage) {
-      const timer = setTimeout(() => setToastMessage(null), 3000);
+    if (toast) {
+      const timer = setTimeout(() => setToast(null), 3000);
       return () => clearTimeout(timer);
     }
-  }, [toastMessage]);
+  }, [toast]);
 
   // Filter pending listings based on search term
   useEffect(() => {
@@ -278,7 +267,7 @@ export function AdminPanel() {
       // Load full data for tables
       const { data: allUsers } = await supabase
         .from('profiles')
-        .select('id, full_name, email, role, phone, agency, is_admin, is_banned, created_at, can_manage_agency')
+        .select('id, full_name, email, role, phone, agency, is_admin, is_banned, created_at, can_manage_agency, status')
         .order('created_at', { ascending: false })
         .limit(50);
 
@@ -340,79 +329,6 @@ export function AdminPanel() {
     }
   };
 
-  const openUserModal = (user: Profile) => {
-    setSelectedUser(user);
-    setAgencyAccessValue(Boolean(user.can_manage_agency));
-    setIsUserModalOpen(true);
-  };
-
-  const closeUserModal = () => {
-    setIsUserModalOpen(false);
-    setSelectedUser(null);
-  };
-
-  const handleSaveAgencyAccess = async () => {
-    if (!selectedUser) {
-      return;
-    }
-
-    if (!profile?.is_admin) {
-      setAgencyAccessValue(Boolean(selectedUser.can_manage_agency));
-      return;
-    }
-
-    setIsSavingAgencyAccess(true);
-    try {
-      const { error } = await supabase
-        .from('profiles')
-        .update({ can_manage_agency: agencyAccessValue })
-        .eq('id', selectedUser.id);
-
-      if (error) {
-        console.error('Error updating agency page access:', error);
-        alert('Failed to update agency access. Please try again.');
-        return;
-      }
-
-      const { data: refreshedUser, error: refreshError } = await supabase
-        .from('profiles')
-        .select('id, full_name, email, role, phone, agency, is_admin, is_banned, created_at, updated_at, can_manage_agency')
-        .eq('id', selectedUser.id)
-        .single();
-
-      if (refreshError) {
-        console.error('Error refreshing user row:', refreshError);
-      }
-
-      if (refreshedUser) {
-        const typedUser = refreshedUser as Profile;
-        setSelectedUser(typedUser);
-        setUsers(prev =>
-          prev.map(user => (user.id === typedUser.id ? { ...user, ...typedUser } : user))
-        );
-      } else {
-        setSelectedUser(prev =>
-          prev ? { ...prev, can_manage_agency: agencyAccessValue } : prev
-        );
-        setUsers(prev =>
-          prev.map(user =>
-            user.id === selectedUser.id
-              ? { ...user, can_manage_agency: agencyAccessValue }
-              : user
-          )
-        );
-      }
-
-      setToastMessage('Saved');
-    } catch (error) {
-      console.error('Error updating agency page access:', error);
-      alert('Failed to update agency access. Please try again.');
-      setAgencyAccessValue(Boolean(selectedUser.can_manage_agency));
-    } finally {
-      setIsSavingAgencyAccess(false);
-    }
-  };
-
   // Load all listings when sort changes
   useEffect(() => {
     if (profile?.is_admin) {
@@ -457,51 +373,44 @@ export function AdminPanel() {
     }
   };
 
-  const makeAdmin = async (userId: string) => {
-    setActionLoading(userId);
-    try {
-      const { error } = await supabase
-        .from('profiles')
-        .update({ is_admin: true })
-        .eq('id', userId);
-      
-      if (error) {
-        console.error('Error making user admin:', error);
-        alert('Failed to make user admin. Please try again.');
-        return;
-      }
-      
-      await loadAdminData();
-      alert('User successfully made admin!');
-    } catch (error) {
-      console.error('Error making user admin:', error);
-      alert('Failed to make user admin. Please try again.');
-    } finally {
-      setActionLoading(null);
+  const handleToggleAgencyAccess = async (targetUser: Profile) => {
+    if (!profile?.is_admin || updatingAgencyAccessId === targetUser.id) {
+      return;
     }
-  };
 
-  const toggleBanStatus = async (userId: string, isBanned: boolean) => {
-    setActionLoading(userId);
+    const previousValue = Boolean(targetUser.can_manage_agency);
+    const nextValue = !previousValue;
+
+    setUpdatingAgencyAccessId(targetUser.id);
+    setUsers(prev =>
+      prev.map(user =>
+        user.id === targetUser.id ? { ...user, can_manage_agency: nextValue } : user
+      )
+    );
+
     try {
       const { error } = await supabase
         .from('profiles')
-        .update({ is_banned: !isBanned })
-        .eq('id', userId);
-      
+        .update({ can_manage_agency: nextValue })
+        .eq('id', targetUser.id);
+
       if (error) {
-        console.error('Error updating ban status:', error);
-        alert('Failed to update ban status. Please try again.');
-        return;
+        throw error;
       }
-      
-      await loadAdminData();
-      alert(`User successfully ${!isBanned ? 'banned' : 'unbanned'}!`);
+
+      setToast({ message: 'Agency Access updated', tone: 'success' });
     } catch (error) {
-      console.error('Error updating ban status:', error);
-      alert('Failed to update ban status. Please try again.');
+      console.error('Error updating agency access:', error);
+      setUsers(prev =>
+        prev.map(user =>
+          user.id === targetUser.id
+            ? { ...user, can_manage_agency: previousValue }
+            : user
+        )
+      );
+      setToast({ message: "Couldn't update Agency Access. Try again.", tone: 'error' });
     } finally {
-      setActionLoading(null);
+      setUpdatingAgencyAccessId(null);
     }
   };
 
@@ -524,19 +433,6 @@ export function AdminPanel() {
     } catch (error) {
       console.error('Error updating user role:', error);
       alert('Failed to update user role. Please try again.');
-    } finally {
-      setActionLoading(null);
-    }
-  };
-
-  const resetPassword = async (userId: string, email: string) => {
-    setActionLoading(userId);
-    try {
-      console.log('🔄 Admin sending password reset email to:', email);
-      await requestPasswordReset(email);
-      alert('Password reset email sent successfully!');
-    } catch (error) {
-      alert(`Failed to send password reset: ${error.message}`);
     } finally {
       setActionLoading(null);
     }
@@ -777,9 +673,13 @@ export function AdminPanel() {
         </div>
       )}
 
-      {toastMessage && (
-        <div className="fixed top-32 right-4 z-50 rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white shadow-lg">
-          {toastMessage}
+      {toast && (
+        <div
+          className={`fixed top-32 right-4 z-50 rounded-md px-4 py-2 text-sm font-medium text-white shadow-lg ${
+            toast.tone === 'error' ? 'bg-red-600' : 'bg-green-600'
+          }`}
+        >
+          {toast.message}
         </div>
       )}
 
@@ -1012,32 +912,20 @@ export function AdminPanel() {
                     All Users ({filteredUsers.length})
                   </h3>
                 </div>
-                <div className="overflow-x-auto">
+                <div className="overflow-x-auto lg:overflow-visible">
                   <table className="min-w-full divide-y divide-gray-200">
                     <thead className="bg-gray-50">
                       <tr>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                           <button
                             onClick={() => handleUsersSort('full_name')}
                             className="flex items-center space-x-1 hover:text-gray-700 transition-colors"
                           >
-                            <span>Name</span>
+                            <span>User</span>
                             <span className="text-gray-400">{getUserSortIcon('full_name')}</span>
                           </button>
                         </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Email
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          <button
-                            onClick={() => handleUsersSort('phone')}
-                            className="flex items-center space-x-1 hover:text-gray-700 transition-colors"
-                          >
-                            <span>Contact</span>
-                            <span className="text-gray-400">{getUserSortIcon('phone')}</span>
-                          </button>
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                           <button
                             onClick={() => handleUsersSort('role')}
                             className="flex items-center space-x-1 hover:text-gray-700 transition-colors"
@@ -1046,7 +934,7 @@ export function AdminPanel() {
                             <span className="text-gray-400">{getUserSortIcon('role')}</span>
                           </button>
                         </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <th className="hidden lg:table-cell px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                           <button
                             onClick={() => handleUsersSort('agency')}
                             className="flex items-center space-x-1 hover:text-gray-700 transition-colors"
@@ -1056,20 +944,11 @@ export function AdminPanel() {
                           </button>
                         </th>
                         {profile?.is_admin && (
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Agency Access
                           </th>
                         )}
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          <button
-                            onClick={() => handleUsersSort('created_at')}
-                            className="flex items-center space-x-1 hover:text-gray-700 transition-colors"
-                          >
-                            <span>Joined</span>
-                            <span className="text-gray-400">{getUserSortIcon('created_at')}</span>
-                          </button>
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <th className="hidden lg:table-cell px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                           <button
                             onClick={() => handleUsersSort('status')}
                             className="flex items-center space-x-1 hover:text-gray-700 transition-colors"
@@ -1078,132 +957,115 @@ export function AdminPanel() {
                             <span className="text-gray-400">{getUserSortIcon('status')}</span>
                           </button>
                         </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <th className="hidden xl:table-cell px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          <button
+                            onClick={() => handleUsersSort('created_at')}
+                            className="flex items-center space-x-1 hover:text-gray-700 transition-colors"
+                          >
+                            <span>Joined</span>
+                            <span className="text-gray-400">{getUserSortIcon('created_at')}</span>
+                          </button>
+                        </th>
+                        <th className="hidden xl:table-cell px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          <button
+                            onClick={() => handleUsersSort('phone')}
+                            className="flex items-center space-x-1 hover:text-gray-700 transition-colors"
+                          >
+                            <span>Contact</span>
+                            <span className="text-gray-400">{getUserSortIcon('phone')}</span>
+                          </button>
+                        </th>
+                        <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                           Actions
                         </th>
                       </tr>
                     </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
+                    <tbody className="bg-white divide-y divide-gray-200 text-sm">
                       {paginatedUsers.map((user) => (
                         <tr key={user.id} className={user.is_banned ? 'bg-red-50' : ''}>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="font-medium text-gray-900">{user.full_name}</div>
+                          <td className="px-4 py-3 align-top">
+                            <div className="space-y-1">
+                              <div className="font-medium text-gray-900 leading-tight break-words">
+                                {user.full_name || 'No name provided'}
+                              </div>
+                              <div className="text-xs text-gray-500 break-all">
+                                {user.email || 'No email'}
+                              </div>
+                            </div>
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                            {user.email || 'No email'}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="text-sm text-gray-900">{user.phone || 'No phone'}</div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="relative">
+                          <td className="px-4 py-3 align-top">
+                            <div className="relative inline-block w-full max-w-[180px]">
                               <select
                                 value={user.role}
                                 onChange={(e) => updateUserRole(user.id, e.target.value)}
                                 disabled={actionLoading === user.id || user.id === profile.id}
-                                className="appearance-none bg-transparent border border-gray-300 rounded px-3 py-1 pr-8 text-sm focus:ring-[#4E4B43] focus:border-[#4E4B43] disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="w-full appearance-none rounded border border-gray-300 bg-white px-3 py-1 pr-8 text-sm focus:border-[#4E4B43] focus:outline-none focus:ring-1 focus:ring-[#4E4B43] disabled:cursor-not-allowed disabled:opacity-50"
                               >
                                 <option value="tenant">Tenant</option>
                                 <option value="landlord">Landlord</option>
                                 <option value="agent">Agent</option>
                               </select>
-                              <ChevronDown className="absolute right-2 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                              <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
                             </div>
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          <td className="hidden lg:table-cell px-4 py-3 align-top text-sm text-gray-900">
                             {user.agency || '-'}
                           </td>
                           {profile?.is_admin && (
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <span
-                                className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${
-                                  user.can_manage_agency
-                                    ? 'bg-green-100 text-green-800'
-                                    : 'bg-gray-100 text-gray-600'
-                                }`}
+                            <td className="px-4 py-3 align-top">
+                              <button
+                                type="button"
+                                role="switch"
+                                aria-checked={Boolean(user.can_manage_agency)}
+                                aria-label="Toggle agency access"
+                                onClick={() => handleToggleAgencyAccess(user)}
+                                disabled={updatingAgencyAccessId === user.id}
+                                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                                  user.can_manage_agency ? 'bg-[#4E4B43]' : 'bg-gray-300'
+                                } ${updatingAgencyAccessId === user.id ? 'cursor-wait opacity-60' : 'cursor-pointer'}`}
                               >
-                                {user.can_manage_agency ? 'On' : 'Off'}
-                              </span>
+                                <span
+                                  className={`inline-block h-5 w-5 transform rounded-full bg-white transition ${
+                                    user.can_manage_agency ? 'translate-x-5' : 'translate-x-1'
+                                  }`}
+                                />
+                              </button>
                             </td>
                           )}
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            {new Date(user.created_at).toLocaleDateString()}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="flex flex-col space-y-1">
-                              <span className={`px-2 py-1 text-xs rounded-full ${
-                                user.is_admin ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'
-                              }`}>
+                          <td className="hidden lg:table-cell px-4 py-3 align-top">
+                            <div className="flex flex-col gap-1">
+                              <span
+                                className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
+                                  user.is_admin ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'
+                                }`}
+                              >
                                 {user.is_admin ? 'Admin' : 'User'}
                               </span>
-                              <span className={`px-2 py-1 text-xs rounded-full ${
-                                user.is_banned ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'
-                              }`}>
+                              <span
+                                className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
+                                  user.is_banned ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'
+                                }`}
+                              >
                                 {user.is_banned ? 'Banned' : 'Active'}
                               </span>
                             </div>
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                            <div className="flex flex-wrap gap-2">
-                              {profile?.is_admin && (
-                                <button
-                                  onClick={() => openUserModal(user)}
-                                  className="text-gray-600 hover:text-gray-800 transition-colors text-xs"
-                                  title="Edit User"
-                                >
-                                  <Settings className="w-4 h-4" />
-                                </button>
-                              )}
-                              {/* Make Admin Button */}
-                              {!user.is_admin && user.id !== profile.id && (
-                                <button
-                                  onClick={() => makeAdmin(user.id)}
-                                  disabled={actionLoading === user.id}
-                                  className="text-blue-600 hover:text-blue-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-xs"
-                                  title="Make Admin"
-                                >
-                                  <Shield className="w-4 h-4" />
-                                </button>
-                              )}
-                              
-                              {/* Ban/Unban Button */}
-                              {user.id !== profile.id && (
-                                <button
-                                  onClick={() => toggleBanStatus(user.id, user.is_banned || false)}
-                                  disabled={actionLoading === user.id}
-                                  className={`transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
-                                    user.is_banned 
-                                      ? 'text-green-600 hover:text-green-800' 
-                                      : 'text-orange-600 hover:text-orange-800'
-                                  }`}
-                                  title={user.is_banned ? 'Unban User' : 'Ban User'}
-                                >
-                                  {user.is_banned ? <UserCheck className="w-4 h-4" /> : <UserX className="w-4 h-4" />}
-                                </button>
-                              )}
-                              
-                              {/* Reset Password Button */}
-                              <button
-                                onClick={() => {
-                                  const email = prompt('Enter user email for password reset:');
-                                  if (email) resetPassword(user.id, email);
-                                }}
-                                disabled={actionLoading === user.id}
-                                className="text-purple-600 hover:text-purple-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                                title="Reset Password"
-                              >
-                                <Mail className="w-4 h-4" />
-                              </button>
-                              
-                              {/* Delete User Button */}
+                          <td className="hidden xl:table-cell px-4 py-3 align-top text-sm text-gray-500">
+                            {new Date(user.created_at).toLocaleDateString()}
+                          </td>
+                          <td className="hidden xl:table-cell px-4 py-3 align-top text-sm text-gray-900">
+                            {user.phone || 'No phone'}
+                          </td>
+                          <td className="px-4 py-3 align-top text-right text-sm font-medium">
+                            <div className="flex justify-end">
                               {user.id !== profile.id && (
                                 <button
                                   onClick={() => deleteUser(user.id, user.full_name)}
                                   disabled={actionLoading === user.id}
-                                  className="text-red-600 hover:text-red-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                  className="text-red-600 transition-colors hover:text-red-800 disabled:cursor-not-allowed disabled:opacity-50"
                                   title="Delete User"
                                 >
-                                  <Trash2 className="w-4 h-4" />
+                                  <Trash2 className="h-4 w-4" />
                                 </button>
                               )}
                             </div>
@@ -1859,77 +1721,6 @@ export function AdminPanel() {
         </>
       )}
 
-      <Modal isOpen={isUserModalOpen} onClose={closeUserModal} title="Edit User">
-        {selectedUser && (
-          <div className="space-y-6">
-            <div>
-              <p className="text-sm font-medium text-gray-500">User</p>
-              <p className="text-base font-semibold text-gray-900">{selectedUser.full_name}</p>
-              <p className="text-sm text-gray-500">{selectedUser.email || 'No email'}</p>
-              <p className="text-sm text-gray-500 capitalize">Role: {selectedUser.role}</p>
-              <p className="text-sm text-gray-500">
-                Agency: {selectedUser.agency || 'Not specified'}
-              </p>
-            </div>
-
-            <div className="flex items-center justify-between gap-4">
-              <div>
-                <p className="text-sm font-medium text-gray-700">Agency Page Access</p>
-                <p className="text-xs text-gray-500">
-                  Allow this agent to manage their public agency branding and settings.
-                </p>
-              </div>
-              <button
-                type="button"
-                role="switch"
-                aria-checked={agencyAccessValue}
-                aria-label="Toggle agency page access"
-                onClick={() =>
-                  profile?.is_admin &&
-                  !isSavingAgencyAccess &&
-                  setAgencyAccessValue(prev => !prev)
-                }
-                disabled={!profile?.is_admin || isSavingAgencyAccess}
-                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                  agencyAccessValue ? 'bg-[#4E4B43]' : 'bg-gray-300'
-                } ${(!profile?.is_admin || isSavingAgencyAccess) ? 'cursor-not-allowed opacity-60' : ''}`}
-              >
-                <span
-                  className={`inline-block h-5 w-5 transform rounded-full bg-white transition ${
-                    agencyAccessValue ? 'translate-x-5' : 'translate-x-1'
-                  }`}
-                />
-              </button>
-            </div>
-
-            {!profile?.is_admin && (
-              <p className="text-xs text-gray-500">
-                Only super-admins can change this setting.
-              </p>
-            )}
-
-            <div className="flex justify-end space-x-3">
-              <button
-                type="button"
-                onClick={closeUserModal}
-                className="px-4 py-2 text-sm font-medium text-gray-600 bg-gray-100 rounded-md hover:bg-gray-200 transition-colors"
-              >
-                Close
-              </button>
-              <button
-                type="button"
-                onClick={handleSaveAgencyAccess}
-                disabled={!profile?.is_admin || isSavingAgencyAccess}
-                className={`px-4 py-2 text-sm font-medium text-white rounded-md transition-colors ${
-                  profile?.is_admin ? 'bg-[#4E4B43] hover:bg-[#3a3832]' : 'bg-gray-400'
-                } ${isSavingAgencyAccess ? 'cursor-wait opacity-60' : ''}`}
-              >
-                {isSavingAgencyAccess ? 'Saving...' : 'Save'}
-              </button>
-            </div>
-          </div>
-        )}
-      </Modal>
     </div>
   );
 }
