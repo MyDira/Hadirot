@@ -369,8 +369,11 @@ export function AgencyPage() {
     Boolean(filters.min_price) ||
     Boolean(filters.max_price) ||
     (filters.sort && filters.sort !== 'newest');
+  const phoneNumber = agencyDetails?.phone?.trim();
+  const emailAddress = agencyDetails?.email?.trim();
   const websiteLabel = agencyDetails?.website?.trim();
   const sanitizedAboutHtml = agencyDetails?.about_html ?? "";
+  const showAboutColumn = sanitizedAboutHtml.trim().length > 0;
 
   const aboutPlainText = useMemo(() => {
     if (!sanitizedAboutHtml) {
@@ -404,6 +407,77 @@ export function AgencyPage() {
 
   const shouldShowReadMore = aboutPlainText.length > ABOUT_PREVIEW_LIMIT;
 
+  const metaItems: { key: string; node: React.ReactNode }[] = [
+    {
+      key: "count",
+      node: (
+        <span className="font-medium text-[#273140]">
+          {loading
+            ? "Loading listings..."
+            : `${totalCount} active listing${totalCount === 1 ? "" : "s"}`}
+        </span>
+      ),
+    },
+  ];
+
+  if (phoneNumber) {
+    metaItems.push({
+      key: "phone",
+      node: (
+        <span className="inline-flex items-center gap-1.5">
+          <Phone className="w-4 h-4 text-[#273140]" aria-hidden="true" />
+          <span>{phoneNumber}</span>
+        </span>
+      ),
+    });
+  }
+
+  if (emailAddress) {
+    metaItems.push({
+      key: "email",
+      node: (
+        <a
+          href={`mailto:${emailAddress}`}
+          className="inline-flex items-center gap-1.5 hover:text-[#273140] transition-colors"
+        >
+          <Mail className="w-4 h-4 text-[#273140]" aria-hidden="true" />
+          <span>{emailAddress}</span>
+        </a>
+      ),
+    });
+  }
+
+  if (websiteLabel) {
+    metaItems.push({
+      key: "website",
+      node: (
+        <a
+          href={normalizeUrlForHref(agencyDetails?.website ?? undefined)}
+          target="_blank"
+          rel="noopener noreferrer nofollow"
+          className="inline-flex items-center gap-1.5 hover:text-[#273140] transition-colors"
+        >
+          <Globe className="w-4 h-4 text-[#273140]" aria-hidden="true" />
+          <span>{websiteLabel}</span>
+        </a>
+      ),
+    });
+  }
+
+  metaItems.push({
+    key: "share",
+    node: (
+      <button
+        type="button"
+        onClick={handleShareAgency}
+        className="inline-flex items-center gap-1.5 text-[#273140] font-medium hover:text-[#1b2331] transition-colors"
+      >
+        <Share2 className="w-4 h-4" aria-hidden="true" />
+        <span>Share</span>
+      </button>
+    ),
+  });
+
   useEffect(() => {
     setIsAboutExpanded(false);
   }, [sanitizedAboutHtml]);
@@ -428,17 +502,62 @@ export function AgencyPage() {
           </div>
         )}
 
-        <div className="flex items-start gap-4">
-          {agencyDetails?.logo_url && (
-            <img
-              src={agencyDetails.logo_url}
-              alt={`${resolvedAgencyDisplayName} logo`}
-              className="w-20 h-20 md:w-24 md:h-24 rounded-full border border-gray-200 shadow-sm object-cover bg-white"
-            />
+        <div
+          className={`grid gap-6 ${showAboutColumn ? "lg:grid-cols-2" : ""}`}
+        >
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:gap-6">
+            {agencyDetails?.logo_url && (
+              <img
+                src={agencyDetails.logo_url}
+                alt={`${resolvedAgencyDisplayName} logo`}
+                className="w-20 h-20 md:w-24 md:h-24 rounded-full border border-gray-200 shadow-sm object-cover bg-white"
+              />
+            )}
+            <div className="min-w-0 flex-1">
+              <h1 className="text-3xl font-bold font-brand text-[#273140]">
+                {resolvedAgencyDisplayName}
+              </h1>
+              <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2 text-sm text-gray-600">
+                {metaItems.map((item, index) => (
+                  <div key={item.key} className="flex items-center gap-1.5">
+                    {index > 0 && (
+                      <span className="text-gray-300" aria-hidden="true">
+                        •
+                      </span>
+                    )}
+                    {item.node}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {showAboutColumn && (
+            <div className="text-gray-700 leading-relaxed">
+              {isAboutExpanded || !shouldShowReadMore ? (
+                <div
+                  className="space-y-3"
+                  dangerouslySetInnerHTML={{
+                    __html: sanitizedAboutHtml,
+                  }}
+                />
+              ) : (
+                <p>
+                  {aboutPreviewText}
+                  {shouldShowReadMore ? "…" : ""}
+                </p>
+              )}
+              {shouldShowReadMore && (
+                <button
+                  type="button"
+                  onClick={() => setIsAboutExpanded((prev) => !prev)}
+                  className="mt-3 text-sm font-medium text-[#273140] hover:text-[#1b2331] transition-colors"
+                >
+                  {isAboutExpanded ? "Collapse" : "Read more"}
+                </button>
+              )}
+            </div>
           )}
-          <h1 className="text-3xl font-bold font-brand text-[#273140]">
-            {resolvedAgencyDisplayName}
-          </h1>
         </div>
       </div>
 
@@ -553,83 +672,6 @@ export function AgencyPage() {
         </aside>
 
         <div className="space-y-6">
-          <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-6">
-            <div className="flex flex-col gap-5">
-              <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-gray-600">
-                <div className="inline-flex items-center gap-2 font-medium text-[#273140]">
-                  <span>
-                    {loading
-                      ? "Loading listings..."
-                      : `${totalCount} active listing${totalCount === 1 ? "" : "s"}`}
-                  </span>
-                </div>
-                {agencyDetails?.phone && (
-                  <div className="flex items-center gap-2">
-                    <Phone className="w-4 h-4 text-[#273140]" />
-                    <span>{agencyDetails.phone}</span>
-                  </div>
-                )}
-                {agencyDetails?.email && (
-                  <a
-                    href={`mailto:${agencyDetails.email}`}
-                    className="flex items-center gap-2 hover:text-[#273140] transition-colors"
-                  >
-                    <Mail className="w-4 h-4 text-[#273140]" />
-                    <span>{agencyDetails.email}</span>
-                  </a>
-                )}
-                {websiteLabel && (
-                  <a
-                    href={normalizeUrlForHref(agencyDetails?.website ?? undefined)}
-                    target="_blank"
-                    rel="noopener noreferrer nofollow"
-                    className="flex items-center gap-2 hover:text-[#273140] transition-colors"
-                  >
-                    <Globe className="w-4 h-4 text-[#273140]" />
-                    <span>{websiteLabel}</span>
-                  </a>
-                )}
-                <button
-                  type="button"
-                  onClick={handleShareAgency}
-                  className="inline-flex items-center gap-2 text-[#273140] hover:text-[#1b2331] transition-colors"
-                >
-                  <Share2 className="w-4 h-4" />
-                  <span>Share</span>
-                </button>
-              </div>
-              {sanitizedAboutHtml && (
-                <div className="pt-4 border-t border-gray-100">
-                  <h3 className="text-sm font-semibold uppercase tracking-wide text-[#273140] mb-3">
-                    About
-                  </h3>
-                  {isAboutExpanded || !shouldShowReadMore ? (
-                    <div
-                      className="space-y-3 text-gray-700 leading-relaxed"
-                      dangerouslySetInnerHTML={{
-                        __html: sanitizedAboutHtml,
-                      }}
-                    />
-                  ) : (
-                    <p className="text-gray-700 leading-relaxed">
-                      {aboutPreviewText}
-                      {shouldShowReadMore ? "…" : ""}
-                    </p>
-                  )}
-                  {shouldShowReadMore && (
-                    <button
-                      type="button"
-                      onClick={() => setIsAboutExpanded((prev) => !prev)}
-                      className="mt-3 text-sm font-medium text-[#273140] hover:text-[#1b2331] transition-colors"
-                    >
-                      {isAboutExpanded ? "Collapse" : "Read more"}
-                    </button>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
-
           {loading ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
