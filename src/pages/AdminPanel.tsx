@@ -267,7 +267,7 @@ export function AdminPanel() {
       // Load full data for tables
       const { data: allUsers } = await supabase
         .from('profiles')
-        .select('id, full_name, email, role, phone, agency, is_admin, is_banned, created_at, can_manage_agency, status')
+        .select('id, full_name, email, role, phone, agency, is_admin, is_banned, created_at, can_manage_agency')
         .order('created_at', { ascending: false })
         .limit(50);
 
