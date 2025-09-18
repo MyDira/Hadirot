@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import {
   Edit,
   Eye,
+  MousePointerClick,
   Star,
   Trash2,
   RefreshCw,
@@ -406,8 +407,11 @@ export default function Dashboard() {
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-24">
                       Price
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-20">
-                      Views
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-24">
+                      Impressions
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-24">
+                      Direct Views
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-32">
                       Status
@@ -455,10 +459,16 @@ export default function Dashboard() {
                             ? 'Call for Price'
                             : `${formatPrice(listing.price)}/month`}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-center">
-                          <div className="flex items-center text-sm text-gray-900">
-                            <Eye className="w-4 h-4 mr-1 text-gray-400" />
-                            {listing.views || 0}
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          <div className="flex items-center gap-1.5">
+                            <Eye className="h-4 w-4 opacity-70" aria-hidden />
+                            <span>{listing.impressions ?? 0}</span>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          <div className="flex items-center gap-1.5">
+                            <MousePointerClick className="h-4 w-4 opacity-70" aria-hidden />
+                            <span>{listing.direct_views ?? 0}</span>
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">

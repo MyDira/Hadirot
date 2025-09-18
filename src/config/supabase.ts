@@ -56,6 +56,9 @@ export interface Listing {
   featured_until?: string;
   is_active: boolean;
   views: number;
+  posted_at?: string | null;
+  impressions?: number;
+  direct_views?: number;
   created_at: string;
   updated_at: string;
   last_published_at: string;

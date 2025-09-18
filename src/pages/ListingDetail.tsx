@@ -106,6 +106,22 @@ export function ListingDetail() {
     return sqft.toLocaleString();
   };
 
+  const formatPostedDate = (value?: string | null): string | null => {
+    if (!value) {
+      return null;
+    }
+
+    const date = typeof value === 'string' ? new Date(value) : value;
+    if (Number.isNaN(date.getTime())) {
+      return null;
+    }
+
+    const month = date.getMonth() + 1;
+    const day = date.getDate();
+    const year = date.getFullYear();
+    return `${month}/${day}/${year}`;
+  };
+
   useEffect(() => {
     if (id && !authLoading) {
       loadListing();
@@ -188,6 +204,8 @@ export function ListingDetail() {
       setLoading(false);
     }
   };
+
+  const postedDateText = formatPostedDate(listing?.posted_at ?? listing?.created_at ?? null);
 
   const handleFavoriteToggle = async () => {
     if (!user || !listing) {
@@ -358,6 +376,9 @@ export function ListingDetail() {
             <h1 className="text-2xl md:text-[1.65rem] font-semibold text-[#273140] mb-2">
               {listing.title}
             </h1>
+            {postedDateText && (
+              <p className="text-xs text-muted-foreground mt-1">Posted: {postedDateText}</p>
+            )}
           </section>
 
           {/* Location + Tag (mobile-safe truncation) */}
