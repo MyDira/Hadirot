@@ -851,27 +851,55 @@ export const listingsService = {
   },
 
   async getUserListings(userId: string) {
-    const { data, error } = await supabase
+    const { data: listings, error } = await supabase
       .from('listings')
       .select(`
         *,
         approved,
         is_active,
         owner:profiles!listings_user_id_fkey(full_name, role, agency),
-        listing_images(id, image_url, is_featured, sort_order),
-        metrics:listing_metrics_v1!left(listing_id, impressions, direct_views)
+        listing_images(id, image_url, is_featured, sort_order)
       `)
       .eq('user_id', userId)
       .order('created_at', { ascending: false });
 
     if (error) throw error;
-    return (data ?? []).map((listing: any) => {
-      const { metrics, ...rest } = listing;
+    
+    if (!listings || listings.length === 0) {
+      return [];
+    }
+
+    // Fetch metrics separately for all listings
+    const listingIds = listings.map(listing => listing.id);
+    const { data: metricsData, error: metricsError } = await supabase
+      .from('listing_metrics_v1')
+      .select('listing_id, impressions, direct_views')
+      .in('listing_id', listingIds);
+
+    if (metricsError) {
+      console.error('Error fetching listing metrics:', metricsError);
+      // Continue without metrics data rather than failing completely
+    }
+
+    // Create a map of listing_id to metrics for efficient lookup
+    const metricsMap = new Map();
+    if (metricsData) {
+      metricsData.forEach(metric => {
+        metricsMap.set(metric.listing_id, {
+          impressions: metric.impressions ?? 0,
+          direct_views: metric.direct_views ?? 0
+        });
+      });
+    }
+
+    // Merge metrics with listings
+    return listings.map((listing: any) => {
+      const metrics = metricsMap.get(listing.id) || { impressions: 0, direct_views: 0 };
 
       return {
-        ...rest,
-        impressions: metrics?.impressions ?? 0,
-        direct_views: metrics?.direct_views ?? 0,
+        ...listing,
+        impressions: metrics.impressions,
+        direct_views: metrics.direct_views,
       } as Listing;
     });
   },
