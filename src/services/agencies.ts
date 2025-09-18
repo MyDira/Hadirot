@@ -60,15 +60,9 @@ async function checkAgencyNameAvailability(
   return { available: !data || data.length === 0 };
 }
 
-export interface AgencyCreateInput {
+export interface AgencyOwnerCreateInput {
+  owner_profile_id: string;
   name: string;
-  slug: string;
-  logo_url?: string | null;
-  banner_url?: string | null;
-  phone?: string | null;
-  email?: string | null;
-  website?: string | null;
-  about_html?: string | null;
 }
 
 export interface AgencyUpdateInput {
@@ -157,12 +151,42 @@ export const agenciesService = {
     return mapAgencyRow(data);
   },
 
-  async createAgency(payload: AgencyCreateInput): Promise<Agency | null> {
-    const normalizedName = payload.name?.trim();
-    const normalizedSlug = agencyNameToSlug(payload.slug || payload.name);
+  async getAgencyOwnedByProfile(profileId: string): Promise<Agency | null> {
+    if (!profileId) {
+      return null;
+    }
 
-    if (!normalizedName || !normalizedSlug) {
-      throw new Error("Agency name and slug are required");
+    const { data, error } = await supabase
+      .from("agencies")
+      .select("*")
+      .eq("owner_profile_id", profileId)
+      .maybeSingle<Agency>();
+
+    if (error) {
+      console.error("[svc] getAgencyOwnedByProfile error", error);
+      throw error;
+    }
+
+    return mapAgencyRow(data ?? null);
+  },
+
+  async createAgencyForOwner(
+    payload: AgencyOwnerCreateInput,
+  ): Promise<Agency | null> {
+    const normalizedName = payload.name?.trim();
+
+    if (!payload.owner_profile_id) {
+      throw new Error("Agency owner is required");
+    }
+
+    if (!normalizedName) {
+      throw new Error("Agency name is required");
+    }
+
+    const normalizedSlug = agencyNameToSlug(normalizedName);
+
+    if (!normalizedSlug) {
+      throw new Error("Agency name must contain letters or numbers");
     }
 
     const { available } = await checkAgencyNameAvailability(normalizedName);
@@ -172,14 +196,9 @@ export const agenciesService = {
     }
 
     const insertPayload = {
+      owner_profile_id: payload.owner_profile_id,
       name: normalizedName,
       slug: normalizedSlug,
-      logo_url: normalizeOptionalString(payload.logo_url),
-      banner_url: normalizeOptionalString(payload.banner_url),
-      phone: normalizeOptionalString(payload.phone),
-      email: normalizeOptionalString(payload.email),
-      website: normalizeOptionalString(payload.website),
-      about_html: prepareAboutHtml(payload.about_html) ?? null,
     };
 
     const { data, error } = await supabase
@@ -189,7 +208,7 @@ export const agenciesService = {
       .maybeSingle<Agency>();
 
     if (error) {
-      console.error("[svc] createAgency error", error);
+      console.error("[svc] createAgencyForOwner error", error);
       if (isUniqueViolation(error)) {
         throw createAgencyNameTakenError();
       }

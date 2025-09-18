@@ -21,9 +21,10 @@ import {
 import { useAuth, AUTH_CONTEXT_ID } from "@/hooks/useAuth";
 import { usePageTracking } from "../../hooks/usePageTracking";
 import { useAnalyticsAuth } from "../../lib/analytics";
-import { agencyNameToSlug } from "../../utils/agency";
 import { Footer } from "./Footer";
 import { capitalizeName } from "../../utils/formatters";
+import type { Agency } from "@/config/supabase";
+import { agenciesService } from "@/services/agencies";
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -41,6 +42,7 @@ export function Layout({ children }: LayoutProps) {
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showSignOutMessage, setShowSignOutMessage] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [ownedAgency, setOwnedAgency] = useState<Agency | null>(null);
   const userMenuRef = React.useRef<HTMLDivElement>(null);
   const prevUserRef = React.useRef<typeof user>(null);
   const prevPathnameRef = React.useRef<string>(location.pathname);
@@ -98,15 +100,43 @@ export function Layout({ children }: LayoutProps) {
     }
   }, [loading, user, profile, authContextId]);
 
-  const agencyName =
-    typeof profile?.agency === "string" ? profile.agency.trim() : "";
-  const canAccessAgencyPage =
-    profile?.role === "agent" &&
-    agencyName.length > 0 &&
-    profile?.can_manage_agency === true;
-  const agencySlug = canAccessAgencyPage
-    ? agencyNameToSlug(agencyName)
-    : null;
+  useEffect(() => {
+    let isActive = true;
+
+    const profileId = profile?.id;
+
+    if (!profileId) {
+      setOwnedAgency(null);
+      return () => {
+        isActive = false;
+      };
+    }
+
+    agenciesService
+      .getAgencyOwnedByProfile(profileId)
+      .then((agency) => {
+        if (!isActive) {
+          return;
+        }
+        setOwnedAgency(agency);
+      })
+      .catch((error) => {
+        if (!isActive) {
+          return;
+        }
+        console.error("[Layout] failed to load owned agency", error);
+        setOwnedAgency(null);
+      });
+
+    return () => {
+      isActive = false;
+    };
+  }, [profile?.id]);
+
+  const agencyName = ownedAgency?.name?.trim() ?? "";
+  const agencySlug = ownedAgency?.slug ?? null;
+  const ownsAgency = Boolean(ownedAgency);
+  const canAccessAgencyPage = ownsAgency;
 
   const handleSignOut = async () => {
     try {
@@ -180,8 +210,8 @@ export function Layout({ children }: LayoutProps) {
                     <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg border border-gray-200 z-50">
                       <div className="py-1">
                         <div className="px-4 py-2 text-sm text-gray-500 border-b">
-                          {profile?.role === "agent" && profile?.agency && (
-                            <span className="block">{profile.agency}</span>
+                          {profile?.role === "agent" && agencyName && (
+                            <span className="block">{agencyName}</span>
                           )}
                           <span className="capitalize">{profile?.role}</span>
                         </div>
@@ -386,8 +416,8 @@ export function Layout({ children }: LayoutProps) {
                             : ""}
                         </div>
                         <div className="text-sm text-gray-500">
-                          {profile?.role === "agent" && profile?.agency && (
-                            <span className="block">{profile.agency}</span>
+                          {profile?.role === "agent" && agencyName && (
+                            <span className="block">{agencyName}</span>
                           )}
                           <span className="capitalize">{profile?.role}</span>
                         </div>

@@ -239,6 +239,25 @@ class AnalyticsTracker {
     }
   }
 
+  async trackAgencyPageView(agencyId: string, slug?: string): Promise<void> {
+    if (!agencyId) {
+      return;
+    }
+
+    const viewKey = `agency_page_view_tracked_${agencyId}`;
+    if (this.sessionGet(viewKey)) {
+      return;
+    }
+
+    const props: Record<string, any> = { agency_id: agencyId };
+    if (slug) {
+      props.agency_slug = slug;
+    }
+
+    await this.track('agency_page_view', props);
+    this.sessionSet(viewKey, 'true');
+  }
+
   async trackListingImpressionBatch(listingIds: string[]): Promise<void> {
     if (!listingIds.length) return;
 
@@ -372,6 +391,7 @@ export const trackListingView = analytics.trackListingView.bind(analytics);
 export const trackListingImpressionBatch = analytics.trackListingImpressionBatch.bind(analytics);
 export const trackFilterApply = analytics.trackFilterApply.bind(analytics);
 export const trackSearchQuery = analytics.trackSearchQuery.bind(analytics);
+export const trackAgencyPageView = analytics.trackAgencyPageView.bind(analytics);
 export const ensurePostAttempt = analytics.initPostingAttempt.bind(analytics);
 export const trackPostStart = analytics.trackPostStart.bind(analytics);
 export const trackPostSubmit = analytics.trackPostSubmit.bind(analytics);

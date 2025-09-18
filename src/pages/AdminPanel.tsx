@@ -128,7 +128,6 @@ export function AdminPanel() {
         return search;
       }, { replace: true });
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rawTabParam]);
 
   const handleTabChange = (nextTab: AdminTabKey) => {
