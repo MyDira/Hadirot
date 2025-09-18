@@ -22,6 +22,8 @@ import {
   CheckCircle2,
   AlertCircle,
   Paintbrush,
+  Copy,
+  Info,
 } from "lucide-react";
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
@@ -29,6 +31,7 @@ import LinkExtension from "@tiptap/extension-link";
 import { useAuth } from "@/hooks/useAuth";
 import { agencyNameToSlug } from "@/utils/agency";
 import { agenciesService, AGENCY_NAME_TAKEN_CODE } from "@/services/agencies";
+import { agencyService, type AgencyPageMetrics } from "@/services/agency";
 import { Agency } from "@/config/supabase";
 import { listingsService } from "@/services/listings";
 import "@/styles/editor.css";
@@ -63,6 +66,7 @@ export function AgencySettings() {
     profile?.role === "agent" &&
     agencyName.length > 0 &&
     profile?.can_manage_agency === true;
+  const publicAgencyLink = slug ? `https://hadirot.com/agency/${slug}` : "";
 
   const [agency, setAgency] = useState<Agency | null>(null);
   const [formState, setFormState] = useState<FormState>({
@@ -82,6 +86,9 @@ export function AgencySettings() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [nameError, setNameError] = useState<string | null>(null);
+  const [metricsLoading, setMetricsLoading] = useState(false);
+  const [metrics, setMetrics] = useState<AgencyPageMetrics | null>(null);
+  const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
 
   const initialEditorSyncRef = useRef(false);
 
@@ -122,6 +129,9 @@ export function AgencySettings() {
         ? "border-[#273140] bg-[#273140] text-white"
         : "border-gray-200 text-gray-600 hover:bg-gray-100"
     }`;
+
+  const formatMetricValue = (value: number | null | undefined) =>
+    Number(value ?? 0).toLocaleString();
 
   const toNullable = (value: string) => {
     const trimmed = value.trim();
@@ -194,6 +204,52 @@ export function AgencySettings() {
 
     loadAgencyDetails();
   }, [canManageAgency, slug, loadAgencyDetails]);
+
+  useEffect(() => {
+    if (!canManageAgency) {
+      setMetrics(null);
+      setMetricsLoading(false);
+      return;
+    }
+
+    const agencyId = agency?.id;
+    if (!agencyId) {
+      setMetrics(null);
+      setMetricsLoading(false);
+      return;
+    }
+
+    let isMounted = true;
+    setMetricsLoading(true);
+
+    agencyService
+      .getAgencyPageMetrics(agencyId)
+      .then((result) => {
+        if (!isMounted) return;
+        setMetrics(result);
+      })
+      .catch(() => {
+        if (!isMounted) return;
+        setMetrics({ viewsTotal: 0, views30d: 0 });
+      })
+      .finally(() => {
+        if (!isMounted) return;
+        setMetricsLoading(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [agency?.id, canManageAgency]);
+
+  useEffect(() => {
+    if (!copyFeedback) {
+      return;
+    }
+
+    const timeout = window.setTimeout(() => setCopyFeedback(null), 2500);
+    return () => window.clearTimeout(timeout);
+  }, [copyFeedback]);
 
   useEffect(() => {
     if (!editor) {
@@ -281,6 +337,34 @@ export function AgencySettings() {
       setError("Failed to upload banner. Please try again.");
     } finally {
       setBannerUploading(false);
+    }
+  };
+
+  const handleCopyPublicLink = async () => {
+    if (!publicAgencyLink) {
+      return;
+    }
+
+    try {
+      if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(publicAgencyLink);
+      } else {
+        const tempInput = document.createElement("input");
+        tempInput.value = publicAgencyLink;
+        document.body.appendChild(tempInput);
+        tempInput.select();
+        const successful = document.execCommand("copy");
+        document.body.removeChild(tempInput);
+
+        if (!successful) {
+          throw new Error("Copy command was unsuccessful");
+        }
+      }
+
+      setCopyFeedback("Link copied!");
+    } catch (err) {
+      console.error("Error copying agency link:", err);
+      setCopyFeedback("Copy failed");
     }
   };
 
@@ -518,9 +602,71 @@ export function AgencySettings() {
         </div>
       </div>
 
-      {slug && (
-        <div className="mb-6 rounded-lg border border-dashed border-gray-300 bg-[#f9f4ed] px-4 py-3 text-sm text-[#273140]">
-          Public URL: <span className="font-semibold">/agencies/{slug}</span>
+      {(agency?.id || slug) && (
+        <div className="mb-6 grid gap-4 lg:grid-cols-2">
+          {agency?.id && (
+            <div className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
+              <h2 className="text-sm font-semibold uppercase tracking-wide text-[#273140]">
+                Agency Page Views
+              </h2>
+              <div className="mt-4 grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-xs uppercase text-gray-500">Last 30 days</p>
+                  <p className="mt-1 text-2xl font-semibold text-[#273140]">
+                    {metricsLoading
+                      ? "—"
+                      : formatMetricValue(metrics?.views30d)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs uppercase text-gray-500">All-time</p>
+                  <p className="mt-1 text-2xl font-semibold text-[#273140]">
+                    {metricsLoading
+                      ? "—"
+                      : formatMetricValue(metrics?.viewsTotal)}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+          {slug && (
+            <div className="rounded-lg border border-blue-100 bg-blue-50 p-5 shadow-sm text-sm text-[#1f3b63] flex flex-col justify-between">
+              <div className="flex items-start gap-3">
+                <Info className="mt-0.5 h-5 w-5 text-[#1f3b63]" />
+                <div>
+                  <p className="font-medium text-[#273140]">
+                    Your Agency Page is available by direct link only for now.
+                  </p>
+                  <p className="mt-1 text-[#1f3b63]/90">
+                    Share this link to let people view it.
+                  </p>
+                  {publicAgencyLink && (
+                    <a
+                      href={publicAgencyLink}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="mt-2 inline-flex text-xs font-medium text-[#1f3b63] underline break-all"
+                    >
+                      {publicAgencyLink}
+                    </a>
+                  )}
+                </div>
+              </div>
+              <div className="mt-4 flex flex-wrap items-center justify-end gap-3">
+                {copyFeedback && (
+                  <span className="text-xs text-[#1f3b63]">{copyFeedback}</span>
+                )}
+                <button
+                  type="button"
+                  onClick={handleCopyPublicLink}
+                  className="inline-flex items-center gap-2 rounded-md border border-[#273140] bg-white px-3 py-2 text-sm font-medium text-[#273140] shadow-sm transition-colors hover:bg-[#f3f4f6]"
+                >
+                  <Copy className="h-4 w-4" />
+                  Copy Link
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 

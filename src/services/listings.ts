@@ -864,7 +864,86 @@ export const listingsService = {
       .order('created_at', { ascending: false });
 
     if (error) throw error;
-    return data ?? [];
+
+    const listings = (data ?? []).map((listing) => ({
+      ...listing,
+      impressions: Number(listing?.impressions ?? 0) || 0,
+      direct_views: Number(listing?.direct_views ?? 0) || 0,
+    }));
+
+    const listingIds = listings
+      .map((listing) => (typeof listing?.id === 'string' ? listing.id : null))
+      .filter((id): id is string => typeof id === 'string' && id.length > 0);
+
+    if (listingIds.length === 0) {
+      return listings;
+    }
+
+    const metricsById = new Map<
+      string,
+      { impressions: number; direct_views: number }
+    >();
+
+    const chunkSize = 900;
+    let metricsError: Error | null = null;
+
+    for (let index = 0; index < listingIds.length; index += chunkSize) {
+      const chunk = listingIds.slice(index, index + chunkSize);
+      try {
+        const { data: metricsRows, error: chunkError } = await supabase
+          .from('listing_metrics_v1')
+          .select('listing_id, impressions, direct_views')
+          .in('listing_id', chunk);
+
+        if (chunkError) {
+          metricsError = chunkError;
+          break;
+        }
+
+        (metricsRows ?? []).forEach((row: any) => {
+          const listingId = typeof row?.listing_id === 'string' ? row.listing_id : null;
+          if (!listingId) {
+            return;
+          }
+
+          const impressions = Number(row?.impressions ?? 0);
+          const directViews = Number(row?.direct_views ?? 0);
+
+          metricsById.set(listingId, {
+            impressions: Number.isFinite(impressions) ? impressions : 0,
+            direct_views: Number.isFinite(directViews) ? directViews : 0,
+          });
+        });
+      } catch (err) {
+        metricsError = err as Error;
+        break;
+      }
+    }
+
+    if (metricsError) {
+      console.warn('[svc] getUserListings metrics query failed', metricsError);
+      return listings;
+    }
+
+    const mergedListings = listings.map((listing) => {
+      const metrics = metricsById.get(listing.id);
+      return {
+        ...listing,
+        impressions: metrics?.impressions ?? listing.impressions ?? 0,
+        direct_views: metrics?.direct_views ?? listing.direct_views ?? 0,
+      };
+    });
+
+    console.debug(
+      '[svc] getUserListings metrics merged',
+      mergedListings.map((listing) => ({
+        id: listing.id,
+        impressions: listing.impressions ?? 0,
+        direct_views: listing.direct_views ?? 0,
+      })),
+    );
+
+    return mergedListings;
   },
 
   async incrementListingView(listingId: string) {

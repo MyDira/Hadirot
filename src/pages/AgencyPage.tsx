@@ -18,7 +18,7 @@ import { slugToAgencyLabel } from "@/utils/agency";
 import { formatPhoneForDisplay } from "@/utils/phone";
 import { normalizeUrlForHref, canonicalUrl } from "@/utils/url";
 import { useAuth } from "@/hooks/useAuth";
-import { track } from "@/lib/analytics";
+import { track, trackAgencyPageView } from "@/lib/analytics";
 import { useListingImpressions } from "@/hooks/useListingImpressions";
 
 interface AgencyFilters {
@@ -143,7 +143,17 @@ export function AgencyPage() {
       isCancelled = true;
     };
   }, [slugParam]);
-  
+
+  useEffect(() => {
+    const agencyId = agencyDetails?.id;
+    if (!agencyId) {
+      return;
+    }
+
+    const slugForEvent = agencyDetails?.slug ?? slugParam;
+    void trackAgencyPageView(agencyId, slugForEvent);
+  }, [agencyDetails?.id, agencyDetails?.slug, slugParam]);
+
   // Set up listing impression tracking
   const { observeElement } = useListingImpressions({
     listingIds: listings.map(l => l.id),
@@ -236,21 +246,10 @@ export function AgencyPage() {
       });
 
       const resolvedAgencyName = matchedName ?? derivedAgencyLabel;
-      const agencyFoundForView = Boolean(
-        (matchedName && matchedName.length > 0) || agencyDetailsRef.current,
-      );
-
       setAgencyDisplayName(resolvedAgencyName);
       setMatchedAgencyName(matchedName ?? null);
       setListings(data ?? []);
       setTotalCount(count ?? 0);
-
-      track("agency_page_view", {
-        agency_name: resolvedAgencyName,
-        agency_slug: slugParam,
-        listing_count: count ?? 0,
-        agency_found: agencyFoundForView,
-      });
     } catch (error) {
       console.error("Error loading agency listings:", error);
       setListings([]);
