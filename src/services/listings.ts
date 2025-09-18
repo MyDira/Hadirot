@@ -858,22 +858,13 @@ export const listingsService = {
         approved,
         is_active,
         owner:profiles!listings_user_id_fkey(full_name, role, agency),
-        listing_images(id, image_url, is_featured, sort_order),
-        metrics:listing_metrics_v1!left(listing_id, impressions, direct_views)
+        listing_images(id, image_url, is_featured, sort_order)
       `)
       .eq('user_id', userId)
       .order('created_at', { ascending: false });
 
     if (error) throw error;
-    return (data ?? []).map((listing: any) => {
-      const { metrics, ...rest } = listing;
-
-      return {
-        ...rest,
-        impressions: metrics?.impressions ?? 0,
-        direct_views: metrics?.direct_views ?? 0,
-      } as Listing;
-    });
+    return data ?? [];
   },
 
   async incrementListingView(listingId: string) {
