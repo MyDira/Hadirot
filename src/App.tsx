@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, useLocation, Navigate } from 'react-router-dom';
 import { Layout } from './components/shared/Layout';
 import { Home } from './pages/Home';
 import { BrowseListings } from './pages/BrowseListings';
@@ -12,11 +12,8 @@ import { Favorites } from './pages/Favorites';
 import { AdminPanel } from './pages/AdminPanel';
 import { Dashboard } from './pages/Dashboard';
 import { AgencySettings } from './pages/AgencySettings';
-import { StaticPageEditor } from './pages/admin/StaticPageEditor';
 import { FooterEditor } from './pages/admin/FooterEditor';
-import { FeaturedSettingsAdmin } from './pages/admin/FeaturedSettingsAdmin';
 import { AccountSettings } from './pages/AccountSettings';
-import { InternalAnalytics } from './pages/InternalAnalytics';
 import { About } from './pages/About';
 import { Contact } from './pages/Contact';
 import { Privacy } from './pages/Privacy';
@@ -64,14 +61,16 @@ function App() {
                 <Route path="/listing/:id" element={<ListingDetail />} />
                 <Route path="/favorites" element={<Favorites />} />
                 <Route path="/admin" element={<AdminPanel />} />
-                <Route path="/admin/static-pages" element={<StaticPageEditor />} />
+                <Route path="/admin/static-pages" element={<Navigate to="/admin?tab=static-pages" replace />} />
                 <Route path="/admin/footer" element={<FooterEditor />} />
-                <Route path="/admin/featured-settings" element={<FeaturedSettingsAdmin />} />
+                <Route path="/admin/featured-settings" element={<Navigate to="/admin?tab=featured" replace />} />
                 <Route path="/dashboard" element={<Dashboard />} />
                 <Route path="/dashboard/agency-settings" element={<AgencySettings />} />
                 <Route path="/account-settings" element={<AccountSettings />} />
-               <Route path="/internal-analytics" element={<InternalAnalytics />} />
-                <Route path="/internal-analytics" element={<InternalAnalytics />} />
+                <Route path="/internal-analytics" element={<Navigate to="/admin?tab=analytics" replace />} />
+                <Route path="/analytics" element={<Navigate to="/admin?tab=analytics" replace />} />
+                <Route path="/static-pages" element={<Navigate to="/admin?tab=static-pages" replace />} />
+                <Route path="/featured-settings" element={<Navigate to="/admin?tab=featured" replace />} />
                 <Route path="/about" element={<About />} />
                 <Route path="/contact" element={<Contact />} />
                 <Route path="/privacy" element={<Privacy />} />

@@ -23,7 +23,11 @@ import { FooterSection } from "../../config/supabase";
 import { useAuth } from "@/hooks/useAuth";
 import "@/styles/editor.css";
 
-export function StaticPageEditor() {
+interface StaticPageEditorProps {
+  showHeader?: boolean;
+}
+
+export function StaticPageEditor({ showHeader = true }: StaticPageEditorProps) {
   const { user, profile } = useAuth();
   const [staticPages, setStaticPages] = useState<StaticPage[]>([]);
   const [selectedPageId, setSelectedPageId] = useState<string>("");
@@ -455,23 +459,25 @@ export function StaticPageEditor() {
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       {/* Header */}
-      <div className="mb-8">
-        <Link
-          to="/admin"
-          className="inline-flex items-center text-[#273140] hover:text-[#1e252f] mb-4 transition-colors"
-        >
-          <ArrowLeft className="w-4 h-4 mr-2" />
-          Back to Admin Panel
-        </Link>
-        <h1 className="text-3xl font-bold text-[#273140] flex items-center">
-          <FileText className="w-8 h-8 mr-3" />
-          Static Page Editor
-        </h1>
-        <p className="text-gray-600 mt-2">
-          Edit the content of footer pages (About, Contact, Privacy Policy,
-          Terms of Use)
-        </p>
-      </div>
+      {showHeader && (
+        <div className="mb-8">
+          <Link
+            to="/admin"
+            className="inline-flex items-center text-[#273140] hover:text-[#1e252f] mb-4 transition-colors"
+          >
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            Back to Admin Panel
+          </Link>
+          <h1 className="text-3xl font-bold text-[#273140] flex items-center">
+            <FileText className="w-8 h-8 mr-3" />
+            Static Page Editor
+          </h1>
+          <p className="text-gray-600 mt-2">
+            Edit the content of footer pages (About, Contact, Privacy Policy,
+            Terms of Use)
+          </p>
+        </div>
+      )}
 
       {/* Message */}
       {message && (

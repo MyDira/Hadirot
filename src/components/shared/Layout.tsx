@@ -242,7 +242,7 @@ export function Layout({ children }: LayoutProps) {
                               Admin Panel
                             </Link>
                             <Link
-                              to="/admin/static-pages"
+                              to="/admin?tab=static-pages"
                               className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
                               onClick={() => setShowUserMenu(false)}
                             >
@@ -258,7 +258,7 @@ export function Layout({ children }: LayoutProps) {
                               Footer Editor
                             </Link>
                             <Link
-                              to="/admin/featured-settings"
+                              to="/admin?tab=featured"
                               className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
                               onClick={() => setShowUserMenu(false)}
                             >
@@ -266,7 +266,7 @@ export function Layout({ children }: LayoutProps) {
                               Featured Settings
                             </Link>
                             <Link
-                              to="/internal-analytics"
+                              to="/admin?tab=analytics"
                               className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
                               onClick={() => setShowUserMenu(false)}
                             >
@@ -457,7 +457,7 @@ export function Layout({ children }: LayoutProps) {
                             Admin Panel
                           </Link>
                           <Link
-                            to="/admin/static-pages"
+                            to="/admin?tab=static-pages"
                             onClick={() => setIsMobileMenuOpen(false)}
                             className="flex items-center px-4 py-3 text-base font-medium text-gray-600 hover:text-[#273140] hover:bg-gray-50 rounded-md transition-colors"
                           >
@@ -473,7 +473,7 @@ export function Layout({ children }: LayoutProps) {
                             Footer Editor
                           </Link>
                           <Link
-                            to="/admin/featured-settings"
+                            to="/admin?tab=featured"
                             onClick={() => setIsMobileMenuOpen(false)}
                             className="flex items-center px-4 py-3 text-base font-medium text-gray-600 hover:text-[#273140] hover:bg-gray-50 rounded-md transition-colors"
                           >
@@ -481,7 +481,7 @@ export function Layout({ children }: LayoutProps) {
                             Featured Settings
                           </Link>
                           <Link
-                            to="/internal-analytics"
+                            to="/admin?tab=analytics"
                             onClick={() => setIsMobileMenuOpen(false)}
                             className="flex items-center px-4 py-3 text-base font-medium text-gray-600 hover:text-[#273140] hover:bg-gray-50 rounded-md transition-colors"
                           >
@@ -489,7 +489,7 @@ export function Layout({ children }: LayoutProps) {
                             Analytics
                           </Link>
                           <Link
-                            to="/internal-analytics"
+                            to="/admin?tab=analytics"
                             onClick={() => setIsMobileMenuOpen(false)}
                             className="flex items-center px-4 py-3 text-base font-medium text-gray-600 hover:text-[#273140] hover:bg-gray-50 rounded-md transition-colors"
                           >

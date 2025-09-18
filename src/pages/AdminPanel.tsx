@@ -1,10 +1,41 @@
-import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
-import { Users, FileText, Settings, Eye, Check, X, Trash2, ChevronLeft, Shield, TrendingUp, Home, Star, Power, ChevronDown, Search, ChevronRight } from 'lucide-react';
+import React, { useState, useEffect, lazy, Suspense } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
+import { Users, FileText, Settings, Eye, Check, X, Trash2, ChevronLeft, Shield, TrendingUp, Home, Star, Power, ChevronDown, Search, ChevronRight, BarChart3 } from 'lucide-react';
 import { listingsService } from '../services/listings';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase, Profile, Listing } from '../config/supabase';
 import { formatPhoneForDisplay } from '@/utils/phone';
+
+const AnalyticsTab = lazy(() => import('./admin/tabs/AnalyticsTab'));
+const StaticPagesTab = lazy(() => import('./admin/tabs/StaticPagesTab'));
+const FeaturedSettingsTab = lazy(() => import('./admin/tabs/FeaturedSettingsTab'));
+
+const ADMIN_TAB_KEYS = [
+  'overview',
+  'users',
+  'listings',
+  'pending',
+  'settings',
+  'analytics',
+  'static-pages',
+  'featured',
+] as const;
+
+type AdminTabKey = (typeof ADMIN_TAB_KEYS)[number];
+
+const isValidAdminTab = (value: string | null): value is AdminTabKey =>
+  value !== null && ADMIN_TAB_KEYS.includes(value as AdminTabKey);
+
+const ADMIN_TABS: { id: AdminTabKey; label: string; icon: React.ElementType }[] = [
+  { id: 'overview', label: 'Overview', icon: TrendingUp },
+  { id: 'users', label: 'Users', icon: Users },
+  { id: 'listings', label: 'Listings', icon: Home },
+  { id: 'pending', label: 'Pending', icon: Eye },
+  { id: 'settings', label: 'Settings', icon: Settings },
+  { id: 'analytics', label: 'Analytics', icon: BarChart3 },
+  { id: 'static-pages', label: 'Static Pages', icon: FileText },
+  { id: 'featured', label: 'Featured Settings', icon: Star },
+];
 
 interface AdminStats {
   totalUsers: number;
@@ -33,7 +64,10 @@ const isListingCurrentlyFeatured = (listing: Listing) => {
 
 export function AdminPanel() {
   const { user, profile } = useAuth();
-  const [activeTab, setActiveTab] = useState('overview');
+  const [params, setParams] = useSearchParams();
+  const rawTabParam = params.get('tab');
+  const initialTab: AdminTabKey = isValidAdminTab(rawTabParam) ? rawTabParam : 'overview';
+  const [activeTab, setActiveTab] = useState<AdminTabKey>(initialTab);
   const [stats, setStats] = useState<AdminStats>({
     totalUsers: 0,
     totalListings: 0,
@@ -81,6 +115,30 @@ export function AdminPanel() {
   const [dateFilter, setDateFilter] = useState({ startDate: '', endDate: '' });
   const [toast, setToast] = useState<{ message: string; tone: 'success' | 'error' } | null>(null);
   const [updatingAgencyAccessId, setUpdatingAgencyAccessId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const normalized: AdminTabKey = isValidAdminTab(rawTabParam) ? rawTabParam : 'overview';
+    if (normalized !== activeTab) {
+      setActiveTab(normalized);
+    }
+    if (normalized !== rawTabParam) {
+      setParams(prev => {
+        const search = new URLSearchParams(prev);
+        search.set('tab', normalized);
+        return search;
+      }, { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rawTabParam]);
+
+  const handleTabChange = (nextTab: AdminTabKey) => {
+    setActiveTab(nextTab);
+    setParams(prev => {
+      const search = new URLSearchParams(prev);
+      search.set('tab', nextTab);
+      return search;
+    }, { replace: true });
+  };
 
   useEffect(() => {
     if (profile?.is_admin) {
@@ -695,16 +753,10 @@ export function AdminPanel() {
       {/* Navigation Tabs */}
       <div className="mb-8">
         <nav className="flex space-x-8 border-b border-gray-200">
-          {[
-            { id: 'overview', label: 'Overview', icon: TrendingUp },
-            { id: 'users', label: 'Users', icon: Users },
-            { id: 'listings', label: 'Listings', icon: Home },
-            { id: 'pending', label: 'Pending', icon: Eye },
-            { id: 'settings', label: 'Settings', icon: Settings },
-          ].map(({ id, label, icon: Icon }) => (
+          {ADMIN_TABS.map(({ id, label, icon: Icon }) => (
             <button
               key={id}
-              onClick={() => setActiveTab(id as any)}
+              onClick={() => handleTabChange(id)}
               className={`flex items-center px-3 py-2 border-b-2 font-medium text-sm transition-colors ${
                 activeTab === id
                   ? 'border-[#4E4B43] text-[#4E4B43]'
@@ -725,6 +777,14 @@ export function AdminPanel() {
         </div>
       ) : (
         <>
+          {activeTab === 'analytics' || activeTab === 'static-pages' || activeTab === 'featured' ? (
+            <Suspense fallback={<div className="p-6 text-sm text-muted-foreground">Loading…</div>}>
+              {activeTab === 'analytics' && <AnalyticsTab />}
+              {activeTab === 'static-pages' && <StaticPagesTab />}
+              {activeTab === 'featured' && <FeaturedSettingsTab />}
+            </Suspense>
+          ) : (
+            <>
           {/* Overview Tab */}
           {activeTab === 'overview' && (
             <div className="space-y-8">
@@ -1718,6 +1778,8 @@ export function AdminPanel() {
                 </div>
               </div>
             </div>
+          )}
+            </>
           )}
         </>
       )}
