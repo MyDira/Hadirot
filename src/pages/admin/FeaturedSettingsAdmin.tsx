@@ -27,7 +27,13 @@ interface ProfileWithCounts extends Profile {
   featured_count: number;
 }
 
-export function FeaturedSettingsAdmin() {
+interface FeaturedSettingsAdminProps {
+  showHeader?: boolean;
+}
+
+export function FeaturedSettingsAdmin({
+  showHeader = true,
+}: FeaturedSettingsAdminProps) {
   const { user, profile } = useAuth();
   const [settings, setSettings] = useState<AdminSettings>({
     max_featured_listings: 8,
@@ -305,22 +311,24 @@ export function FeaturedSettingsAdmin() {
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       {/* Header */}
-      <div className="mb-8">
-        <Link
-          to="/admin"
-          className="inline-flex items-center text-[#273140] hover:text-[#1e252f] mb-4 transition-colors"
-        >
-          <ArrowLeft className="w-4 h-4 mr-2" />
-          Back to Admin Panel
-        </Link>
-        <h1 className="text-3xl font-bold text-[#273140] flex items-center">
-          <Star className="w-8 h-8 mr-3 text-accent-600" />
-          Featured Listings Settings
-        </h1>
-        <p className="text-gray-600 mt-2">
-          Manage global featured listing limits and user permissions
-        </p>
-      </div>
+      {showHeader && (
+        <div className="mb-8">
+          <Link
+            to="/admin"
+            className="inline-flex items-center text-[#273140] hover:text-[#1e252f] mb-4 transition-colors"
+          >
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            Back to Admin Panel
+          </Link>
+          <h1 className="text-3xl font-bold text-[#273140] flex items-center">
+            <Star className="w-8 h-8 mr-3 text-accent-600" />
+            Featured Listings Settings
+          </h1>
+          <p className="text-gray-600 mt-2">
+            Manage global featured listing limits and user permissions
+          </p>
+        </div>
+      )}
 
       {/* Message */}
       {message && (
