@@ -495,19 +495,27 @@ export function AgencyPage() {
       )}
 
       {/* Header */}
-      <div className="mb-10 space-y-6">
-        {agencyDetails?.banner_url && (
-          <div className="h-48 md:h-60 rounded-2xl overflow-hidden border border-gray-200 shadow-sm">
+      <div className="mb-10">
+        <div
+          className="relative w-full overflow-hidden rounded-2xl border border-gray-200 shadow-sm h-24 sm:h-28 md:h-40 lg:h-56 xl:h-64"
+          aria-hidden={agencyDetails?.banner_url ? false : true}
+        >
+          {agencyDetails?.banner_url ? (
             <img
               src={agencyDetails.banner_url}
               alt={`${resolvedAgencyDisplayName} banner`}
-              className="w-full h-full object-cover"
+              className="absolute inset-0 h-full w-full object-cover object-center"
+              loading="eager"
+              fetchPriority="high"
+              sizes="(max-width: 640px) 100vw, 1200px"
             />
-          </div>
-        )}
+          ) : (
+            <div className="absolute inset-0 bg-muted" />
+          )}
+        </div>
 
         <div
-          className={`grid gap-6 ${showAboutColumn ? "lg:grid-cols-2" : ""}`}
+          className={`mt-4 md:mt-6 grid gap-6 ${showAboutColumn ? "lg:grid-cols-2" : ""}`}
         >
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:gap-6">
             {agencyDetails?.logo_url && (
