@@ -170,9 +170,9 @@ export const agenciesService = {
     return mapAgencyRow(data ?? null);
   },
 
-  async ensureAgencyForOwner(profileId: string): Promise<Agency | null> {
+  async ensureAgencyForOwner(profileId: string): Promise<Agency> {
     if (!profileId) {
-      return null;
+      throw new Error("Profile id is required to ensure agency ownership");
     }
 
     const { data, error } = await supabase.rpc<Agency>(
@@ -187,7 +187,13 @@ export const agenciesService = {
       throw error;
     }
 
-    return mapAgencyRow(data ?? null);
+    const mapped = mapAgencyRow(data ?? null);
+
+    if (!mapped) {
+      throw new Error("Failed to ensure agency ownership");
+    }
+
+    return mapped;
   },
 
   async createAgencyForOwner(
