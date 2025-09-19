@@ -216,6 +216,7 @@ export function AgencySettings() {
       return;
     }
     loadAgencyDetails();
+  }, [canAccessSettings, authLoading, loadAgencyDetails]);
 
   useEffect(() => {
     if (!canEditAgency) {
