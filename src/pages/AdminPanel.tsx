@@ -108,11 +108,11 @@ export function AdminPanel() {
       if (updates.can_manage_agency === true) {
         try {
           await agenciesService.ensureAgencyForOwner(userId);
-          console.log(`[AdminPanel] Ensured agency for user ${userId} after setting can_manage_agency.`);
+          console.log(`✅ [AdminPanel] Ensured agency for user ${userId} after setting can_manage_agency.`);
         } catch (agencyError: any) {
-          console.error(`[AdminPanel] Failed to ensure agency for user ${userId}:`, agencyError.message);
+          console.error(`❌ [AdminPanel] Failed to ensure agency for user ${userId}:`, agencyError.message);
           // Log the error but do not block the UI. AgencySettings page will re-attempt on mount.
-          setMessage({ type: "error", text: `User permissions updated, but failed to ensure agency: ${agencyError.message}` });
+          setMessage({ type: "error", text: `Failed to ensure agency for user: ${agencyError.message}` });
         }
       }
 
