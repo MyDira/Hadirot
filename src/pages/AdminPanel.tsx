@@ -4,6 +4,7 @@ import { Users, FileText, Settings, Eye, Check, X, Trash2, ChevronLeft, Shield, 
 import { listingsService } from '../services/listings';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase, Profile, Listing } from '../config/supabase';
+import { agenciesService } from '@/services/agencies';
 import { formatPhoneForDisplay } from '@/utils/phone';
 
 const AnalyticsTab = lazy(() => import('./admin/tabs/AnalyticsTab'));
@@ -454,6 +455,18 @@ export function AdminPanel() {
 
       if (error) {
         throw error;
+      }
+
+      if (nextValue) {
+        try {
+          await agenciesService.ensureAgencyForOwner(targetUser.id);
+        } catch (ensureError) {
+          console.error(
+            '[AdminPanel] failed to ensure agency ownership for user',
+            targetUser.id,
+            ensureError,
+          );
+        }
       }
 
       setToast({ message: 'Agency Access updated', tone: 'success' });

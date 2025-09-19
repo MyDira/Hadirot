@@ -63,7 +63,8 @@ export function AgencySettings() {
   const profileId = profile?.id ?? "";
   const isAdmin = profile?.is_admin === true;
   const isAgent = profile?.role === "agent";
-  const canAccessSettings = isAdmin || isAgent;
+  const canManageAgency = profile?.can_manage_agency === true;
+  const canAccessSettings = isAdmin || (isAgent && canManageAgency);
 
   const [agency, setAgency] = useState<Agency | null>(null);
   const [formState, setFormState] = useState<FormState>({
@@ -168,7 +169,21 @@ export function AgencySettings() {
     setError(null);
 
     try {
-      const data = await agenciesService.getAgencyOwnedByProfile(profileId);
+      let ensuredAgency: Agency | null = null;
+
+      if (!isAdmin && isAgent && canManageAgency) {
+        try {
+          ensuredAgency = await agenciesService.ensureAgencyForOwner(profileId);
+        } catch (ensureError) {
+          console.error(
+            "Error ensuring agency ownership before loading settings:",
+            ensureError,
+          );
+        }
+      }
+
+      const data =
+        ensuredAgency ?? (await agenciesService.getAgencyOwnedByProfile(profileId));
       setAgency(data);
 
       const nextState = buildFormState(data ?? null);
@@ -186,7 +201,13 @@ export function AgencySettings() {
     } finally {
       setLoading(false);
     }
-  }, [buildFormState, profileId]);
+  }, [
+    buildFormState,
+    profileId,
+    isAdmin,
+    isAgent,
+    canManageAgency,
+  ]);
 
   useEffect(() => {
     if (!canAccessSettings) {
