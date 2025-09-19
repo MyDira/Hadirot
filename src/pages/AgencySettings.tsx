@@ -174,11 +174,10 @@ export function AgencySettings() {
       if (canAccessSettings) {
         try {
           // Call ensureAgencyForOwner to get the definitive agency row
-          // Call ensureAgencyForOwner to get the definitive agency row
           ensuredAgency = await agenciesService.ensureAgencyForOwner(profileId);
-          console.log(`[AgencySettings] Ensured/fetched agency for profile ${profileId}:`, ensuredAgency);
+          console.log(`✅ [AgencySettings] Ensured/fetched agency for profile ${profileId}:`, ensuredAgency);
         } catch (ensureError) {
-          console.error("[AgencySettings] Error ensuring agency ownership:", ensureError);
+          console.error("❌ [AgencySettings] Error ensuring agency ownership:", ensureError);
           setError("Failed to load agency settings. Please try again.");
           setLoading(false);
           return;

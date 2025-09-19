@@ -80,7 +80,11 @@ export function ListingFilters({
       onFiltersChange({ ...filters, poster_type: 'agent', agency_id: undefined });
     } else if (value.startsWith('agent:')) {
       const agencyId = value.slice('agent:'.length);
-      onFiltersChange({ ...filters, poster_type: 'agent', agency_id: agencyId });
+      onFiltersChange({
+        ...filters,
+        poster_type: 'agent',
+        agency_id: agencyId,
+      });
     } else {
       onFiltersChange({ ...filters, poster_type: undefined, agency_id: undefined });
     }

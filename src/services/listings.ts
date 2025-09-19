@@ -100,6 +100,9 @@ export const listingsService = {
     if (filters.agency_id) {
       query = query.eq('agency_id', filters.agency_id);
     }
+    if (filters.agency_id) {
+      query = query.eq('agency_id', filters.agency_id);
+    }
 
     // Filter for featured-only listings if requested via filters
     if (filters.is_featured_only || is_featured_only) {
