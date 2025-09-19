@@ -131,12 +131,12 @@ export function Layout({ children }: LayoutProps) {
     return () => {
       isActive = false;
     };
-  }, [profile?.id]);
+  }, [profile?.id, profile?.can_manage_agency]);
 
   const agencyName = ownedAgency?.name?.trim() ?? "";
   const agencySlug = ownedAgency?.slug ?? null;
   const ownsAgency = Boolean(ownedAgency);
-  const canAccessAgencyPage = ownsAgency;
+  const canAccessAgencyPage = ownsAgency && Boolean(profile?.can_manage_agency);
 
   const handleSignOut = async () => {
     try {

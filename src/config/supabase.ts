@@ -123,6 +123,7 @@ export interface Agency {
   slug: string;
   owner_profile_id: string;
   owner_profile?: Profile | null;
+  is_active: boolean;
   logo_url?: string | null;
   banner_url?: string | null;
   phone?: string | null;
