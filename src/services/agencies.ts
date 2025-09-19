@@ -178,7 +178,7 @@ export const agenciesService = {
     const { data, error } = await supabase.rpc<Agency>(
       "ensure_agency_for_owner",
       {
-        p_owner: profileId,
+        p_owner_id: profileId,
       },
     );
 
