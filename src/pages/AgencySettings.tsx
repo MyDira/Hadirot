@@ -22,13 +22,16 @@ import {
   CheckCircle2,
   AlertCircle,
   Paintbrush,
+  Copy,
+  Info,
 } from "lucide-react";
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import LinkExtension from "@tiptap/extension-link";
 import { useAuth } from "@/hooks/useAuth";
-import { agencyNameToSlug } from "@/utils/agency";
+import { canonicalUrl } from "@/utils/url";
 import { agenciesService, AGENCY_NAME_TAKEN_CODE } from "@/services/agencies";
+import { agencyService, type AgencyPageMetrics } from "@/services/agency";
 import { Agency } from "@/config/supabase";
 import { listingsService } from "@/services/listings";
 import "@/styles/editor.css";
@@ -57,16 +60,14 @@ function isAgencyNameTakenError(error: unknown): boolean {
 
 export function AgencySettings() {
   const { user, profile, loading: authLoading } = useAuth();
-  const agencyName = profile?.agency?.trim() ?? "";
-  const slug = useMemo(() => agencyNameToSlug(agencyName), [agencyName]);
-  const canManageAgency =
-    profile?.role === "agent" &&
-    agencyName.length > 0 &&
-    profile?.can_manage_agency === true;
+  const profileId = profile?.id ?? "";
+  const isAdmin = profile?.is_admin === true;
+  const isAgent = profile?.role === "agent";
+  const canAccessSettings = isAdmin || isAgent;
 
   const [agency, setAgency] = useState<Agency | null>(null);
   const [formState, setFormState] = useState<FormState>({
-    name: agencyName,
+    name: "",
     logo_url: "",
     banner_url: "",
     phone: "",
@@ -74,6 +75,7 @@ export function AgencySettings() {
     website: "",
     about_html: "",
   });
+  const [createName, setCreateName] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [creating, setCreating] = useState(false);
@@ -82,6 +84,14 @@ export function AgencySettings() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [nameError, setNameError] = useState<string | null>(null);
+  const [metricsLoading, setMetricsLoading] = useState(false);
+  const [metrics, setMetrics] = useState<AgencyPageMetrics | null>(null);
+  const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
+
+  const slug = agency?.slug ?? "";
+  const publicAgencyLink = slug ? canonicalUrl(`/agencies/${slug}`) : "";
+  const isOwner = profileId && agency?.owner_profile_id === profileId;
+  const canEditAgency = isAdmin || isOwner;
 
   const initialEditorSyncRef = useRef(false);
 
@@ -123,25 +133,33 @@ export function AgencySettings() {
         : "border-gray-200 text-gray-600 hover:bg-gray-100"
     }`;
 
+  const formatMetricValue = (value: number | null | undefined) =>
+    Number(value ?? 0).toLocaleString();
+
   const toNullable = (value: string) => {
     const trimmed = value.trim();
     return trimmed.length > 0 ? trimmed : null;
   };
 
+  const buildFormState = useCallback(
+    (entity: Agency | null): FormState => ({
+      name: entity?.name?.trim() ?? "",
+      logo_url: entity?.logo_url ?? "",
+      banner_url: entity?.banner_url ?? "",
+      phone: entity?.phone ?? "",
+      email: entity?.email ?? "",
+      website: entity?.website ?? "",
+      about_html: entity?.about_html ?? "",
+    }),
+    [],
+  );
+
   const loadAgencyDetails = useCallback(async () => {
-    if (!slug) {
+    if (!profileId) {
       setAgency(null);
       setNameError(null);
       initialEditorSyncRef.current = false;
-      setFormState({
-        name: agencyName,
-        logo_url: "",
-        banner_url: "",
-        phone: "",
-        email: "",
-        website: "",
-        about_html: "",
-      });
+      setFormState(buildFormState(null));
       setLoading(false);
       return;
     }
@@ -150,18 +168,10 @@ export function AgencySettings() {
     setError(null);
 
     try {
-      const data = await agenciesService.getAgencyBySlug(slug);
+      const data = await agenciesService.getAgencyOwnedByProfile(profileId);
       setAgency(data);
 
-      const nextState: FormState = {
-        name: data?.name?.trim() || agencyName,
-        logo_url: data?.logo_url ?? "",
-        banner_url: data?.banner_url ?? "",
-        phone: data?.phone ?? "",
-        email: data?.email ?? "",
-        website: data?.website ?? "",
-        about_html: data?.about_html ?? "",
-      };
+      const nextState = buildFormState(data ?? null);
 
       initialEditorSyncRef.current = false;
       setFormState(nextState);
@@ -171,29 +181,67 @@ export function AgencySettings() {
       setAgency(null);
       setNameError(null);
       initialEditorSyncRef.current = false;
-      setFormState({
-        name: agencyName,
-        logo_url: "",
-        banner_url: "",
-        phone: "",
-        email: "",
-        website: "",
-        about_html: "",
-      });
+      setFormState(buildFormState(null));
       setError("Failed to load agency settings. Please try again.");
     } finally {
       setLoading(false);
     }
-  }, [agencyName, slug]);
+  }, [buildFormState, profileId]);
 
   useEffect(() => {
-    if (!canManageAgency || !slug) {
+    if (!canAccessSettings) {
       setLoading(false);
       return;
     }
 
     loadAgencyDetails();
-  }, [canManageAgency, slug, loadAgencyDetails]);
+  }, [canAccessSettings, loadAgencyDetails]);
+
+  useEffect(() => {
+    if (!canEditAgency) {
+      setMetrics(null);
+      setMetricsLoading(false);
+      return;
+    }
+
+    const agencyId = agency?.id;
+    if (!agencyId) {
+      setMetrics(null);
+      setMetricsLoading(false);
+      return;
+    }
+
+    let isMounted = true;
+    setMetricsLoading(true);
+
+    agencyService
+      .getAgencyPageMetrics(agencyId)
+      .then((result) => {
+        if (!isMounted) return;
+        setMetrics(result);
+      })
+      .catch(() => {
+        if (!isMounted) return;
+        setMetrics({ viewsTotal: 0, views30d: 0 });
+      })
+      .finally(() => {
+        if (!isMounted) return;
+        setMetricsLoading(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [agency?.id, canEditAgency]);
+
+  useEffect(() => {
+    if (!copyFeedback) {
+      return;
+    }
+
+    const timeout = window.setTimeout(() => setCopyFeedback(null), 2500);
+    return () => window.clearTimeout(timeout);
+  }, [copyFeedback]);
 
   useEffect(() => {
     if (!editor) {
@@ -217,6 +265,15 @@ export function AgencySettings() {
       }
       setFormState((prev) => ({ ...prev, [field]: value }));
     };
+
+  const handleCreateNameChange = (
+    event: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    setSuccess(null);
+    setError(null);
+    setNameError(null);
+    setCreateName(event.target.value);
+  };
 
   const handleLogoUpload = async (
     event: React.ChangeEvent<HTMLInputElement>,
@@ -284,6 +341,34 @@ export function AgencySettings() {
     }
   };
 
+  const handleCopyPublicLink = async () => {
+    if (!publicAgencyLink) {
+      return;
+    }
+
+    try {
+      if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(publicAgencyLink);
+      } else {
+        const tempInput = document.createElement("input");
+        tempInput.value = publicAgencyLink;
+        document.body.appendChild(tempInput);
+        tempInput.select();
+        const successful = document.execCommand("copy");
+        document.body.removeChild(tempInput);
+
+        if (!successful) {
+          throw new Error("Copy command was unsuccessful");
+        }
+      }
+
+      setCopyFeedback("Link copied!");
+    } catch (err) {
+      console.error("Error copying agency link:", err);
+      setCopyFeedback("Copy failed");
+    }
+  };
+
   const handleToggleLink = () => {
     if (!editor) {
       return;
@@ -314,11 +399,12 @@ export function AgencySettings() {
   };
 
   const handleCreateAgency = async () => {
-    if (!slug || agencyName.length === 0) {
+    if (!profileId) {
+      setError("We couldn't verify your account. Please try again.");
       return;
     }
 
-    const trimmedName = agencyName.trim();
+    const trimmedName = createName.trim();
     if (!trimmedName) {
       setError("Agency name is required.");
       return;
@@ -346,26 +432,20 @@ export function AgencySettings() {
     setCreating(true);
 
     try {
-      const created = await agenciesService.createAgency({
+      const created = await agenciesService.createAgencyForOwner({
+        owner_profile_id: profileId,
         name: trimmedName,
-        slug,
       });
 
       setAgency(created);
-      const nextState: FormState = {
-        name: created?.name?.trim() || trimmedName,
-        logo_url: created?.logo_url ?? "",
-        banner_url: created?.banner_url ?? "",
-        phone: created?.phone ?? "",
-        email: created?.email ?? "",
-        website: created?.website ?? "",
-        about_html: created?.about_html ?? "",
-      };
+      const nextState = buildFormState(created ?? null);
 
       initialEditorSyncRef.current = false;
       setFormState(nextState);
       setNameError(null);
       setSuccess("Agency profile created. You can now customize your branding.");
+      setCreateName("");
+      setMetrics({ viewsTotal: 0, views30d: 0 });
     } catch (err) {
       console.error("Error creating agency:", err);
       if (isAgencyNameTakenError(err)) {
@@ -381,7 +461,7 @@ export function AgencySettings() {
   const handleSave = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    if (!agency) {
+    if (!agency || !canEditAgency) {
       return;
     }
 
@@ -425,15 +505,7 @@ export function AgencySettings() {
       const nextAgency = updated ?? agency;
       setAgency(nextAgency);
 
-      const nextState: FormState = {
-        name: nextAgency.name?.trim() || trimmedName,
-        logo_url: nextAgency.logo_url ?? "",
-        banner_url: nextAgency.banner_url ?? "",
-        phone: nextAgency.phone ?? "",
-        email: nextAgency.email ?? "",
-        website: nextAgency.website ?? "",
-        about_html: nextAgency.about_html ?? "",
-      };
+      const nextState = buildFormState(nextAgency ?? null);
 
       initialEditorSyncRef.current = false;
       setFormState(nextState);
@@ -456,7 +528,7 @@ export function AgencySettings() {
   };
 
   const isUnauthorized =
-    !authLoading && (!user || !canManageAgency || !slug);
+    !authLoading && (!user || !canAccessSettings);
 
   if (isUnauthorized) {
     return <Navigate to="/dashboard" replace />;
@@ -504,9 +576,9 @@ export function AgencySettings() {
             <ArrowLeft className="w-4 h-4" />
             Back to Dashboard
           </Link>
-          {slug && (
+          {publicAgencyLink && (
             <a
-              href={`/agencies/${slug}`}
+              href={publicAgencyLink}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-2 rounded-md border border-[#273140] bg-[#273140] px-3 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-[#1f2935]"
@@ -518,9 +590,71 @@ export function AgencySettings() {
         </div>
       </div>
 
-      {slug && (
-        <div className="mb-6 rounded-lg border border-dashed border-gray-300 bg-[#f9f4ed] px-4 py-3 text-sm text-[#273140]">
-          Public URL: <span className="font-semibold">/agencies/{slug}</span>
+      {agency && (
+        <div className="mb-6 grid gap-4 lg:grid-cols-2">
+          {agency?.id && (
+            <div className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
+              <h2 className="text-sm font-semibold uppercase tracking-wide text-[#273140]">
+                Agency Page Views
+              </h2>
+              <div className="mt-4 grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-xs uppercase text-gray-500">Last 30 days</p>
+                  <p className="mt-1 text-2xl font-semibold text-[#273140]">
+                    {metricsLoading
+                      ? "—"
+                      : formatMetricValue(metrics?.views30d)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs uppercase text-gray-500">All-time</p>
+                  <p className="mt-1 text-2xl font-semibold text-[#273140]">
+                    {metricsLoading
+                      ? "—"
+                      : formatMetricValue(metrics?.viewsTotal)}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+          {publicAgencyLink && (
+            <div className="rounded-lg border border-blue-100 bg-blue-50 p-5 shadow-sm text-sm text-[#1f3b63] flex flex-col justify-between">
+              <div className="flex items-start gap-3">
+                <Info className="mt-0.5 h-5 w-5 text-[#1f3b63]" />
+                <div>
+                  <p className="font-medium text-[#273140]">
+                    Your Agency Page is available by direct link only for now.
+                  </p>
+                  <p className="mt-1 text-[#1f3b63]/90">
+                    Share this link to let people view it.
+                  </p>
+                  {publicAgencyLink && (
+                    <a
+                      href={publicAgencyLink}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="mt-2 inline-flex text-xs font-medium text-[#1f3b63] underline break-all"
+                    >
+                      {publicAgencyLink}
+                    </a>
+                  )}
+                </div>
+              </div>
+              <div className="mt-4 flex flex-wrap items-center justify-end gap-3">
+                {copyFeedback && (
+                  <span className="text-xs text-[#1f3b63]">{copyFeedback}</span>
+                )}
+                <button
+                  type="button"
+                  onClick={handleCopyPublicLink}
+                  className="inline-flex items-center gap-2 rounded-md border border-[#273140] bg-white px-3 py-2 text-sm font-medium text-[#273140] shadow-sm transition-colors hover:bg-[#f3f4f6]"
+                >
+                  <Copy className="h-4 w-4" />
+                  Copy Link
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -550,22 +684,40 @@ export function AgencySettings() {
             Create an agency record to control the branding, contact details, and
             about section that appear on your public agency page.
           </p>
-          <button
-            type="button"
-            onClick={handleCreateAgency}
-            disabled={creating}
-            className="inline-flex items-center gap-2 rounded-md bg-[#273140] px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-[#1f2935] disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {creating ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <Paintbrush className="w-4 h-4" />
+          <div className="mx-auto flex max-w-md flex-col items-stretch gap-4 text-left">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Agency Name
+              </label>
+              <input
+                type="text"
+                value={createName}
+                onChange={handleCreateNameChange}
+                placeholder="e.g. Sunrise Realty"
+                maxLength={120}
+                className="w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-[#273140] focus:outline-none focus:ring-2 focus:ring-[#273140]/20"
+              />
+              <p className="mt-1 text-sm text-gray-500">
+                This will also generate your agency URL. You can update the name later if needed.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={handleCreateAgency}
+              disabled={creating || !createName.trim()}
+              className="inline-flex items-center justify-center gap-2 rounded-md bg-[#273140] px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-[#1f2935] disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {creating ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Paintbrush className="w-4 h-4" />
+              )}
+              {creating ? "Creating..." : "Create Agency Profile"}
+            </button>
+            {nameError && (
+              <p className="text-sm text-red-600">{nameError}</p>
             )}
-            {creating ? "Creating..." : "Create Agency Profile"}
-          </button>
-          {nameError && (
-            <p className="mt-4 text-sm text-red-600">{nameError}</p>
-          )}
+          </div>
         </div>
       ) : (
         <form onSubmit={handleSave} className="space-y-8">

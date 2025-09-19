@@ -72,6 +72,14 @@ export default function Dashboard() {
 
     try {
       const data = await listingsService.getUserListings(user.id);
+      console.debug(
+        '[Dashboard] loaded listings with metrics',
+        data.map((listing) => ({
+          id: listing.id,
+          impressions: listing.impressions ?? 0,
+          direct_views: listing.direct_views ?? 0,
+        })),
+      );
       setListings(data);
     } catch (error) {
       console.error("Error loading user listings:", error);
@@ -462,13 +470,21 @@ export default function Dashboard() {
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                           <div className="flex items-center gap-1.5">
                             <Eye className="h-4 w-4 opacity-70" aria-hidden />
-                            <span>{listing.impressions ?? 0}</span>
+                            <span>
+                              {loading
+                                ? "—"
+                                : (listing.impressions ?? 0).toLocaleString()}
+                            </span>
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                           <div className="flex items-center gap-1.5">
                             <MousePointerClick className="h-4 w-4 opacity-70" aria-hidden />
-                            <span>{listing.direct_views ?? 0}</span>
+                            <span>
+                              {loading
+                                ? "—"
+                                : (listing.direct_views ?? 0).toLocaleString()}
+                            </span>
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">

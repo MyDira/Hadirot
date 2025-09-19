@@ -1,6 +1,5 @@
 import { supabase, Listing } from '../config/supabase';
 import { capitalizeName } from '../utils/formatters';
-import { agencyNameToSlug } from '../utils/agency';
 
 interface GetListingsFilters {
   bedrooms?: number;
@@ -138,51 +137,12 @@ export const listingsService = {
     return { data: data || [], totalCount: count || 0 };
   },
 
-  async getActiveListingsForAgencySlug(
-    slug: string,
+  async getActiveListingsByAgencyId(
+    agencyId: string,
     options: AgencyListingsQueryOptions = {},
-  ): Promise<{ data: Listing[]; count: number; agencyName?: string }> {
-    const normalizedSlug = agencyNameToSlug(slug || '');
-
-    if (!normalizedSlug) {
+  ): Promise<{ data: Listing[]; count: number }> {
+    if (!agencyId) {
       return { data: [], count: 0 };
-    }
-
-    const slugParts = normalizedSlug.split('-').filter(Boolean);
-    const likePattern = slugParts.length > 0 ? `%${slugParts.join('%')}%` : null;
-
-    let profilesQuery = supabase
-      .from('profiles')
-      .select('id, agency')
-      .eq('role', 'agent')
-      .not('agency', 'is', null);
-
-    if (likePattern) {
-      profilesQuery = profilesQuery.ilike('agency', likePattern);
-    }
-
-    const { data: profileRows, error: profilesError } = await profilesQuery;
-
-    if (profilesError) {
-      console.error('[svc] getActiveListingsForAgencySlug profiles error', profilesError);
-      throw profilesError;
-    }
-
-    const matchingProfiles = (profileRows ?? []).filter(
-      (profile): profile is { id: string; agency: string } => {
-        if (!profile?.agency) {
-          return false;
-        }
-
-        return agencyNameToSlug(profile.agency) === normalizedSlug;
-      },
-    );
-
-    const ownerIds = matchingProfiles.map(profile => profile.id);
-    const matchedAgencyName = matchingProfiles[0]?.agency;
-
-    if (ownerIds.length === 0) {
-      return { data: [], count: 0, agencyName: matchedAgencyName };
     }
 
     const { beds, priceMin, priceMax, sort = 'newest' } = options;
@@ -194,14 +154,14 @@ export const listingsService = {
       .select(
         `
           *,
-          owner:profiles!inner(id, full_name, role, agency),
+          owner:profiles(id, full_name, role, agency),
           listing_images(*)
         `,
         { count: 'exact' },
       )
       .eq('is_active', true)
       .eq('approved', true)
-      .in('user_id', ownerIds);
+      .eq('agency_id', agencyId);
 
     const normalizedBeds = typeof beds === 'string' ? parseInt(beds, 10) : beds;
 
@@ -239,11 +199,11 @@ export const listingsService = {
     const { data, error, count } = await listingsQuery;
 
     if (error) {
-      console.error('[svc] getActiveListingsForAgencySlug listings error', error);
+      console.error('[svc] getActiveListingsByAgencyId error', error);
       throw error;
     }
 
-    return { data: data ?? [], count: count ?? 0, agencyName: matchedAgencyName };
+    return { data: data ?? [], count: count ?? 0 };
   },
 
   async getListing(id: string, userId?: string) {
@@ -864,7 +824,86 @@ export const listingsService = {
       .order('created_at', { ascending: false });
 
     if (error) throw error;
-    return data ?? [];
+
+    const listings = (data ?? []).map((listing) => ({
+      ...listing,
+      impressions: Number(listing?.impressions ?? 0) || 0,
+      direct_views: Number(listing?.direct_views ?? 0) || 0,
+    }));
+
+    const listingIds = listings
+      .map((listing) => (typeof listing?.id === 'string' ? listing.id : null))
+      .filter((id): id is string => typeof id === 'string' && id.length > 0);
+
+    if (listingIds.length === 0) {
+      return listings;
+    }
+
+    const metricsById = new Map<
+      string,
+      { impressions: number; direct_views: number }
+    >();
+
+    const chunkSize = 900;
+    let metricsError: Error | null = null;
+
+    for (let index = 0; index < listingIds.length; index += chunkSize) {
+      const chunk = listingIds.slice(index, index + chunkSize);
+      try {
+        const { data: metricsRows, error: chunkError } = await supabase
+          .from('listing_metrics_v1')
+          .select('listing_id, impressions, direct_views')
+          .in('listing_id', chunk);
+
+        if (chunkError) {
+          metricsError = chunkError;
+          break;
+        }
+
+        (metricsRows ?? []).forEach((row: any) => {
+          const listingId = typeof row?.listing_id === 'string' ? row.listing_id : null;
+          if (!listingId) {
+            return;
+          }
+
+          const impressions = Number(row?.impressions ?? 0);
+          const directViews = Number(row?.direct_views ?? 0);
+
+          metricsById.set(listingId, {
+            impressions: Number.isFinite(impressions) ? impressions : 0,
+            direct_views: Number.isFinite(directViews) ? directViews : 0,
+          });
+        });
+      } catch (err) {
+        metricsError = err as Error;
+        break;
+      }
+    }
+
+    if (metricsError) {
+      console.warn('[svc] getUserListings metrics query failed', metricsError);
+      return listings;
+    }
+
+    const mergedListings = listings.map((listing) => {
+      const metrics = metricsById.get(listing.id);
+      return {
+        ...listing,
+        impressions: metrics?.impressions ?? listing.impressions ?? 0,
+        direct_views: metrics?.direct_views ?? listing.direct_views ?? 0,
+      };
+    });
+
+    console.debug(
+      '[svc] getUserListings metrics merged',
+      mergedListings.map((listing) => ({
+        id: listing.id,
+        impressions: listing.impressions ?? 0,
+        direct_views: listing.direct_views ?? 0,
+      })),
+    );
+
+    return mergedListings;
   },
 
   async incrementListingView(listingId: string) {

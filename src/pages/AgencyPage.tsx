@@ -18,7 +18,7 @@ import { slugToAgencyLabel } from "@/utils/agency";
 import { formatPhoneForDisplay } from "@/utils/phone";
 import { normalizeUrlForHref, canonicalUrl } from "@/utils/url";
 import { useAuth } from "@/hooks/useAuth";
-import { track } from "@/lib/analytics";
+import { track, trackAgencyPageView } from "@/lib/analytics";
 import { useListingImpressions } from "@/hooks/useListingImpressions";
 
 interface AgencyFilters {
@@ -37,17 +37,11 @@ export function AgencyPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const { user } = useAuth();
 
-  const [agencyDisplayName, setAgencyDisplayName] = useState<string>(
-    derivedAgencyLabel,
-  );
-  const [agencyDetails, setAgencyDetails] = useState<Agency | null>(null);
-  const [agencyDetailsLoaded, setAgencyDetailsLoaded] = useState(false);
-  const [matchedAgencyName, setMatchedAgencyName] = useState<string | null>(null);
-  const [profilesLoaded, setProfilesLoaded] = useState(false);
-  const agencyDetailsRef = useRef<Agency | null>(null);
+  const [agency, setAgency] = useState<Agency | null>(null);
+  const [agencyLoading, setAgencyLoading] = useState(true);
   const [listings, setListings] = useState<Listing[]>([]);
+  const [listingsLoading, setListingsLoading] = useState(true);
   const [userFavorites, setUserFavorites] = useState<string[]>([]);
-  const [loading, setLoading] = useState(true);
   const [totalCount, setTotalCount] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
   const [showFiltersMobile, setShowFiltersMobile] = useState(false);
@@ -56,8 +50,7 @@ export function AgencyPage() {
   const [isAboutExpanded, setIsAboutExpanded] = useState(false);
   const shareToastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const resolvedAgencyDisplayName =
-    agencyDetails?.name?.trim() ||
-    agencyDisplayName ||
+    agency?.name?.trim() ||
     derivedAgencyLabel ||
     (slugParam ? slugParam : "Agency");
   const agencyExists = useMemo<boolean | null>(() => {
@@ -65,31 +58,12 @@ export function AgencyPage() {
       return null;
     }
 
-    if (matchedAgencyName || agencyDetails) {
-      return true;
+    if (agencyLoading) {
+      return null;
     }
 
-    if (profilesLoaded && agencyDetailsLoaded) {
-      return false;
-    }
-
-    return null;
-  }, [
-    slugParam,
-    matchedAgencyName,
-    agencyDetails,
-    profilesLoaded,
-    agencyDetailsLoaded,
-  ]);
-
-  useEffect(() => {
-    setAgencyDisplayName(derivedAgencyLabel);
-    setMatchedAgencyName(null);
-    setProfilesLoaded(false);
-    setAgencyDetails(null);
-    setAgencyDetailsLoaded(false);
-    agencyDetailsRef.current = null;
-  }, [derivedAgencyLabel]);
+    return agency ? true : false;
+  }, [agency, agencyLoading, slugParam]);
 
   useEffect(() => {
     return () => {
@@ -103,47 +77,50 @@ export function AgencyPage() {
     let isCancelled = false;
 
     if (!slugParam) {
-      setAgencyDetails(null);
-      agencyDetailsRef.current = null;
-      setAgencyDetailsLoaded(true);
+      setAgency(null);
+      setAgencyLoading(false);
       return;
     }
 
-    const loadAgencyDetails = async () => {
-      try {
-        setAgencyDetailsLoaded(false);
-        const data = await agenciesService.getAgencyBySlug(slugParam);
+    setAgencyLoading(true);
 
+    agenciesService
+      .getAgencyBySlug(slugParam)
+      .then((data) => {
         if (isCancelled) {
           return;
         }
-
-        setAgencyDetails(data);
-        agencyDetailsRef.current = data;
-
-        if (data?.name) {
-          setAgencyDisplayName(data.name);
+        setAgency(data);
+      })
+      .catch((error) => {
+        if (isCancelled) {
+          return;
         }
-      } catch (error) {
-        if (!isCancelled) {
-          console.error("Error loading agency details:", error);
-          setAgencyDetails(null);
-          agencyDetailsRef.current = null;
+        console.error("Error loading agency details:", error);
+        setAgency(null);
+      })
+      .finally(() => {
+        if (isCancelled) {
+          return;
         }
-      } finally {
-        if (!isCancelled) {
-          setAgencyDetailsLoaded(true);
-        }
-      }
-    };
-
-    loadAgencyDetails();
+        setAgencyLoading(false);
+      });
 
     return () => {
       isCancelled = true;
     };
   }, [slugParam]);
-  
+
+  useEffect(() => {
+    const agencyId = agency?.id;
+    if (!agencyId) {
+      return;
+    }
+
+    const slugForEvent = agency?.slug ?? slugParam;
+    void trackAgencyPageView(agencyId, slugForEvent);
+  }, [agency?.id, agency?.slug, slugParam]);
+
   // Set up listing impression tracking
   const { observeElement } = useListingImpressions({
     listingIds: listings.map(l => l.id),
@@ -208,64 +185,50 @@ export function AgencyPage() {
   };
 
   const loadAgencyListings = async () => {
-    if (!slugParam) {
+    const agencyId = agency?.id;
+
+    if (!agencyId) {
       setListings([]);
       setTotalCount(0);
-      setAgencyDisplayName(derivedAgencyLabel);
-      setMatchedAgencyName(null);
-      setProfilesLoaded(true);
+      setListingsLoading(false);
       return;
     }
 
     try {
-      setLoading(true);
-      setProfilesLoaded(false);
+      setListingsLoading(true);
 
       const offset = (currentPage - 1) * ITEMS_PER_PAGE;
-      const {
-        data,
-        count,
-        agencyName: matchedName,
-      } = await listingsService.getActiveListingsForAgencySlug(slugParam, {
-        beds: filters.bedrooms,
-        priceMin: filters.min_price,
-        priceMax: filters.max_price,
-        sort: filters.sort,
-        limit: ITEMS_PER_PAGE,
-        offset,
-      });
-
-      const resolvedAgencyName = matchedName ?? derivedAgencyLabel;
-      const agencyFoundForView = Boolean(
-        (matchedName && matchedName.length > 0) || agencyDetailsRef.current,
+      const { data, count } = await listingsService.getActiveListingsByAgencyId(
+        agencyId,
+        {
+          beds: filters.bedrooms,
+          priceMin: filters.min_price,
+          priceMax: filters.max_price,
+          sort: filters.sort,
+          limit: ITEMS_PER_PAGE,
+          offset,
+        },
       );
 
-      setAgencyDisplayName(resolvedAgencyName);
-      setMatchedAgencyName(matchedName ?? null);
       setListings(data ?? []);
       setTotalCount(count ?? 0);
-
-      track("agency_page_view", {
-        agency_name: resolvedAgencyName,
-        agency_slug: slugParam,
-        listing_count: count ?? 0,
-        agency_found: agencyFoundForView,
-      });
     } catch (error) {
       console.error("Error loading agency listings:", error);
       setListings([]);
       setTotalCount(0);
-      setMatchedAgencyName(null);
     } finally {
-      setLoading(false);
-      setProfilesLoaded(true);
+      setListingsLoading(false);
     }
   };
 
   // Load listings when filters, page, or slug changes
   useEffect(() => {
     loadAgencyListings();
-  }, [slugParam, filters, currentPage]);
+  }, [agency?.id, filters, currentPage]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [agency?.id]);
 
   const handleFiltersChange = (newFilters: AgencyFilters) => {
     setFilters(newFilters);
@@ -293,7 +256,8 @@ export function AgencyPage() {
     // Track filter usage
     track('agency_filter_apply', {
       agency_name: resolvedAgencyDisplayName,
-      agency_slug: slugParam,
+      agency_slug: agency?.slug ?? slugParam,
+      agency_id: agency?.id,
       agency_found: agencyExists ?? false,
       filters: newFilters,
     });
@@ -322,7 +286,13 @@ export function AgencyPage() {
   };
 
   const handleShareAgency = async () => {
-    const shareLink = canonicalUrl(`/agencies/${slugParam}`);
+    const shareSlug = agency?.slug ?? slugParam;
+
+    if (!shareSlug) {
+      return;
+    }
+
+    const shareLink = canonicalUrl(`/agencies/${shareSlug}`);
 
     try {
       await navigator.clipboard.writeText(shareLink);
@@ -330,7 +300,8 @@ export function AgencyPage() {
 
       track('agency_share', {
         agency_name: resolvedAgencyDisplayName,
-        agency_slug: slugParam,
+        agency_slug: shareSlug,
+        agency_id: agency?.id,
         agency_found: agencyExists ?? false,
         method: 'copy_link',
       });
@@ -351,7 +322,8 @@ export function AgencyPage() {
 
       track('agency_share', {
         agency_name: resolvedAgencyDisplayName,
-        agency_slug: slugParam,
+        agency_slug: shareSlug,
+        agency_id: agency?.id,
         agency_found: agencyExists ?? false,
         method: 'copy_link',
       });
@@ -370,13 +342,13 @@ export function AgencyPage() {
     Boolean(filters.min_price) ||
     Boolean(filters.max_price) ||
     (filters.sort && filters.sort !== 'newest');
-  const phoneNumberRaw = agencyDetails?.phone;
+  const phoneNumberRaw = agency?.phone;
   const formattedPhoneNumber = formatPhoneForDisplay(phoneNumberRaw);
   const hasPhoneNumber = formattedPhoneNumber.length > 0;
-  const emailAddress = agencyDetails?.email?.trim();
-  const websiteValue = agencyDetails?.website ?? "";
+  const emailAddress = agency?.email?.trim();
+  const websiteValue = agency?.website ?? "";
   const hasWebsite = websiteValue.trim().length > 0;
-  const sanitizedAboutHtml = agencyDetails?.about_html ?? "";
+  const sanitizedAboutHtml = agency?.about_html ?? "";
   const showAboutColumn = sanitizedAboutHtml.trim().length > 0;
 
   const aboutPlainText = useMemo(() => {
@@ -416,7 +388,7 @@ export function AgencyPage() {
       key: "count",
       node: (
         <span className="font-medium text-[#273140]">
-          {loading
+          {listingsLoading
             ? "Loading listings..."
             : `${totalCount} active listing${totalCount === 1 ? "" : "s"}`}
         </span>
@@ -498,11 +470,11 @@ export function AgencyPage() {
       <div className="mb-10">
         <div
           className="relative w-full overflow-hidden rounded-2xl border border-gray-200 shadow-sm h-24 sm:h-28 md:h-40 lg:h-56 xl:h-64"
-          aria-hidden={agencyDetails?.banner_url ? false : true}
+          aria-hidden={agency?.banner_url ? false : true}
         >
-          {agencyDetails?.banner_url ? (
+          {agency?.banner_url ? (
             <img
-              src={agencyDetails.banner_url}
+              src={agency.banner_url}
               alt={`${resolvedAgencyDisplayName} banner`}
               className="absolute inset-0 h-full w-full object-cover object-center"
               loading="eager"
@@ -518,9 +490,9 @@ export function AgencyPage() {
           className={`mt-4 md:mt-6 grid gap-6 ${showAboutColumn ? "lg:grid-cols-2" : ""}`}
         >
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:gap-6">
-            {agencyDetails?.logo_url && (
+            {agency?.logo_url && (
               <img
-                src={agencyDetails.logo_url}
+                src={agency.logo_url}
                 alt={`${resolvedAgencyDisplayName} logo`}
                 className="w-20 h-20 md:w-24 md:h-24 rounded-full border border-gray-200 shadow-sm object-cover bg-white"
               />
@@ -684,7 +656,7 @@ export function AgencyPage() {
         </aside>
 
         <div className="space-y-6">
-          {loading ? (
+          {listingsLoading ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
                 <div
@@ -715,7 +687,7 @@ export function AgencyPage() {
               <h3 className="text-lg font-medium text-gray-900 mb-2">No listings found</h3>
               <p className="text-gray-500">
                 {agencyExists === false
-                  ? `We couldn't find any agents for "${resolvedAgencyDisplayName}".`
+                  ? `We couldn't find an agency named "${resolvedAgencyDisplayName}".`
                   : `${resolvedAgencyDisplayName} doesn't have any active listings matching your criteria.`}
               </p>
             </div>

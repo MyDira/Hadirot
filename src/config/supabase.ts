@@ -33,6 +33,7 @@ export interface Profile {
 export interface Listing {
   id: string;
   user_id: string;
+  agency_id?: string | null;
   title: string;
   description?: string;
   location: string;
@@ -120,6 +121,8 @@ export interface Agency {
   id: string;
   name: string;
   slug: string;
+  owner_profile_id: string;
+  owner_profile?: Profile | null;
   logo_url?: string | null;
   banner_url?: string | null;
   phone?: string | null;
