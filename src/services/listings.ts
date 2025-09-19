@@ -63,10 +63,10 @@ export const listingsService = {
     is_featured_only?: boolean,
   ) {
     const posterType = filters?.poster_type as 'owner' | 'agent' | undefined;
-    const agencyName = (filters as any)?.agency_name || undefined;
+    const agencyId = filters?.agency_id;
 
     const ownerSelect =
-      posterType === 'owner' || posterType === 'agent' || !!agencyName
+      posterType === 'owner' || posterType === 'agent' || !!agencyId
         ? 'owner:profiles!inner(id,full_name,role,agency)'
         : 'owner:profiles(id,full_name,role,agency)';
 
@@ -99,6 +99,9 @@ export const listingsService = {
     if (filters.noFeeOnly) {
       query = query.eq('broker_fee', false);
     }
+    if (filters.agency_id) {
+      query = query.eq('agency_id', filters.agency_id);
+    }
 
     // Filter for featured-only listings if requested via filters
     if (filters.is_featured_only || is_featured_only) {
@@ -112,9 +115,6 @@ export const listingsService = {
       query = query.or('role.eq.landlord,role.eq.tenant', { foreignTable: 'owner' });
     } else if (posterType === 'agent') {
       query = query.or('role.eq.agent', { foreignTable: 'owner' });
-      if (agencyName) {
-        query = query.eq('owner.agency', agencyName);
-      }
     }
 
     query = query.order('created_at', { ascending: false });

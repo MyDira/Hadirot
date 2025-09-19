@@ -153,8 +153,8 @@ export function ListingFilters({
               filters.poster_type === 'owner'
                 ? 'owner'
                 : filters.poster_type === 'agent'
-                  ? filters.agency_name
-                    ? `agent:${filters.agency_name}`
+                  ? filters.agency_id
+                    ? `agent:${filters.agency_id}`
                     : 'agent:any'
                   : ''
             }
@@ -167,8 +167,8 @@ export function ListingFilters({
             {agencies.length > 0 && (
               <optgroup label="Specific Agencies">
                 {agencies.map((agency) => (
-                  <option key={agency} value={`agent:${agency}`}>
-                    {agency}
+                  <option key={agency.id} value={`agent:${agency.id}`}>
+                    {agency.name}
                   </option>
                 ))}
               </optgroup>

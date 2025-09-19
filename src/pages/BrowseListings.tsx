@@ -349,8 +349,8 @@ export function BrowseListings() {
       params.set("bedrooms", newFilters.bedrooms.toString());
     if (newFilters.poster_type)
       params.set("poster_type", newFilters.poster_type);
-    if (newFilters.agency_name)
-      params.set("agency_name", newFilters.agency_name);
+    if (newFilters.agency_id)
+      params.set("agency_id", newFilters.agency_id);
     if (newFilters.property_type)
       params.set("property_type", newFilters.property_type);
     if (newFilters.min_price)

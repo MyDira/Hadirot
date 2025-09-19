@@ -171,52 +171,51 @@ export function AgencySettings() {
     try {
       let ensuredAgency: Agency | null = null;
 
-      if (!isAdmin && isAgent && canManageAgency) {
+      if (canAccessSettings) {
         try {
+          // Call ensureAgencyForOwner to get the definitive agency row
           ensuredAgency = await agenciesService.ensureAgencyForOwner(profileId);
+          console.log(`[AgencySettings] Ensured/fetched agency for profile ${profileId}:`, ensuredAgency);
         } catch (ensureError) {
-          console.error(
-            "Error ensuring agency ownership before loading settings:",
-            ensureError,
-          );
+          console.error("[AgencySettings] Error ensuring agency ownership:", ensureError);
+          setError("Failed to load agency settings. Please try again.");
+          setLoading(false);
+          return;
         }
+      } else {
+        // Fallback for users who might not have canAccessSettings but somehow landed here
+        ensuredAgency = await agenciesService.getAgencyOwnedByProfile(profileId);
       }
 
-      const data =
-        ensuredAgency ?? (await agenciesService.getAgencyOwnedByProfile(profileId));
-      setAgency(data);
+      setAgency(ensuredAgency);
 
-      const nextState = buildFormState(data ?? null);
+      const nextState = buildFormState(ensuredAgency ?? null);
 
       initialEditorSyncRef.current = false;
       setFormState(nextState);
       setNameError(null);
     } catch (err) {
-      console.error("Error loading agency settings:", err);
+      console.error("[AgencySettings] Error loading agency settings:", err);
       setAgency(null);
       setNameError(null);
       initialEditorSyncRef.current = false;
       setFormState(buildFormState(null));
-      setError("Failed to load agency settings. Please try again.");
+      setError(err instanceof Error ? err.message : "Failed to load agency settings. Please try again.");
     } finally {
       setLoading(false);
     }
   }, [
     buildFormState,
     profileId,
-    isAdmin,
-    isAgent,
-    canManageAgency,
+    canAccessSettings,
   ]);
 
   useEffect(() => {
-    if (!canAccessSettings) {
+    if (!canAccessSettings && !authLoading) {
       setLoading(false);
       return;
     }
-
     loadAgencyDetails();
-  }, [canAccessSettings, loadAgencyDetails]);
 
   useEffect(() => {
     if (!canEditAgency) {
