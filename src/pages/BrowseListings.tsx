@@ -10,10 +10,12 @@ import { gaEvent, gaListing } from "@/lib/ga";
 import { trackFilterApply } from "../lib/analytics";
 import { useListingImpressions } from "../hooks/useListingImpressions";
 
+import { Agency } from "../config/supabase";
+
 interface FilterState {
   bedrooms?: number;
   poster_type?: string;
-  agency_name?: string;
+  agency_id?: string;
   property_type?: string;
   min_price?: number;
   max_price?: number;
@@ -33,7 +35,7 @@ export function BrowseListings() {
   const [totalCount, setTotalCount] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
   const [filters, setFilters] = useState<FilterState>({});
-  const [agencies, setAgencies] = useState<string[]>([]);
+  const [agencies, setAgencies] = useState<Agency[]>([]);
   const [allNeighborhoods, setAllNeighborhoods] = useState<string[]>([]);
   const [showFiltersMobile, setShowFiltersMobile] = useState(false);
   const { user } = useAuth();
@@ -61,8 +63,8 @@ export function BrowseListings() {
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const names = await listingsService.getActiveAgencies();
-      if (!cancelled) setAgencies(names);
+      const fetchedAgencies = await listingsService.getActiveAgencies();
+      if (!cancelled) setAgencies(fetchedAgencies);
     })();
     return () => {
       cancelled = true;
@@ -89,9 +91,9 @@ export function BrowseListings() {
     const poster_type = searchParams.get("poster_type");
     if (poster_type) urlFilters.poster_type = poster_type;
 
-    const agency_name = searchParams.get("agency_name");
-    if (agency_name && poster_type === "agent")
-      urlFilters.agency_name = agency_name;
+    const agency_id = searchParams.get("agency_id");
+    if (agency_id && poster_type === "agent")
+      urlFilters.agency_id = agency_id;
 
     const property_type = searchParams.get("property_type");
     if (property_type) urlFilters.property_type = property_type;
@@ -213,11 +215,6 @@ export function BrowseListings() {
       if (filters.poster_type === "agent") {
         standardListings = standardListings.filter(
           (l) => l.owner && l.owner.role === "agent",
-        );
-      }
-      if (filters.agency_name) {
-        standardListings = standardListings.filter(
-          (l) => l.owner && l.owner.agency === filters.agency_name,
         );
       }
 

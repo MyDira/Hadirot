@@ -11,7 +11,7 @@ interface GetListingsFilters {
   is_featured_only?: boolean;
   noFeeOnly?: boolean;
   poster_type?: string;
-  agency_name?: string;
+  agency_id?: string;
 }
 
 export type ListingCreateInput = Omit<Listing, 'id' | 'created_at' | 'updated_at'> & {
@@ -34,24 +34,19 @@ interface AgencyListingsQueryOptions {
 }
 
 export const listingsService = {
-  async getActiveAgencies(): Promise<string[]> {
+  async getActiveAgencies(): Promise<Agency[]> {
     const { data, error } = await supabase
-      .from('listings')
-      .select('owner:profiles!inner(role,agency)')
+      .from('agencies')
+      .select('id, name, slug')
       .eq('is_active', true)
-      .eq('approved', true)
-      .or('role.eq.agent', { foreignTable: 'owner' });
+      .order('name', { ascending: true });
 
     if (error) {
       console.error('[svc] getActiveAgencies error', error);
       return [];
     }
 
-    const names = (data ?? [])
-      .map((r: any) => r?.owner?.agency)
-      .filter((x: any) => typeof x === 'string' && x.trim().length > 0);
-
-    return Array.from(new Set(names)).sort((a, b) => a.localeCompare(b));
+    return data || [];
   },
 
   async getListings(
@@ -98,6 +93,9 @@ export const listingsService = {
     }
     if (filters.noFeeOnly) {
       query = query.eq('broker_fee', false);
+    }
+    if (filters.agency_id) {
+      query = query.eq('agency_id', filters.agency_id);
     }
     if (filters.agency_id) {
       query = query.eq('agency_id', filters.agency_id);

@@ -2,10 +2,12 @@ import React from "react";
 import { Filter } from "lucide-react";
 import { listingsService } from "../../services/listings";
 
+import { Agency } from "../../config/supabase";
+
 interface FilterState {
   bedrooms?: number;
   poster_type?: string;
-  agency_name?: string;
+  agency_id?: string;
   property_type?: string;
   min_price?: number;
   max_price?: number;
@@ -17,7 +19,7 @@ interface FilterState {
 interface ListingFiltersProps {
   filters: FilterState;
   onFiltersChange: (filters: FilterState) => void;
-  agencies?: string[];
+  agencies?: Agency[];
   allNeighborhoods?: string[];
   isMobile?: boolean;
 }
@@ -73,17 +75,14 @@ export function ListingFilters({
 
   const onWhoChange = (value: string) => {
     if (value === 'owner') {
-      onFiltersChange({ ...filters, poster_type: 'owner', agency_name: undefined });
+      onFiltersChange({ ...filters, poster_type: 'owner', agency_id: undefined });
     } else if (value === 'agent:any') {
-      onFiltersChange({ ...filters, poster_type: 'agent', agency_name: undefined });
+      onFiltersChange({ ...filters, poster_type: 'agent', agency_id: undefined });
     } else if (value.startsWith('agent:')) {
-      onFiltersChange({
-        ...filters,
-        poster_type: 'agent',
-        agency_name: value.slice('agent:'.length),
-      });
+      const agencyId = value.slice('agent:'.length);
+      onFiltersChange({ ...filters, poster_type: 'agent', agency_id: agencyId });
     } else {
-      onFiltersChange({ ...filters, poster_type: undefined, agency_name: undefined });
+      onFiltersChange({ ...filters, poster_type: undefined, agency_id: undefined });
     }
   };
 

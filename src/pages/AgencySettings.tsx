@@ -174,6 +174,7 @@ export function AgencySettings() {
       if (canAccessSettings) {
         try {
           // Call ensureAgencyForOwner to get the definitive agency row
+          // Call ensureAgencyForOwner to get the definitive agency row
           ensuredAgency = await agenciesService.ensureAgencyForOwner(profileId);
           console.log(`[AgencySettings] Ensured/fetched agency for profile ${profileId}:`, ensuredAgency);
         } catch (ensureError) {
