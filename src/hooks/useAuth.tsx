@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useState } from "react";
 import { User } from "@supabase/supabase-js";
 import { supabase, Profile } from "../config/supabase";
 import { emailService } from "../services/email";
+import { queryClient, queryKeys, shareProfileAcrossCaches } from "@/services/queryClient";
 
 export const AUTH_CONTEXT_ID = "auth/v1";
 
@@ -11,6 +12,7 @@ interface AuthContextValue {
   profile: Profile | null | undefined;
   loading: boolean;
   refreshProfile: () => Promise<void>;
+  setProfile: React.Dispatch<React.SetStateAction<Profile | null | undefined>>;
   signUp: (
     email: string,
     password: string,
@@ -34,9 +36,39 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [profile, setProfile] = useState<Profile | null | undefined>(undefined);
   const [loading, setLoading] = useState(true);
 
+  const applyProfileUpdate: React.Dispatch<
+    React.SetStateAction<Profile | null | undefined>
+  > = (updater) => {
+    setProfile((previous) => {
+      const nextValue =
+        typeof updater === "function"
+          ? (updater as (value: Profile | null | undefined) => Profile | null | undefined)(
+              previous,
+            )
+          : updater;
+
+      const userId = session?.user?.id;
+      if (userId) {
+        if (nextValue === undefined) {
+          queryClient.invalidateQueries({ queryKey: queryKeys.profile(userId) });
+        } else {
+          queryClient.setQueryData(
+            queryKeys.profile(userId),
+            nextValue ?? null,
+          );
+          if (nextValue) {
+            shareProfileAcrossCaches(nextValue);
+          }
+        }
+      }
+
+      return nextValue;
+    });
+  };
+
   const refreshProfile = async () => {
     if (!session?.user) {
-      setProfile(null);
+      applyProfileUpdate(null);
       setLoading(false);
       return;
     }
@@ -52,13 +84,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (error) {
         console.error("❌ Error fetching profile:", error);
-        setProfile(null);
+        applyProfileUpdate(null);
       } else {
-        setProfile(data);
+        applyProfileUpdate(data ?? null);
       }
     } catch (err) {
       console.error("⚠️ refreshProfile error:", err);
-      setProfile(null);
+      applyProfileUpdate(null);
     } finally {
       setLoading(false);
     }
@@ -99,6 +131,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (isMounted) {
           setSession(session);
           setUser(session?.user ?? null);
+          if (!session?.user) {
+            applyProfileUpdate(null);
+          }
         }
       } catch (err) {
         console.error("Failed to initialize session:", err);
@@ -116,6 +151,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (isMounted) {
         setSession(session);
         setUser(session?.user ?? null);
+        if (!session?.user) {
+          applyProfileUpdate(null);
+        }
       }
     });
 
@@ -151,7 +189,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (profileError) throw profileError;
 
-      setProfile({
+      applyProfileUpdate({
         id: data.user.id,
         email: email,
         ...profileData,
@@ -194,6 +232,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     profile,
     loading,
     refreshProfile,
+    setProfile: applyProfileUpdate,
     signUp,
     signIn,
     signOut,

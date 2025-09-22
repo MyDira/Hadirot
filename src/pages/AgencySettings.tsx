@@ -35,6 +35,11 @@ import { agencyService, type AgencyPageMetrics } from "@/services/agency";
 import { Agency } from "@/config/supabase";
 import { listingsService } from "@/services/listings";
 import "@/styles/editor.css";
+import {
+  queryClient,
+  queryKeys,
+  shareAgencyAcrossCaches,
+} from "@/services/queryClient";
 
 interface FormState {
   name: string;
@@ -176,6 +181,15 @@ export function AgencySettings() {
       const nextAgency = ensuredAgency ?? null;
 
       setAgency(nextAgency);
+
+      if (profileId) {
+        queryClient.setQueryData(queryKeys.ownedAgency(profileId), nextAgency);
+        queryClient.setQueryData(queryKeys.agencyByOwner(profileId), nextAgency);
+      }
+
+      if (nextAgency) {
+        shareAgencyAcrossCaches(nextAgency);
+      }
 
       const nextState = buildFormState(nextAgency);
 
@@ -448,6 +462,14 @@ export function AgencySettings() {
       });
 
       setAgency(created);
+
+      queryClient.setQueryData(queryKeys.ownedAgency(profileId), created);
+      queryClient.setQueryData(queryKeys.agencyByOwner(profileId), created);
+
+      if (created) {
+        shareAgencyAcrossCaches(created);
+      }
+
       const nextState = buildFormState(created ?? null);
 
       initialEditorSyncRef.current = false;
@@ -456,6 +478,25 @@ export function AgencySettings() {
       setSuccess("Agency profile created. You can now customize your branding.");
       setCreateName("");
       setMetrics({ viewsTotal: 0, views30d: 0 });
+
+      if (user?.id) {
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.profile(user.id),
+        });
+      }
+
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.ownedAgency(profileId),
+      });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.agencyByOwner(profileId),
+      });
+
+      if (created?.slug) {
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.agencyBySlug(created.slug),
+        });
+      }
     } catch (err) {
       console.error("Error creating agency:", err);
       if (isAgencyNameTakenError(err)) {
@@ -489,6 +530,8 @@ export function AgencySettings() {
         about_html: formState.about_html,
       };
 
+      const previousSlug = agency.slug ?? null;
+
       const updated = await agenciesService.updateAgencyById(
         agency.id,
         payload,
@@ -497,11 +540,45 @@ export function AgencySettings() {
       const nextAgency = updated ?? agency;
       setAgency(nextAgency);
 
+      if (profileId) {
+        queryClient.setQueryData(queryKeys.ownedAgency(profileId), nextAgency);
+        queryClient.setQueryData(queryKeys.agencyByOwner(profileId), nextAgency);
+      }
+
+      shareAgencyAcrossCaches(nextAgency);
+
       const nextState = buildFormState(nextAgency ?? null);
 
       initialEditorSyncRef.current = false;
       setFormState(nextState);
       setSuccess("Agency profile updated successfully.");
+
+      if (user?.id) {
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.profile(user.id),
+        });
+      }
+
+      if (profileId) {
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.ownedAgency(profileId),
+        });
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.agencyByOwner(profileId),
+        });
+      }
+
+      if (previousSlug) {
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.agencyBySlug(previousSlug),
+        });
+      }
+
+      if (nextAgency?.slug) {
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.agencyBySlug(nextAgency.slug),
+        });
+      }
     } catch (err) {
       console.error("Error saving agency settings:", err);
       setError(

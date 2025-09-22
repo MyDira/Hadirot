@@ -15,6 +15,12 @@ import { useAuth } from "@/hooks/useAuth";
 import { agenciesService } from "@/services/agencies";
 import { agencyNameToSlug } from "@/utils/agency";
 import { supabase } from "../config/supabase";
+import type { Agency } from "@/config/supabase";
+import {
+  queryClient,
+  queryKeys,
+  shareAgencyAcrossCaches,
+} from "@/services/queryClient";
 
 interface ProfileFormData {
   full_name: string;
@@ -33,7 +39,7 @@ const AGENCY_IN_USE_MESSAGE =
   "This agency name is already in use on Had irot. If you meant to join that agency, ask the admin to enable your access; otherwise pick a unique name.";
 
 export function AccountSettings() {
-  const { user, profile, loading: authLoading } = useAuth();
+  const { user, profile, loading: authLoading, setProfile } = useAuth();
 
   const [profileData, setProfileData] = useState<ProfileFormData>({
     full_name: "",
@@ -105,8 +111,17 @@ export function AccountSettings() {
     try {
       let nextAgency: string | null = null;
       let trimmedAgencyName: string | null = null;
+      let nextAgencySlug: string | null = null;
+      const trimmedFullName = profileData.full_name.trim();
+      const trimmedPhone = profileData.phone.trim();
+      const normalizedRole = profileData.role;
+      const nowIso = new Date().toISOString();
+      const previousAgencyName = profile?.agency ?? null;
+      const previousAgencySlug = previousAgencyName
+        ? agencyNameToSlug(previousAgencyName)
+        : null;
 
-      if (profileData.role === "agent") {
+      if (normalizedRole === "agent") {
         const candidateName = profileData.agency.trim();
 
         if (candidateName) {
@@ -150,17 +165,18 @@ export function AccountSettings() {
 
           nextAgency = candidateName;
           trimmedAgencyName = candidateName;
+          nextAgencySlug = nextSlug;
         }
       }
 
       const { error } = await supabase
         .from("profiles")
         .update({
-          full_name: profileData.full_name.trim(),
-          phone: profileData.phone.trim() || null,
-          role: profileData.role,
-          agency: profileData.role === "agent" ? nextAgency : null,
-          updated_at: new Date().toISOString(),
+          full_name: trimmedFullName,
+          phone: trimmedPhone ? trimmedPhone : null,
+          role: normalizedRole,
+          agency: normalizedRole === "agent" ? nextAgency : null,
+          updated_at: nowIso,
         })
         .eq("id", user.id);
 
@@ -168,11 +184,38 @@ export function AccountSettings() {
 
       setMessage({ type: "success", text: "Profile updated successfully!" });
 
+      const nextProfileAgency =
+        normalizedRole === "agent" ? trimmedAgencyName : null;
+
+      setProfile((previousProfile) => {
+        const baseProfile = previousProfile ?? profile ?? null;
+        if (!baseProfile) {
+          return previousProfile;
+        }
+
+        return {
+          ...baseProfile,
+          full_name: trimmedFullName,
+          phone: trimmedPhone ? trimmedPhone : undefined,
+          role: normalizedRole,
+          agency: nextProfileAgency ?? undefined,
+          updated_at: nowIso,
+        };
+      });
+
+      setProfileData((prev) => ({
+        ...prev,
+        full_name: trimmedFullName,
+        phone: trimmedPhone,
+        agency: normalizedRole === "agent" ? trimmedAgencyName ?? "" : "",
+      }));
+
       const profileId = profile?.id ?? null;
       const canManageAgency = profile?.can_manage_agency === true;
+      let syncedAgency: Agency | null = null;
 
       if (
-        profileData.role === "agent" &&
+        normalizedRole === "agent" &&
         canManageAgency &&
         trimmedAgencyName &&
         profileId
@@ -182,15 +225,59 @@ export function AccountSettings() {
             profileId,
           );
 
-          await agenciesService.updateAgencyById(ensuredAgency.id, {
-            name: trimmedAgencyName,
-          });
+          const updatedAgency = await agenciesService.updateAgencyById(
+            ensuredAgency.id,
+            {
+              name: trimmedAgencyName,
+            },
+          );
+
+          syncedAgency = updatedAgency ?? ensuredAgency;
+          shareAgencyAcrossCaches(syncedAgency);
         } catch (syncError) {
           console.error(
             "[AccountSettings] Failed to sync agency name",
             syncError,
           );
         }
+      } else if (profileId && normalizedRole !== "agent") {
+        queryClient.setQueryData(queryKeys.ownedAgency(profileId), null);
+        queryClient.setQueryData(queryKeys.agencyByOwner(profileId), null);
+      }
+
+      const computedNewSlug =
+        normalizedRole === "agent"
+          ? nextAgencySlug ??
+            (trimmedAgencyName ? agencyNameToSlug(trimmedAgencyName) : null)
+          : null;
+
+      if (user.id) {
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.profile(user.id),
+        });
+      }
+
+      if (profileId) {
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.ownedAgency(profileId),
+        });
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.agencyByOwner(profileId),
+        });
+      }
+
+      if (previousAgencySlug) {
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.agencyBySlug(previousAgencySlug),
+        });
+      }
+
+      const slugToInvalidate =
+        syncedAgency?.slug ?? computedNewSlug ?? nextAgencySlug;
+      if (slugToInvalidate) {
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.agencyBySlug(slugToInvalidate),
+        });
       }
 
       // Clear message after 3 seconds
