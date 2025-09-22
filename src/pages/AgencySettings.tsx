@@ -64,6 +64,7 @@ export function AgencySettings() {
   const isAdmin = profile?.is_admin === true;
   const isAgent = profile?.role === "agent";
   const canAccessSettings = isAdmin || isAgent;
+  const canManageAgency = isAdmin || profile?.can_manage_agency === true;
 
   const [agency, setAgency] = useState<Agency | null>(null);
   const [formState, setFormState] = useState<FormState>({
@@ -168,16 +169,25 @@ export function AgencySettings() {
     setError(null);
 
     try {
-      const data = await agenciesService.getAgencyOwnedByProfile(profileId);
-      setAgency(data);
+      const ensuredAgency = canManageAgency
+        ? await agenciesService.ensureAgencyForOwner(profileId)
+        : await agenciesService.getAgencyOwnedByProfile(profileId);
 
-      const nextState = buildFormState(data ?? null);
+      const nextAgency = ensuredAgency ?? null;
+
+      setAgency(nextAgency);
+
+      const nextState = buildFormState(nextAgency);
 
       initialEditorSyncRef.current = false;
       setFormState(nextState);
       setNameError(null);
     } catch (err) {
-      console.error("Error loading agency settings:", err);
+      if (canManageAgency) {
+        console.error("[AgencySettings] ensureAgencyForOwner failed", err);
+      } else {
+        console.error("Error loading agency settings:", err);
+      }
       setAgency(null);
       setNameError(null);
       initialEditorSyncRef.current = false;
@@ -186,7 +196,7 @@ export function AgencySettings() {
     } finally {
       setLoading(false);
     }
-  }, [buildFormState, profileId]);
+  }, [buildFormState, canManageAgency, profileId]);
 
   useEffect(() => {
     if (!canAccessSettings) {
@@ -465,30 +475,12 @@ export function AgencySettings() {
       return;
     }
 
-    const trimmedName = formState.name.trim();
-    if (!trimmedName) {
-      setError("Agency name is required.");
-      return;
-    }
-
     setSaving(true);
     setError(null);
     setSuccess(null);
-    setNameError(null);
 
     try {
-      const availability = await agenciesService.checkAgencyNameAvailable(
-        trimmedName,
-        agency.id,
-      );
-
-      if (!availability.available) {
-        setNameError(DUPLICATE_AGENCY_NAME_MESSAGE);
-        return;
-      }
-
       const payload = {
-        name: trimmedName,
         logo_url: toNullable(formState.logo_url),
         banner_url: toNullable(formState.banner_url),
         phone: toNullable(formState.phone),
@@ -509,19 +501,14 @@ export function AgencySettings() {
 
       initialEditorSyncRef.current = false;
       setFormState(nextState);
-      setNameError(null);
       setSuccess("Agency profile updated successfully.");
     } catch (err) {
       console.error("Error saving agency settings:", err);
-      if (isAgencyNameTakenError(err)) {
-        setNameError(DUPLICATE_AGENCY_NAME_MESSAGE);
-      } else {
-        setError(
-          err instanceof Error
-            ? err.message
-            : "Failed to save agency settings. Please try again.",
-        );
-      }
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Failed to save agency settings. Please try again.",
+      );
     } finally {
       setSaving(false);
     }
@@ -728,18 +715,15 @@ export function AgencySettings() {
               </label>
               <input
                 type="text"
-                value={formState.name}
-                onChange={handleInputChange("name")}
-                className="w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-[#273140] focus:outline-none focus:ring-2 focus:ring-[#273140]/20"
-                placeholder="Agency name"
-                maxLength={120}
+                value={agency?.name ?? formState.name}
+                readOnly
+                disabled
+                className="w-full rounded-md border border-gray-200 bg-gray-100 px-3 py-2 text-gray-700 shadow-sm"
               />
-              {nameError && (
-                <p className="mt-2 text-sm text-red-600">{nameError}</p>
-              )}
               <p className="mt-1 text-sm text-gray-500">
                 This name appears at the top of your public agency page.
               </p>
+              <p className="mt-1 text-sm text-gray-500">Managed in Account Settings.</p>
             </div>
 
             <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
