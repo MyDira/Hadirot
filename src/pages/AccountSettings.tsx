@@ -104,12 +104,13 @@ export function AccountSettings() {
 
     try {
       let nextAgency: string | null = null;
+      let trimmedAgencyName: string | null = null;
 
       if (profileData.role === "agent") {
-        const trimmedAgencyName = profileData.agency.trim();
+        const candidateName = profileData.agency.trim();
 
-        if (trimmedAgencyName) {
-          const nextSlug = agencyNameToSlug(trimmedAgencyName);
+        if (candidateName) {
+          const nextSlug = agencyNameToSlug(candidateName);
 
           if (!nextSlug) {
             setMessage({
@@ -127,7 +128,7 @@ export function AccountSettings() {
             try {
               const availability =
                 await agenciesService.checkAgencyNameAvailable(
-                  trimmedAgencyName,
+                  candidateName,
                 );
 
               if (!availability.available) {
@@ -147,7 +148,8 @@ export function AccountSettings() {
             }
           }
 
-          nextAgency = trimmedAgencyName;
+          nextAgency = candidateName;
+          trimmedAgencyName = candidateName;
         }
       }
 
@@ -165,6 +167,31 @@ export function AccountSettings() {
       if (error) throw error;
 
       setMessage({ type: "success", text: "Profile updated successfully!" });
+
+      const profileId = profile?.id ?? null;
+      const canManageAgency = profile?.can_manage_agency === true;
+
+      if (
+        profileData.role === "agent" &&
+        canManageAgency &&
+        trimmedAgencyName &&
+        profileId
+      ) {
+        try {
+          const ensuredAgency = await agenciesService.ensureAgencyForOwner(
+            profileId,
+          );
+
+          await agenciesService.updateAgencyById(ensuredAgency.id, {
+            name: trimmedAgencyName,
+          });
+        } catch (syncError) {
+          console.error(
+            "[AccountSettings] Failed to sync agency name",
+            syncError,
+          );
+        }
+      }
 
       // Clear message after 3 seconds
       setTimeout(() => setMessage(null), 3000);
