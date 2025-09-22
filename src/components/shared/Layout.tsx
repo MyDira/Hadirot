@@ -104,8 +104,11 @@ export function Layout({ children }: LayoutProps) {
     let isActive = true;
 
     const profileId = profile?.id;
+    const hasManagementAccess = Boolean(
+      profile?.is_admin || profile?.can_manage_agency,
+    );
 
-    if (!profileId) {
+    if (!profileId || !hasManagementAccess) {
       setOwnedAgency(null);
       return () => {
         isActive = false;
@@ -131,7 +134,7 @@ export function Layout({ children }: LayoutProps) {
     return () => {
       isActive = false;
     };
-  }, [profile?.id]);
+  }, [profile?.id, profile?.can_manage_agency, profile?.is_admin]);
 
   const agencyName = ownedAgency?.name?.trim() ?? "";
   const agencySlug = ownedAgency?.slug ?? null;

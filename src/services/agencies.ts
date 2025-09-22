@@ -170,6 +170,30 @@ export const agenciesService = {
     return mapAgencyRow(data ?? null);
   },
 
+  async ensureAgencyForOwner(profileId: string): Promise<Agency> {
+    if (!profileId) {
+      throw new Error("Agency owner is required");
+    }
+
+    const { data, error } = await supabase.rpc<Agency>(
+      "ensure_agency_for_owner",
+      { p_owner: profileId },
+    );
+
+    if (error) {
+      console.error("[svc] ensureAgencyForOwner error", error);
+      throw error;
+    }
+
+    const ensuredAgency = mapAgencyRow(data);
+
+    if (!ensuredAgency) {
+      throw new Error("Failed to ensure agency for owner");
+    }
+
+    return ensuredAgency;
+  },
+
   async createAgencyForOwner(
     payload: AgencyOwnerCreateInput,
   ): Promise<Agency | null> {

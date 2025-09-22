@@ -2,6 +2,7 @@ import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { Users, FileText, Settings, Eye, Check, X, Trash2, ChevronLeft, Shield, TrendingUp, Home, Star, Power, ChevronDown, Search, ChevronRight, BarChart3 } from 'lucide-react';
 import { listingsService } from '../services/listings';
+import { agenciesService } from '../services/agencies';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase, Profile, Listing } from '../config/supabase';
 import { formatPhoneForDisplay } from '@/utils/phone';
@@ -454,6 +455,17 @@ export function AdminPanel() {
 
       if (error) {
         throw error;
+      }
+
+      if (nextValue) {
+        try {
+          await agenciesService.ensureAgencyForOwner(targetUser.id);
+        } catch (ensureError) {
+          console.error(
+            '[admin] ensureAgencyForOwner failed',
+            ensureError,
+          );
+        }
       }
 
       setToast({ message: 'Agency Access updated', tone: 'success' });
