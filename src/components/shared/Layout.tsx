@@ -19,8 +19,7 @@ import {
   Paintbrush,
 } from "lucide-react";
 import { useAuth, AUTH_CONTEXT_ID } from "@/hooks/useAuth";
-import { usePageTracking } from "../../hooks/usePageTracking";
-import { useAnalyticsAuth } from "../../lib/analytics";
+import { useAnalyticsInit } from "@/hooks/useAnalyticsInit";
 import { Footer } from "./Footer";
 import { capitalizeName } from "../../utils/formatters";
 import { supabase, type Agency } from "@/config/supabase";
@@ -39,8 +38,7 @@ export function Layout({ children }: LayoutProps) {
   const { user, profile, signOut, loading, authContextId } = useAuth();
   
   // Initialize analytics tracking
-  usePageTracking();
-  useAnalyticsAuth();
+  useAnalyticsInit();
   
   const navigate = useNavigate();
   const location = useLocation();
