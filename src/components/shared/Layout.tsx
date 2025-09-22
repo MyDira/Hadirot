@@ -23,8 +23,13 @@ import { usePageTracking } from "../../hooks/usePageTracking";
 import { useAnalyticsAuth } from "../../lib/analytics";
 import { Footer } from "./Footer";
 import { capitalizeName } from "../../utils/formatters";
-import type { Agency } from "@/config/supabase";
+import { supabase, type Agency } from "@/config/supabase";
 import { agenciesService } from "@/services/agencies";
+import {
+  queryClient,
+  queryKeys,
+  shareAgencyAcrossCaches,
+} from "@/services/queryClient";
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -101,8 +106,6 @@ export function Layout({ children }: LayoutProps) {
   }, [loading, user, profile, authContextId]);
 
   useEffect(() => {
-    let isActive = true;
-
     const profileId = profile?.id;
     const hasManagementAccess = Boolean(
       profile?.is_admin || profile?.can_manage_agency,
@@ -110,31 +113,112 @@ export function Layout({ children }: LayoutProps) {
 
     if (!profileId || !hasManagementAccess) {
       setOwnedAgency(null);
-      return () => {
-        isActive = false;
-      };
+      if (profile?.id) {
+        queryClient.setQueryData(queryKeys.ownedAgency(profile.id), null);
+        queryClient.setQueryData(queryKeys.agencyByOwner(profile.id), null);
+      }
+      return;
     }
 
-    agenciesService
-      .getAgencyOwnedByProfile(profileId)
-      .then((agency) => {
+    let isActive = true;
+    const ownedAgencyKey = queryKeys.ownedAgency(profileId);
+
+    const loadAgency = async () => {
+      try {
+        const agency = await agenciesService.getAgencyOwnedByProfile(profileId);
         if (!isActive) {
           return;
         }
         setOwnedAgency(agency);
-      })
-      .catch((error) => {
+        queryClient.setQueryData(ownedAgencyKey, agency);
+        queryClient.setQueryData(queryKeys.agencyByOwner(profileId), agency);
+        if (agency?.slug) {
+          queryClient.setQueryData(queryKeys.agencyBySlug(agency.slug), agency);
+        }
+      } catch (error) {
         if (!isActive) {
           return;
         }
         console.error("[Layout] failed to load owned agency", error);
         setOwnedAgency(null);
-      });
+        queryClient.setQueryData(ownedAgencyKey, null);
+        queryClient.setQueryData(queryKeys.agencyByOwner(profileId), null);
+      }
+    };
+
+    const handleCacheUpdate = (cached?: Agency | null) => {
+      if (!isActive) {
+        return;
+      }
+      if (cached === undefined) {
+        void loadAgency();
+        return;
+      }
+      setOwnedAgency(cached ?? null);
+    };
+
+    const cachedValue = queryClient.getQueryData<Agency | null>(ownedAgencyKey);
+    if (cachedValue !== undefined) {
+      setOwnedAgency(cachedValue ?? null);
+    } else {
+      void loadAgency();
+    }
+
+    const unsubscribe = queryClient.subscribe<Agency | null>(
+      ownedAgencyKey,
+      handleCacheUpdate,
+    );
 
     return () => {
       isActive = false;
+      unsubscribe();
     };
   }, [profile?.id, profile?.can_manage_agency, profile?.is_admin]);
+
+  useEffect(() => {
+    const agencyId = ownedAgency?.id;
+
+    if (!agencyId) {
+      return;
+    }
+
+    const channel = supabase
+      .channel(`agency-updates-${agencyId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "agencies",
+          filter: `id=eq.${agencyId}`,
+        },
+        (payload) => {
+          const newAgency = (payload.new ?? null) as Agency | null;
+          const oldAgency = (payload.old ?? null) as Agency | null;
+
+          if (newAgency) {
+            shareAgencyAcrossCaches(newAgency);
+            setOwnedAgency((current) => {
+              if (!current || current.id !== newAgency.id) {
+                return newAgency;
+              }
+              return { ...current, ...newAgency };
+            });
+          }
+
+          if (oldAgency?.slug && oldAgency.slug !== newAgency?.slug) {
+            queryClient.invalidateQueries({
+              queryKey: queryKeys.agencyBySlug(oldAgency.slug),
+            });
+          }
+        },
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [ownedAgency?.id]);
 
   const agencyName = ownedAgency?.name?.trim() ?? "";
   const agencySlug = ownedAgency?.slug ?? null;
