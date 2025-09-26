@@ -1,434 +1,549 @@
-import React from 'react';
-import { useAuth } from '@/hooks/useAuth';
-import { supabase } from '@/config/supabase';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import type { AnalyticsEventName, AnalyticsEventPayload } from './analytics.types';
 
-// Simple debug flag controlled by env (off by default)
-// Vite exposes env vars on import.meta.env
 const ANALYTICS_DEBUG = ((import.meta as any)?.env?.VITE_ANALYTICS_DEBUG ?? 'false') === 'true';
 const SUPABASE_URL = ((import.meta as any)?.env?.VITE_SUPABASE_URL) as string | undefined;
-const TRACK_FN_URL = SUPABASE_URL ? `${SUPABASE_URL}/functions/v1/track` : undefined;
+const TRACK_ENDPOINT = SUPABASE_URL ? `${SUPABASE_URL.replace(/\/$/, '')}/functions/v1/track` : null;
 
-interface TrackProperties {
-  [key: string]: any;
+const ANON_ID_KEY = 'ha_anon_id';
+const SESSION_ID_KEY = 'ha_session_id';
+const LAST_ACTIVITY_KEY = 'ha_session_last_activity';
+const SESSION_FLAG_PREFIX = 'ha_flag:';
+const POST_ATTEMPT_KEY = 'ha_post_attempt';
+const POST_ATTEMPT_SESSION_KEY = 'ha_post_attempt_session';
+
+const IDLE_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
+const FLUSH_INTERVAL_MS = 3000; // 3 seconds
+const FLUSH_BATCH_SIZE = 20;
+
+type PendingEvent = AnalyticsEventPayload;
+
+let supabaseClient: SupabaseClient | null = null;
+let initialized = false;
+let flushTimer: number | null = null;
+let cachedAnonId: string | null = null;
+let currentSessionId: string | null = null;
+let lastActivityMs = 0;
+let currentUserId: string | null = null;
+const eventQueue: PendingEvent[] = [];
+const sessionFlags = new Set<string>();
+
+function isBrowser(): boolean {
+  return typeof window !== 'undefined' && typeof document !== 'undefined';
 }
 
-interface SessionData {
-  session_id: string;
-}
-
-class AnalyticsTracker {
-  private sessionData: SessionData | null = null;
-  private utmSentFallback = new Map<string, boolean>();
-  private postingSessionId: string | null = null;
-  private postingFlags = new Set<string>();
-
-  private sessionGet(key: string): string | null {
-    try {
-      return sessionStorage.getItem(key);
-    } catch {
-      return null;
-    }
-  }
-
-  private sessionSet(key: string, value: string): void {
-    try {
-      sessionStorage.setItem(key, value);
-    } catch {
-      /* ignore */
-    }
-  }
-
-  private sessionRemove(key: string): void {
-    try {
-      sessionStorage.removeItem(key);
-    } catch {
-      /* ignore */
-    }
-  }
-
-  private hasFlag(key: string): boolean {
-    return this.postingFlags.has(key) || this.sessionGet(key) === 'true';
-  }
-
-  private setFlag(key: string): void {
-    this.postingFlags.add(key);
-    this.sessionSet(key, 'true');
-  }
-
-  private clearFlag(key: string): void {
-    this.postingFlags.delete(key);
-    this.sessionRemove(key);
-  }
-
-  private flagKey(flag: string, id: string): string {
-    return `posting_${flag}_${id}`;
-  }
-
-  private getSessionData(): SessionData {
-    if (this.sessionData) {
-      return this.sessionData;
-    }
-
-    // Try to load existing session from localStorage
-    try {
-      const stored = localStorage.getItem('analytics_session');
-      if (stored) {
-        this.sessionData = JSON.parse(stored);
-        if (this.sessionData?.session_id) {
-          return this.sessionData;
-        }
-      }
-    } catch (error) {
-      console.warn('Failed to load analytics session from localStorage:', error);
-    }
-
-    // Generate new session
-    const session_id = crypto.randomUUID();
-
-    this.sessionData = {
-      session_id,
-    };
-
-    // Persist to localStorage
-    try {
-      localStorage.setItem('analytics_session', JSON.stringify(this.sessionData));
-    } catch (error) {
-      console.warn('Failed to save analytics session to localStorage:', error);
-    }
-
-    return this.sessionData;
-  }
-
-  private getCurrentUserId(): string | undefined {
-    // This is a bit tricky since we can't use hooks here
-    // We'll need to access the auth state differently
-    try {
-      // Try to get user from the auth context if available
-      const authData = (window as any).__auth_user_id;
-      return authData || undefined;
-    } catch {
-      return undefined;
-    }
-  }
-
-  async track(eventName: string, properties: TrackProperties = {}): Promise<void> {
-    try {
-      const sessionData = this.getSessionData();
-      const userId = this.getCurrentUserId();
-
-      // Prepare base event data
-      const eventData = {
-        event_name: eventName,
-        session_id: sessionData.session_id,
-        user_id: userId,
-        page: window.location.pathname,
-        referrer: document.referrer || undefined,
-        props: {
-          ...properties,
-          schema_version: 1,
-        },
-      };
-
-      if (ANALYTICS_DEBUG) {
-        console.log('[analytics] emit', eventName, properties);
-      }
-
-      // Attach UTM parameters only on first page_view of the session
-      if (eventName === 'page_view') {
-        const flagKey = `had_utm_sent_v1:${sessionData.session_id}`;
-        let utmAlreadySent = false;
-        try {
-          utmAlreadySent = localStorage.getItem(flagKey) === '1';
-        } catch {
-          utmAlreadySent = this.utmSentFallback.get(sessionData.session_id) === true;
-        }
-
-        if (!utmAlreadySent) {
-          const urlParams = new URLSearchParams(window.location.search);
-          const utmKeys = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term'];
-          const utmParams: Record<string, string> = {};
-
-          for (const key of utmKeys) {
-            const value = urlParams.get(key);
-            if (value) {
-              utmParams[key] = value;
-            }
-          }
-
-          if (Object.keys(utmParams).length > 0) {
-            eventData.props.attribution = utmParams;
-          }
-
-          try {
-            localStorage.setItem(flagKey, '1');
-          } catch {
-            this.utmSentFallback.set(sessionData.session_id, true);
-          }
-        }
-      }
-
-      // Send to Edge Function using Supabase client
-      const { data, error } = await supabase.functions.invoke('track', {
-        body: eventData,
-      });
-
-      if (error) {
-        console.debug('[analytics.track] error (swallowed):', error);
-        return;
-      }
-
-      if (data?.skipped) {
-        console.log('Analytics event skipped:', data.skipped);
-      }
-    } catch (error) {
-      console.warn('Analytics tracking error:', error);
-      // Don't throw - analytics failures shouldn't break the app
-    }
-  }
-
-  private beacon(eventName: string, properties: TrackProperties = {}): void {
-    try {
-      if (!TRACK_FN_URL) return;
-      const sessionData = this.getSessionData();
-      const userId = this.getCurrentUserId();
-      const eventData = {
-        event_name: eventName,
-        session_id: sessionData.session_id,
-        user_id: userId,
-        page: window.location.pathname,
-        referrer: document.referrer || undefined,
-        props: {
-          ...properties,
-          schema_version: 1,
-        },
-      };
-      const payload = JSON.stringify(eventData);
-
-      if (ANALYTICS_DEBUG) {
-        console.log('[analytics] beacon', eventName, properties);
-      }
-
-      if (navigator.sendBeacon) {
-        navigator.sendBeacon(TRACK_FN_URL, payload);
-      } else {
-        fetch(TRACK_FN_URL, {
-          method: 'POST',
-          body: payload,
-          headers: { 'Content-Type': 'text/plain' },
-          keepalive: true,
-        }).catch(() => {});
-      }
-    } catch (err) {
-      console.debug('[analytics.beacon] error (swallowed):', err);
-    }
-  }
-
-  // Specialized methods for common events
-  async trackPageView(): Promise<void> {
-    await this.track('page_view');
-  }
-
-  async trackListingView(listingId: string): Promise<void> {
-    // Prevent duplicate tracking within the same session
-    const viewKey = `listing_view_tracked_${listingId}`;
-    const hasTracked = this.sessionGet(viewKey);
-
-    if (!hasTracked) {
-      await this.track('listing_view', { listing_id: listingId });
-      this.sessionSet(viewKey, 'true');
-    }
-  }
-
-  async trackAgencyPageView(agencyId: string, slug?: string): Promise<void> {
-    if (!agencyId) {
-      return;
-    }
-
-    const viewKey = `agency_page_view_tracked_${agencyId}`;
-    if (this.sessionGet(viewKey)) {
-      return;
-    }
-
-    const props: Record<string, any> = { agency_id: agencyId };
-    if (slug) {
-      props.agency_slug = slug;
-    }
-
-    await this.track('agency_page_view', props);
-    this.sessionSet(viewKey, 'true');
-  }
-
-  async trackListingImpressionBatch(listingIds: string[]): Promise<void> {
-    if (!listingIds.length) return;
-
-    const newIds = listingIds.filter((id) => !this.sessionGet(`listing_impression_${id}`));
-    if (!newIds.length) return;
-
-    await this.track('listing_impression_batch', { ids: newIds });
-    newIds.forEach((id) => this.sessionSet(`listing_impression_${id}`, 'true'));
-  }
-
-  async trackFilterApply(filters: Record<string, any>): Promise<void> {
-    // Standardize filter properties
-    const standardizedFilters: Record<string, any> = {};
-    
-    if (filters.bedrooms !== undefined) standardizedFilters.beds = filters.bedrooms;
-    if (filters.min_price !== undefined) standardizedFilters.price_min = filters.min_price;
-    if (filters.max_price !== undefined) standardizedFilters.price_max = filters.max_price;
-    if (filters.neighborhoods) standardizedFilters.neighborhood = filters.neighborhoods;
-    if (filters.poster_type) standardizedFilters.role = filters.poster_type;
-    if (filters.property_type) standardizedFilters.property_type = filters.property_type;
-    if (filters.parking_included) standardizedFilters.parking_included = filters.parking_included;
-    if (filters.no_fee_only) standardizedFilters.no_fee_only = filters.no_fee_only;
-
-    await this.track('filter_apply', { filters: standardizedFilters });
-  }
-
-  async trackSearchQuery(query: string): Promise<void> {
-    await this.track('search_query', { q: query });
-  }
-
-  // Post funnel tracking with state management
-  private getPostingSessionId(): string | null {
-    if (this.postingSessionId) return this.postingSessionId;
-    const id = this.sessionGet('posting_session_id');
-    this.postingSessionId = id;
-    return id;
-  }
-
-  private ensurePostingSession(): string {
-    let id = this.getPostingSessionId();
-    if (!id) {
-      id = Date.now().toString();
-      this.postingSessionId = id;
-      this.sessionSet('posting_session_id', id);
-    }
-    return id;
-  }
-
-  // Allow external callers to initialize a posting attempt without
-  // emitting any events (e.g., first interaction before we know if the
-  // user has a draft). Returns the current attempt id.
-  initPostingAttempt(): string {
-    return this.ensurePostingSession();
-  }
-
-  private clearPostingSession(): void {
-    const id = this.getPostingSessionId();
-    if (id) {
-      ['started', 'submitted', 'succeeded', 'abandoned'].forEach((flag) =>
-        this.clearFlag(this.flagKey(flag, id!)),
-      );
-      this.sessionRemove('posting_session_id');
-    }
-    this.postingSessionId = null;
-  }
-
-  async trackPostStart(): Promise<void> {
-    const sessionId = this.ensurePostingSession();
-    const startedKey = this.flagKey('started', sessionId);
-    if (!this.hasFlag(startedKey)) {
-      if (ANALYTICS_DEBUG) console.log('[analytics] post_start');
-      this.setFlag(startedKey);
-      ['succeeded', 'submitted', 'abandoned'].forEach((flag) =>
-        this.clearFlag(this.flagKey(flag, sessionId)),
-      );
-      await this.track('listing_post_start', { attempt_id: sessionId });
-    }
-  }
-
-  async trackPostSubmit(): Promise<void> {
-    const sessionId = this.ensurePostingSession();
-    const submitKey = this.flagKey('submitted', sessionId);
-    if (!this.hasFlag(submitKey)) {
-      if (ANALYTICS_DEBUG) console.log('[analytics] post_submit');
-      this.setFlag(submitKey);
-      await this.track('listing_post_submit', { attempt_id: sessionId });
-    }
-  }
-
-  async trackPostSuccess(listingId: string): Promise<void> {
-    const sessionId = this.getPostingSessionId();
-    if (!sessionId) return;
-    const successKey = this.flagKey('succeeded', sessionId);
-    if (!this.hasFlag(successKey)) {
-      if (ANALYTICS_DEBUG) console.log('[analytics] post_success');
-      this.setFlag(successKey);
-      await this.track('listing_post_success', { listing_id: listingId, attempt_id: sessionId });
-      this.clearPostingSession();
-    }
-  }
-
-  async trackPostAbandoned(): Promise<void> {
-    const sessionId = this.getPostingSessionId();
-    if (!sessionId) return;
-    const started = this.hasFlag(this.flagKey('started', sessionId));
-    const succeeded = this.hasFlag(this.flagKey('succeeded', sessionId));
-    const abandonedKey = this.flagKey('abandoned', sessionId);
-
-    if (started && !succeeded && !this.hasFlag(abandonedKey)) {
-      if (ANALYTICS_DEBUG) console.log('[analytics] post_abandoned');
-      this.setFlag(abandonedKey);
-      this.beacon('listing_post_abandoned', { attempt_id: sessionId });
-      this.clearPostingSession();
-    }
-  }
-
-  // Reset posting state (useful for cleanup)
-  resetPostingState(): void {
-    this.clearPostingSession();
+function safeLocalGet(key: string): string | null {
+  if (!isBrowser()) return null;
+  try {
+    return window.localStorage.getItem(key);
+  } catch {
+    return null;
   }
 }
 
-// Create singleton instance
-const analytics = new AnalyticsTracker();
-
-// Export the main track function and specialized methods
-export const track = analytics.track.bind(analytics);
-export const trackEvent = analytics.track.bind(analytics); // Alias for compatibility
-export const trackPageView = analytics.trackPageView.bind(analytics);
-export const trackListingView = analytics.trackListingView.bind(analytics);
-export const trackListingImpressionBatch = analytics.trackListingImpressionBatch.bind(analytics);
-export const trackFilterApply = analytics.trackFilterApply.bind(analytics);
-export const trackSearchQuery = analytics.trackSearchQuery.bind(analytics);
-export const trackAgencyPageView = analytics.trackAgencyPageView.bind(analytics);
-export const ensurePostAttempt = analytics.initPostingAttempt.bind(analytics);
-export const trackPostStart = analytics.trackPostStart.bind(analytics);
-export const trackPostSubmit = analytics.trackPostSubmit.bind(analytics);
-export const trackPostSuccess = analytics.trackPostSuccess.bind(analytics);
-export const trackPostAbandoned = analytics.trackPostAbandoned.bind(analytics);
-export const resetPostingState = analytics.resetPostingState.bind(analytics);
-
-// Hook to provide user ID to analytics
-export function useAnalyticsAuth() {
-  const { user } = useAuth();
-  
-  React.useEffect(() => {
-    // Store user ID globally so analytics can access it
-    (window as any).__auth_user_id = user?.id;
-    
-    return () => {
-      (window as any).__auth_user_id = undefined;
-    };
-  }, [user?.id]);
+function safeLocalSet(key: string, value: string): void {
+  if (!isBrowser()) return;
+  try {
+    window.localStorage.setItem(key, value);
+  } catch {
+    // ignore persistence failures
+  }
 }
 
-// Setup page hide tracking for post abandonment (bind once)
-let postingListenersBound = false;
-if (typeof window !== 'undefined' && !postingListenersBound) {
-  postingListenersBound = true;
-  const handlePageHide = () => {
-    analytics.trackPostAbandoned();
+function safeSessionGet(key: string): string | null {
+  if (!isBrowser()) return null;
+  try {
+    return window.sessionStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function safeSessionSet(key: string, value: string): void {
+  if (!isBrowser()) return;
+  try {
+    window.sessionStorage.setItem(key, value);
+  } catch {
+    // ignore
+  }
+}
+
+function safeSessionRemove(key: string): void {
+  if (!isBrowser()) return;
+  try {
+    window.sessionStorage.removeItem(key);
+  } catch {
+    // ignore
+  }
+}
+
+function readLastActivity(): number | null {
+  const value = safeSessionGet(LAST_ACTIVITY_KEY);
+  if (!value) return null;
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function persistLastActivity(ms: number): void {
+  safeSessionSet(LAST_ACTIVITY_KEY, String(ms));
+}
+
+function getAnonId(): string {
+  if (cachedAnonId) return cachedAnonId;
+  const stored = safeLocalGet(ANON_ID_KEY);
+  if (stored) {
+    cachedAnonId = stored;
+    return stored;
+  }
+  const id = crypto.randomUUID();
+  cachedAnonId = id;
+  safeLocalSet(ANON_ID_KEY, id);
+  return id;
+}
+
+function getStoredSessionId(): string | null {
+  return currentSessionId ?? safeSessionGet(SESSION_ID_KEY);
+}
+
+function setSessionId(id: string): void {
+  currentSessionId = id;
+  safeSessionSet(SESSION_ID_KEY, id);
+}
+
+function clearSessionState(): void {
+  safeSessionRemove(SESSION_ID_KEY);
+  safeSessionRemove(LAST_ACTIVITY_KEY);
+  safeSessionRemove(POST_ATTEMPT_KEY);
+  safeSessionRemove(POST_ATTEMPT_SESSION_KEY);
+  clearSessionScopedFlags();
+  currentSessionId = null;
+  lastActivityMs = 0;
+}
+
+function clearSessionScopedFlags(): void {
+  if (!isBrowser()) return;
+  try {
+    const keys: string[] = [];
+    for (let i = 0; i < window.sessionStorage.length; i += 1) {
+      const key = window.sessionStorage.key(i);
+      if (key && key.startsWith(SESSION_FLAG_PREFIX)) {
+        keys.push(key);
+      }
+    }
+    keys.forEach((key) => window.sessionStorage.removeItem(key));
+  } catch {
+    // ignore
+  }
+  sessionFlags.clear();
+}
+
+function getFlag(key: string): boolean {
+  if (sessionFlags.has(key)) return true;
+  const stored = safeSessionGet(key);
+  if (stored === '1') {
+    sessionFlags.add(key);
+    return true;
+  }
+  return false;
+}
+
+function setFlag(key: string): void {
+  sessionFlags.add(key);
+  safeSessionSet(key, '1');
+}
+
+function clearFlag(key: string): void {
+  sessionFlags.delete(key);
+  safeSessionRemove(key);
+}
+
+function enqueueEvent(
+  sessionId: string,
+  eventName: AnalyticsEventName,
+  props: Record<string, unknown> = {},
+  occurredAt?: string,
+): void {
+  const payload: PendingEvent = {
+    session_id: sessionId,
+    anon_id: getAnonId(),
+    user_id: currentUserId,
+    event_name: eventName,
+    event_props: props ?? {},
+    occurred_at: occurredAt ?? new Date().toISOString(),
   };
 
-  const handleVisibilityChange = () => {
+  eventQueue.push(payload);
+
+  if (ANALYTICS_DEBUG) {
+    console.log('[analytics] queue', eventName, props);
+  }
+
+  if (eventQueue.length >= FLUSH_BATCH_SIZE) {
+    void flushEvents();
+  }
+}
+
+async function flushEvents(options: { useKeepalive?: boolean } = {}): Promise<void> {
+  if (!eventQueue.length) {
+    return;
+  }
+
+  const events = eventQueue.splice(0, eventQueue.length);
+  const body = { events };
+
+  try {
+    if (options.useKeepalive && typeof navigator !== 'undefined' && navigator.sendBeacon && TRACK_ENDPOINT) {
+      const payload = JSON.stringify(body);
+      const success = navigator.sendBeacon(TRACK_ENDPOINT, payload);
+      if (!success) {
+        throw new Error('sendBeacon rejected payload');
+      }
+      return;
+    }
+
+    if (!supabaseClient) {
+      throw new Error('Supabase client not ready');
+    }
+
+    const fetchOptions = options.useKeepalive ? { keepalive: true } : undefined;
+    const { error } = await supabaseClient.functions.invoke('track', {
+      body,
+      fetchOptions,
+    });
+
+    if (error) {
+      throw error;
+    }
+  } catch (error) {
+    // Put events back at the front of the queue so they are retried later
+    eventQueue.unshift(...events);
+    if (ANALYTICS_DEBUG) {
+      console.warn('[analytics] flush failed', error);
+    }
+  }
+}
+
+function startFlushTimer(): void {
+  if (!isBrowser() || flushTimer !== null) {
+    return;
+  }
+  flushTimer = window.setInterval(() => {
+    void flushEvents();
+  }, FLUSH_INTERVAL_MS);
+}
+
+function stopFlushTimer(): void {
+  if (flushTimer !== null && isBrowser()) {
+    window.clearInterval(flushTimer);
+    flushTimer = null;
+  }
+}
+
+function emitSessionBoundary(eventName: 'session_start' | 'session_end', sessionId: string, timestampMs: number): void {
+  enqueueEvent(sessionId, eventName, {}, new Date(timestampMs).toISOString());
+}
+
+function ensureSession(nowMs: number = Date.now()): string {
+  if (!isBrowser()) {
+    if (!currentSessionId) {
+      currentSessionId = crypto.randomUUID();
+    }
+    return currentSessionId;
+  }
+
+  if (!currentSessionId) {
+    const storedId = getStoredSessionId();
+    if (storedId) {
+      currentSessionId = storedId;
+      const storedActivity = readLastActivity();
+      if (storedActivity) {
+        lastActivityMs = storedActivity;
+      }
+    }
+  }
+
+  if (currentSessionId && lastActivityMs && nowMs - lastActivityMs >= IDLE_TIMEOUT_MS) {
+    emitSessionBoundary('session_end', currentSessionId, lastActivityMs);
+    clearSessionState();
+  }
+
+  if (!currentSessionId) {
+    const newId = crypto.randomUUID();
+    setSessionId(newId);
+    lastActivityMs = nowMs;
+    persistLastActivity(nowMs);
+    emitSessionBoundary('session_start', newId, nowMs);
+    return newId;
+  }
+
+  lastActivityMs = nowMs;
+  persistLastActivity(nowMs);
+  return currentSessionId;
+}
+
+function handleActivity(): void {
+  ensureSession(Date.now());
+}
+
+function bindLifecycleListeners(): void {
+  if (!isBrowser()) {
+    return;
+  }
+
+  const activityEvents: (keyof DocumentEventMap | keyof WindowEventMap)[] = [
+    'click',
+    'keydown',
+    'scroll',
+    'visibilitychange',
+  ];
+
+  activityEvents.forEach((eventName) => {
+    window.addEventListener(eventName, handleActivity, { passive: true });
+  });
+
+  window.addEventListener('beforeunload', () => {
+    void flushEvents({ useKeepalive: true });
+  });
+
+  window.addEventListener('pagehide', () => {
+    void flushEvents({ useKeepalive: true });
+  });
+
+  document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'hidden') {
-      analytics.trackPostAbandoned();
+      void flushEvents({ useKeepalive: true });
+    } else {
+      handleActivity();
     }
-  };
-
-  window.addEventListener('pagehide', handlePageHide);
-  document.addEventListener('visibilitychange', handleVisibilityChange);
+  });
 }
 
-export default analytics;
+export function initAnalytics(client: SupabaseClient): void {
+  supabaseClient = client;
+  if (!isBrowser()) {
+    return;
+  }
+
+  if (!initialized) {
+    initialized = true;
+    ensureSession(Date.now());
+    bindLifecycleListeners();
+    startFlushTimer();
+  }
+}
+
+export function setUserId(userId?: string | null): void {
+  currentUserId = userId ?? null;
+}
+
+export function track(eventName: AnalyticsEventName, props: Record<string, unknown> = {}): void {
+  const sessionId = ensureSession(Date.now());
+  enqueueEvent(sessionId, eventName, props);
+}
+
+export function trackPageView(): void {
+  track('page_view', { path: isBrowser() ? window.location.pathname : undefined });
+}
+
+export function trackListingView(listingId: string): void {
+  if (!listingId) return;
+  const sessionId = ensureSession(Date.now());
+  const flagKey = `${SESSION_FLAG_PREFIX}listing_view:${sessionId}:${listingId}`;
+  if (getFlag(flagKey)) {
+    return;
+  }
+  setFlag(flagKey);
+  track('listing_view', { listing_id: listingId });
+}
+
+export function trackAgencyPageView(agencyId: string, slug?: string): void {
+  if (!agencyId) return;
+  const sessionId = ensureSession(Date.now());
+  const flagKey = `${SESSION_FLAG_PREFIX}agency_page_view:${sessionId}:${agencyId}`;
+  if (getFlag(flagKey)) {
+    return;
+  }
+  setFlag(flagKey);
+  const props: Record<string, unknown> = { agency_id: agencyId };
+  if (slug) props.agency_slug = slug;
+  track('agency_page_view', props);
+}
+
+export function trackListingImpressionBatch(listingIds: string[]): void {
+  if (!listingIds.length) return;
+  const sessionId = ensureSession(Date.now());
+  const freshIds = listingIds.filter((id) => {
+    if (!id) return false;
+    const key = `${SESSION_FLAG_PREFIX}listing_impression:${sessionId}:${id}`;
+    if (getFlag(key)) {
+      return false;
+    }
+    setFlag(key);
+    return true;
+  });
+  if (!freshIds.length) return;
+  track('listing_impression_batch', { ids: freshIds });
+}
+
+export function trackFilterApply(filters: Record<string, any>): void {
+  const standardized: Record<string, unknown> = {};
+
+  if (filters.bedrooms !== undefined) standardized.beds = filters.bedrooms;
+  if (filters.min_price !== undefined) standardized.price_min = filters.min_price;
+  if (filters.max_price !== undefined) standardized.price_max = filters.max_price;
+  if (filters.neighborhoods) standardized.neighborhood = filters.neighborhoods;
+  if (filters.poster_type) standardized.role = filters.poster_type;
+  if (filters.property_type) standardized.property_type = filters.property_type;
+  if (filters.parking_included !== undefined) standardized.parking_included = filters.parking_included;
+  if (filters.no_fee_only !== undefined) standardized.no_fee_only = filters.no_fee_only;
+
+  track('filter_apply', { filters: Object.keys(standardized).length ? standardized : filters });
+}
+
+export function trackSearchQuery(query: string): void {
+  if (!query) return;
+  track('search_query', { q: query });
+}
+
+export function trackAgencyFilterApply(filters: Record<string, any>): void {
+  track('agency_filter_apply', { filters });
+}
+
+export function trackAgencyShare(agencyId: string): void {
+  track('agency_share', { agency_id: agencyId });
+}
+
+function getPostingSession(): { attemptId: string; sessionId: string } {
+  const sessionId = ensureSession(Date.now());
+  let attemptId = safeSessionGet(POST_ATTEMPT_KEY);
+  const attemptSession = safeSessionGet(POST_ATTEMPT_SESSION_KEY);
+  if (!attemptId || attemptSession !== sessionId) {
+    attemptId = crypto.randomUUID();
+    safeSessionSet(POST_ATTEMPT_KEY, attemptId);
+    safeSessionSet(POST_ATTEMPT_SESSION_KEY, sessionId);
+    ['started', 'submitted', 'success', 'abandoned'].forEach((flag) => {
+      clearFlag(`${SESSION_FLAG_PREFIX}post:${flag}:${attemptId}`);
+    });
+  }
+  return { attemptId, sessionId };
+}
+
+export function ensurePostAttempt(): string {
+  const { attemptId } = getPostingSession();
+  return attemptId;
+}
+
+export function trackPostStart(): void {
+  const { attemptId } = getPostingSession();
+  const flagKey = `${SESSION_FLAG_PREFIX}post:started:${attemptId}`;
+  if (getFlag(flagKey)) {
+    return;
+  }
+  setFlag(flagKey);
+  clearFlag(`${SESSION_FLAG_PREFIX}post:abandoned:${attemptId}`);
+  clearFlag(`${SESSION_FLAG_PREFIX}post:success:${attemptId}`);
+  track('post_started', { attempt_id: attemptId });
+}
+
+export function trackPostSubmit(): void {
+  const { attemptId } = getPostingSession();
+  const flagKey = `${SESSION_FLAG_PREFIX}post:submitted:${attemptId}`;
+  if (getFlag(flagKey)) {
+    return;
+  }
+  setFlag(flagKey);
+  track('post_submitted', { attempt_id: attemptId });
+}
+
+export function trackPostSuccess(listingId: string): void {
+  const attemptId = safeSessionGet(POST_ATTEMPT_KEY);
+  if (!attemptId) {
+    return;
+  }
+  const flagKey = `${SESSION_FLAG_PREFIX}post:success:${attemptId}`;
+  if (getFlag(flagKey)) {
+    return;
+  }
+  setFlag(flagKey);
+  track('post_success', { listing_id: listingId, attempt_id: attemptId });
+  safeSessionRemove(POST_ATTEMPT_KEY);
+  safeSessionRemove(POST_ATTEMPT_SESSION_KEY);
+}
+
+export function trackPostAbandoned(): void {
+  const attemptId = safeSessionGet(POST_ATTEMPT_KEY);
+  if (!attemptId) {
+    return;
+  }
+  const started = getFlag(`${SESSION_FLAG_PREFIX}post:started:${attemptId}`);
+  const success = getFlag(`${SESSION_FLAG_PREFIX}post:success:${attemptId}`);
+  const abandonedKey = `${SESSION_FLAG_PREFIX}post:abandoned:${attemptId}`;
+
+  if (started && !success && !getFlag(abandonedKey)) {
+    setFlag(abandonedKey);
+    track('post_abandoned', { attempt_id: attemptId });
+    void flushEvents({ useKeepalive: true });
+    safeSessionRemove(POST_ATTEMPT_KEY);
+    safeSessionRemove(POST_ATTEMPT_SESSION_KEY);
+  }
+}
+
+export function resetPostingState(): void {
+  safeSessionRemove(POST_ATTEMPT_KEY);
+  safeSessionRemove(POST_ATTEMPT_SESSION_KEY);
+  if (!isBrowser()) {
+    return;
+  }
+  const keys: string[] = [];
+  for (let i = 0; i < window.sessionStorage.length; i += 1) {
+    const key = window.sessionStorage.key(i);
+    if (key && key.startsWith(`${SESSION_FLAG_PREFIX}post:`)) {
+      keys.push(key);
+    }
+  }
+  keys.forEach((key) => {
+    sessionFlags.delete(key);
+    try {
+      window.sessionStorage.removeItem(key);
+    } catch {
+      // ignore
+    }
+  });
+}
+
+if (isBrowser()) {
+  window.addEventListener('pagehide', () => {
+    trackPostAbandoned();
+  });
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') {
+      trackPostAbandoned();
+    }
+  });
+}
+
+export function shutdownAnalytics(): void {
+  stopFlushTimer();
+  eventQueue.splice(0, eventQueue.length);
+}
+
+export default {
+  initAnalytics,
+  setUserId,
+  track,
+  trackPageView,
+  trackListingView,
+  trackListingImpressionBatch,
+  trackFilterApply,
+  trackSearchQuery,
+  trackAgencyPageView,
+  trackAgencyFilterApply,
+  trackAgencyShare,
+  ensurePostAttempt,
+  trackPostStart,
+  trackPostSubmit,
+  trackPostSuccess,
+  trackPostAbandoned,
+  resetPostingState,
+  shutdownAnalytics,
+};

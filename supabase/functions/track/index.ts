@@ -1,49 +1,63 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { corsHeaders } from '../_shared/cors.ts';
 
-interface TrackRequest {
-  event_name: string;
+type InEvent = {
   session_id: string;
-  user_id?: string;
-  page?: string;
-  referrer?: string;
-  props?: Record<string, any>;
+  anon_id: string;
+  user_id?: string | null;
+  event_name: string;
+  event_props?: Record<string, unknown>;
+  occurred_at?: string;
+};
+
+type NormalizedEvent = {
+  session_id: string;
+  anon_id: string;
+  user_id: string | null;
+  event_name: string;
+  event_props: Record<string, unknown>;
+  occurred_at: string;
+  ua: string | null;
+  ip_hash: string | null;
+};
+
+const MAX_BATCH_SIZE = 50;
+
+function jsonResponse(status: number, body: Record<string, unknown>) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+  });
 }
 
-// Bot detection patterns
-const BOT_PATTERNS = [
-  /bot/i,
-  /spider/i,
-  /crawler/i,
-  /scraper/i,
-  /lighthouse/i,
-  /pagespeed/i,
-  /gtmetrix/i,
-  /pingdom/i,
-  /uptime/i,
-  /monitor/i,
-  /headless/i,
-  /phantom/i,
-  /selenium/i,
-  /webdriver/i,
-  /playwright/i,
-  /puppeteer/i,
-  /cypress/i,
-  /jest/i,
-  /jsdom/i,
-];
+async function parseBody(req: Request): Promise<unknown> {
+  const contentType = req.headers.get('content-type') ?? '';
+  if (!contentType || contentType.includes('text/plain')) {
+    const text = await req.text();
+    if (!text) return null;
+    return JSON.parse(text);
+  }
+  return req.json();
+}
 
-function isBot(userAgent: string): boolean {
-  if (!userAgent) return true;
-  return BOT_PATTERNS.some(pattern => pattern.test(userAgent));
+function coerceEvents(payload: unknown): InEvent[] {
+  if (!payload) return [];
+  if (Array.isArray(payload)) return payload as InEvent[];
+  if (typeof payload === 'object' && payload !== null) {
+    const maybeEvents = (payload as { events?: unknown }).events;
+    if (Array.isArray(maybeEvents)) {
+      return maybeEvents as InEvent[];
+    }
+    return [payload as InEvent];
+  }
+  return [];
 }
 
 function getClientIP(req: Request): string | null {
-  // Try various headers that might contain the real client IP
   const headers = [
     'x-forwarded-for',
     'x-real-ip',
-    'cf-connecting-ip', // Cloudflare
+    'cf-connecting-ip',
     'x-client-ip',
     'x-forwarded',
     'forwarded-for',
@@ -53,8 +67,7 @@ function getClientIP(req: Request): string | null {
   for (const header of headers) {
     const value = req.headers.get(header);
     if (value) {
-      // x-forwarded-for can contain multiple IPs, take the first one
-      const ip = value.split(',')[0].trim();
+      const ip = value.split(',')[0]?.trim();
       if (ip) return ip;
     }
   }
@@ -62,155 +75,148 @@ function getClientIP(req: Request): string | null {
   return null;
 }
 
-function truncateIP(ip: string): string {
-  if (!ip) return '';
-  
-  // IPv4: truncate to /24 (remove last octet)
-  if (ip.includes('.') && !ip.includes(':')) {
-    const parts = ip.split('.');
-    if (parts.length === 4) {
-      return `${parts[0]}.${parts[1]}.${parts[2]}.0`;
-    }
+async function sha256Hex(value: string): Promise<string> {
+  const data = new TextEncoder().encode(value);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  return Array.from(new Uint8Array(hashBuffer))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('');
+}
+
+function sanitizeEventProps(raw: unknown): Record<string, unknown> {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    return {};
   }
-  
-  // IPv6: truncate to /64 (keep first 4 groups)
-  if (ip.includes(':')) {
-    const parts = ip.split(':');
-    if (parts.length >= 4) {
-      return `${parts.slice(0, 4).join(':')}::`;
-    }
+  return raw as Record<string, unknown>;
+}
+
+function toIsoTimestamp(value: string | undefined, fallbackIso: string): string {
+  if (!value) return fallbackIso;
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return fallbackIso;
   }
-  
-  // Return original if we can't parse it
-  return ip;
+  return parsed.toISOString();
 }
 
 Deno.serve(async (req) => {
-  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
 
+  if (req.method !== 'POST') {
+    return jsonResponse(405, { error: 'Method not allowed' });
+  }
+
   try {
-    // Only allow POST requests
-    if (req.method !== 'POST') {
-      return new Response(JSON.stringify({ error: 'Method not allowed' }), {
-        status: 405,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+    const body = await parseBody(req);
+    const events = coerceEvents(body);
+
+    if (!events.length) {
+      return jsonResponse(400, { error: 'No events provided' });
     }
 
-    // Get user agent and IP for enrichment and bot detection
-    const userAgent = req.headers.get('User-Agent') || '';
-    const rawIP = getClientIP(req);
+    if (events.length > MAX_BATCH_SIZE) {
+      return jsonResponse(400, { error: `Too many events (max ${MAX_BATCH_SIZE})` });
+    }
 
-    // Parse request body (support sendBeacon text/plain or empty CT)
-    let trackData: TrackRequest;
-    try {
-      const contentType = req.headers.get('content-type') || '';
-      if (!contentType || contentType.includes('text/plain')) {
-        const text = await req.text();
-        trackData = JSON.parse(text);
-      } else {
-        trackData = await req.json();
+    const supabaseUrl = Deno.env.get('SUPABASE_URL');
+    const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+
+    if (!supabaseUrl || !serviceRoleKey) {
+      return jsonResponse(500, { error: 'Server not configured' });
+    }
+
+    const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+
+    const userAgent = req.headers.get('user-agent');
+    const clientIp = getClientIP(req);
+    const ipHash = clientIp ? await sha256Hex(clientIp) : null;
+    const fallbackIso = new Date().toISOString();
+
+    const normalizedEvents: NormalizedEvent[] = [];
+    const sessionTouches = new Map<string, { anon: string; user: string | null; last: string }>();
+    const sessionEnds = new Map<string, string>();
+
+    for (const event of events) {
+      const sessionId = typeof event.session_id === 'string' ? event.session_id : null;
+      const anonId = typeof event.anon_id === 'string' ? event.anon_id : null;
+      const eventName = typeof event.event_name === 'string' ? event.event_name : null;
+
+      if (!sessionId || !anonId || !eventName) {
+        return jsonResponse(400, { error: 'Event missing required fields' });
       }
-    } catch (error) {
-      return new Response(JSON.stringify({ error: 'Invalid JSON in request body' }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
 
-    // Check for test bypass header
-    const allowBot =
-      req.headers.get('x-allow-bot') === 'true' ||
-      trackData.event_name === 'listing_post_abandoned';
+      const occurredAt = toIsoTimestamp(event.occurred_at, fallbackIso);
+      const userId = typeof event.user_id === 'string' ? event.user_id : null;
+      const eventProps = sanitizeEventProps(event.event_props);
 
-    // Bot filtering (unless bypassed for testing or specific events)
-    if (!allowBot && isBot(userAgent)) {
-      console.log('🤖 Bot detected, skipping analytics:', userAgent);
-      return new Response(JSON.stringify({ success: true, skipped: 'bot' }), {
-        status: 200,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
+      const normalized: NormalizedEvent = {
+        session_id: sessionId,
+        anon_id: anonId,
+        user_id: userId,
+        event_name: eventName,
+        event_props: eventProps,
+        occurred_at: occurredAt,
+        ua: userAgent,
+        ip_hash: ipHash,
+      };
 
-    // Validate required fields
-    if (!trackData.event_name || !trackData.session_id) {
-      return new Response(
-        JSON.stringify({ error: 'Missing required fields: event_name and session_id' }),
-        {
-          status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      normalizedEvents.push(normalized);
+
+      const touch = sessionTouches.get(sessionId);
+      if (!touch || touch.last < occurredAt) {
+        sessionTouches.set(sessionId, { anon: anonId, user: userId, last: occurredAt });
+      }
+
+      if (eventName === 'session_end') {
+        const existing = sessionEnds.get(sessionId);
+        if (!existing || existing < occurredAt) {
+          sessionEnds.set(sessionId, occurredAt);
         }
-      );
+      }
     }
 
-    // Create Supabase client with service role key
-    const supabaseAdmin = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
-      {
-        auth: {
-          autoRefreshToken: false,
-          persistSession: false,
-        },
-      }
-    );
-
-    // Prepare event data with enrichment
-    const eventData = {
-      session_id: trackData.session_id,
-      user_id: trackData.user_id || null,
-      event_name: trackData.event_name,
-      page: trackData.page || null,
-      referrer: trackData.referrer || null,
-      user_agent: userAgent || null,
-      ip: rawIP ? truncateIP(rawIP) : null,
-      props: {
-        ...trackData.props,
-        schema_version: 1, // Add schema versioning
-      },
-    };
-
-    // Insert into analytics_events table
-    const { data, error } = await supabaseAdmin
-      .from('analytics_events')
-      .insert(eventData)
-      .select('id')
-      .single();
+    const { error } = await supabaseAdmin.from('analytics_events').insert(normalizedEvents);
 
     if (error) {
-      console.error('❌ Error inserting analytics event:', error);
-      return new Response(
-        JSON.stringify({ error: 'Failed to record analytics event' }),
-        {
-          status: 500,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        }
-      );
+      console.error('Failed to insert analytics events', error);
+      return jsonResponse(500, { error: 'Failed to record analytics events' });
     }
 
-    console.log('✅ Analytics event recorded:', {
-      id: data.id,
-      event_name: trackData.event_name,
-      session_id: trackData.session_id,
-      user_id: trackData.user_id,
-      page: trackData.page,
-    });
-
-    return new Response(
-      JSON.stringify({ success: true, id: data.id }),
-      {
-        status: 200,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      }
+    await Promise.all(
+      Array.from(sessionTouches.entries()).map(async ([sessionId, payload]) => {
+        try {
+          await supabaseAdmin.rpc('touch_session', {
+            p_session: sessionId,
+            p_anon: payload.anon,
+            p_user: payload.user,
+            p_ts: payload.last,
+          });
+        } catch (touchError) {
+          console.error('touch_session failed', touchError);
+        }
+      }),
     );
+
+    await Promise.all(
+      Array.from(sessionEnds.entries()).map(async ([sessionId, occurredAt]) => {
+        try {
+          await supabaseAdmin.rpc('close_session', {
+            p_session: sessionId,
+            p_ts: occurredAt,
+          });
+        } catch (closeError) {
+          console.error('close_session failed', closeError);
+        }
+      }),
+    );
+
+    return jsonResponse(200, { success: true, inserted: normalizedEvents.length });
   } catch (error) {
-    console.error('❌ Unexpected error in track function:', error);
-    return new Response(JSON.stringify({ error: 'Internal server error' }), {
-      status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+    console.error('Track handler failure', error);
+    return jsonResponse(500, { error: 'Unhandled analytics error' });
   }
 });

@@ -141,7 +141,7 @@ export function InternalAnalytics() {
       try {
         // today only
         const [kpisArr, funnelArr] = await Promise.all([
-          rpc<KpisRow[]>('analytics_kpis', { days_back: 0 }),
+          rpc<KpisRow[]>('analytics_kpis', { days_back: 0, tz: 'America/New_York' }),
           rpc<SummaryRow[]>('analytics_summary', { days_back: 0 }),
         ]);
 
