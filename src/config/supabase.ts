@@ -2,12 +2,17 @@ import { createClient } from '@supabase/supabase-js';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+const supabaseFunctionDomain = import.meta.env.VITE_SUPABASE_FUNCTION_DOMAIN;
 
 if (!supabaseUrl || !supabaseAnonKey) {
   throw new Error('Missing Supabase environment variables');
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  functions: {
+    url: supabaseFunctionDomain || `${supabaseUrl}/functions/v1`
+  }
+});
 
 export type UserRole = 'tenant' | 'landlord' | 'agent';
 export type PropertyType = 'apartment_building' | 'apartment_house' | 'full_house';
