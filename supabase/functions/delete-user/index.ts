@@ -143,31 +143,19 @@ Deno.serve(async (req) => {
     // Send deletion notification email via ZeptoMail
     if (targetEmail) {
       try {
-        const zeptoToken = Deno.env.get("ZEPTO_TOKEN");
-        const zeptoFromAddress = Deno.env.get("ZEPTO_FROM_ADDRESS") || "noreply@hadirot.com";
-        const zeptoFromName = Deno.env.get("ZEPTO_FROM_NAME") || "HaDirot";
-        const zeptoReplyTo = Deno.env.get("ZEPTO_REPLY_TO");
-        const emailProvider = Deno.env.get("EMAIL_PROVIDER");
+        const html = renderBrandEmail({
+          title: "Account Deleted",
+          intro: `Hi ${fullName},`,
+          bodyHtml: `<p>Your Hadirot account has been deleted.</p>${reason ? `<p>${reason}</p>` : ""}<p>If you have questions, contact support@hadirot.com.</p>`,
+        });
 
-        if (zeptoToken) {
-          const html = renderBrandEmail({
-            title: "Account Deleted",
-            intro: `Hi ${fullName},`,
-            bodyHtml: `<p>Your Hadirot account has been deleted.</p>${reason ? `<p>${reason}</p>` : ""}<p>If you have questions, contact support@hadirot.com.</p>`,
-          });
+        await sendViaZepto({
+          to: targetEmail,
+          subject: "Your Hadirot account has been deleted",
+          html,
+        });
 
-          await sendViaZepto({
-            to: targetEmail,
-            subject: "Your Hadirot account has been deleted",
-            html,
-            from: zeptoFromAddress,
-            fromName: zeptoFromName,
-          });
-
-          console.log("✅ Account deletion email sent via ZeptoMail");
-        } else {
-          console.warn("ZEPTO_TOKEN not set; skipping deletion email");
-        }
+        console.log("✅ Account deletion email sent via ZeptoMail");
       } catch (emailError) {
         console.error("Error sending account deletion email:", emailError);
       }

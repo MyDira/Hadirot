@@ -9,9 +9,9 @@ if (!supabaseUrl || !supabaseAnonKey) {
 }
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-  functions: {
-    url: supabaseFunctionDomain || `${supabaseUrl}/functions/v1`
-  }
+  functions: supabaseFunctionDomain ? {
+    url: `https://${supabaseFunctionDomain}`
+  } : undefined
 });
 
 export type UserRole = 'tenant' | 'landlord' | 'agent';
