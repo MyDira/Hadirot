@@ -142,7 +142,7 @@ export function InternalAnalytics() {
         // today only
         const [kpisArr, funnelArr] = await Promise.all([
           rpc<KpisRow[]>('analytics_kpis', { days_back: 0, tz: 'America/New_York' }),
-          rpc<SummaryRow[]>('analytics_summary', { days_back: 0 }),
+          rpc<SummaryRow[]>('analytics_summary', { days_back: 0, tz: 'America/New_York' }),
         ]);
 
         const k = kpisArr?.[0] ?? { daily_active: 0, unique_visitors: 0, avg_session_minutes: 0, listing_views: 0 };
