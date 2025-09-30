@@ -184,7 +184,7 @@ export function InternalAnalytics() {
 
       // Load top listings
       const { data: listingsData, error: listingsError } = await supabase
-        .rpc('analytics_top_listings', { days_back: 0, limit_count: 10 });
+        .rpc('analytics_top_listings', { days_back: 0, limit_count: 10, tz: 'America/New_York' });
 
       if (listingsError) {
         console.error('Error loading top listings:', listingsError);
