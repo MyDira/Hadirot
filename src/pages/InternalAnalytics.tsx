@@ -30,6 +30,25 @@ interface TopListing {
   ctr: number;
 }
 
+interface DetailedTopListing {
+  listing_id: string;
+  property_location: string;
+  bedrooms: number;
+  monthly_rent: string;
+  posted_by: string;
+  views: number;
+  impressions: number;
+  ctr: number;
+  is_featured: boolean;
+}
+
+interface AbandonmentDetails {
+  started_not_submitted: number;
+  submitted_not_completed: number;
+  avg_time_before_abandon_minutes: number;
+  total_abandoned: number;
+}
+
 interface TopFilter {
   filter_key: string;
   filter_value: string;
@@ -84,6 +103,8 @@ export function InternalAnalytics() {
   const [dauSparkline, setDauSparkline] = useState<number[]>([]);
   const [agencyMetrics, setAgencyMetrics] = useState({ pageViews: 0, filterApplies: 0, shares: 0 });
   const [topListings, setTopListings] = useState<TopListing[]>([]);
+  const [detailedTopListings, setDetailedTopListings] = useState<DetailedTopListing[]>([]);
+  const [abandonmentDetails, setAbandonmentDetails] = useState<AbandonmentDetails | null>(null);
   const [topFilters, setTopFilters] = useState<TopFilter[]>([]);
   const [dataLoading, setDataLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -201,12 +222,14 @@ export function InternalAnalytics() {
       setError(null);
 
       // Load all analytics data in parallel
-      const [kpisResult, summaryResult, listingsResult, filtersResult, agencyResult] = await Promise.all([
+      const [kpisResult, summaryResult, listingsResult, detailedListingsResult, filtersResult, agencyResult, abandonmentResult] = await Promise.all([
         supabase.rpc('analytics_kpis_with_sparkline', { tz: 'America/New_York' }),
         supabase.rpc('analytics_summary', { days_back: 0, tz: 'America/New_York' }),
         supabase.rpc('analytics_top_listings', { days_back: 0, limit_count: 10, tz: 'America/New_York' }),
+        supabase.rpc('analytics_top_listings_detailed', { days_back: 0, limit_count: 10, tz: 'America/New_York' }),
         supabase.rpc('analytics_top_filters', { days_back: 0, limit_count: 10, tz: 'America/New_York' }),
-        supabase.rpc('analytics_agency_metrics', { days_back: 0, tz: 'America/New_York' })
+        supabase.rpc('analytics_agency_metrics', { days_back: 0, tz: 'America/New_York' }),
+        supabase.rpc('analytics_funnel_abandonment_details', { days_back: 0, tz: 'America/New_York' })
       ]);
 
       // Handle KPIs
@@ -260,6 +283,20 @@ export function InternalAnalytics() {
         console.error('Error loading top listings:', listingsResult.error);
       } else {
         setTopListings(listingsResult.data || []);
+      }
+
+      // Handle detailed top listings
+      if (detailedListingsResult.error) {
+        console.error('Error loading detailed top listings:', detailedListingsResult.error);
+      } else {
+        setDetailedTopListings(detailedListingsResult.data || []);
+      }
+
+      // Handle abandonment details
+      if (abandonmentResult.error) {
+        console.error('Error loading abandonment details:', abandonmentResult.error);
+      } else {
+        setAbandonmentDetails(abandonmentResult.data?.[0] || null);
       }
 
       // Handle top filters
@@ -431,6 +468,67 @@ export function InternalAnalytics() {
         </div>
       </div>
 
+      {/* Funnel Drop-off Analysis */}
+      {abandonmentDetails && (
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-8">
+          <h2 className="text-xl font-semibold text-[#273140] mb-6 flex items-center">
+            <TrendingUp className="w-6 h-6 mr-2" />
+            Funnel Drop-off Analysis
+          </h2>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="bg-red-50 border border-red-100 rounded-lg p-4">
+              <div className="text-3xl font-bold text-red-800 mb-2">
+                {abandonmentDetails.started_not_submitted}
+              </div>
+              <div className="text-sm font-medium text-red-700 mb-1">
+                Started but Didn't Submit
+              </div>
+              <div className="text-xs text-red-600">
+                Users who began filling the form but never clicked submit
+              </div>
+            </div>
+
+            <div className="bg-orange-50 border border-orange-100 rounded-lg p-4">
+              <div className="text-3xl font-bold text-orange-800 mb-2">
+                {abandonmentDetails.submitted_not_completed}
+              </div>
+              <div className="text-sm font-medium text-orange-700 mb-1">
+                Submitted but Didn't Complete
+              </div>
+              <div className="text-xs text-orange-600">
+                Users who submitted the form but listing creation failed
+              </div>
+            </div>
+
+            <div className="bg-blue-50 border border-blue-100 rounded-lg p-4">
+              <div className="text-3xl font-bold text-blue-800 mb-2">
+                {abandonmentDetails.avg_time_before_abandon_minutes
+                  ? Math.round(abandonmentDetails.avg_time_before_abandon_minutes)
+                  : 0}m
+              </div>
+              <div className="text-sm font-medium text-blue-700 mb-1">
+                Avg Time Before Abandoning
+              </div>
+              <div className="text-xs text-blue-600">
+                Average minutes spent before leaving the form
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-4 p-4 bg-gray-50 rounded-lg">
+            <div className="text-sm text-gray-700">
+              <span className="font-semibold">Total Abandoned Today:</span> {abandonmentDetails.total_abandoned}
+              {abandonmentDetails.total_abandoned > 0 && abandonmentDetails.started_not_submitted > abandonmentDetails.submitted_not_completed && (
+                <span className="ml-2 text-orange-700">
+                  Most users abandon before submitting - consider simplifying the form or adding auto-save.
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Agency Metrics */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-8">
         <h2 className="text-xl font-semibold text-[#273140] mb-6 flex items-center">
@@ -466,36 +564,59 @@ export function InternalAnalytics() {
             <FileText className="w-6 h-6 mr-2" />
             Top Listings by Views
           </h2>
-          
-          {topListings.length === 0 ? (
+
+          {detailedTopListings.length === 0 ? (
             <div className="text-center py-8">
               <FileText className="w-12 h-12 text-gray-300 mx-auto mb-4" />
               <p className="text-gray-500">No listing data yet</p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="min-w-full">
-                <thead>
-                  <tr className="border-b border-gray-200">
-                    <th className="text-left py-2 text-sm font-medium text-gray-700">Listing ID</th>
-                    <th className="text-right py-2 text-sm font-medium text-gray-700">Views</th>
-                    <th className="text-right py-2 text-sm font-medium text-gray-700">Impressions</th>
-                    <th className="text-right py-2 text-sm font-medium text-gray-700">CTR</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {topListings.map((listing, index) => (
-                    <tr key={listing.listing_id} className="border-b border-gray-100">
-                      <td className="py-2 text-sm text-gray-900 font-mono">
-                        {listing.listing_id.slice(0, 8)}...
-                      </td>
-                      <td className="py-2 text-sm text-gray-900 text-right">{listing.views}</td>
-                      <td className="py-2 text-sm text-gray-900 text-right">{listing.impressions}</td>
-                      <td className="py-2 text-sm text-gray-900 text-right">{listing.ctr}%</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div className="space-y-3">
+              {detailedTopListings.map((listing) => (
+                <div
+                  key={listing.listing_id}
+                  className="border border-gray-200 rounded-lg p-4 hover:border-accent-400 hover:shadow-md transition-all cursor-pointer"
+                  onClick={() => navigate(`/listing/${listing.listing_id}`)}
+                >
+                  <div className="flex items-start justify-between mb-2">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-semibold text-gray-900">
+                          {listing.bedrooms === 0 ? 'Studio' : `${listing.bedrooms} BR`}
+                        </h3>
+                        {listing.is_featured && (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-accent-100 text-accent-800">
+                            Featured
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-sm text-gray-600 mt-1">{listing.property_location}</p>
+                    </div>
+                    <div className="text-right ml-4">
+                      <div className="font-semibold text-gray-900">{listing.monthly_rent}</div>
+                      <div className="text-xs text-gray-500 mt-1">by {listing.posted_by}</div>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between pt-3 border-t border-gray-100">
+                    <div className="flex items-center gap-4 text-sm">
+                      <div>
+                        <span className="text-gray-500">Views:</span>
+                        <span className="ml-1 font-semibold text-gray-900">{listing.views}</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-500">Impressions:</span>
+                        <span className="ml-1 font-semibold text-gray-900">{listing.impressions}</span>
+                      </div>
+                    </div>
+                    <div className="text-sm">
+                      <span className="text-gray-500">CTR:</span>
+                      <span className={`ml-1 font-semibold ${listing.ctr >= 5 ? 'text-green-600' : listing.ctr >= 2 ? 'text-blue-600' : 'text-gray-600'}`}>
+                        {listing.ctr}%
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
           )}
         </div>
