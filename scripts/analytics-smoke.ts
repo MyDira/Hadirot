@@ -19,19 +19,19 @@ const supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey);
 async function smokeTestAnalytics() {
   console.log('🧪 Starting analytics smoke test...');
   
-  // Test with legacy non-UUID IDs to verify normalization
+  // Test with intentionally bad IDs to verify normalization
   const testEvents = [
     {
-      session_id: "legacy-session-123",
-      anon_id: "legacy-anon-abc", 
-      event_name: "smoke_test_1",
+      session_id: "smoke-session-" + Date.now(),
+      anon_id: "smoke-anon-" + Date.now(),
+      event_name: "page_view",
       event_props: { source: "smoke_test", test_id: 1 },
       occurred_at: new Date().toISOString()
     },
     {
-      session_id: "another-bad-id-456",
-      anon_id: "another-bad-anon-def",
-      event_name: "smoke_test_2", 
+      session_id: "smoke-session-" + Date.now(),
+      anon_id: "smoke-anon-" + Date.now(),
+      event_name: "listing_view",
       event_props: { source: "smoke_test", test_id: 2 },
       occurred_at: new Date().toISOString()
     }
@@ -59,22 +59,35 @@ async function smokeTestAnalytics() {
     
     const { data: recentEvents, error: queryError } = await supabaseAdmin
       .from('analytics_events')
-      .select('event_name, session_id, anon_id, occurred_at')
-      .eq('event_name', 'smoke_test_1')
+      .select('event_name, session_id, anon_id, occurred_at, event_props')
+      .contains('event_props', { source: 'smoke_test' })
       .order('occurred_at', { ascending: false })
-      .limit(1);
+      .limit(5);
 
     if (queryError) {
       console.error('❌ Query error:', queryError);
       return false;
     }
 
-    if (!recentEvents || recentEvents.length === 0) {
+    if (!recentEvents || recentEvents.length < 2) {
       console.error('❌ No smoke test events found in database');
+      console.log('Found events:', recentEvents);
       return false;
     }
 
-    console.log('✅ Found smoke test event in database:', recentEvents[0]);
+    console.log('✅ Found smoke test events in database:', recentEvents.length);
+    
+    // Test analytics functions
+    console.log('🔍 Testing analytics functions...');
+    const { data: kpis, error: kpiError } = await supabaseAdmin
+      .rpc('analytics_kpis', { days_back: 0, tz: 'America/New_York' });
+    
+    if (kpiError) {
+      console.error('❌ KPI function error:', kpiError);
+      return false;
+    }
+    
+    console.log('✅ Analytics KPIs working:', kpis?.[0]);
     
     // Verify session was created
     const { data: sessions, error: sessionError } = await supabaseAdmin

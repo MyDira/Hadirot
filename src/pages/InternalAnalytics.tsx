@@ -181,26 +181,65 @@ export function InternalAnalytics() {
     try {
       setDataLoading(true);
       setError(null);
+      setError(null);
 
-      // Load top listings
-      const { data: listingsData, error: listingsError } = await supabase
-        .rpc('analytics_top_listings', { days_back: 0, limit_count: 10, tz: 'America/New_York' });
+      // Load all analytics data in parallel
+      const [kpisResult, summaryResult, listingsResult, filtersResult] = await Promise.all([
+        supabase.rpc('analytics_kpis', { days_back: 0, tz: 'America/New_York' }),
+        supabase.rpc('analytics_summary', { days_back: 0, tz: 'America/New_York' }),
+        supabase.rpc('analytics_top_listings', { days_back: 0, limit_count: 10, tz: 'America/New_York' }),
+        supabase.rpc('analytics_top_filters', { days_back: 0, limit_count: 10, tz: 'America/New_York' })
+      ]);
 
-      if (listingsError) {
-        console.error('Error loading top listings:', listingsError);
+      // Handle KPIs
+      if (kpisResult.error) {
+        console.error('Error loading KPIs:', kpisResult.error);
+        throw new Error(`KPIs: ${kpisResult.error.message}`);
       } else {
-        setTopListings(listingsData || []);
+        const kpi = kpisResult.data?.[0];
+        if (kpi) {
+          setDailyActive(numOr0(kpi.daily_active));
+          setUniqueVisitors(numOr0(kpi.unique_visitors));
+          setAvgSession(Math.round(numOr0(kpi.avg_session_minutes)));
+          setListingViews(numOr0(kpi.listing_views));
+        }
       }
 
-      // Load top filters
-      const { data: filtersData, error: filtersError } = await supabase
-        .rpc('analytics_top_filters', { days_back: 0, limit_count: 10, tz: 'America/New_York' });
-
-      if (filtersError) {
-        console.error('Error loading top filters:', filtersError);
+      // Handle summary/funnel
+      if (summaryResult.error) {
+        console.error('Error loading summary:', summaryResult.error);
       } else {
-        setTopFilters(filtersData || []);
+        const summary = summaryResult.data?.[0];
+        if (summary) {
+          setFunnel({
+            starts: numOr0(summary.post_starts),
+            submits: numOr0(summary.post_submits),
+            successes: numOr0(summary.post_successes),
+            abandoned: numOr0(summary.post_abandoned),
+            successRate: summary.post_starts > 0 ? Math.round((summary.post_successes / summary.post_starts) * 100) : 0,
+            abandonRate: summary.post_starts > 0 ? Math.round((summary.post_abandoned / summary.post_starts) * 100) : 0,
+          });
+        }
       }
+
+      // Handle top listings
+      if (listingsResult.error) {
+        console.error('Error loading top listings:', listingsResult.error);
+      } else {
+        setTopListings(listingsResult.data || []);
+      }
+
+      // Handle top filters
+      if (filtersResult.error) {
+        console.error('Error loading top filters:', filtersResult.error);
+      } else {
+        setTopFilters(filtersResult.data || []);
+      }
+
+      // Set current date for display
+      setDateStr(
+        new Date().toLocaleDateString('en-US', { timeZone: 'America/New_York' })
+      );
 
     } catch (error) {
       console.error('Error loading analytics data:', error);
