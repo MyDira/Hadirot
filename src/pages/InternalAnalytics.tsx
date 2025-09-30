@@ -82,6 +82,7 @@ export function InternalAnalytics() {
   });
   const [dateStr, setDateStr] = useState('');
   const [dauSparkline, setDauSparkline] = useState<number[]>([]);
+  const [agencyMetrics, setAgencyMetrics] = useState({ pageViews: 0, filterApplies: 0, shares: 0 });
   const [topListings, setTopListings] = useState<TopListing[]>([]);
   const [topFilters, setTopFilters] = useState<TopFilter[]>([]);
   const [dataLoading, setDataLoading] = useState(true);
@@ -125,6 +126,13 @@ export function InternalAnalytics() {
     unique_visitors: number;
     avg_session_minutes: number;
     listing_views: number;
+    sparkline_dau?: number[];
+  };
+
+  type AgencyMetricsRow = {
+    agency_page_views: number;
+    agency_filter_applies: number;
+    agency_shares: number;
   };
 
   type SummaryRow = {
@@ -140,13 +148,15 @@ export function InternalAnalytics() {
     (async () => {
       try {
         // today only
-        const [kpisArr, funnelArr] = await Promise.all([
-          rpc<KpisRow[]>('analytics_kpis', { days_back: 0, tz: 'America/New_York' }),
+        const [kpisArr, funnelArr, agencyArr] = await Promise.all([
+          rpc<KpisRow[]>('analytics_kpis_with_sparkline', { tz: 'America/New_York' }),
           rpc<SummaryRow[]>('analytics_summary', { days_back: 0, tz: 'America/New_York' }),
+          rpc<AgencyMetricsRow[]>('analytics_agency_metrics', { days_back: 0, tz: 'America/New_York' }),
         ]);
 
-        const k = kpisArr?.[0] ?? { daily_active: 0, unique_visitors: 0, avg_session_minutes: 0, listing_views: 0 };
+        const k = kpisArr?.[0] ?? { daily_active: 0, unique_visitors: 0, avg_session_minutes: 0, listing_views: 0, sparkline_dau: [] };
         const f = funnelArr?.[0] ?? { post_starts: 0, post_submits: 0, post_successes: 0, post_abandoned: 0 };
+        const a = agencyArr?.[0] ?? { agency_page_views: 0, agency_filter_applies: 0, agency_shares: 0 };
 
         if (!alive) return;
 
@@ -154,6 +164,13 @@ export function InternalAnalytics() {
         setUniqueVisitors(numOr0(k.unique_visitors));
         setAvgSession(Math.round(numOr0(k.avg_session_minutes)));
         setListingViews(numOr0(k.listing_views));
+        setDauSparkline(Array.isArray(k.sparkline_dau) ? k.sparkline_dau : []);
+
+        setAgencyMetrics({
+          pageViews: numOr0(a.agency_page_views),
+          filterApplies: numOr0(a.agency_filter_applies),
+          shares: numOr0(a.agency_shares),
+        });
 
         setFunnel({
           starts: numOr0(f.post_starts),
@@ -184,11 +201,12 @@ export function InternalAnalytics() {
       setError(null);
 
       // Load all analytics data in parallel
-      const [kpisResult, summaryResult, listingsResult, filtersResult] = await Promise.all([
-        supabase.rpc('analytics_kpis', { days_back: 0, tz: 'America/New_York' }),
+      const [kpisResult, summaryResult, listingsResult, filtersResult, agencyResult] = await Promise.all([
+        supabase.rpc('analytics_kpis_with_sparkline', { tz: 'America/New_York' }),
         supabase.rpc('analytics_summary', { days_back: 0, tz: 'America/New_York' }),
         supabase.rpc('analytics_top_listings', { days_back: 0, limit_count: 10, tz: 'America/New_York' }),
-        supabase.rpc('analytics_top_filters', { days_back: 0, limit_count: 10, tz: 'America/New_York' })
+        supabase.rpc('analytics_top_filters', { days_back: 0, limit_count: 10, tz: 'America/New_York' }),
+        supabase.rpc('analytics_agency_metrics', { days_back: 0, tz: 'America/New_York' })
       ]);
 
       // Handle KPIs
@@ -202,6 +220,21 @@ export function InternalAnalytics() {
           setUniqueVisitors(numOr0(kpi.unique_visitors));
           setAvgSession(Math.round(numOr0(kpi.avg_session_minutes)));
           setListingViews(numOr0(kpi.listing_views));
+          setDauSparkline(Array.isArray(kpi.sparkline_dau) ? kpi.sparkline_dau : []);
+        }
+      }
+
+      // Handle agency metrics
+      if (agencyResult.error) {
+        console.error('Error loading agency metrics:', agencyResult.error);
+      } else {
+        const agency = agencyResult.data?.[0];
+        if (agency) {
+          setAgencyMetrics({
+            pageViews: numOr0(agency.agency_page_views),
+            filterApplies: numOr0(agency.agency_filter_applies),
+            shares: numOr0(agency.agency_shares),
+          });
         }
       }
 
@@ -397,6 +430,36 @@ export function InternalAnalytics() {
           Abandon Rate: <span className="font-semibold text-red-600">{Number.isFinite(funnel.abandonRate) ? funnel.abandonRate : 0}%</span>
         </div>
       </div>
+
+      {/* Agency Metrics */}
+      {(agencyMetrics.pageViews > 0 || agencyMetrics.filterApplies > 0 || agencyMetrics.shares > 0) && (
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-8">
+          <h2 className="text-xl font-semibold text-[#273140] mb-6 flex items-center">
+            <TrendingUp className="w-6 h-6 mr-2" />
+            Agency Performance
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="text-center">
+              <div className="bg-blue-50 rounded-lg p-4">
+                <div className="text-2xl font-bold text-blue-800">{agencyMetrics.pageViews}</div>
+                <div className="text-sm text-blue-600">Page Views</div>
+              </div>
+            </div>
+            <div className="text-center">
+              <div className="bg-green-50 rounded-lg p-4">
+                <div className="text-2xl font-bold text-green-800">{agencyMetrics.filterApplies}</div>
+                <div className="text-sm text-green-600">Filter Applies</div>
+              </div>
+            </div>
+            <div className="text-center">
+              <div className="bg-orange-50 rounded-lg p-4">
+                <div className="text-2xl font-bold text-orange-800">{agencyMetrics.shares}</div>
+                <div className="text-sm text-orange-600">Shares</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         {/* Top Listings */}
