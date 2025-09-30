@@ -214,9 +214,9 @@ Deno.serve(async (req) => {
       Array.from(sessionTouches.entries()).map(async ([sessionId, payload]) => {
         try {
           await supabaseAdmin.rpc('touch_session', {
-            p_session: sessionId,
-            p_anon: payload.anon,
-            p_user: payload.user,
+            p_session: normalizeId(sessionId),
+            p_anon: normalizeId(payload.anon),
+            p_user: payload.user ? normalizeId(payload.user) : null,
             p_ts: payload.last,
           });
         } catch (touchError) {
@@ -229,7 +229,7 @@ Deno.serve(async (req) => {
       Array.from(sessionEnds.entries()).map(async ([sessionId, occurredAt]) => {
         try {
           await supabaseAdmin.rpc('close_session', {
-            p_session: sessionId,
+            p_session: normalizeId(sessionId),
             p_ts: occurredAt,
           });
         } catch (closeError) {
