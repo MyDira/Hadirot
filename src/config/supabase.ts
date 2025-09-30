@@ -9,7 +9,7 @@ if (!supabaseUrl || !supabaseAnonKey) {
 }
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-  functions: supabaseFunctionDomain ? {
+  functions: supabaseFunctionDomain && supabaseFunctionDomain.trim() ? {
     url: `https://${supabaseFunctionDomain}`
   } : undefined
 });
