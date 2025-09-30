@@ -8,7 +8,8 @@
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "smoke:analytics": "tsx scripts/analytics-smoke.ts"
+    "smoke:analytics": "tsx scripts/analytics-smoke.ts",
+    "debug:analytics": "tsx scripts/analytics-debug.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.1",
