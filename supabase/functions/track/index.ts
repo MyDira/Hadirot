@@ -1,5 +1,15 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { corsHeaders } from '../_shared/cors.ts';
+import { v5 as uuidv5 } from "https://esm.sh/uuid@9";
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const NS = "00000000-0000-0000-0000-000000000000"; // fixed namespace
+
+function normalizeId(s: unknown): string {
+  const str = String(s ?? "");
+  if (!str) return crypto.randomUUID();
+  return UUID_RE.test(str) ? str : uuidv5(str, NS);
+}
 
 type InEvent = {
   session_id: string;
@@ -139,14 +149,28 @@ Deno.serve(async (req) => {
     const normalizedEvents: NormalizedEvent[] = [];
     const sessionTouches = new Map<string, { anon: string; user: string | null; last: string }>();
     const sessionEnds = new Map<string, string>();
+    const debugAnalytics = Deno.env.get('DEBUG_ANALYTICS') === '1';
 
     for (const event of events) {
-      const sessionId = typeof event.session_id === 'string' ? event.session_id : null;
-      const anonId = typeof event.anon_id === 'string' ? event.anon_id : null;
+      const rawSessionId = typeof event.session_id === 'string' ? event.session_id : null;
+      const rawAnonId = typeof event.anon_id === 'string' ? event.anon_id : null;
       const eventName = typeof event.event_name === 'string' ? event.event_name : null;
 
-      if (!sessionId || !anonId || !eventName) {
+      if (!rawSessionId || !rawAnonId || !eventName) {
         return jsonResponse(400, { error: 'Event missing required fields' });
+      }
+
+      // Normalize IDs to proper UUIDs
+      const sessionId = normalizeId(rawSessionId);
+      const anonId = normalizeId(rawAnonId);
+      
+      if (debugAnalytics && (rawSessionId !== sessionId || rawAnonId !== anonId)) {
+        console.log('[DEBUG] ID normalization:', {
+          rawSession: rawSessionId,
+          normalizedSession: sessionId,
+          rawAnon: rawAnonId,
+          normalizedAnon: anonId
+        });
       }
 
       const occurredAt = toIsoTimestamp(event.occurred_at, fallbackIso);

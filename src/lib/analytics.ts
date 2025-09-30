@@ -95,7 +95,7 @@ function getAnonId(): string {
     cachedAnonId = stored;
     return stored;
   }
-  const id = crypto.randomUUID();
+  const id = globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`;
   cachedAnonId = id;
   safeLocalSet(ANON_ID_KEY, id);
   return id;
@@ -268,7 +268,7 @@ function ensureSession(nowMs: number = Date.now()): string {
   }
 
   if (!currentSessionId) {
-    const newId = crypto.randomUUID();
+    const newId = globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`;
     setSessionId(newId);
     lastActivityMs = nowMs;
     persistLastActivity(nowMs);
@@ -418,7 +418,7 @@ function getPostingSession(): { attemptId: string; sessionId: string } {
   let attemptId = safeSessionGet(POST_ATTEMPT_KEY);
   const attemptSession = safeSessionGet(POST_ATTEMPT_SESSION_KEY);
   if (!attemptId || attemptSession !== sessionId) {
-    attemptId = crypto.randomUUID();
+    attemptId = globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`;
     safeSessionSet(POST_ATTEMPT_KEY, attemptId);
     safeSessionSet(POST_ATTEMPT_SESSION_KEY, sessionId);
     ['started', 'submitted', 'success', 'abandoned'].forEach((flag) => {
