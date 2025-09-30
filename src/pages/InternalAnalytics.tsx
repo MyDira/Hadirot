@@ -194,7 +194,7 @@ export function InternalAnalytics() {
 
       // Load top filters
       const { data: filtersData, error: filtersError } = await supabase
-        .rpc('analytics_top_filters', { days_back: 0, limit_count: 10 });
+        .rpc('analytics_top_filters', { days_back: 0, limit_count: 10, tz: 'America/New_York' });
 
       if (filtersError) {
         console.error('Error loading top filters:', filtersError);
