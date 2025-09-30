@@ -5,13 +5,16 @@ dotenv.config();
 
 const supabaseUrl = process.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = process.env.VITE_SUPABASE_ANON_KEY;
+const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-if (!supabaseUrl || !supabaseAnonKey) {
+if (!supabaseUrl || !supabaseAnonKey || !supabaseServiceRoleKey) {
   console.error('❌ Missing Supabase environment variables. Check your .env file.');
+  console.error('   Required: VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY');
   process.exit(1);
 }
 
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
+const supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey);
 
 async function smokeTestAnalytics() {
   console.log('🧪 Starting analytics smoke test...');
@@ -54,7 +57,7 @@ async function smokeTestAnalytics() {
     // Verify events were inserted
     console.log('🔍 Checking if events were inserted...');
     
-    const { data: recentEvents, error: queryError } = await supabase
+    const { data: recentEvents, error: queryError } = await supabaseAdmin
       .from('analytics_events')
       .select('event_name, session_id, anon_id, occurred_at')
       .eq('event_name', 'smoke_test_1')
@@ -74,7 +77,7 @@ async function smokeTestAnalytics() {
     console.log('✅ Found smoke test event in database:', recentEvents[0]);
     
     // Verify session was created
-    const { data: sessions, error: sessionError } = await supabase
+    const { data: sessions, error: sessionError } = await supabaseAdmin
       .from('analytics_sessions')
       .select('session_id, anon_id, started_at')
       .order('started_at', { ascending: false })
