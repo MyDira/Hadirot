@@ -42,13 +42,6 @@ interface DetailedTopListing {
   is_featured: boolean;
 }
 
-interface AbandonmentDetails {
-  started_not_submitted: number;
-  submitted_not_completed: number;
-  avg_time_before_abandon_minutes: number;
-  total_abandoned: number;
-}
-
 interface TopFilter {
   filter_key: string;
   filter_value: string;
@@ -104,7 +97,6 @@ export function InternalAnalytics() {
   const [agencyMetrics, setAgencyMetrics] = useState({ pageViews: 0, filterApplies: 0, shares: 0 });
   const [topListings, setTopListings] = useState<TopListing[]>([]);
   const [detailedTopListings, setDetailedTopListings] = useState<DetailedTopListing[]>([]);
-  const [abandonmentDetails, setAbandonmentDetails] = useState<AbandonmentDetails | null>(null);
   const [topFilters, setTopFilters] = useState<TopFilter[]>([]);
   const [dataLoading, setDataLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -142,79 +134,6 @@ export function InternalAnalytics() {
     }
   }, [user, isAdmin]);
 
-  type KpisRow = {
-    daily_active: number;
-    unique_visitors: number;
-    avg_session_minutes: number;
-    listing_views: number;
-    sparkline_dau?: number[];
-  };
-
-  type AgencyMetricsRow = {
-    agency_page_views: number;
-    agency_filter_applies: number;
-    agency_shares: number;
-  };
-
-  type SummaryRow = {
-    post_starts: number;
-    post_submits: number;
-    post_successes: number;
-    post_abandoned: number;
-  };
-
-  useEffect(() => {
-    let alive = true;
-
-    (async () => {
-      try {
-        // today only
-        const [kpisArr, funnelArr, agencyArr] = await Promise.all([
-          rpc<KpisRow[]>('analytics_kpis_with_sparkline', { tz: 'America/New_York' }),
-          rpc<SummaryRow[]>('analytics_summary', { days_back: 0, tz: 'America/New_York' }),
-          rpc<AgencyMetricsRow[]>('analytics_agency_metrics', { days_back: 0, tz: 'America/New_York' }),
-        ]);
-
-        const k = kpisArr?.[0] ?? { daily_active: 0, unique_visitors: 0, avg_session_minutes: 0, listing_views: 0, sparkline_dau: [] };
-        const f = funnelArr?.[0] ?? { post_starts: 0, post_submits: 0, post_successes: 0, post_abandoned: 0 };
-        const a = agencyArr?.[0] ?? { agency_page_views: 0, agency_filter_applies: 0, agency_shares: 0 };
-
-        if (!alive) return;
-
-        setDailyActive(numOr0(k.daily_active));
-        setUniqueVisitors(numOr0(k.unique_visitors));
-        setAvgSession(Math.round(numOr0(k.avg_session_minutes)));
-        setListingViews(numOr0(k.listing_views));
-        setDauSparkline(Array.isArray(k.sparkline_dau) ? k.sparkline_dau : []);
-
-        setAgencyMetrics({
-          pageViews: numOr0(a.agency_page_views),
-          filterApplies: numOr0(a.agency_filter_applies),
-          shares: numOr0(a.agency_shares),
-        });
-
-        setFunnel({
-          starts: numOr0(f.post_starts),
-          submits: numOr0(f.post_submits),
-          successes: numOr0(f.post_successes),
-          abandoned: numOr0(f.post_abandoned),
-          successRate: f.post_starts > 0 ? Math.round((f.post_successes / f.post_starts) * 100) : 0,
-          abandonRate: f.post_starts > 0 ? Math.round((f.post_abandoned / f.post_starts) * 100) : 0,
-        });
-
-        setDateStr(
-          new Date().toLocaleDateString('en-US', { timeZone: 'America/New_York' })
-        );
-      } catch (err) {
-        console.error('Error loading analytics (top half):', err);
-      }
-    })();
-
-    return () => {
-      alive = false;
-    };
-  }, []);
-
   const loadAnalyticsData = async () => {
     try {
       setDataLoading(true);
@@ -222,14 +141,13 @@ export function InternalAnalytics() {
       setError(null);
 
       // Load all analytics data in parallel
-      const [kpisResult, summaryResult, listingsResult, detailedListingsResult, filtersResult, agencyResult, abandonmentResult] = await Promise.all([
+      const [kpisResult, summaryResult, listingsResult, detailedListingsResult, filtersResult, agencyResult] = await Promise.all([
         supabase.rpc('analytics_kpis_with_sparkline', { tz: 'America/New_York' }),
         supabase.rpc('analytics_summary', { days_back: 0, tz: 'America/New_York' }),
         supabase.rpc('analytics_top_listings', { days_back: 0, limit_count: 10, tz: 'America/New_York' }),
         supabase.rpc('analytics_top_listings_detailed', { days_back: 0, limit_count: 10, tz: 'America/New_York' }),
         supabase.rpc('analytics_top_filters', { days_back: 0, limit_count: 10, tz: 'America/New_York' }),
-        supabase.rpc('analytics_agency_metrics', { days_back: 0, tz: 'America/New_York' }),
-        supabase.rpc('analytics_funnel_abandonment_details', { days_back: 0, tz: 'America/New_York' })
+        supabase.rpc('analytics_agency_metrics', { days_back: 0, tz: 'America/New_York' })
       ]);
 
       // Handle KPIs
@@ -290,13 +208,6 @@ export function InternalAnalytics() {
         console.error('Error loading detailed top listings:', detailedListingsResult.error);
       } else {
         setDetailedTopListings(detailedListingsResult.data || []);
-      }
-
-      // Handle abandonment details
-      if (abandonmentResult.error) {
-        console.error('Error loading abandonment details:', abandonmentResult.error);
-      } else {
-        setAbandonmentDetails(abandonmentResult.data?.[0] || null);
       }
 
       // Handle top filters
@@ -467,67 +378,6 @@ export function InternalAnalytics() {
           Abandon Rate: <span className="font-semibold text-red-600">{Number.isFinite(funnel.abandonRate) ? funnel.abandonRate : 0}%</span>
         </div>
       </div>
-
-      {/* Funnel Drop-off Analysis */}
-      {abandonmentDetails && (
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-8">
-          <h2 className="text-xl font-semibold text-[#273140] mb-6 flex items-center">
-            <TrendingUp className="w-6 h-6 mr-2" />
-            Funnel Drop-off Analysis
-          </h2>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="bg-red-50 border border-red-100 rounded-lg p-4">
-              <div className="text-3xl font-bold text-red-800 mb-2">
-                {abandonmentDetails.started_not_submitted}
-              </div>
-              <div className="text-sm font-medium text-red-700 mb-1">
-                Started but Didn't Submit
-              </div>
-              <div className="text-xs text-red-600">
-                Users who began filling the form but never clicked submit
-              </div>
-            </div>
-
-            <div className="bg-orange-50 border border-orange-100 rounded-lg p-4">
-              <div className="text-3xl font-bold text-orange-800 mb-2">
-                {abandonmentDetails.submitted_not_completed}
-              </div>
-              <div className="text-sm font-medium text-orange-700 mb-1">
-                Submitted but Didn't Complete
-              </div>
-              <div className="text-xs text-orange-600">
-                Users who submitted the form but listing creation failed
-              </div>
-            </div>
-
-            <div className="bg-blue-50 border border-blue-100 rounded-lg p-4">
-              <div className="text-3xl font-bold text-blue-800 mb-2">
-                {abandonmentDetails.avg_time_before_abandon_minutes
-                  ? Math.round(abandonmentDetails.avg_time_before_abandon_minutes)
-                  : 0}m
-              </div>
-              <div className="text-sm font-medium text-blue-700 mb-1">
-                Avg Time Before Abandoning
-              </div>
-              <div className="text-xs text-blue-600">
-                Average minutes spent before leaving the form
-              </div>
-            </div>
-          </div>
-
-          <div className="mt-4 p-4 bg-gray-50 rounded-lg">
-            <div className="text-sm text-gray-700">
-              <span className="font-semibold">Total Abandoned Today:</span> {abandonmentDetails.total_abandoned}
-              {abandonmentDetails.total_abandoned > 0 && abandonmentDetails.started_not_submitted > abandonmentDetails.submitted_not_completed && (
-                <span className="ml-2 text-orange-700">
-                  Most users abandon before submitting - consider simplifying the form or adding auto-save.
-                </span>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Agency Metrics */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-8">
