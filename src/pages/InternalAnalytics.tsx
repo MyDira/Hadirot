@@ -409,104 +409,112 @@ export function InternalAnalytics() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         {/* Top Listings */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-          <h2 className="text-xl font-semibold text-[#273140] mb-6 flex items-center">
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 flex flex-col" style={{ height: '600px' }}>
+          {/* Fixed header - stays visible while content scrolls */}
+          <h2 className="text-xl font-semibold text-[#273140] mb-6 flex items-center flex-shrink-0">
             <FileText className="w-6 h-6 mr-2" />
             Top Listings by Views
           </h2>
 
-          {detailedTopListings.length === 0 ? (
-            <div className="text-center py-8">
-              <FileText className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-              <p className="text-gray-500">No listing data yet</p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {detailedTopListings.map((listing) => (
-                <div
-                  key={listing.listing_id}
-                  className="border border-gray-200 rounded-lg p-4 hover:border-accent-400 hover:shadow-md transition-all cursor-pointer"
-                  onClick={() => navigate(`/listing/${listing.listing_id}`)}
-                >
-                  <div className="flex items-start justify-between mb-2">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        <h3 className="font-semibold text-gray-900">
-                          {listing.bedrooms === 0 ? 'Studio' : `${listing.bedrooms} BR`}
-                        </h3>
-                        {listing.is_featured && (
-                          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-accent-100 text-accent-800">
-                            Featured
-                          </span>
-                        )}
+          {/* Scrollable content area with fixed height */}
+          <div className="flex-1 overflow-y-auto pr-2" style={{ minHeight: 0 }}>
+            {detailedTopListings.length === 0 ? (
+              <div className="text-center py-8">
+                <FileText className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                <p className="text-gray-500">No listing data yet</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {detailedTopListings.map((listing) => (
+                  <div
+                    key={listing.listing_id}
+                    className="border border-gray-200 rounded-lg p-4 hover:border-accent-400 hover:shadow-md transition-all cursor-pointer"
+                    onClick={() => navigate(`/listing/${listing.listing_id}`)}
+                  >
+                    <div className="flex items-start justify-between mb-2">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <h3 className="font-semibold text-gray-900">
+                            {listing.bedrooms === 0 ? 'Studio' : `${listing.bedrooms} BR`}
+                          </h3>
+                          {listing.is_featured && (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-accent-100 text-accent-800">
+                              Featured
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-sm text-gray-600 mt-1">{listing.property_location}</p>
                       </div>
-                      <p className="text-sm text-gray-600 mt-1">{listing.property_location}</p>
+                      <div className="text-right ml-4">
+                        <div className="font-semibold text-gray-900">{listing.monthly_rent}</div>
+                        <div className="text-xs text-gray-500 mt-1">by {listing.posted_by}</div>
+                      </div>
                     </div>
-                    <div className="text-right ml-4">
-                      <div className="font-semibold text-gray-900">{listing.monthly_rent}</div>
-                      <div className="text-xs text-gray-500 mt-1">by {listing.posted_by}</div>
+                    <div className="flex items-center justify-between pt-3 border-t border-gray-100">
+                      <div className="flex items-center gap-4 text-sm">
+                        <div>
+                          <span className="text-gray-500">Views:</span>
+                          <span className="ml-1 font-semibold text-gray-900">{listing.views}</span>
+                        </div>
+                        <div>
+                          <span className="text-gray-500">Impressions:</span>
+                          <span className="ml-1 font-semibold text-gray-900">{listing.impressions}</span>
+                        </div>
+                      </div>
+                      <div className="text-sm">
+                        <span className="text-gray-500">CTR:</span>
+                        <span className={`ml-1 font-semibold ${listing.ctr >= 5 ? 'text-green-600' : listing.ctr >= 2 ? 'text-blue-600' : 'text-gray-600'}`}>
+                          {listing.ctr}%
+                        </span>
+                      </div>
                     </div>
                   </div>
-                  <div className="flex items-center justify-between pt-3 border-t border-gray-100">
-                    <div className="flex items-center gap-4 text-sm">
-                      <div>
-                        <span className="text-gray-500">Views:</span>
-                        <span className="ml-1 font-semibold text-gray-900">{listing.views}</span>
-                      </div>
-                      <div>
-                        <span className="text-gray-500">Impressions:</span>
-                        <span className="ml-1 font-semibold text-gray-900">{listing.impressions}</span>
-                      </div>
-                    </div>
-                    <div className="text-sm">
-                      <span className="text-gray-500">CTR:</span>
-                      <span className={`ml-1 font-semibold ${listing.ctr >= 5 ? 'text-green-600' : listing.ctr >= 2 ? 'text-blue-600' : 'text-gray-600'}`}>
-                        {listing.ctr}%
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+                ))}
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Top Filters */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-          <h2 className="text-xl font-semibold text-[#273140] mb-6 flex items-center">
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 flex flex-col" style={{ height: '600px' }}>
+          {/* Fixed header - stays visible while content scrolls */}
+          <h2 className="text-xl font-semibold text-[#273140] mb-6 flex items-center flex-shrink-0">
             <Filter className="w-6 h-6 mr-2" />
             Most Used Filters
           </h2>
-          
-          {topFilters.length === 0 ? (
-            <div className="text-center py-8">
-              <Filter className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-              <p className="text-gray-500">No filter data yet</p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="min-w-full">
-                <thead>
-                  <tr className="border-b border-gray-200">
-                    <th className="text-left py-2 text-sm font-medium text-gray-700">Filter</th>
-                    <th className="text-left py-2 text-sm font-medium text-gray-700">Value</th>
-                    <th className="text-right py-2 text-sm font-medium text-gray-700">Uses</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {topFilters.map((filter, index) => (
-                    <tr key={`${filter.filter_key}-${filter.filter_value}-${index}`} className="border-b border-gray-100">
-                      <td className="py-2 text-sm text-gray-900 capitalize">
-                        {filter.filter_key.replace('_', ' ')}
-                      </td>
-                      <td className="py-2 text-sm text-gray-900">{filter.filter_value}</td>
-                      <td className="py-2 text-sm text-gray-900 text-right">{filter.uses}</td>
+
+          {/* Scrollable content area with fixed height */}
+          <div className="flex-1 overflow-y-auto pr-2" style={{ minHeight: 0 }}>
+            {topFilters.length === 0 ? (
+              <div className="text-center py-8">
+                <Filter className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                <p className="text-gray-500">No filter data yet</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="min-w-full">
+                  <thead className="sticky top-0 bg-white z-10">
+                    <tr className="border-b border-gray-200">
+                      <th className="text-left py-2 text-sm font-medium text-gray-700">Filter</th>
+                      <th className="text-left py-2 text-sm font-medium text-gray-700">Value</th>
+                      <th className="text-right py-2 text-sm font-medium text-gray-700">Uses</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+                  </thead>
+                  <tbody>
+                    {topFilters.map((filter, index) => (
+                      <tr key={`${filter.filter_key}-${filter.filter_value}-${index}`} className="border-b border-gray-100">
+                        <td className="py-2 text-sm text-gray-900 capitalize">
+                          {filter.filter_key.replace('_', ' ')}
+                        </td>
+                        <td className="py-2 text-sm text-gray-900">{filter.filter_value}</td>
+                        <td className="py-2 text-sm text-gray-900 text-right">{filter.uses}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>
