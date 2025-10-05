@@ -257,14 +257,6 @@ export function Layout({ children }: LayoutProps) {
                 <Plus className="w-4 h-4 mr-2" />
                 Post
               </Link>
-              <Link
-                to="/contact"
-                className={`flex items-center px-3 py-2 text-sm font-medium rounded-md transition-opacity text-white hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-white/40 ${
-                  location.pathname === "/contact" ? "opacity-90" : ""
-                }`}
-              >
-                Contact
-              </Link>
             </nav>
 
             <div className="hidden md:flex items-center ml-4">
@@ -480,17 +472,6 @@ export function Layout({ children }: LayoutProps) {
                   >
                     <Plus className="w-5 h-5 mr-3" />
                     Post Listing
-                  </Link>
-                  <Link
-                    to="/contact"
-                    onClick={() => setIsMobileMenuOpen(false)}
-                    className={`flex items-center px-4 py-3 text-base font-medium rounded-md transition-colors ${
-                      location.pathname === "/contact"
-                        ? "text-brand-700 bg-gray-100"
-                        : "text-gray-600 hover:text-brand-700 hover:bg-gray-50"
-                    }`}
-                  >
-                    Contact
                   </Link>
 
                   {user && (
