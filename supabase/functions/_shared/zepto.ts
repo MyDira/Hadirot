@@ -6,13 +6,14 @@ interface ZeptoParams {
   html: string;
   from?: string;
   fromName?: string;
+  replyTo?: string;
 }
 
-export async function sendViaZepto({ to, subject, html, from, fromName }: ZeptoParams) {
+export async function sendViaZepto({ to, subject, html, from, fromName, replyTo }: ZeptoParams) {
   const token = Deno.env.get("ZEPTO_TOKEN");
   const address = from || Deno.env.get("ZEPTO_FROM_ADDRESS") || "";
   const name = fromName || Deno.env.get("ZEPTO_FROM_NAME") || "";
-  const replyTo = Deno.env.get("ZEPTO_REPLY_TO") || undefined;
+  const replyToAddress = replyTo || Deno.env.get("ZEPTO_REPLY_TO") || undefined;
 
   if (!token || !address || !name) {
     throw new Error("ZeptoMail is not configured" );
@@ -24,7 +25,7 @@ export async function sendViaZepto({ to, subject, html, from, fromName }: ZeptoP
     to: toList.map((addr) => ({ email_address: { address: addr } })),
     subject,
     htmlbody: html,
-    reply_to: replyTo ? [{ address: replyTo }] : undefined,
+    reply_to: replyToAddress ? [{ address: replyToAddress }] : undefined,
     track_opens: false,
     track_clicks: false,
   };
