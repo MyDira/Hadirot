@@ -209,27 +209,6 @@ export default function Dashboard() {
         updated_at: new Date().toISOString(),
       });
       await loadUserListings();
-
-      // Send email notification
-      try {
-        if (user?.email && profile?.full_name) {
-          const listing = listings.find((l) => l.id === listingId);
-          if (listing) {
-            await emailService.sendListingDeactivationEmail(
-              user.email,
-              profile.full_name,
-              listing.title,
-            );
-            console.log("✅ Email sent: listing deactivation to", user.email);
-          }
-        }
-      } catch (emailError) {
-        console.error(
-          "❌ Email failed: listing deactivation -",
-          emailError.message,
-        );
-        // Don't block the user flow if email fails
-      }
     } catch (error) {
       console.error("Error unpublishing listing:", error);
       alert("Failed to unpublish listing. Please try again.");

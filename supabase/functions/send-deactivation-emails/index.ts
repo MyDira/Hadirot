@@ -7,6 +7,7 @@ interface DeactivatedListing {
   title: string;
   user_id: string;
   deactivated_at: string;
+  last_published_at: string;
   last_deactivation_email_sent_at: string | null;
   owner_email: string;
   owner_name: string;
@@ -41,6 +42,7 @@ Deno.serve(async (req) => {
         title,
         user_id,
         deactivated_at,
+        last_published_at,
         last_deactivation_email_sent_at,
         profiles!inner(
           email,
@@ -67,6 +69,7 @@ Deno.serve(async (req) => {
       title: listing.title,
       user_id: listing.user_id,
       deactivated_at: listing.deactivated_at,
+      last_published_at: listing.last_published_at,
       last_deactivation_email_sent_at: listing.last_deactivation_email_sent_at,
       owner_email: listing.profiles.email,
       owner_name: listing.profiles.full_name,
@@ -83,17 +86,48 @@ Deno.serve(async (req) => {
       try {
         console.log(`📧 Processing listing: ${listing.title} (${listing.id})`);
 
-        // Create branded email content
-        const emailHtml = renderBrandEmail({
-          title: "Your Listing Has Expired",
-          intro: `Your listing "${listing.title}" has expired and is no longer visible to potential tenants.`,
-          bodyHtml: `
-            <p>Don't worry - you can easily renew your listing to make it active again.</p>
-            <p>Simply log in to your dashboard to manage your listings and extend the expiration date.</p>
-          `,
-          ctaLabel: "Renew My Listing",
-          ctaHref: "https://hadirot.com/dashboard",
-        });
+        // Determine if this was an automatic or manual deactivation
+        // Automatic: deactivated_at is approximately 30 days after last_published_at
+        // Manual: deactivated_at is significantly before that 30-day mark
+        const publishedDate = new Date(listing.last_published_at);
+        const deactivatedDate = new Date(listing.deactivated_at);
+        const daysSincePublished = (deactivatedDate.getTime() - publishedDate.getTime()) / (1000 * 60 * 60 * 24);
+
+        // If listing was deactivated 29+ days after publishing, consider it automatic
+        const isAutomaticDeactivation = daysSincePublished >= 29;
+
+        let emailHtml: string;
+        let emailSubject: string;
+
+        if (isAutomaticDeactivation) {
+          // Automatic expiration email
+          console.log(`  → Automatic deactivation detected (${Math.round(daysSincePublished)} days old)`);
+          emailHtml = renderBrandEmail({
+            title: "Your Listing Has Expired",
+            intro: `Your listing "${listing.title}" has expired and is no longer visible to potential tenants.`,
+            bodyHtml: `
+              <p>Don't worry - you can easily renew your listing to make it active again.</p>
+              <p>Simply log in to your dashboard to manage your listings and extend the expiration date.</p>
+            `,
+            ctaLabel: "Renew My Listing",
+            ctaHref: "https://hadirot.com/dashboard",
+          });
+          emailSubject = `Your listing "${listing.title}" has expired on HaDirot`;
+        } else {
+          // Manual deactivation confirmation email
+          console.log(`  → Manual deactivation detected (${Math.round(daysSincePublished)} days old)`);
+          emailHtml = renderBrandEmail({
+            title: "Listing Deactivation Confirmed",
+            intro: `Your listing "${listing.title}" has been deactivated.`,
+            bodyHtml: `
+              <p>Your listing is no longer visible to potential tenants.</p>
+              <p>You can reactivate it anytime from your dashboard.</p>
+            `,
+            ctaLabel: "Manage My Listings",
+            ctaHref: "https://hadirot.com/dashboard",
+          });
+          emailSubject = `Listing deactivated: "${listing.title}" - HaDirot`;
+        }
 
         // Send email via existing send-email function
         const { data: emailResult, error: emailError } = await supabaseAdmin.functions.invoke(
@@ -101,7 +135,7 @@ Deno.serve(async (req) => {
           {
             body: {
               to: listing.owner_email,
-              subject: `Your listing "${listing.title}" has expired on HaDirot`,
+              subject: emailSubject,
               html: emailHtml,
               type: "general",
             },
