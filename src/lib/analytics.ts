@@ -382,11 +382,9 @@ export function trackListingImpressionBatch(listingIds: string[]): void {
     return true;
   });
   if (!freshIds.length) return;
-  
-  // Emit individual impression events for each listing
-  freshIds.forEach(listingId => {
-    track('listing_impression_batch', { listing_id: listingId });
-  });
+
+  // Send batch event with array of listing IDs (view expects 'listing_ids' or 'ids')
+  track('listing_impression_batch', { listing_ids: freshIds });
 }
 
 export function trackFilterApply(filters: Record<string, any>): void {
