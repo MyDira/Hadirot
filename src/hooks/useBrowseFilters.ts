@@ -29,6 +29,7 @@ export function useBrowseFilters() {
   const [currentPage, setCurrentPage] = useState(1);
   const hasInitialized = useRef(false);
   const scrollRestored = useRef(false);
+  const isRestoringFromSession = useRef(false);
 
   // Check if we're returning from a listing detail page
   const isReturningFromDetail = useCallback(() => {
@@ -66,87 +67,111 @@ export function useBrowseFilters() {
     return null;
   }, []);
 
-  // Initialize filters from URL or sessionStorage
-  useEffect(() => {
-    if (hasInitialized.current) return;
-    hasInitialized.current = true;
-
+  // Parse filters from URL parameters
+  const parseFiltersFromURL = useCallback((params: URLSearchParams): { filters: FilterState; page: number } => {
     const urlFilters: FilterState = {};
 
-    // Try to load from sessionStorage first if returning from detail
-    const savedState = loadBrowseState();
-    const shouldRestore = isReturningFromDetail();
+    const bedrooms = params.get('bedrooms');
+    if (bedrooms) urlFilters.bedrooms = parseInt(bedrooms);
 
-    if (shouldRestore && savedState) {
-      // Restore from sessionStorage
-      setFilters(savedState.filters);
-      setCurrentPage(savedState.page);
+    const poster_type = params.get('poster_type');
+    if (poster_type) urlFilters.poster_type = poster_type;
 
-      // Update URL to match restored state
-      const params = new URLSearchParams();
-      if (savedState.filters.bedrooms !== undefined) params.set('bedrooms', savedState.filters.bedrooms.toString());
-      if (savedState.filters.poster_type) params.set('poster_type', savedState.filters.poster_type);
-      if (savedState.filters.agency_name) params.set('agency_name', savedState.filters.agency_name);
-      if (savedState.filters.property_type) params.set('property_type', savedState.filters.property_type);
-      if (savedState.filters.min_price) params.set('min_price', savedState.filters.min_price.toString());
-      if (savedState.filters.max_price) params.set('max_price', savedState.filters.max_price.toString());
-      if (savedState.filters.parking_included) params.set('parking_included', 'true');
-      if (savedState.filters.no_fee_only) params.set('no_fee_only', '1');
-      if (savedState.filters.neighborhoods && savedState.filters.neighborhoods.length > 0) {
-        params.set('neighborhoods', savedState.filters.neighborhoods.join(','));
-      }
-      params.set('page', savedState.page.toString());
-      setSearchParams(params, { replace: true });
+    const agency_name = params.get('agency_name');
+    if (agency_name && poster_type === 'agent') urlFilters.agency_name = agency_name;
 
-      // Schedule scroll restoration
-      requestAnimationFrame(() => {
-        setTimeout(() => {
-          window.scrollTo({ top: savedState.scrollY, behavior: 'instant' });
-          scrollRestored.current = true;
-        }, 100);
-      });
+    const property_type = params.get('property_type');
+    if (property_type) urlFilters.property_type = property_type;
 
-      // Clear the restore flag
-      try {
-        sessionStorage.removeItem(SCROLL_RESTORE_KEY);
-      } catch {}
-    } else {
-      // Parse from URL parameters (initial load or fresh navigation)
-      const bedrooms = searchParams.get('bedrooms');
-      if (bedrooms) urlFilters.bedrooms = parseInt(bedrooms);
+    const min_price = params.get('min_price');
+    if (min_price) urlFilters.min_price = parseInt(min_price);
 
-      const poster_type = searchParams.get('poster_type');
-      if (poster_type) urlFilters.poster_type = poster_type;
+    const max_price = params.get('max_price');
+    if (max_price) urlFilters.max_price = parseInt(max_price);
 
-      const agency_name = searchParams.get('agency_name');
-      if (agency_name && poster_type === 'agent') urlFilters.agency_name = agency_name;
+    const parking_included = params.get('parking_included');
+    if (parking_included === 'true') urlFilters.parking_included = true;
 
-      const property_type = searchParams.get('property_type');
-      if (property_type) urlFilters.property_type = property_type;
+    const no_fee_only = params.get('no_fee_only');
+    if (no_fee_only === '1' || no_fee_only === 'true') urlFilters.no_fee_only = true;
 
-      const min_price = searchParams.get('min_price');
-      if (min_price) urlFilters.min_price = parseInt(min_price);
-
-      const max_price = searchParams.get('max_price');
-      if (max_price) urlFilters.max_price = parseInt(max_price);
-
-      const parking_included = searchParams.get('parking_included');
-      if (parking_included === 'true') urlFilters.parking_included = true;
-
-      const no_fee_only = searchParams.get('no_fee_only');
-      if (no_fee_only === '1' || no_fee_only === 'true') urlFilters.no_fee_only = true;
-
-      const neighborhoods = searchParams.get('neighborhoods');
-      if (neighborhoods) {
-        urlFilters.neighborhoods = neighborhoods.split(',').filter(Boolean);
-      }
-
-      const page = searchParams.get('page');
-      if (page) setCurrentPage(parseInt(page));
-
-      setFilters(urlFilters);
+    const neighborhoods = params.get('neighborhoods');
+    if (neighborhoods) {
+      urlFilters.neighborhoods = neighborhoods.split(',').filter(Boolean);
     }
-  }, [searchParams, loadBrowseState, isReturningFromDetail, setSearchParams]);
+
+    const page = params.get('page');
+    const pageNum = page ? parseInt(page) : 1;
+
+    return { filters: urlFilters, page: pageNum };
+  }, []);
+
+  // Initialize filters from URL or sessionStorage
+  useEffect(() => {
+    // On first mount, check if we should restore from sessionStorage
+    if (!hasInitialized.current) {
+      hasInitialized.current = true;
+
+      const savedState = loadBrowseState();
+      const shouldRestore = isReturningFromDetail();
+
+      if (shouldRestore && savedState) {
+        console.log('🔄 Restoring filters from sessionStorage:', savedState.filters);
+        isRestoringFromSession.current = true;
+
+        // Restore from sessionStorage
+        setFilters(savedState.filters);
+        setCurrentPage(savedState.page);
+
+        // Update URL to match restored state
+        const params = new URLSearchParams();
+        if (savedState.filters.bedrooms !== undefined) params.set('bedrooms', savedState.filters.bedrooms.toString());
+        if (savedState.filters.poster_type) params.set('poster_type', savedState.filters.poster_type);
+        if (savedState.filters.agency_name) params.set('agency_name', savedState.filters.agency_name);
+        if (savedState.filters.property_type) params.set('property_type', savedState.filters.property_type);
+        if (savedState.filters.min_price) params.set('min_price', savedState.filters.min_price.toString());
+        if (savedState.filters.max_price) params.set('max_price', savedState.filters.max_price.toString());
+        if (savedState.filters.parking_included) params.set('parking_included', 'true');
+        if (savedState.filters.no_fee_only) params.set('no_fee_only', '1');
+        if (savedState.filters.neighborhoods && savedState.filters.neighborhoods.length > 0) {
+          params.set('neighborhoods', savedState.filters.neighborhoods.join(','));
+        }
+        params.set('page', savedState.page.toString());
+        setSearchParams(params, { replace: true });
+
+        // Schedule scroll restoration
+        requestAnimationFrame(() => {
+          setTimeout(() => {
+            window.scrollTo({ top: savedState.scrollY, behavior: 'instant' });
+            scrollRestored.current = true;
+          }, 100);
+        });
+
+        // Clear the restore flag
+        try {
+          sessionStorage.removeItem(SCROLL_RESTORE_KEY);
+        } catch {}
+
+        // Mark restoration as complete after URL is updated
+        setTimeout(() => {
+          isRestoringFromSession.current = false;
+        }, 50);
+
+        return; // Skip parsing from URL on initial restoration
+      }
+    }
+
+    // If we're in the middle of restoring from session, skip URL parsing
+    if (isRestoringFromSession.current) {
+      return;
+    }
+
+    // Parse from URL parameters (normal case or after restoration completes)
+    const { filters: urlFilters, page: urlPage } = parseFiltersFromURL(searchParams);
+    console.log('📋 Parsing filters from URL:', urlFilters);
+    setFilters(urlFilters);
+    setCurrentPage(urlPage);
+  }, [searchParams, loadBrowseState, isReturningFromDetail, setSearchParams, parseFiltersFromURL]);
 
   // Save state whenever filters or page changes
   useEffect(() => {

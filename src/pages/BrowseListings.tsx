@@ -81,6 +81,7 @@ export function BrowseListings() {
 
   // Load listings when filters or page changes
   useEffect(() => {
+    console.log('🔍 BrowseListings: Loading listings with filters:', filters, 'page:', currentPage);
     loadListings();
     loadNeighborhoods();
   }, [filters, currentPage, user]);
@@ -92,6 +93,7 @@ export function BrowseListings() {
       // const offset = (currentPage - 1) * ITEMS_PER_PAGE; // This offset is no longer directly used for standard listings fetch
       const { no_fee_only, ...restFilters } = filters;
       const serviceFilters = { ...restFilters, noFeeOnly: no_fee_only };
+      console.log('📦 BrowseListings: Fetching with service filters:', serviceFilters);
 
       // 1. Get accurate total count for pagination (all listings matching filters)
       const { totalCount: actualTotalCount } =

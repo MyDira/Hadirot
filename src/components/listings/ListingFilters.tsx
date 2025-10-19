@@ -43,6 +43,11 @@ export function ListingFilters({
     loadNeighborhoods();
   }, []);
 
+  // Debug: Log when filters prop changes
+  React.useEffect(() => {
+    console.log('🎛️ ListingFilters: Received filters prop:', filters);
+  }, [filters]);
+
   // Close dropdown when clicking outside
   React.useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
