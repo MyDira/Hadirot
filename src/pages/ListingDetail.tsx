@@ -330,8 +330,8 @@ export function ListingDetail() {
       </Link>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-10">
-        {/* LEFT: Images */}
-        <div className="lg:col-span-7">
+        {/* LEFT: Images - Desktop only */}
+        <div className="hidden lg:block lg:col-span-7">
           <div className="relative">
             <ImageCarousel
               images={images.map((img) => ({ url: img.image_url, alt: listing.title }))}
@@ -371,8 +371,88 @@ export function ListingDetail() {
 
         {/* RIGHT: Info stack */}
         <div className="lg:col-span-5 flex flex-col gap-3 text-[0.95rem] md:text-[0.985rem] leading-relaxed">
-          {/* Title */}
-          <section id="ld-title">
+          {/* Mobile Images - First on mobile */}
+          <section id="ld-mobile-images" className="lg:hidden">
+            <div className="relative">
+              <ImageCarousel
+                images={images.map((img) => ({ url: img.image_url, alt: listing.title }))}
+                className="mb-0"
+                listingSeed={{
+                  id: listing.id,
+                  addressLine: listing.location,
+                  city: listing.neighborhood,
+                  price: listing.price,
+                }}
+              />
+              <button
+                onClick={handleFavoriteToggle}
+                className="absolute top-4 right-4 p-3 bg-white rounded-full shadow-lg hover:shadow-xl transition-shadow"
+              >
+                <Heart
+                  className={`w-6 h-6 ${
+                    listing.is_favorited
+                      ? "text-red-500 fill-current"
+                      : "text-gray-400 hover:text-red-500"
+                  }`}
+                />
+              </button>
+            </div>
+          </section>
+
+          {/* Mobile Contact Card - Second on mobile */}
+          <section id="ld-contact-card-mobile" className="lg:hidden text-base">
+            <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-6">
+              <h3 className="text-xl font-bold text-[#273140] mb-4">
+                Contact Information
+              </h3>
+
+              <div className="space-y-4">
+                <div className="flex items-center">
+                  <User className="w-5 h-5 text-[#273140] mr-3" />
+                  <div>
+                    <div className="font-semibold">{listing.contact_name}</div>
+                    <div className="text-sm text-gray-500">{getRoleLabel()}</div>
+                  </div>
+                </div>
+
+                <div className="flex items-center">
+                  <Phone className="w-5 h-5 text-[#273140] mr-3" />
+                  <a
+                    href={`tel:${listing.contact_phone}`}
+                    className="text-[#273140] hover:text-[#1e252f] font-medium transition-colors"
+                    onClick={handleCallClick}
+                  >
+                    {formatPhoneNumber(listing.contact_phone)}
+                  </a>
+                </div>
+              </div>
+
+              <div className="mt-6 space-y-3">
+                <a
+                  href={`tel:${listing.contact_phone}`}
+                  className="w-full bg-[#273140] text-white py-3 px-4 rounded-md font-semibold hover:bg-[#1e252f] transition-colors flex items-center justify-center"
+                  onClick={handleCallClick}
+                >
+                  <Phone className="w-5 h-5 mr-2" />
+                  Call Now
+                </a>
+
+                <a
+                  href={`sms:${listing.contact_phone.replace(/\D/g, "")}?body=Hi, I'm interested in your listing: ${listing.title}`}
+                  className="w-full bg-accent-500 text-white py-3 px-4 rounded-md font-semibold hover:bg-accent-600 transition-colors flex items-center justify-center"
+                  onClick={handleMessageClick}
+                >
+                  Send Message
+                </a>
+              </div>
+
+              <div className="mt-4 pt-4 border-t border-gray-200 text-xs text-gray-500">
+                Listed {new Date(listing.created_at).toLocaleDateString()}
+              </div>
+            </div>
+          </section>
+          {/* Title - Third on mobile */}
+          <section id="ld-title" className="order-3 lg:order-none">
             <h1 className="text-2xl md:text-[1.65rem] font-semibold text-[#273140] mb-2">
               {listing.title}
             </h1>
@@ -381,8 +461,8 @@ export function ListingDetail() {
             )}
           </section>
 
-          {/* Location + Tag (mobile-safe truncation) */}
-          <section id="ld-location-and-tag">
+          {/* Location + Tag (mobile-safe truncation) - Third on mobile */}
+          <section id="ld-location-and-tag" className="order-3 lg:order-none">
             <div className="flex items-center gap-2">
               {/* LEFT: Location (flexible, truncates first) */}
               <div className="flex-1 min-w-0">
@@ -428,8 +508,8 @@ export function ListingDetail() {
             </div>
           </section>
 
-          {/* Price */}
-          <section id="ld-price">
+          {/* Price - Third on mobile */}
+          <section id="ld-price" className="order-3 lg:order-none">
             {listing.call_for_price ? (
               <strong>Call for Price</strong>
             ) : (
@@ -442,8 +522,8 @@ export function ListingDetail() {
             )}
           </section>
 
-          {/* Basic info */}
-          <section id="ld-basic-info">
+          {/* Basic info - Fourth on mobile */}
+          <section id="ld-basic-info" className="order-4 lg:order-none">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 bg-gray-50 rounded-lg">
               <div className="flex items-center leading-none">
                 <div>
@@ -491,8 +571,8 @@ export function ListingDetail() {
             </div>
           </section>
 
-          {/* Contact Information card */}
-          <section id="ld-contact-card" className="text-base">
+          {/* Contact Information card - Desktop only (sticky) */}
+          <section id="ld-contact-card" className="hidden lg:block text-base">
             <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-6 sticky top-8">
               <h3 className="text-xl font-bold text-[#273140] mb-4">
                 Contact Information
@@ -544,8 +624,8 @@ export function ListingDetail() {
             </div>
           </section>
 
-          {/* Property Details */}
-          <section id="ld-details">
+          {/* Property Details - Mobile: after basic info, Desktop: in sidebar */}
+          <section id="ld-details" className="order-5 lg:order-none">
             <div className="mb-8">
               <h2 className="text-2xl font-bold text-[#273140] mb-4">
                 Features & Amenities
@@ -608,6 +688,17 @@ export function ListingDetail() {
               </div>
             </div>
           </section>
+          {/* Mobile Description - Last on mobile */}
+          {listing.description && (
+            <section id="ld-description-mobile" className="lg:hidden order-6">
+              <h2 className="text-2xl font-bold text-[#273140] mb-4">
+                Description
+              </h2>
+              <p className="text-gray-700 leading-relaxed whitespace-pre-wrap">
+                {listing.description}
+              </p>
+            </section>
+          )}
         </div>
 
       </div>

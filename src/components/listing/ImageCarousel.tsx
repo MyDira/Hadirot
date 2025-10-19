@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { getStockImageForListing } from '../../utils/stockImage';
 
@@ -13,12 +13,14 @@ interface ImageCarouselProps {
   };
 }
 
-export default function ImageCarousel({ 
-  images, 
+export default function ImageCarousel({
+  images,
   className = '',
-  listingSeed 
+  listingSeed
 }: ImageCarouselProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
+  const touchStartX = useRef(0);
+  const touchEndX = useRef(0);
 
   // If no real images, show stock image
   const hasRealImages = images && images.length > 0;
@@ -49,16 +51,47 @@ export default function ImageCarousel({
     setCurrentIndex((prev) => (prev - 1 + displayImages.length) % displayImages.length);
   };
 
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartX.current = e.touches[0].clientX;
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    touchEndX.current = e.touches[0].clientX;
+  };
+
+  const handleTouchEnd = () => {
+    if (displayImages.length <= 1) return;
+
+    const swipeDistance = touchStartX.current - touchEndX.current;
+    const minSwipeDistance = 50;
+
+    if (Math.abs(swipeDistance) > minSwipeDistance) {
+      if (swipeDistance > 0) {
+        nextImage();
+      } else {
+        prevImage();
+      }
+    }
+
+    touchStartX.current = 0;
+    touchEndX.current = 0;
+  };
+
   const isShowingStock = !hasRealImages;
 
   return (
     <div className={`relative w-full ${className}`}>
       {/* Main image */}
-      <div className="relative w-full h-96 overflow-hidden rounded-lg">
+      <div
+        className="relative w-full h-96 overflow-hidden rounded-lg"
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+      >
         <img
           src={displayImages[currentIndex].url}
           alt={displayImages[currentIndex].alt}
-          className="w-full h-full object-cover"
+          className="w-full h-full object-cover select-none"
         />
         
         {isShowingStock && (
@@ -68,19 +101,19 @@ export default function ImageCarousel({
         )}
       </div>
 
-      {/* Navigation arrows - only show if more than 1 image */}
+      {/* Navigation arrows - hidden on mobile, visible on desktop */}
       {displayImages.length > 1 && (
         <>
           <button
             onClick={prevImage}
-            className="absolute left-4 top-1/2 transform -translate-y-1/2 bg-black bg-opacity-50 text-white p-2 rounded-full hover:bg-opacity-75 transition-all"
+            className="hidden md:block absolute left-4 top-1/2 transform -translate-y-1/2 bg-black bg-opacity-50 text-white p-2 rounded-full hover:bg-opacity-75 transition-all"
             aria-label="Previous image"
           >
             <ChevronLeft size={20} />
           </button>
           <button
             onClick={nextImage}
-            className="absolute right-4 top-1/2 transform -translate-y-1/2 bg-black bg-opacity-50 text-white p-2 rounded-full hover:bg-opacity-75 transition-all"
+            className="hidden md:block absolute right-4 top-1/2 transform -translate-y-1/2 bg-black bg-opacity-50 text-white p-2 rounded-full hover:bg-opacity-75 transition-all"
             aria-label="Next image"
           >
             <ChevronRight size={20} />
