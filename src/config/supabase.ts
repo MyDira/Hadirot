@@ -138,3 +138,32 @@ export interface Agency {
   created_at: string;
   updated_at: string;
 }
+
+export interface ModalPopup {
+  id: string;
+  name: string;
+  heading: string;
+  subheading?: string;
+  additional_text_lines: string[];
+  button_text: string;
+  button_url: string;
+  is_active: boolean;
+  trigger_pages: string[];
+  display_frequency: 'once_per_session' | 'once_per_day' | 'once_per_lifetime' | 'until_clicked' | 'custom_interval';
+  custom_interval_hours?: number;
+  delay_seconds: number;
+  priority: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ModalUserInteraction {
+  id: string;
+  modal_id: string;
+  user_fingerprint: string;
+  user_id?: string;
+  interaction_type: 'shown' | 'dismissed' | 'clicked';
+  interaction_timestamp: string;
+  session_id: string;
+  page_path: string;
+}

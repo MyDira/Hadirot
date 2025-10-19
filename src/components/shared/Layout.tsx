@@ -4,6 +4,7 @@ import { Home, Search, Plus, User, Heart, LogOut, Settings, LayoutDashboard, Fil
 import { useAuth, AUTH_CONTEXT_ID } from "@/hooks/useAuth";
 import { useAnalyticsInit } from "@/hooks/useAnalyticsInit";
 import { Footer } from "./Footer";
+import { ModalManager } from "./ModalManager";
 import { capitalizeName } from "../../utils/formatters";
 import { supabase, type Agency } from "@/config/supabase";
 import { agenciesService } from "@/services/agencies";
@@ -654,6 +655,8 @@ export function Layout({ children }: LayoutProps) {
       </main>
 
       <Footer />
+
+      {!loading && <ModalManager userId={user?.id} />}
     </div>
   );
 }
