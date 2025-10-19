@@ -35,7 +35,7 @@ export function BrowseListings() {
   const [allNeighborhoods, setAllNeighborhoods] = useState<string[]>([]);
   const [showFiltersMobile, setShowFiltersMobile] = useState(false);
   const { user } = useAuth();
-  const { filters, currentPage, updateFilters, updatePage, markNavigatingToDetail } = useBrowseFilters();
+  const { filters, currentPage, updateFilters, updatePage, markNavigatingToDetail, isReady } = useBrowseFilters();
   
   // Set up listing impression tracking
   const { observeElement, unobserveElement } = useListingImpressions({
@@ -79,12 +79,16 @@ export function BrowseListings() {
     }
   };
 
-  // Load listings when filters or page changes
+  // Load listings when filters or page changes - BUT ONLY AFTER filters are ready
   useEffect(() => {
+    if (!isReady) {
+      console.log('⏳ BrowseListings: Waiting for filters to be ready...');
+      return;
+    }
     console.log('🔍 BrowseListings: Loading listings with filters:', filters, 'page:', currentPage);
     loadListings();
     loadNeighborhoods();
-  }, [filters, currentPage, user]);
+  }, [filters, currentPage, user, isReady]);
 
   const loadListings = async () => {
     try {

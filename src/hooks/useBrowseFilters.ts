@@ -27,6 +27,7 @@ export function useBrowseFilters() {
   const location = useLocation();
   const [filters, setFilters] = useState<FilterState>({});
   const [currentPage, setCurrentPage] = useState(1);
+  const [isReady, setIsReady] = useState(false); // Track when initialization is complete
   const hasInitialized = useRef(false);
   const scrollRestored = useRef(false);
   const isRestoringFromSession = useRef(false);
@@ -157,8 +158,18 @@ export function useBrowseFilters() {
           isRestoringFromSession.current = false;
         }, 50);
 
+        // Mark as ready after restoration
+        setIsReady(true);
         return; // Skip parsing from URL on initial restoration
       }
+
+      // If no restoration needed, parse from URL and mark as ready
+      const { filters: urlFilters, page: urlPage } = parseFiltersFromURL(searchParams);
+      console.log('📋 Initial URL parsing:', urlFilters);
+      setFilters(urlFilters);
+      setCurrentPage(urlPage);
+      setIsReady(true);
+      return;
     }
 
     // If we're in the middle of restoring from session, skip URL parsing
@@ -226,5 +237,6 @@ export function useBrowseFilters() {
     updateFilters,
     updatePage,
     markNavigatingToDetail,
+    isReady, // Export ready state so consumers know when to fetch
   };
 }
