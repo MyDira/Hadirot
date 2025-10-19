@@ -18,6 +18,7 @@ export type UserRole = 'tenant' | 'landlord' | 'agent';
 export type PropertyType = 'apartment_building' | 'apartment_house' | 'full_house';
 export type ParkingType = 'yes' | 'included' | 'optional' | 'no';
 export type HeatType = 'included' | 'tenant_pays';
+export type LeaseLength = 'short_term' | '1_year' | '18_months' | '2_years';
 
 export interface Profile {
   id: string;
@@ -53,7 +54,7 @@ export interface Listing {
   washer_dryer_hookup: boolean;
   dishwasher: boolean;
   broker_fee: boolean;
-  lease_length?: string;
+  lease_length?: LeaseLength | null;
   heat: HeatType;
   property_type: PropertyType;
   contact_name: string;

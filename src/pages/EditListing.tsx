@@ -8,6 +8,7 @@ import {
   PropertyType,
   ParkingType,
   HeatType,
+  LeaseLength,
   Listing,
   ListingImage,
   TempListingImage,
@@ -28,7 +29,7 @@ interface ListingFormData {
   parking: ParkingType;
   washer_dryer_hookup: boolean;
   dishwasher: boolean;
-  lease_length?: string;
+  lease_length?: LeaseLength | null;
   heat: HeatType;
   property_type: PropertyType;
   contact_name: string;
@@ -74,7 +75,7 @@ export function EditListing() {
     parking: "no",
     washer_dryer_hookup: false,
     dishwasher: false,
-    lease_length: "",
+    lease_length: null,
     heat: "tenant_pays",
     property_type: "apartment_house",
     contact_name: "",
@@ -126,7 +127,7 @@ export function EditListing() {
         parking: data.parking,
         washer_dryer_hookup: data.washer_dryer_hookup,
         dishwasher: data.dishwasher,
-        lease_length: data.lease_length || "",
+        lease_length: data.lease_length || null,
         heat: data.heat,
         property_type: data.property_type,
         contact_name: data.contact_name,
@@ -709,14 +710,18 @@ export function EditListing() {
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Lease Length
               </label>
-              <input
-                type="text"
+              <select
                 name="lease_length"
                 value={formData.lease_length || ""}
                 onChange={handleInputChange}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
-                placeholder="12 months"
-              />
+              >
+                <option value="">Select lease length (optional)</option>
+                <option value="short_term">Short Term</option>
+                <option value="1_year">1 Year</option>
+                <option value="18_months">18 Months</option>
+                <option value="2_years">2 Years</option>
+              </select>
             </div>
 
             <div>

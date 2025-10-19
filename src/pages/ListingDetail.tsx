@@ -352,6 +352,8 @@ export function ListingDetail() {
                 city: listing.neighborhood,
                 price: listing.price,
               }}
+              propertyType={listing.property_type}
+              leaseLength={listing.lease_length}
             />
             <button
               onClick={handleFavoriteToggle}
@@ -393,6 +395,8 @@ export function ListingDetail() {
                   city: listing.neighborhood,
                   price: listing.price,
                 }}
+                propertyType={listing.property_type}
+                leaseLength={listing.lease_length}
               />
               <button
                 onClick={handleFavoriteToggle}

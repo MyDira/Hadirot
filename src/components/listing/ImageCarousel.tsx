@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { getStockImageForListing } from '../../utils/stockImage';
+import { PropertyType, LeaseLength } from '../../config/supabase';
 
 interface ImageCarouselProps {
   images: Array<{ url: string; alt: string }>;
@@ -11,12 +12,16 @@ interface ImageCarouselProps {
     city?: string | null;
     price?: number | null;
   };
+  propertyType?: PropertyType;
+  leaseLength?: LeaseLength | null;
 }
 
 export default function ImageCarousel({
   images,
   className = '',
-  listingSeed
+  listingSeed,
+  propertyType,
+  leaseLength
 }: ImageCarouselProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const touchStartX = useRef(0);
@@ -93,7 +98,21 @@ export default function ImageCarousel({
           alt={displayImages[currentIndex].alt}
           className="w-full h-full object-cover select-none"
         />
-        
+
+        {/* Property type and lease length badges - top left */}
+        <div className="absolute top-4 left-4 flex flex-col gap-2">
+          {propertyType === "full_house" && (
+            <div className="rounded-full bg-black/35 px-3 py-1 text-sm font-medium text-white backdrop-blur-sm">
+              Full House
+            </div>
+          )}
+          {leaseLength === "short_term" && (
+            <div className="rounded-full bg-black/35 px-3 py-1 text-sm font-medium text-white backdrop-blur-sm">
+              Short Term
+            </div>
+          )}
+        </div>
+
         {isShowingStock && (
           <div className="absolute bottom-4 left-4 rounded-full bg-black/35 px-3 py-1 text-sm text-white backdrop-blur-sm">
             Stock photo
