@@ -48,7 +48,7 @@ export function CustomModal({ modal, isOpen, onClose, onButtonClick }: CustomMod
     >
       <div className="relative bg-white rounded-lg shadow-xl max-w-lg w-full mx-auto overflow-hidden animate-slide-up">
         <div className="flex items-center justify-between p-6 border-b border-gray-200">
-          <h3 className="text-xl font-semibold text-[#273140]">{modal.heading}</h3>
+          <h3 className="text-xl font-semibold text-[#273140] text-center flex-1">{modal.heading}</h3>
           <button
             onClick={onClose}
             className="text-gray-400 hover:text-gray-600 transition-colors"
@@ -58,7 +58,7 @@ export function CustomModal({ modal, isOpen, onClose, onButtonClick }: CustomMod
           </button>
         </div>
 
-        <div className="p-6 space-y-4">
+        <div className="p-6 space-y-4 text-center">
           {modal.subheading && (
             <p className="text-base text-gray-700 font-medium">{modal.subheading}</p>
           )}
@@ -76,7 +76,7 @@ export function CustomModal({ modal, isOpen, onClose, onButtonClick }: CustomMod
           <div className="pt-4">
             <button
               onClick={handleButtonClick}
-              className="w-full bg-[#273140] text-white px-6 py-3 rounded-md font-medium hover:bg-[#1e252f] transition-colors focus:outline-none focus:ring-2 focus:ring-[#273140] focus:ring-offset-2"
+              className="w-full bg-accent-500 text-white px-6 py-3 rounded-md font-medium hover:bg-accent-600 transition-colors focus:outline-none focus:ring-2 focus:ring-accent-500 focus:ring-offset-2"
             >
               {modal.button_text}
             </button>

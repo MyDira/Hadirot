@@ -46,7 +46,7 @@ export function ModalPreview({ modal }: ModalPreviewProps) {
           }`}
         >
           <div className="flex items-center justify-between p-6 border-b border-gray-200">
-            <h3 className={`font-semibold text-[#273140] ${viewMode === 'mobile' ? 'text-lg' : 'text-xl'}`}>
+            <h3 className={`font-semibold text-[#273140] text-center flex-1 ${viewMode === 'mobile' ? 'text-lg' : 'text-xl'}`}>
               {modal.heading || 'Modal Heading'}
             </h3>
             <button
@@ -57,7 +57,7 @@ export function ModalPreview({ modal }: ModalPreviewProps) {
             </button>
           </div>
 
-          <div className="p-6 space-y-4">
+          <div className="p-6 space-y-4 text-center">
             {modal.subheading && (
               <p className={`text-gray-700 font-medium ${viewMode === 'mobile' ? 'text-sm' : 'text-base'}`}>
                 {modal.subheading}
@@ -77,7 +77,7 @@ export function ModalPreview({ modal }: ModalPreviewProps) {
             <div className="pt-4">
               <button
                 disabled
-                className={`w-full bg-[#273140] text-white rounded-md font-medium transition-colors cursor-not-allowed ${
+                className={`w-full bg-accent-500 text-white rounded-md font-medium transition-colors cursor-not-allowed ${
                   viewMode === 'mobile' ? 'px-4 py-2 text-sm' : 'px-6 py-3 text-base'
                 }`}
               >
