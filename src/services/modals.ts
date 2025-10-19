@@ -191,19 +191,16 @@ export const modalsService = {
     userFingerprint: string,
     userId?: string
   ): Promise<ModalUserInteraction[]> {
-    let query = supabase
+    const { data, error } = await supabase
       .from('modal_user_interactions')
       .select('*')
       .eq('modal_id', modalId)
+      .or(
+        userId
+          ? `user_fingerprint.eq.${userFingerprint},user_id.eq.${userId}`
+          : `user_fingerprint.eq.${userFingerprint}`
+      )
       .order('interaction_timestamp', { ascending: false });
-
-    if (userId) {
-      query = query.or(`user_fingerprint.eq.${userFingerprint},user_id.eq.${userId}`);
-    } else {
-      query = query.eq('user_fingerprint', userFingerprint);
-    }
-
-    const { data, error } = await query;
 
     if (error) {
       console.error('Error fetching user modal history:', error);
@@ -223,6 +220,11 @@ export const modalsService = {
 
     if (history.length === 0) {
       return true;
+    }
+
+    const everClicked = history.some((h) => h.interaction_type === 'clicked');
+    if (everClicked) {
+      return false;
     }
 
     switch (modal.display_frequency) {
@@ -248,8 +250,7 @@ export const modalsService = {
       }
 
       case 'until_clicked': {
-        const everClicked = history.some((h) => h.interaction_type === 'clicked');
-        return !everClicked;
+        return false;
       }
 
       case 'custom_interval': {
