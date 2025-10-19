@@ -16,6 +16,7 @@ interface ListingCardProps {
   onFavoriteChange?: () => void;
   showFeaturedBadge?: boolean;
   onClick?: () => void;
+  onNavigateToDetail?: () => void;
 }
 
 export function ListingCard({
@@ -24,6 +25,7 @@ export function ListingCard({
   onFavoriteChange,
   showFeaturedBadge = true,
   onClick,
+  onNavigateToDetail,
 }: ListingCardProps) {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -99,11 +101,20 @@ export function ListingCard({
   const hasParking =
     listing.parking === "yes" || listing.parking === "included";
 
+  const handleCardClick = (e: React.MouseEvent) => {
+    if (onNavigateToDetail) {
+      onNavigateToDetail();
+    }
+    if (onClick) {
+      onClick();
+    }
+  };
+
   return (
     <Link
       to={`/listing/${listing.id}`}
       className="group block bg-white border border-gray-200 rounded-lg shadow-sm hover:shadow transition overflow-hidden"
-      onClick={onClick}
+      onClick={handleCardClick}
     >
       <div className="relative aspect-[3/2]">
         <img

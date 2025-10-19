@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { useSearchParams, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { ChevronLeft, ChevronRight, Star, Filter, X } from "lucide-react";
 import { ListingCard } from "../components/listings/ListingCard";
 import { ListingFilters } from "../components/listings/ListingFilters";
@@ -9,6 +9,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { gaEvent, gaListing } from "@/lib/ga";
 import { trackFilterApply } from "../lib/analytics";
 import { useListingImpressions } from "../hooks/useListingImpressions";
+import { useBrowseFilters } from "../hooks/useBrowseFilters";
 
 interface FilterState {
   bedrooms?: number;
@@ -23,7 +24,6 @@ interface FilterState {
 }
 
 export function BrowseListings() {
-  const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const [displayListings, setDisplayListings] = useState<
     (Listing & { showFeaturedBadge: boolean })[]
@@ -31,12 +31,11 @@ export function BrowseListings() {
   const [userFavorites, setUserFavorites] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [totalCount, setTotalCount] = useState(0);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [filters, setFilters] = useState<FilterState>({});
   const [agencies, setAgencies] = useState<string[]>([]);
   const [allNeighborhoods, setAllNeighborhoods] = useState<string[]>([]);
   const [showFiltersMobile, setShowFiltersMobile] = useState(false);
   const { user } = useAuth();
+  const { filters, currentPage, updateFilters, updatePage, markNavigatingToDetail } = useBrowseFilters();
   
   // Set up listing impression tracking
   const { observeElement, unobserveElement } = useListingImpressions({
@@ -79,46 +78,6 @@ export function BrowseListings() {
       console.error("Error loading user favorites:", error);
     }
   };
-  // Initialize filters from URL on component mount
-  useEffect(() => {
-    const urlFilters: FilterState = {};
-
-    const bedrooms = searchParams.get("bedrooms");
-    if (bedrooms) urlFilters.bedrooms = parseInt(bedrooms);
-
-    const poster_type = searchParams.get("poster_type");
-    if (poster_type) urlFilters.poster_type = poster_type;
-
-    const agency_name = searchParams.get("agency_name");
-    if (agency_name && poster_type === "agent")
-      urlFilters.agency_name = agency_name;
-
-    const property_type = searchParams.get("property_type");
-    if (property_type) urlFilters.property_type = property_type;
-
-    const min_price = searchParams.get("min_price");
-    if (min_price) urlFilters.min_price = parseInt(min_price);
-
-    const max_price = searchParams.get("max_price");
-    if (max_price) urlFilters.max_price = parseInt(max_price);
-
-    const parking_included = searchParams.get("parking_included");
-    if (parking_included === "true") urlFilters.parking_included = true;
-
-    const no_fee_only = searchParams.get("no_fee_only");
-    if (no_fee_only === "1" || no_fee_only === "true")
-      urlFilters.no_fee_only = true;
-
-    const neighborhoods = searchParams.get("neighborhoods");
-    if (neighborhoods) {
-      urlFilters.neighborhoods = neighborhoods.split(",").filter(Boolean);
-    }
-
-    const page = searchParams.get("page");
-    if (page) setCurrentPage(parseInt(page));
-
-    setFilters(urlFilters);
-  }, [searchParams]);
 
   // Load listings when filters or page changes
   useEffect(() => {
@@ -327,9 +286,6 @@ export function BrowseListings() {
   };
 
   const handleFiltersChange = (newFilters: FilterState) => {
-    setFilters(newFilters);
-    setCurrentPage(1);
-
     gaEvent("filter_apply", {
       price_min: newFilters.min_price ?? null,
       price_max: newFilters.max_price ?? null,
@@ -338,44 +294,19 @@ export function BrowseListings() {
       no_fee_only: !!newFilters.no_fee_only,
       sort: null,
     });
-    
+
     // Track with our analytics system
     trackFilterApply(newFilters);
 
-    // Update URL with new filters
-    const params = new URLSearchParams();
-
-    if (newFilters.bedrooms)
-      params.set("bedrooms", newFilters.bedrooms.toString());
-    if (newFilters.poster_type)
-      params.set("poster_type", newFilters.poster_type);
-    if (newFilters.agency_name)
-      params.set("agency_name", newFilters.agency_name);
-    if (newFilters.property_type)
-      params.set("property_type", newFilters.property_type);
-    if (newFilters.min_price)
-      params.set("min_price", newFilters.min_price.toString());
-    if (newFilters.max_price)
-      params.set("max_price", newFilters.max_price.toString());
-    if (newFilters.parking_included) params.set("parking_included", "true");
-    if (newFilters.no_fee_only) params.set("no_fee_only", "1");
-
-    if (newFilters.neighborhoods && newFilters.neighborhoods.length > 0) {
-      params.set("neighborhoods", newFilters.neighborhoods.join(","));
-    }
-
-    params.set("page", "1");
-    setSearchParams(params);
+    // Update filters using the hook
+    updateFilters(newFilters);
   };
 
   const handlePageChange = (page: number) => {
     if (page < 1 || page > totalPages) return;
 
-    // Update URL with new page
-    const params = new URLSearchParams(searchParams);
-    params.set("page", page.toString());
-    setSearchParams(params);
-    setCurrentPage(page);
+    // Update page using the hook
+    updatePage(page);
 
     // Scroll to top when page changes
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -552,7 +483,7 @@ export function BrowseListings() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           {displayListings.map((listing, idx) => (
-            <div 
+            <div
               key={listing.key}
               ref={(el) => {
                 if (el) {
@@ -572,6 +503,7 @@ export function BrowseListings() {
                 onFavoriteChange={handleFavoriteChange}
                 showFeaturedBadge={listing.showFeaturedBadge}
                 onClick={() => handleCardClick(listing, idx)}
+                onNavigateToDetail={markNavigatingToDetail}
               />
             </div>
           ))}

@@ -318,11 +318,21 @@ export function ListingDetail() {
     }) || [];
 
 
+  const handleBackToBrowse = () => {
+    // Mark that we're returning to browse so filters can be restored
+    try {
+      sessionStorage.setItem('browse_scroll_restore', 'true');
+    } catch (error) {
+      console.warn('Failed to set navigation flag:', error);
+    }
+  };
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       {/* Back Button */}
       <Link
         to="/browse"
+        onClick={handleBackToBrowse}
         className="inline-flex items-center text-[#4E4B43] hover:text-[#3a3832] mb-6 transition-colors"
       >
         <ArrowLeft className="w-4 h-4 mr-2" />

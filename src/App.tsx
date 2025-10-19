@@ -26,11 +26,18 @@ import GASmokeTest from '@/dev/gaSmokeTest';
 
 function ScrollToTop() {
   const location = useLocation();
-  
+
   React.useEffect(() => {
-    window.scrollTo(0, 0);
+    // Don't scroll to top if we're returning to browse page from a listing
+    // The useBrowseFilters hook will handle scroll restoration in that case
+    const isReturningToBrowse = location.pathname === '/browse' &&
+      sessionStorage.getItem('browse_scroll_restore') === 'true';
+
+    if (!isReturningToBrowse) {
+      window.scrollTo(0, 0);
+    }
   }, [location.pathname]);
-  
+
   return null;
 }
 
