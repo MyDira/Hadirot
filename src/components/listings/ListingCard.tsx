@@ -124,8 +124,8 @@ export function ListingCard({
           loading="lazy"
         />
 
-        {/* Property type and lease length badges - top left */}
-        <div className="absolute top-3 left-3 flex flex-col gap-2">
+        {/* Property type and lease length badges - bottom right */}
+        <div className="absolute bottom-3 right-3 flex flex-col gap-2">
           {listing.property_type === "full_house" && (
             <div className="rounded-full bg-black/35 px-3 py-1 text-xs font-medium text-white backdrop-blur-sm">
               Full House

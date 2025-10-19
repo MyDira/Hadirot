@@ -99,8 +99,8 @@ export default function ImageCarousel({
           className="w-full h-full object-cover select-none"
         />
 
-        {/* Property type and lease length badges - top left */}
-        <div className="absolute top-4 left-4 flex flex-col gap-2">
+        {/* Property type and lease length badges - bottom right */}
+        <div className="absolute bottom-4 right-4 flex flex-col gap-2">
           {propertyType === "full_house" && (
             <div className="rounded-full bg-black/35 px-3 py-1 text-sm font-medium text-white backdrop-blur-sm">
               Full House

@@ -310,6 +310,14 @@ export function ListingDetail() {
     }
   };
 
+  const formatLeaseLength = (leaseLength: string | null | undefined): string => {
+    if (!leaseLength) return "";
+    return leaseLength
+      .split("_")
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(" ");
+  };
+
   const images =
     listing.listing_images?.sort((a, b) => {
       if (a.is_featured && !b.is_featured) return -1;
@@ -696,7 +704,7 @@ export function ListingDetail() {
                 {listing.lease_length && (
                   <div className="flex items-center">
                     <Calendar className="w-5 h-5 text-[#273140] mr-3" />
-                    <span>Lease: {listing.lease_length}</span>
+                    <span>Lease: {formatLeaseLength(listing.lease_length)}</span>
                   </div>
                 )}
               </div>
