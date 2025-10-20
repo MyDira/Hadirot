@@ -2,14 +2,15 @@ import { createClient } from 'npm:@supabase/supabase-js@2.53.0';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS'
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-session-id',
+  'Access-Control-Allow-Methods': 'POST, GET, DELETE, OPTIONS',
 };
 
 Deno.serve(async (req: Request) => {
-  console.log('[start-impersonation] Request received');
+  console.log('[start-impersonation] Request received:', req.method);
   
   if (req.method === 'OPTIONS') {
+    console.log('[start-impersonation] Handling OPTIONS request');
     return new Response(null, { status: 200, headers: corsHeaders });
   }
 
