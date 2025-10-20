@@ -11,7 +11,7 @@ Deno.serve(async (req: Request) => {
   
   if (req.method === 'OPTIONS') {
     console.log('[start-impersonation] Handling OPTIONS request');
-    return new Response(null, { status: 200, headers: corsHeaders });
+    return new Response('ok', { headers: corsHeaders });
   }
 
   try {
