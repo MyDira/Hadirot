@@ -99,31 +99,17 @@ export function ImpersonationProvider({ children }: { children: React.ReactNode 
     }
   }, [user, profile?.is_admin]);
 
-  // Periodic session validity check
+  // Periodic session validity check (simplified - just check expiration time)
   useEffect(() => {
     if (!isImpersonating || !impersonationSession) return;
 
-    const checkSessionValidity = async () => {
+    const checkSessionValidity = () => {
       try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session) return;
+        const expiresAt = new Date(impersonationSession.expires_at);
+        const now = new Date();
 
-        const response = await fetch(
-          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/check-impersonation-status`,
-          {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${session.access_token}`,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ session_token: impersonationSession.session_token }),
-          }
-        );
-
-        const result = await response.json();
-
-        if (!result.valid) {
-          console.log('Session no longer valid:', result);
+        if (now >= expiresAt) {
+          console.log('Session expired based on expires_at');
           setIsExpired(true);
         }
       } catch (err) {
@@ -144,29 +130,18 @@ export function ImpersonationProvider({ children }: { children: React.ReactNode 
     setError(null);
 
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        throw new Error('No active session');
+      const { data, error } = await supabase.functions.invoke('start-impersonation', {
+        body: { impersonated_user_id: userId },
+      });
+
+      if (error) {
+        console.error('Start impersonation error:', error);
+        throw new Error(error.message || 'Failed to start impersonation');
       }
 
-      const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/start-impersonation`,
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${session.access_token}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ impersonated_user_id: userId }),
-        }
-      );
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to start impersonation');
+      if (!data || !data.session || !data.impersonated_profile) {
+        throw new Error('Invalid response from server');
       }
-
-      const data = await response.json();
 
       // Store session data
       const sessionData = {
@@ -205,24 +180,15 @@ export function ImpersonationProvider({ children }: { children: React.ReactNode 
     setLoading(true);
 
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        throw new Error('No active session');
+      const { error } = await supabase.functions.invoke('end-impersonation', {
+        body: { session_token: impersonationSession.session_token },
+      });
+
+      if (error) {
+        console.error('Error ending impersonation:', error);
       }
 
-      await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/end-impersonation`,
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${session.access_token}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ session_token: impersonationSession.session_token }),
-        }
-      );
-
-      // Clear state
+      // Clear state even if there was an error (to prevent stuck state)
       sessionStorage.removeItem(STORAGE_KEY);
       setImpersonationSession(null);
       setImpersonatedProfile(null);
@@ -257,25 +223,14 @@ export function ImpersonationProvider({ children }: { children: React.ReactNode 
     }
 
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) return;
-
-      await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/log-impersonation-action`,
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${session.access_token}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            session_token: impersonationSession.session_token,
-            action_type: actionType,
-            action_details: actionDetails || {},
-            page_path: pagePath || window.location.pathname,
-          }),
-        }
-      );
+      await supabase.functions.invoke('log-impersonation-action', {
+        body: {
+          session_token: impersonationSession.session_token,
+          action_type: actionType,
+          action_details: actionDetails || {},
+          page_path: pagePath || window.location.pathname,
+        },
+      });
     } catch (err) {
       console.error('Error logging action:', err);
     }
