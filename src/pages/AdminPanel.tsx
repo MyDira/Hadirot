@@ -1,9 +1,10 @@
 import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Users, FileText, Settings, Eye, Check, X, Trash2, ChevronLeft, Shield, TrendingUp, Home, Star, Power, ChevronDown, Search, ChevronRight, BarChart3, MessageSquare, Mail } from 'lucide-react';
+import { Users, FileText, Settings, Eye, Check, X, Trash2, ChevronLeft, Shield, TrendingUp, Home, Star, Power, ChevronDown, Search, ChevronRight, BarChart3, MessageSquare, Mail, UserCheck } from 'lucide-react';
 import { listingsService } from '../services/listings';
 import { agenciesService } from '../services/agencies';
 import { useAuth } from '@/hooks/useAuth';
+import { useImpersonation } from '@/hooks/useImpersonation';
 import { supabase, Profile, Listing } from '../config/supabase';
 import { formatPhoneForDisplay } from '@/utils/phone';
 
@@ -71,6 +72,7 @@ const isListingCurrentlyFeatured = (listing: Listing) => {
 
 export function AdminPanel() {
   const { user, profile } = useAuth();
+  const { startImpersonation, loading: impersonationLoading } = useImpersonation();
   const [params, setParams] = useSearchParams();
   const rawTabParam = params.get('tab');
   const initialTab: AdminTabKey = isValidAdminTab(rawTabParam) ? rawTabParam : 'overview';
@@ -123,6 +125,7 @@ export function AdminPanel() {
   const [toast, setToast] = useState<{ message: string; tone: 'success' | 'error' } | null>(null);
   const [updatingAgencyAccessId, setUpdatingAgencyAccessId] = useState<string | null>(null);
   const [sendingEmailListingId, setSendingEmailListingId] = useState<string | null>(null);
+  const [impersonatingUserId, setImpersonatingUserId] = useState<string | null>(null);
 
   useEffect(() => {
     const normalized: AdminTabKey = isValidAdminTab(rawTabParam) ? rawTabParam : 'overview';
@@ -680,6 +683,42 @@ export function AdminPanel() {
     }
   };
 
+  const handleImpersonate = async (targetUser: Profile) => {
+    if (!profile?.is_admin) {
+      return;
+    }
+
+    if (targetUser.is_admin) {
+      alert('Cannot impersonate another admin user.');
+      return;
+    }
+
+    const confirmed = confirm(
+      `You are about to impersonate ${targetUser.full_name}.\n\n` +
+      `• You will have full access as this user for 2 hours\n` +
+      `• All actions will be logged for compliance\n` +
+      `• Changes you make will be permanent\n\n` +
+      `Do you want to continue?`
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setImpersonatingUserId(targetUser.id);
+
+    try {
+      await startImpersonation(targetUser.id);
+      // Redirect to dashboard
+      window.location.href = '/dashboard';
+    } catch (error: any) {
+      console.error('Failed to start impersonation:', error);
+      alert(`Failed to start impersonation: ${error.message}`);
+    } finally {
+      setImpersonatingUserId(null);
+    }
+  };
+
   const handleUsersSort = (field: string) => {
     if (usersSortField === field) {
       setUsersSortDirection(usersSortDirection === 'asc' ? 'desc' : 'asc');
@@ -1174,7 +1213,21 @@ export function AdminPanel() {
                             {formatPhoneForDisplay(user.phone) || 'No phone'}
                           </td>
                           <td className="px-4 py-3 align-top text-right text-sm font-medium">
-                            <div className="flex justify-end">
+                            <div className="flex justify-end gap-2">
+                              {!user.is_admin && (
+                                <button
+                                  onClick={() => handleImpersonate(user)}
+                                  disabled={impersonatingUserId === user.id || impersonationLoading}
+                                  className="text-blue-600 transition-colors hover:text-blue-800 disabled:cursor-not-allowed disabled:opacity-50"
+                                  title="Impersonate User"
+                                >
+                                  {impersonatingUserId === user.id ? (
+                                    <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+                                  ) : (
+                                    <UserCheck className="h-4 w-4" />
+                                  )}
+                                </button>
+                              )}
                               {user.id !== profile.id && (
                                 <button
                                   onClick={() => deleteUser(user.id, user.full_name)}

@@ -167,3 +167,27 @@ export interface ModalUserInteraction {
   session_id: string;
   page_path: string;
 }
+
+export interface ImpersonationSession {
+  id: string;
+  admin_user_id: string;
+  impersonated_user_id: string;
+  session_token: string;
+  started_at: string;
+  ended_at: string | null;
+  expires_at: string;
+  ip_address: string | null;
+  user_agent: string | null;
+  created_at: string;
+}
+
+export interface ImpersonationAuditLog {
+  id: string;
+  session_id: string;
+  admin_user_id: string;
+  impersonated_user_id: string;
+  action_type: string;
+  action_details: Record<string, any>;
+  page_path: string | null;
+  timestamp: string;
+}
