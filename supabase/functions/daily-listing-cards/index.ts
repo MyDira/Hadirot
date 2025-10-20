@@ -51,7 +51,7 @@ interface Listing {
     agency: string | null;
   };
   listing_images?: Array<{
-    url: string;
+    image_url: string;
     is_featured: boolean;
     sort_order: number;
   }>;
@@ -113,7 +113,7 @@ async function generateAndSendDailyCards(triggeredBy = 'cron') {
         `
         *,
         owner:profiles!listings_user_id_fkey(full_name, role, agency),
-        listing_images(url, is_featured, sort_order)
+        listing_images(image_url, is_featured, sort_order)
       `
       )
       .eq('approved', true)
@@ -181,7 +181,7 @@ async function generateAndSendDailyCards(triggeredBy = 'cron') {
           return a.sort_order - b.sort_order;
         });
 
-        const primaryImageUrl = sortedImages?.[0]?.url || 'https://via.placeholder.com/400x267?text=No+Image';
+        const primaryImageUrl = sortedImages?.[0]?.image_url || 'https://via.placeholder.com/400x267?text=No+Image';
 
         imagesGenerated++;
 
