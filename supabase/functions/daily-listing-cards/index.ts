@@ -11,6 +11,7 @@
 import { createClient } from 'jsr:@supabase/supabase-js@2';
 import { corsHeaders } from '../_shared/cors.ts';
 import { sendViaZepto } from '../_shared/zepto.ts';
+import { generateListingCardHTML } from '../_shared/listingCardTemplate.ts';
 import {
   generateDailyCardsEmail,
   generatePlainTextEmail,
@@ -172,7 +173,7 @@ async function generateAndSendDailyCards(triggeredBy = 'cron') {
 
     for (const listing of listings as Listing[]) {
       try {
-        console.log(`📋 Processing listing: ${listing.id}`);
+        console.log(`🖼️ Generating card image for listing: ${listing.id}`);
 
         // Get primary image URL from listing_images
         const sortedImages = listing.listing_images?.sort((a, b) => {
@@ -183,26 +184,153 @@ async function generateAndSendDailyCards(triggeredBy = 'cron') {
 
         const primaryImageUrl = sortedImages?.[0]?.image_url || 'https://via.placeholder.com/400x267?text=No+Image';
 
-        imagesGenerated++;
-
-        // Use existing listing image - no need to generate new cards
-        listingsWithImages.push({
+        // Generate HTML for the listing card
+        const html = generateListingCardHTML({
           id: listing.id,
           title: listing.title,
           price: listing.price,
           call_for_price: listing.call_for_price,
           bedrooms: listing.bedrooms,
           bathrooms: listing.bathrooms,
-          location: listing.location,
-          cross_streets: listing.cross_streets,
-          neighborhood: listing.neighborhood,
+          parking: listing.parking || 'no',
           broker_fee: listing.broker_fee,
-          parking: listing.parking,
+          location: listing.location,
+          neighborhood: listing.neighborhood,
+          property_type: listing.property_type || 'apartment',
+          lease_length: listing.lease_length || '12_months',
           imageUrl: primaryImageUrl,
-          listingUrl: `https://hadirot.com/listing/${listing.id}`,
+          ownerName: listing.owner?.full_name,
+          ownerRole: listing.owner?.role || 'landlord',
+          ownerAgency: listing.owner?.agency,
+          is_featured: listing.is_featured,
         });
 
-        console.log(`✅ Listing processed: ${listing.id}`);
+        // Use htmlcsstoimage.com API for server-side rendering
+        const htmlCssToImageUserId = Deno.env.get('HTMLCSSTOIMAGE_USER_ID');
+        const htmlCssToImageApiKey = Deno.env.get('HTMLCSSTOIMAGE_API_KEY');
+
+        if (!htmlCssToImageUserId || !htmlCssToImageApiKey) {
+          console.warn('⚠️ HTML/CSS to Image API not configured, using listing photo');
+          // Fallback to listing photo if image generation not configured
+          listingsWithImages.push({
+            id: listing.id,
+            title: listing.title,
+            price: listing.price,
+            call_for_price: listing.call_for_price,
+            bedrooms: listing.bedrooms,
+            bathrooms: listing.bathrooms,
+            location: listing.location,
+            cross_streets: listing.cross_streets,
+            neighborhood: listing.neighborhood,
+            broker_fee: listing.broker_fee,
+            parking: listing.parking,
+            imageUrl: primaryImageUrl,
+            listingUrl: `https://hadirot.com/listing/${listing.id}`,
+          });
+          continue;
+        }
+
+        // Create base64 auth string
+        const auth = btoa(`${htmlCssToImageUserId}:${htmlCssToImageApiKey}`);
+
+        // Call HTML/CSS to Image API
+        const imageResponse = await fetch('https://hcti.io/v1/image', {
+          method: 'POST',
+          headers: {
+            Authorization: `Basic ${auth}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            html: html,
+            viewport_width: 400,
+            viewport_height: 600,
+            device_scale: 2,
+          }),
+        });
+
+        if (!imageResponse.ok) {
+          console.error(`❌ Failed to generate image for ${listing.id}, using listing photo`);
+          // Fallback to listing photo
+          listingsWithImages.push({
+            id: listing.id,
+            title: listing.title,
+            price: listing.price,
+            call_for_price: listing.call_for_price,
+            bedrooms: listing.bedrooms,
+            bathrooms: listing.bathrooms,
+            location: listing.location,
+            cross_streets: listing.cross_streets,
+            neighborhood: listing.neighborhood,
+            broker_fee: listing.broker_fee,
+            parking: listing.parking,
+            imageUrl: primaryImageUrl,
+            listingUrl: `https://hadirot.com/listing/${listing.id}`,
+          });
+          continue;
+        }
+
+        const imageData = await imageResponse.json();
+        const imageUrl = imageData.url;
+
+        // Download the generated image
+        const imageFileResponse = await fetch(imageUrl);
+        const imageBuffer = await imageFileResponse.arrayBuffer();
+
+        // Upload to Supabase Storage
+        const fileName = `listing-${listing.id}.png`;
+        const filePath = `${storagePath}/${fileName}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from('daily-listing-cards')
+          .upload(filePath, imageBuffer, {
+            contentType: 'image/png',
+            upsert: true,
+          });
+
+        if (uploadError) {
+          console.error(`❌ Failed to upload image for ${listing.id}:`, uploadError);
+          // Fallback to generated image URL
+          listingsWithImages.push({
+            id: listing.id,
+            title: listing.title,
+            price: listing.price,
+            call_for_price: listing.call_for_price,
+            bedrooms: listing.bedrooms,
+            bathrooms: listing.bathrooms,
+            location: listing.location,
+            cross_streets: listing.cross_streets,
+            neighborhood: listing.neighborhood,
+            broker_fee: listing.broker_fee,
+            parking: listing.parking,
+            imageUrl: imageUrl,
+            listingUrl: `https://hadirot.com/listing/${listing.id}`,
+          });
+        } else {
+          // Get public URL from storage
+          const { data: urlData } = supabase.storage
+            .from('daily-listing-cards')
+            .getPublicUrl(filePath);
+
+          imagesGenerated++;
+
+          listingsWithImages.push({
+            id: listing.id,
+            title: listing.title,
+            price: listing.price,
+            call_for_price: listing.call_for_price,
+            bedrooms: listing.bedrooms,
+            bathrooms: listing.bathrooms,
+            location: listing.location,
+            cross_streets: listing.cross_streets,
+            neighborhood: listing.neighborhood,
+            broker_fee: listing.broker_fee,
+            parking: listing.parking,
+            imageUrl: urlData.publicUrl,
+            listingUrl: `https://hadirot.com/listing/${listing.id}`,
+          });
+        }
+
+        console.log(`✅ Card image generated and uploaded for ${listing.id}`);
       } catch (imageError) {
         console.error(`❌ Error processing listing ${listing.id}:`, imageError);
         // Continue with other listings even if one fails
