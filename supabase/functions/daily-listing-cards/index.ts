@@ -11,7 +11,6 @@
 import { createClient } from 'jsr:@supabase/supabase-js@2';
 import { corsHeaders } from '../_shared/cors.ts';
 import { sendViaZepto } from '../_shared/zepto.ts';
-import { generateListingCardImage } from '../_shared/cardImageGenerator.ts';
 import {
   generateDailyCardsEmail,
   generatePlainTextEmail,
@@ -173,61 +172,20 @@ async function generateAndSendDailyCards(triggeredBy = 'cron') {
 
     for (const listing of listings as Listing[]) {
       try {
-        console.log(`🖼️ Generating image for listing: ${listing.id}`);
+        console.log(`📋 Processing listing: ${listing.id}`);
 
-        // Get primary image URL
+        // Get primary image URL from listing_images
         const sortedImages = listing.listing_images?.sort((a, b) => {
           if (a.is_featured && !b.is_featured) return -1;
           if (!a.is_featured && b.is_featured) return 1;
           return a.sort_order - b.sort_order;
         });
 
-        const primaryImageUrl = sortedImages?.[0]?.url || null;
-
-        // Generate card image
-        const imageBuffer = await generateListingCardImage({
-          id: listing.id,
-          title: listing.title,
-          price: listing.price,
-          call_for_price: listing.call_for_price,
-          bedrooms: listing.bedrooms,
-          bathrooms: listing.bathrooms,
-          location: listing.location,
-          cross_streets: listing.cross_streets,
-          neighborhood: listing.neighborhood,
-          broker_fee: listing.broker_fee,
-          parking: listing.parking,
-          is_featured: listing.is_featured,
-          property_type: listing.property_type,
-          lease_length: listing.lease_length,
-          imageUrl: primaryImageUrl,
-          agency: listing.owner?.agency || null,
-          ownerRole: listing.owner?.role || 'landlord',
-        });
-
-        // Upload to Supabase Storage
-        const fileName = `listing-${listing.id}.png`;
-        const filePath = `${storagePath}/${fileName}`;
-
-        const { error: uploadError } = await supabase.storage
-          .from('daily-listing-cards')
-          .upload(filePath, imageBuffer, {
-            contentType: 'image/png',
-            upsert: true,
-          });
-
-        if (uploadError) {
-          console.error(`❌ Failed to upload image for ${listing.id}:`, uploadError);
-          continue; // Skip this listing but continue with others
-        }
-
-        // Get public URL
-        const { data: urlData } = supabase.storage
-          .from('daily-listing-cards')
-          .getPublicUrl(filePath);
+        const primaryImageUrl = sortedImages?.[0]?.url || 'https://via.placeholder.com/400x267?text=No+Image';
 
         imagesGenerated++;
 
+        // Use existing listing image - no need to generate new cards
         listingsWithImages.push({
           id: listing.id,
           title: listing.title,
@@ -240,11 +198,11 @@ async function generateAndSendDailyCards(triggeredBy = 'cron') {
           neighborhood: listing.neighborhood,
           broker_fee: listing.broker_fee,
           parking: listing.parking,
-          imageUrl: urlData.publicUrl,
-          listingUrl: `${supabaseUrl.replace('https://', 'https://').replace('.supabase.co', '')}/listing/${listing.id}`,
+          imageUrl: primaryImageUrl,
+          listingUrl: `https://hadirot.com/listing/${listing.id}`,
         });
 
-        console.log(`✅ Image generated and uploaded for ${listing.id}`);
+        console.log(`✅ Listing processed: ${listing.id}`);
       } catch (imageError) {
         console.error(`❌ Error processing listing ${listing.id}:`, imageError);
         // Continue with other listings even if one fails
@@ -351,20 +309,7 @@ async function logExecution(
 }
 
 /**
- * Deno cron job - runs daily at 6:00 AM UTC
- * Adjust time based on your timezone in the config
- */
-Deno.cron('daily-listing-cards', '0 6 * * *', async () => {
-  console.log('⏰ Cron triggered: daily-listing-cards');
-  try {
-    await generateAndSendDailyCards('cron');
-  } catch (error) {
-    console.error('Cron execution failed:', error);
-  }
-});
-
-/**
- * HTTP handler for manual triggers
+ * HTTP handler for both cron and manual triggers
  */
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
