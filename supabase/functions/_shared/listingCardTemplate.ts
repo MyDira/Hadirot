@@ -13,8 +13,7 @@ interface ListingCardData {
   parking: string;
   broker_fee: boolean;
   location: string;
-  cross_streets: string | null;
-  neighborhood: string;
+  neighborhood: string | null;
   property_type: string;
   lease_length: string;
   imageUrl: string;
@@ -232,7 +231,7 @@ export function generateListingCardHTML(listing: ListingCardData): string {
 
       <div class="location">
         <span>📍</span>
-        <span>${listing.cross_streets || listing.location}</span>
+        <span>${listing.neighborhood ? `${listing.neighborhood}, ${listing.location}` : listing.location}</span>
       </div>
 
       <div class="footer">

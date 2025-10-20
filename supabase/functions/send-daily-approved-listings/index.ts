@@ -1,6 +1,7 @@
 import { corsHeaders } from "../_shared/cors.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { sendViaZepto } from "../_shared/zepto.ts";
+import { generateListingCardHTML } from "../_shared/listingCardTemplate.ts";
 
 interface Listing {
   id: string;
@@ -147,9 +148,26 @@ Deno.serve(async (req) => {
 
     console.log(`📋 Found ${listings.length} new approved listing(s)`);
 
-    // Generate email content with listings
+    // Generate listing card images and prepare attachments
     const siteUrl = Deno.env.get("PUBLIC_SITE_URL") || "https://hadirot.com";
     const whatsappLink = "https://chat.whatsapp.com/C3qmgo7DNOI63OE0RAZRgt";
+    const htmlCssToImageUserId = Deno.env.get("HTMLCSSTOIMAGE_USER_ID");
+    const htmlCssToImageApiKey = Deno.env.get("HTMLCSSTOIMAGE_API_KEY");
+
+    if (!htmlCssToImageUserId || !htmlCssToImageApiKey) {
+      console.error("❌ HTML/CSS to Image API credentials not configured");
+      return new Response(
+        JSON.stringify({ error: "Image generation service not configured" }),
+        {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
+    const auth = btoa(`${htmlCssToImageUserId}:${htmlCssToImageApiKey}`);
+    const attachments = [];
+    let listingsTextHtml = "";
 
     const formatPrice = (listing: Listing) => {
       if (listing.call_for_price) return "Call for Price";
@@ -169,13 +187,13 @@ Deno.serve(async (req) => {
     };
 
     const getParkingDisplay = (parking: string) => {
-      return parking === "yes" || parking === "included" ? "🅿️ Parking" : "";
+      return parking === "yes" || parking === "included" ? "Parking" : "";
     };
 
-    // Build email HTML
-    let listingsHtml = "";
+    // Process each listing
+    for (let i = 0; i < listings.length; i++) {
+      const listing = listings[i] as unknown as Listing;
 
-    for (const listing of listings as unknown as Listing[]) {
       // Get primary image
       const sortedImages = listing.listing_images?.sort((a, b) => {
         if (a.is_featured && !b.is_featured) return -1;
@@ -183,46 +201,106 @@ Deno.serve(async (req) => {
         return a.sort_order - b.sort_order;
       });
       const primaryImage = sortedImages?.[0]?.image_url || "";
+
+      console.log(`🎨 Generating image for listing ${i + 1}/${listings.length}: ${listing.id}`);
+
+      // Generate HTML for listing card
+      const cardHtml = generateListingCardHTML({
+        id: listing.id,
+        title: listing.title,
+        price: listing.price,
+        call_for_price: listing.call_for_price,
+        bedrooms: listing.bedrooms,
+        bathrooms: listing.bathrooms,
+        parking: listing.parking,
+        broker_fee: listing.broker_fee,
+        location: listing.location,
+        neighborhood: listing.neighborhood,
+        property_type: listing.property_type,
+        lease_length: listing.lease_length,
+        imageUrl: primaryImage,
+        ownerName: listing.owner?.full_name,
+        ownerRole: listing.owner?.role,
+        ownerAgency: listing.owner?.agency,
+        is_featured: listing.is_featured,
+      });
+
+      // Generate image using HTML/CSS to Image API
+      const imageResponse = await fetch("https://hcti.io/v1/image", {
+        method: "POST",
+        headers: {
+          "Authorization": `Basic ${auth}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          html: cardHtml,
+          viewport_width: 400,
+          viewport_height: 600,
+          device_scale: 2,
+        }),
+      });
+
+      if (!imageResponse.ok) {
+        console.error(`❌ Failed to generate image for listing ${listing.id}`);
+        continue;
+      }
+
+      const imageData = await imageResponse.json();
+      console.log(`✅ Image generated: ${imageData.url}`);
+
+      // Download the image and convert to base64
+      const imageBlob = await fetch(imageData.url);
+      const imageBuffer = await imageBlob.arrayBuffer();
+      const base64Image = btoa(
+        new Uint8Array(imageBuffer).reduce(
+          (data, byte) => data + String.fromCharCode(byte),
+          ''
+        )
+      );
+
+      // Add as attachment
+      attachments.push({
+        content: base64Image,
+        mime_type: "image/png",
+        name: `listing-${listing.id}.png`,
+      });
+
+      // Build text content for this listing
       const listingUrl = `${siteUrl}/listing/${listing.id}`;
       const ownerDisplay = listing.owner?.role === "agent" && listing.owner?.agency
         ? listing.owner.agency
         : "Owner";
       const hasParking = getParkingDisplay(listing.parking);
 
-      listingsHtml += `
-        <div style="margin-bottom: 40px; border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden; background: white;">
-          ${primaryImage ? `
-            <img src="${primaryImage}" alt="${listing.title}" style="width: 100%; height: 300px; object-fit: cover; display: block;">
-          ` : ''}
+      listingsTextHtml += `
+        <div style="margin-bottom: 40px; padding: 20px; border: 1px solid #e5e7eb; border-radius: 8px; background: white;">
+          <h2 style="margin: 0 0 12px 0; font-size: 24px; font-weight: bold; color: #1e4a74;">${formatPrice(listing)}</h2>
 
-          <div style="padding: 20px;">
-            <h2 style="margin: 0 0 12px 0; font-size: 24px; font-weight: bold; color: #1e4a74;">${formatPrice(listing)}</h2>
+          <div style="margin-bottom: 12px; color: #4b5563; font-size: 14px;">
+            🛏️ ${getBedroomDisplay(listing.bedrooms)} |
+            🛁 ${listing.bathrooms} bath${hasParking ? ' | 🅿️ ' + hasParking : ''} |
+            <span style="background: #f3f4f6; padding: 2px 8px; border-radius: 4px;">${listing.broker_fee ? "Broker Fee" : "No Fee"}</span>
+          </div>
 
-            <div style="margin-bottom: 12px; color: #4b5563; font-size: 14px;">
-              🛏️ ${getBedroomDisplay(listing.bedrooms)} |
-              🛁 ${listing.bathrooms} bath ${hasParking ? '| ' + hasParking : ''} |
-              <span style="background: #f3f4f6; padding: 2px 8px; border-radius: 4px;">${listing.broker_fee ? "Broker Fee" : "No Fee"}</span>
-            </div>
+          <div style="margin-bottom: 12px; color: #4b5563; font-size: 14px;">
+            📍 ${listing.neighborhood ? `${listing.neighborhood}, ${listing.location}` : listing.location}
+          </div>
 
-            <div style="margin-bottom: 12px; color: #4b5563; font-size: 14px;">
-              📍 ${listing.neighborhood ? `${listing.neighborhood}, ${listing.location}` : listing.location}
-            </div>
+          <div style="margin-bottom: 16px; padding: 12px; background: #f0f9ff; border-left: 4px solid #25D366; border-radius: 4px;">
+            <p style="margin: 0 0 8px 0; font-weight: 600; color: #333;">Join the Hadirot WhatsApp Community:</p>
+            <a href="${whatsappLink}" style="color: #25D366; text-decoration: none; font-weight: 500;">${whatsappLink}</a>
+          </div>
 
-            <div style="margin-bottom: 16px; padding: 12px; background: #f0f9ff; border-left: 4px solid #25D366; border-radius: 4px;">
-              <p style="margin: 0 0 8px 0; font-weight: 600; color: #333;">Join the Hadirot WhatsApp Community:</p>
-              <a href="${whatsappLink}" style="color: #25D366; text-decoration: none; font-weight: 500;">
-                ${whatsappLink}
-              </a>
-            </div>
+          <a href="${listingUrl}" style="display: inline-block; background: #1e4a74; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: 600;">
+            View Listing
+          </a>
 
-            <a href="${listingUrl}" style="display: inline-block; background: #1e4a74; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: 600;">
-              View Listing
-            </a>
+          <div style="margin-top: 16px; padding-top: 12px; border-top: 1px solid #e5e7eb; font-size: 12px; color: #6b7280;">
+            Posted by ${ownerDisplay}${listing.is_featured ? ' <span style="background: #7CB342; color: white; padding: 2px 8px; border-radius: 4px; font-size: 11px;">FEATURED</span>' : ''}
+          </div>
 
-            <div style="margin-top: 16px; padding-top: 12px; border-top: 1px solid #e5e7eb; font-size: 12px; color: #6b7280;">
-              Posted by ${ownerDisplay}
-              ${listing.is_featured ? ' <span style="background: #7CB342; color: white; padding: 2px 8px; border-radius: 4px; font-size: 11px;">FEATURED</span>' : ''}
-            </div>
+          <div style="margin-top: 8px; font-size: 11px; color: #9ca3af;">
+            📎 See attached image: listing-${listing.id}.png
           </div>
         </div>
       `;
@@ -244,9 +322,12 @@ Deno.serve(async (req) => {
 
         <div style="background: white; padding: 30px; border-radius: 0 0 8px 8px;">
           <h2 style="margin: 0 0 8px 0; color: #1e4a74; font-size: 20px;">New Listings - ${currentDate}</h2>
-          <p style="margin: 0 0 30px 0; color: #6b7280;">You have ${listings.length} new approved listing${listings.length !== 1 ? 's' : ''} to review.</p>
+          <p style="margin: 0 0 30px 0; color: #6b7280;">
+            You have ${listings.length} new approved listing${listings.length !== 1 ? 's' : ''} to review.
+            See attached images for listing cards.
+          </p>
 
-          ${listingsHtml}
+          ${listingsTextHtml}
 
           <div style="margin-top: 40px; padding-top: 30px; border-top: 2px solid #e5e7eb; text-align: center; color: #6b7280; font-size: 12px;">
             <p style="margin: 0;">© ${new Date().getFullYear()} Hadirot. All rights reserved.</p>
@@ -255,12 +336,11 @@ Deno.serve(async (req) => {
       </div>
     `;
 
-    // Send email to all admins
-    // adminEmails already defined above
+    // Send email with attachments
     const zeptoFromAddress = Deno.env.get("ZEPTO_FROM_ADDRESS") || "noreply@hadirot.com";
     const zeptoFromName = Deno.env.get("ZEPTO_FROM_NAME") || "HaDirot";
 
-    console.log(`📤 Sending email to ${adminEmails.length} admin(s)`);
+    console.log(`📤 Sending email to ${adminEmails.length} admin(s) with ${attachments.length} attachment(s)`);
 
     await sendViaZepto({
       to: adminEmails,
@@ -268,6 +348,7 @@ Deno.serve(async (req) => {
       html: emailHtml,
       from: zeptoFromAddress,
       fromName: zeptoFromName,
+      attachments: attachments,
     });
 
     console.log("✅ Email sent successfully");
@@ -283,7 +364,6 @@ Deno.serve(async (req) => {
 
     if (updateError) {
       console.error("❌ Error updating approval_email_sent_at:", updateError);
-      // Don't throw - email was sent successfully
     } else {
       console.log(`✅ Updated approval_email_sent_at for ${listingIds.length} listing(s)`);
     }
@@ -293,6 +373,7 @@ Deno.serve(async (req) => {
         success: true,
         listingCount: listings.length,
         adminCount: adminEmails.length,
+        attachmentCount: attachments.length,
       }),
       {
         status: 200,
