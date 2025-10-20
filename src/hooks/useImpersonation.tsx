@@ -130,18 +130,27 @@ export function ImpersonationProvider({ children }: { children: React.ReactNode 
     setError(null);
 
     try {
+      console.log('[useImpersonation] Starting impersonation for user:', userId);
+      console.log('[useImpersonation] Current user:', user?.id);
+      console.log('[useImpersonation] Profile is_admin:', profile?.is_admin);
+
       const { data, error } = await supabase.functions.invoke('start-impersonation', {
         body: { impersonated_user_id: userId },
       });
 
+      console.log('[useImpersonation] Function response:', { data, error });
+
       if (error) {
-        console.error('Start impersonation error:', error);
+        console.error('[useImpersonation] Error object:', JSON.stringify(error, null, 2));
         throw new Error(error.message || 'Failed to start impersonation');
       }
 
       if (!data || !data.session || !data.impersonated_profile) {
+        console.error('[useImpersonation] Invalid data structure:', data);
         throw new Error('Invalid response from server');
       }
+
+      console.log('[useImpersonation] Session created successfully:', data.session.session_token);
 
       // Store session data
       const sessionData = {

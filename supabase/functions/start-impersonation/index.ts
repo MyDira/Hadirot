@@ -7,6 +7,8 @@ const corsHeaders = {
 };
 
 Deno.serve(async (req: Request) => {
+  console.log('[start-impersonation] Request received');
+  
   if (req.method === 'OPTIONS') {
     return new Response(null, { status: 200, headers: corsHeaders });
   }
@@ -16,21 +18,29 @@ Deno.serve(async (req: Request) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Get the authorization header
+    console.log('[start-impersonation] Getting auth header');
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
-      throw new Error('No authorization header');
+      console.error('[start-impersonation] No authorization header');
+      return new Response(
+        JSON.stringify({ error: 'No authorization header' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
-    // Verify the user is authenticated
+    console.log('[start-impersonation] Verifying user');
     const token = authHeader.replace('Bearer ', '');
     const { data: { user }, error: authError } = await supabase.auth.getUser(token);
     
     if (authError || !user) {
-      throw new Error('Unauthorized');
+      console.error('[start-impersonation] Auth error:', authError);
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
-    // Verify the user is an admin
+    console.log('[start-impersonation] Checking admin status for user:', user.id);
     const { data: adminProfile, error: profileError } = await supabase
       .from('profiles')
       .select('is_admin')
@@ -38,24 +48,28 @@ Deno.serve(async (req: Request) => {
       .maybeSingle();
 
     if (profileError || !adminProfile?.is_admin) {
+      console.error('[start-impersonation] Not admin:', profileError, adminProfile);
       return new Response(
         JSON.stringify({ error: 'Unauthorized: Admin access required' }),
         { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Parse request body
+    console.log('[start-impersonation] Parsing request body');
     const { impersonated_user_id } = await req.json();
 
     if (!impersonated_user_id) {
-      throw new Error('Missing impersonated_user_id');
+      console.error('[start-impersonation] Missing impersonated_user_id');
+      return new Response(
+        JSON.stringify({ error: 'Missing impersonated_user_id' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
-    // Get client IP and user agent
+    console.log('[start-impersonation] Creating session for:', impersonated_user_id);
     const ip_address = req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || 'unknown';
     const user_agent = req.headers.get('user-agent') || 'unknown';
 
-    // Call the database function to start impersonation
     const { data: sessionData, error: sessionError } = await supabase
       .rpc('start_impersonation_session', {
         p_admin_user_id: user.id,
@@ -65,11 +79,14 @@ Deno.serve(async (req: Request) => {
       });
 
     if (sessionError) {
-      console.error('Session creation error:', sessionError);
-      throw sessionError;
+      console.error('[start-impersonation] Session creation error:', sessionError);
+      return new Response(
+        JSON.stringify({ error: sessionError.message || 'Failed to create session' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
-    // Fetch the impersonated user's full profile
+    console.log('[start-impersonation] Fetching impersonated profile');
     const { data: impersonatedProfile, error: fetchError } = await supabase
       .from('profiles')
       .select('id, full_name, email, role, phone, agency, is_admin, created_at, updated_at')
@@ -77,10 +94,14 @@ Deno.serve(async (req: Request) => {
       .maybeSingle();
 
     if (fetchError || !impersonatedProfile) {
-      throw new Error('Failed to fetch impersonated user profile');
+      console.error('[start-impersonation] Profile fetch error:', fetchError);
+      return new Response(
+        JSON.stringify({ error: 'Failed to fetch impersonated user profile' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
-    // Return success with session data and profile
+    console.log('[start-impersonation] Success! Returning session data');
     return new Response(
       JSON.stringify({
         success: true,
@@ -94,7 +115,7 @@ Deno.serve(async (req: Request) => {
     );
 
   } catch (error) {
-    console.error('Error in start-impersonation:', error);
+    console.error('[start-impersonation] Unexpected error:', error);
     return new Response(
       JSON.stringify({ error: error.message || 'Internal server error' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
