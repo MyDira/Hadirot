@@ -11,6 +11,7 @@ const AnalyticsTab = lazy(() => import('./admin/tabs/AnalyticsTab'));
 const StaticPagesTab = lazy(() => import('./admin/tabs/StaticPagesTab'));
 const FeaturedSettingsTab = lazy(() => import('./admin/tabs/FeaturedSettingsTab'));
 const ModalManagementTab = lazy(() => import('./admin/tabs/ModalManagementTab'));
+const DailyCardsSettings = lazy(() => import('./admin/DailyCardsSettings'));
 
 const ADMIN_TAB_KEYS = [
   'overview',
@@ -22,6 +23,7 @@ const ADMIN_TAB_KEYS = [
   'static-pages',
   'featured',
   'modals',
+  'daily-cards',
 ] as const;
 
 type AdminTabKey = (typeof ADMIN_TAB_KEYS)[number];
@@ -39,6 +41,7 @@ const ADMIN_TABS: { id: AdminTabKey; label: string; icon: React.ElementType }[] 
   { id: 'static-pages', label: 'Static Pages', icon: FileText },
   { id: 'featured', label: 'Featured Settings', icon: Star },
   { id: 'modals', label: 'Modals', icon: MessageSquare },
+  { id: 'daily-cards', label: 'Daily Cards', icon: Mail },
 ];
 
 interface AdminStats {
@@ -828,12 +831,13 @@ export function AdminPanel() {
         </div>
       ) : (
         <>
-          {activeTab === 'analytics' || activeTab === 'static-pages' || activeTab === 'featured' || activeTab === 'modals' ? (
+          {activeTab === 'analytics' || activeTab === 'static-pages' || activeTab === 'featured' || activeTab === 'modals' || activeTab === 'daily-cards' ? (
             <Suspense fallback={<div className="p-6 text-sm text-muted-foreground">Loading…</div>}>
               {activeTab === 'analytics' && <AnalyticsTab />}
               {activeTab === 'static-pages' && <StaticPagesTab />}
               {activeTab === 'featured' && <FeaturedSettingsTab />}
               {activeTab === 'modals' && <ModalManagementTab />}
+              {activeTab === 'daily-cards' && <DailyCardsSettings />}
             </Suspense>
           ) : (
             <>
