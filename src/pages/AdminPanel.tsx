@@ -642,16 +642,23 @@ export function AdminPanel() {
   };
 
   const sendListingEmail = async (listingId: string, listingTitle: string) => {
-    if (!confirm(`Send email to all admins for "${listingTitle}"?`)) {
-      return;
-    }
-
     setSendingEmailListingId(listingId);
     try {
       console.log('📧 Sending email for listing:', listingId);
 
+      const { data: { session } } = await supabase.auth.getSession();
+
+      if (!session) {
+        console.error('No active session');
+        setToast({ message: 'Authentication error. Please refresh and try again.', tone: 'error' });
+        return;
+      }
+
       const { data, error } = await supabase.functions.invoke('send-listing-email-manual', {
         body: { listingId },
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
       });
 
       if (error) {
@@ -1360,7 +1367,7 @@ export function AdminPanel() {
                     All Listings ({filteredListings.length}) - Page {currentPage} of {totalPages}
                   </h3>
                 </div>
-                <div className="overflow-x-auto">
+                <div className="overflow-x-auto lg:overflow-visible">
                   <table className="min-w-full divide-y divide-gray-200">
                     <thead className="bg-gray-50">
                       <tr>
@@ -1467,7 +1474,7 @@ export function AdminPanel() {
                             </span>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                            <div className="flex items-center space-x-4">
+                            <div className="flex items-center space-x-2">
                               <Link
                                 to={`/listing/${listing.id}`}
                                 className="text-blue-600 hover:text-blue-800 transition-colors"
