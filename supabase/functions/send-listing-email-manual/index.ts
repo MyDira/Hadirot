@@ -102,9 +102,9 @@ Deno.serve(async (req) => {
     );
 
     // Get all admin users
-    const { data: admins, error: adminsError } = await supabaseAdmin
+    const { data: adminProfiles, error: adminsError } = await supabaseAdmin
       .from("profiles")
-      .select("id, email, full_name")
+      .select("id, full_name")
       .eq("is_admin", true);
 
     if (adminsError) {
@@ -112,9 +112,33 @@ Deno.serve(async (req) => {
       throw adminsError;
     }
 
-    if (!admins || admins.length === 0) {
+    if (!adminProfiles || adminProfiles.length === 0) {
       return new Response(
         JSON.stringify({ error: "No admin users found to send email to" }),
+        {
+          status: 404,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
+    // Get emails from auth.users
+    const { data: { users }, error: usersError } = await supabaseAdmin.auth.admin.listUsers();
+
+    if (usersError) {
+      console.error("❌ Error fetching user emails:", usersError);
+      throw usersError;
+    }
+
+    const adminIds = new Set(adminProfiles.map(p => p.id));
+    const adminEmails = users
+      ?.filter(u => adminIds.has(u.id))
+      .map(u => u.email)
+      .filter((email): email is string => !!email) || [];
+
+    if (adminEmails.length === 0) {
+      return new Response(
+        JSON.stringify({ error: "No admin email addresses found" }),
         {
           status: 404,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -257,7 +281,7 @@ Deno.serve(async (req) => {
     `;
 
     // Send email to all admins
-    const adminEmails = admins.map((admin) => admin.email);
+    // adminEmails already defined above
     const zeptoFromAddress = Deno.env.get("ZEPTO_FROM_ADDRESS") || "noreply@hadirot.com";
     const zeptoFromName = Deno.env.get("ZEPTO_FROM_NAME") || "HaDirot";
 
@@ -281,7 +305,7 @@ Deno.serve(async (req) => {
         success: true,
         listingId: listing.id,
         listingTitle: listing.title,
-        adminCount: admins.length,
+        adminCount: adminEmails.length,
       }),
       {
         status: 200,

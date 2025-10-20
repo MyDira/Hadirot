@@ -51,9 +51,9 @@ Deno.serve(async (req) => {
     );
 
     // Get all admin users
-    const { data: admins, error: adminsError } = await supabaseAdmin
+    const { data: adminProfiles, error: adminsError } = await supabaseAdmin
       .from("profiles")
-      .select("id, email, full_name")
+      .select("id, full_name")
       .eq("is_admin", true);
 
     if (adminsError) {
@@ -61,7 +61,7 @@ Deno.serve(async (req) => {
       throw adminsError;
     }
 
-    if (!admins || admins.length === 0) {
+    if (!adminProfiles || adminProfiles.length === 0) {
       console.log("⚠️ No admin users found");
       return new Response(
         JSON.stringify({ message: "No admin users to send email to" }),
@@ -72,7 +72,32 @@ Deno.serve(async (req) => {
       );
     }
 
-    console.log(`👥 Found ${admins.length} admin user(s)`);
+    // Get emails from auth.users
+    const { data: { users }, error: usersError } = await supabaseAdmin.auth.admin.listUsers();
+
+    if (usersError) {
+      console.error("❌ Error fetching user emails:", usersError);
+      throw usersError;
+    }
+
+    const adminIds = new Set(adminProfiles.map(p => p.id));
+    const adminEmails = users
+      ?.filter(u => adminIds.has(u.id))
+      .map(u => u.email)
+      .filter((email): email is string => !!email) || [];
+
+    if (adminEmails.length === 0) {
+      console.log("⚠️ No admin email addresses found");
+      return new Response(
+        JSON.stringify({ message: "No admin email addresses to send to" }),
+        {
+          status: 200,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
+    console.log(`👥 Found ${adminEmails.length} admin user(s)`);
 
     // Get listings approved in last 24 hours that haven't been emailed
     const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
@@ -231,7 +256,7 @@ Deno.serve(async (req) => {
     `;
 
     // Send email to all admins
-    const adminEmails = admins.map((admin) => admin.email);
+    // adminEmails already defined above
     const zeptoFromAddress = Deno.env.get("ZEPTO_FROM_ADDRESS") || "noreply@hadirot.com";
     const zeptoFromName = Deno.env.get("ZEPTO_FROM_NAME") || "HaDirot";
 
@@ -267,7 +292,7 @@ Deno.serve(async (req) => {
       JSON.stringify({
         success: true,
         listingCount: listings.length,
-        adminCount: admins.length,
+        adminCount: adminEmails.length,
       }),
       {
         status: 200,
