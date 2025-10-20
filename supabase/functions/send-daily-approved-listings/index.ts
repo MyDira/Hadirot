@@ -12,8 +12,7 @@ interface Listing {
   parking: string;
   broker_fee: boolean;
   location: string;
-  cross_streets: string | null;
-  neighborhood: string;
+  neighborhood: string | null;
   property_type: string;
   lease_length: string;
   is_featured: boolean;
@@ -90,7 +89,6 @@ Deno.serve(async (req) => {
         parking,
         broker_fee,
         location,
-        cross_streets,
         neighborhood,
         property_type,
         lease_length,
@@ -182,7 +180,7 @@ Deno.serve(async (req) => {
             </div>
 
             <div style="margin-bottom: 12px; color: #4b5563; font-size: 14px;">
-              📍 ${listing.cross_streets || listing.location}
+              📍 ${listing.neighborhood ? `${listing.neighborhood}, ${listing.location}` : listing.location}
             </div>
 
             <div style="margin-bottom: 16px; padding: 12px; background: #f0f9ff; border-left: 4px solid #25D366; border-radius: 4px;">
