@@ -1,6 +1,6 @@
 import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Users, FileText, Settings, Eye, Check, X, Trash2, ChevronLeft, Shield, TrendingUp, Home, Star, Power, ChevronDown, Search, ChevronRight, BarChart3, MessageSquare, Mail, UserCheck } from 'lucide-react';
+import { Users, FileText, Settings, Eye, Check, X, Trash2, ChevronLeft, Shield, TrendingUp, Home, Star, Power, ChevronDown, Search, ChevronRight, BarChart3, MessageSquare, Mail, UserCheck, BookOpen } from 'lucide-react';
 import { listingsService } from '../services/listings';
 import { agenciesService } from '../services/agencies';
 import { useAuth } from '@/hooks/useAuth';
@@ -13,6 +13,7 @@ const StaticPagesTab = lazy(() => import('./admin/tabs/StaticPagesTab'));
 const FeaturedSettingsTab = lazy(() => import('./admin/tabs/FeaturedSettingsTab'));
 const ModalManagementTab = lazy(() => import('./admin/tabs/ModalManagementTab'));
 const DailyCardsSettings = lazy(() => import('./admin/DailyCardsSettings'));
+const KnowledgeBaseTab = lazy(() => import('./admin/tabs/KnowledgeBaseTab'));
 
 const ADMIN_TAB_KEYS = [
   'overview',
@@ -25,6 +26,7 @@ const ADMIN_TAB_KEYS = [
   'featured',
   'modals',
   'daily-cards',
+  'knowledge-base',
 ] as const;
 
 type AdminTabKey = (typeof ADMIN_TAB_KEYS)[number];
@@ -43,6 +45,7 @@ const ADMIN_TABS: { id: AdminTabKey; label: string; icon: React.ElementType }[] 
   { id: 'featured', label: 'Featured Settings', icon: Star },
   { id: 'modals', label: 'Modals', icon: MessageSquare },
   { id: 'daily-cards', label: 'Daily Cards', icon: Mail },
+  { id: 'knowledge-base', label: 'Help Center', icon: BookOpen },
 ];
 
 interface AdminStats {
@@ -869,13 +872,14 @@ export function AdminPanel() {
         </div>
       ) : (
         <>
-          {activeTab === 'analytics' || activeTab === 'static-pages' || activeTab === 'featured' || activeTab === 'modals' || activeTab === 'daily-cards' ? (
+          {activeTab === 'analytics' || activeTab === 'static-pages' || activeTab === 'featured' || activeTab === 'modals' || activeTab === 'daily-cards' || activeTab === 'knowledge-base' ? (
             <Suspense fallback={<div className="p-6 text-sm text-muted-foreground">Loading…</div>}>
               {activeTab === 'analytics' && <AnalyticsTab />}
               {activeTab === 'static-pages' && <StaticPagesTab />}
               {activeTab === 'featured' && <FeaturedSettingsTab />}
               {activeTab === 'modals' && <ModalManagementTab />}
               {activeTab === 'daily-cards' && <DailyCardsSettings />}
+              {activeTab === 'knowledge-base' && <KnowledgeBaseTab />}
             </Suspense>
           ) : (
             <>

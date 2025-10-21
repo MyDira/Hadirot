@@ -21,6 +21,9 @@ import { Terms } from './pages/Terms';
 import { StaticPage } from './pages/StaticPage';
 import { NotFound } from './pages/NotFound';
 import { AgencyPage } from './pages/AgencyPage';
+import { HelpCenter } from './pages/HelpCenter';
+import { HelpCategory } from './pages/HelpCategory';
+import { HelpArticle } from './pages/HelpArticle';
 import { useAuth } from '@/hooks/useAuth';
 import GASmokeTest from '@/dev/gaSmokeTest';
 
@@ -82,6 +85,9 @@ function App() {
                 <Route path="/contact" element={<Contact />} />
                 <Route path="/privacy" element={<Privacy />} />
                 <Route path="/terms" element={<Terms />} />
+                <Route path="/help" element={<HelpCenter />} />
+                <Route path="/help/:categorySlug" element={<HelpCategory />} />
+                <Route path="/help/:categorySlug/:articleSlug" element={<HelpArticle />} />
                 <Route path="/agencies/:slug" element={<AgencyPage />} />
                 <Route path="/:id" element={<StaticPage />} />
                 <Route
