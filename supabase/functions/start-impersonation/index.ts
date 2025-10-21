@@ -31,8 +31,18 @@ Deno.serve(async (req: Request) => {
 
     console.log('[start-impersonation] Verifying user');
     const token = authHeader.replace('Bearer ', '');
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-    
+
+    // Create a client with the user's token to verify it
+    const userSupabase = createClient(supabaseUrl, Deno.env.get('SUPABASE_ANON_KEY')!, {
+      global: {
+        headers: {
+          Authorization: authHeader
+        }
+      }
+    });
+
+    const { data: { user }, error: authError } = await userSupabase.auth.getUser();
+
     if (authError || !user) {
       console.error('[start-impersonation] Auth error:', authError);
       return new Response(
