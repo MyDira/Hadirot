@@ -89,8 +89,7 @@ export function Layout({ children }: LayoutProps) {
   }, [loading, user, profile, authContextId]);
 
   useEffect(() => {
-    // When impersonating, the profile is already switched to impersonated user
-    // so we just use profile directly
+    // Load agency data for users with management access
     const profileId = profile?.id;
     const hasManagementAccess = Boolean(
       profile?.is_admin || profile?.can_manage_agency,
