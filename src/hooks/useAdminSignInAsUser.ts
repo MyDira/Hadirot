@@ -32,11 +32,20 @@ export function useAdminSignInAsUser() {
         throw new Error(functionError.message || 'Failed to generate authentication tokens');
       }
 
-      if (!data?.access_token) {
+      if (!data?.access_token || !data?.refresh_token) {
         throw new Error('Invalid response: missing authentication tokens');
       }
 
-      // Set the session using the generated tokens
+      // Validate JWT structure before attempting to set session
+      if (data.access_token.split('.').length !== 3) {
+        throw new Error('Invalid access token format received from server');
+      }
+
+      if (data.refresh_token.split('.').length !== 3) {
+        throw new Error('Invalid refresh token format received from server');
+      }
+
+      // Set the session using the validated tokens
       const { error: sessionError } = await supabase.auth.setSession({
         access_token: data.access_token,
         refresh_token: data.refresh_token,
@@ -52,6 +61,7 @@ export function useAdminSignInAsUser() {
     } catch (err: any) {
       const errorMessage = err.message || 'An unexpected error occurred';
       setError(errorMessage);
+      console.error('Sign in as user error:', errorMessage);
       throw err;
     } finally {
       setLoading(false);

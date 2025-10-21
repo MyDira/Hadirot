@@ -126,40 +126,60 @@ Deno.serve(async (req: Request) => {
 
     console.log(`[admin-sign-in-as-user:${requestId}] Link generated successfully`);
 
-    // Extract tokens from the generated link
-    let access_token: string | null = null;
-    let refresh_token: string | null = null;
+    // Extract the hashed_token from the generated link
+    const hashedToken = linkData.properties?.hashed_token;
 
-    // Try to get tokens from the action_link URL fragment
-    const actionLink = linkData.properties?.action_link;
-    if (actionLink) {
-      try {
-        const url = new URL(actionLink);
-        const fragment = url.hash.substring(1);
-        if (fragment) {
-          const params = new URLSearchParams(fragment);
-          access_token = params.get('access_token');
-          refresh_token = params.get('refresh_token');
-        }
-      } catch (e) {
-        console.error(`[admin-sign-in-as-user:${requestId}] Failed to parse action link:`, e.message);
-      }
-    }
-
-    // Fallback to hashed_token if URL parsing didn't work
-    if (!access_token) {
-      access_token = linkData.properties?.hashed_token || null;
-    }
-
-    if (!access_token) {
-      console.error(`[admin-sign-in-as-user:${requestId}] No access token available`);
+    if (!hashedToken) {
+      console.error(`[admin-sign-in-as-user:${requestId}] No hashed_token in response`);
       return new Response(
-        JSON.stringify({ error: 'Failed to extract authentication tokens' }),
+        JSON.stringify({ error: 'Failed to extract authentication token from link' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    console.log(`[admin-sign-in-as-user:${requestId}] Tokens extracted successfully`);
+    console.log(`[admin-sign-in-as-user:${requestId}] Hashed token extracted, verifying...`);
+
+    // Verify the hashed_token to get valid JWT tokens
+    // We need to use a client instance without the service role key for verifyOtp
+    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
+    const anonClient = createClient(supabaseUrl, supabaseAnonKey);
+
+    const { data: verifyData, error: verifyError } = await anonClient.auth.verifyOtp({
+      token_hash: hashedToken,
+      type: 'magiclink',
+    });
+
+    if (verifyError || !verifyData?.session) {
+      console.error(`[admin-sign-in-as-user:${requestId}] Token verification failed:`, verifyError?.message);
+      return new Response(
+        JSON.stringify({ error: `Failed to verify authentication token: ${verifyError?.message || 'Unknown error'}` }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    console.log(`[admin-sign-in-as-user:${requestId}] Token verified successfully`);
+
+    // Extract the JWT tokens from the verified session
+    const { access_token, refresh_token } = verifyData.session;
+
+    // Validate that tokens are proper JWTs (should have 3 parts separated by dots)
+    if (!access_token || access_token.split('.').length !== 3) {
+      console.error(`[admin-sign-in-as-user:${requestId}] Invalid access token structure`);
+      return new Response(
+        JSON.stringify({ error: 'Received invalid access token structure' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    if (!refresh_token || refresh_token.split('.').length !== 3) {
+      console.error(`[admin-sign-in-as-user:${requestId}] Invalid refresh token structure`);
+      return new Response(
+        JSON.stringify({ error: 'Received invalid refresh token structure' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    console.log(`[admin-sign-in-as-user:${requestId}] JWT tokens validated successfully`);
     console.log(`[admin-sign-in-as-user:${requestId}] SUCCESS - Admin ${adminProfile.full_name} signing in as ${targetProfile.full_name}`);
 
     // Log for security audit (server-side only)
@@ -168,10 +188,10 @@ Deno.serve(async (req: Request) => {
     return new Response(
       JSON.stringify({
         access_token,
-        refresh_token: refresh_token || access_token,
+        refresh_token,
         user: {
-          id: targetAuthUser.user.id,
-          email: targetAuthUser.user.email,
+          id: verifyData.user.id,
+          email: verifyData.user.email,
           full_name: targetProfile.full_name
         }
       }),
