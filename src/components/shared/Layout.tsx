@@ -3,6 +3,7 @@ import { Link, useNavigate, useLocation } from "react-router-dom";
 import { Home, Search, Plus, User, Heart, LogOut, Settings, LayoutDashboard, FileText, CreditCard as Edit3, Star, BarChart3, Menu, X, Building2, Paintbrush } from "lucide-react";
 import { useAuth, AUTH_CONTEXT_ID } from "@/hooks/useAuth";
 import { useAnalyticsInit } from "@/hooks/useAnalyticsInit";
+import { useTawkTo } from "@/hooks/useTawkTo";
 import { Footer } from "./Footer";
 import { ModalManager } from "./ModalManager";
 import { capitalizeName } from "../../utils/formatters";
@@ -23,7 +24,20 @@ export function Layout({ children }: LayoutProps) {
 
   // Initialize analytics tracking
   useAnalyticsInit();
-  
+
+  // Initialize Tawk.to chatbot
+  const { isLoaded: tawkLoaded, setAttributes, addEvent, setVisitor } = useTawkTo({
+    onLoad: () => {
+      console.log('[Layout] Tawk.to widget loaded successfully');
+    },
+    onChatStarted: () => {
+      addEvent('chat_started', {
+        page: window.location.pathname,
+        userRole: profile?.role || 'guest',
+      });
+    },
+  });
+
   const navigate = useNavigate();
   const location = useLocation();
   const [showUserMenu, setShowUserMenu] = useState(false);
@@ -208,6 +222,40 @@ export function Layout({ children }: LayoutProps) {
   const agencySlug = ownedAgency?.slug ?? null;
   const ownsAgency = Boolean(ownedAgency);
   const canAccessAgencyPage = ownsAgency;
+
+  useEffect(() => {
+    if (tawkLoaded && user && profile) {
+      const fullName = profile.full_name || 'User';
+      const email = user.email || '';
+
+      setVisitor(fullName, email);
+
+      const attributes: Record<string, string | number | boolean> = {
+        userId: user.id,
+        role: profile.role || 'user',
+        accountCreated: new Date(user.created_at || '').toISOString(),
+      };
+
+      if (profile.role === 'agent' && agencyName) {
+        attributes.agency = agencyName;
+      }
+
+      if (profile.is_admin) {
+        attributes.isAdmin = true;
+      }
+
+      if (profile.can_manage_agency) {
+        attributes.canManageAgency = true;
+      }
+
+      setAttributes(attributes);
+    } else if (tawkLoaded && !user) {
+      setAttributes({
+        role: 'guest',
+        isAuthenticated: false,
+      });
+    }
+  }, [tawkLoaded, user, profile, agencyName, setVisitor, setAttributes]);
 
   const handleSignOut = async () => {
     try {
