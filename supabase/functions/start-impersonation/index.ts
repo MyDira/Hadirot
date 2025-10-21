@@ -29,19 +29,11 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    console.log('[start-impersonation] Verifying user');
+    console.log('[start-impersonation] Verifying user token');
     const token = authHeader.replace('Bearer ', '');
 
-    // Create a client with the user's token to verify it
-    const userSupabase = createClient(supabaseUrl, Deno.env.get('SUPABASE_ANON_KEY')!, {
-      global: {
-        headers: {
-          Authorization: authHeader
-        }
-      }
-    });
-
-    const { data: { user }, error: authError } = await userSupabase.auth.getUser();
+    // Verify the JWT token using the admin API
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
 
     if (authError || !user) {
       console.error('[start-impersonation] Auth error:', authError);
@@ -50,6 +42,8 @@ Deno.serve(async (req: Request) => {
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+
+    console.log('[start-impersonation] User verified:', user.id);
 
     console.log('[start-impersonation] Checking admin status for user:', user.id);
     const { data: adminProfile, error: profileError } = await supabase
