@@ -102,16 +102,29 @@ Deno.serve(async (req: Request) => {
       );
     }
 
+    console.log('[start-impersonation] Getting impersonated user auth data');
+    const { data: impersonatedAuthUser, error: impersonatedUserError } = await supabase.auth.admin.getUserById(impersonated_user_id);
+
+    if (impersonatedUserError || !impersonatedAuthUser?.user) {
+      console.error('[start-impersonation] Failed to get impersonated user:', impersonatedUserError);
+      return new Response(
+        JSON.stringify({ error: 'Failed to get impersonated user' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     console.log('[start-impersonation] Success! Returning session data');
     return new Response(
       JSON.stringify({
         success: true,
         session: sessionData,
-        impersonated_profile: impersonatedProfile
+        impersonated_profile: impersonatedProfile,
+        impersonated_user_id: impersonated_user_id,
+        admin_user_id: user.id
       }),
-      { 
-        status: 200, 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      {
+        status: 200,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       }
     );
 

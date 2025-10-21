@@ -83,15 +83,14 @@ export function ImpersonationProvider({ children }: { children: React.ReactNode 
 
         // Check if session is still valid
         const expiresAt = new Date(parsed.session.expires_at);
-        if (expiresAt > new Date()) {
+        if (expiresAt > new Date() && user.id === parsed.impersonatedUserId) {
+          // We're already logged in as the impersonated user
           setImpersonationSession(parsed.session);
           setImpersonatedProfile(parsed.impersonatedProfile);
           setAdminProfile(parsed.adminProfile);
           setIsImpersonating(true);
-
-          // Update auth profile to impersonated user
-          setProfile(parsed.impersonatedProfile);
         } else {
+          // Session expired or we're not the impersonated user, clear it
           sessionStorage.removeItem(STORAGE_KEY);
         }
       } catch (err) {
@@ -99,7 +98,7 @@ export function ImpersonationProvider({ children }: { children: React.ReactNode 
         sessionStorage.removeItem(STORAGE_KEY);
       }
     }
-  }, [user?.id, setProfile]);
+  }, [user?.id, isImpersonating]);
 
   // Periodic session validity check (simplified - just check expiration time)
   useEffect(() => {
@@ -136,6 +135,13 @@ export function ImpersonationProvider({ children }: { children: React.ReactNode 
       console.log('[useImpersonation] Current user:', user?.id);
       console.log('[useImpersonation] Profile is_admin:', profile?.is_admin);
 
+      // Store the current admin session before switching
+      const { data: { session: currentSession } } = await supabase.auth.getSession();
+
+      if (!currentSession) {
+        throw new Error('No active session found');
+      }
+
       const { data, error } = await supabase.functions.invoke('start-impersonation', {
         body: { impersonated_user_id: userId },
       });
@@ -154,25 +160,54 @@ export function ImpersonationProvider({ children }: { children: React.ReactNode 
 
       console.log('[useImpersonation] Session created successfully:', data.session.session_token);
 
-      // Store session data
+      // Store admin session and impersonation data
       const sessionData = {
+        adminSession: {
+          access_token: currentSession.access_token,
+          refresh_token: currentSession.refresh_token,
+        },
         session: data.session,
         impersonatedProfile: data.impersonated_profile,
         adminProfile: profile,
+        adminUserId: user.id,
+        impersonatedUserId: userId,
       };
 
       sessionStorage.setItem(STORAGE_KEY, JSON.stringify(sessionData));
+
+      // Now sign out the admin and sign in as the impersonated user
+      // We'll use the service role to create a session for the impersonated user
+      console.log('[useImpersonation] Switching to impersonated user session...');
+
+      // Call a new edge function that creates an auth session for the impersonated user
+      const { data: authData, error: authError } = await supabase.functions.invoke('create-impersonation-auth-session', {
+        body: {
+          session_token: data.session.session_token,
+          impersonated_user_id: userId,
+        },
+      });
+
+      if (authError || !authData?.access_token) {
+        throw new Error('Failed to create auth session for impersonated user');
+      }
+
+      // Set the new session
+      const { error: setSessionError } = await supabase.auth.setSession({
+        access_token: authData.access_token,
+        refresh_token: authData.refresh_token,
+      });
+
+      if (setSessionError) {
+        throw new Error('Failed to switch to impersonated user session');
+      }
 
       setImpersonationSession(data.session);
       setImpersonatedProfile(data.impersonated_profile);
       setAdminProfile(profile);
       setIsImpersonating(true);
 
-      // Switch the auth context to the impersonated user
-      setProfile(data.impersonated_profile);
-
-      // Log the page view
-      await logAction('page_view', { page: window.location.pathname });
+      // Reload the page to ensure all auth state is refreshed
+      window.location.href = '/dashboard';
 
     } catch (err: any) {
       console.error('Error starting impersonation:', err);
@@ -181,7 +216,7 @@ export function ImpersonationProvider({ children }: { children: React.ReactNode 
     } finally {
       setLoading(false);
     }
-  }, [user, profile, setProfile]);
+  }, [user, profile]);
 
   const endImpersonation = useCallback(async () => {
     if (!impersonationSession) {
@@ -191,6 +226,19 @@ export function ImpersonationProvider({ children }: { children: React.ReactNode 
     setLoading(true);
 
     try {
+      // Get the stored admin session
+      const storedData = sessionStorage.getItem(STORAGE_KEY);
+      let adminSession = null;
+
+      if (storedData) {
+        try {
+          const parsed = JSON.parse(storedData);
+          adminSession = parsed.adminSession;
+        } catch (e) {
+          console.error('Failed to parse stored session data:', e);
+        }
+      }
+
       const { error } = await supabase.functions.invoke('end-impersonation', {
         body: { session_token: impersonationSession.session_token },
       });
@@ -199,30 +247,46 @@ export function ImpersonationProvider({ children }: { children: React.ReactNode 
         console.error('Error ending impersonation:', error);
       }
 
-      // Clear state even if there was an error (to prevent stuck state)
+      // Clear state
       sessionStorage.removeItem(STORAGE_KEY);
       setImpersonationSession(null);
       setImpersonatedProfile(null);
       setIsImpersonating(false);
       setIsExpired(false);
       setTimeRemainingSeconds(null);
-
-      // Restore admin profile
-      if (adminProfile) {
-        setProfile(adminProfile);
-      } else {
-        await refreshProfile();
-      }
-
       setAdminProfile(null);
+
+      // Restore the admin session
+      if (adminSession?.access_token && adminSession?.refresh_token) {
+        console.log('[useImpersonation] Restoring admin session');
+        const { error: setSessionError } = await supabase.auth.setSession({
+          access_token: adminSession.access_token,
+          refresh_token: adminSession.refresh_token,
+        });
+
+        if (setSessionError) {
+          console.error('Failed to restore admin session:', setSessionError);
+          // Force a full page reload to sign in page if session restore fails
+          window.location.href = '/';
+          return;
+        }
+
+        // Reload to refresh all state
+        window.location.href = '/admin?tab=users';
+      } else {
+        // No admin session stored, redirect to home
+        window.location.href = '/';
+      }
 
     } catch (err: any) {
       console.error('Error ending impersonation:', err);
       setError(err.message || 'Failed to end impersonation');
+      // Force reload on error
+      window.location.href = '/';
     } finally {
       setLoading(false);
     }
-  }, [impersonationSession, adminProfile, refreshProfile, setProfile]);
+  }, [impersonationSession]);
 
   const logAction = useCallback(async (
     actionType: string,
