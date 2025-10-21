@@ -22,7 +22,7 @@ interface LayoutProps {
 
 export function Layout({ children }: LayoutProps) {
   const { user, profile, signOut, loading, authContextId } = useAuth();
-  const { isImpersonating, impersonatedProfile } = useImpersonation();
+  const { isImpersonating } = useImpersonation();
 
   // Initialize analytics tracking
   useAnalyticsInit();
@@ -91,18 +91,18 @@ export function Layout({ children }: LayoutProps) {
   }, [loading, user, profile, authContextId]);
 
   useEffect(() => {
-    // When impersonating, use the impersonated profile to check for agency access
-    const effectiveProfile = isImpersonating ? impersonatedProfile : profile;
-    const profileId = effectiveProfile?.id;
+    // When impersonating, the profile is already switched to impersonated user
+    // so we just use profile directly
+    const profileId = profile?.id;
     const hasManagementAccess = Boolean(
-      effectiveProfile?.is_admin || effectiveProfile?.can_manage_agency,
+      profile?.is_admin || profile?.can_manage_agency,
     );
 
     if (!profileId || !hasManagementAccess) {
       setOwnedAgency(null);
-      if (effectiveProfile?.id) {
-        queryClient.setQueryData(queryKeys.ownedAgency(effectiveProfile.id), null);
-        queryClient.setQueryData(queryKeys.agencyByOwner(effectiveProfile.id), null);
+      if (profile?.id) {
+        queryClient.setQueryData(queryKeys.ownedAgency(profile.id), null);
+        queryClient.setQueryData(queryKeys.agencyByOwner(profile.id), null);
       }
       return;
     }
@@ -160,7 +160,7 @@ export function Layout({ children }: LayoutProps) {
       isActive = false;
       unsubscribe();
     };
-  }, [profile?.id, profile?.can_manage_agency, profile?.is_admin, isImpersonating, impersonatedProfile?.id, impersonatedProfile?.can_manage_agency, impersonatedProfile?.is_admin]);
+  }, [profile?.id, profile?.can_manage_agency, profile?.is_admin]);
 
   useEffect(() => {
     const agencyId = ownedAgency?.id;
