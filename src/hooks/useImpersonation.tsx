@@ -123,42 +123,70 @@ export function ImpersonationProvider({ children }: { children: React.ReactNode 
   }, [isImpersonating, impersonationSession]);
 
   const startImpersonation = useCallback(async (userId: string) => {
+    const requestId = crypto.randomUUID().substring(0, 8);
+    console.log(`[useImpersonation:${requestId}] ====== START IMPERSONATION REQUEST ======`);
+
     if (!user || !profile?.is_admin) {
-      throw new Error('Only admins can impersonate users');
+      const errMsg = 'Only administrators can impersonate users';
+      console.error(`[useImpersonation:${requestId}] ✗ ${errMsg}`);
+      throw new Error(errMsg);
     }
 
     setLoading(true);
     setError(null);
 
     try {
-      console.log('[useImpersonation] Starting impersonation for user:', userId);
-      console.log('[useImpersonation] Current user:', user?.id);
-      console.log('[useImpersonation] Profile is_admin:', profile?.is_admin);
+      console.log(`[useImpersonation:${requestId}] Target user ID:`, userId);
+      console.log(`[useImpersonation:${requestId}] Current admin:`, user.id, profile.full_name);
+      console.log(`[useImpersonation:${requestId}] Admin status:`, profile.is_admin);
 
       // Store the current admin session before switching
-      const { data: { session: currentSession } } = await supabase.auth.getSession();
+      console.log(`[useImpersonation:${requestId}] Retrieving current admin session...`);
+      const { data: { session: currentSession }, error: sessionError } = await supabase.auth.getSession();
 
-      if (!currentSession) {
-        throw new Error('No active session found');
+      if (sessionError) {
+        console.error(`[useImpersonation:${requestId}] ✗ Session retrieval error:`, sessionError.message);
+        throw new Error(`Failed to retrieve current session: ${sessionError.message}`);
       }
 
+      if (!currentSession) {
+        console.error(`[useImpersonation:${requestId}] ✗ No active session found`);
+        throw new Error('No active admin session found. Please refresh and try again.');
+      }
+
+      console.log(`[useImpersonation:${requestId}] ✓ Current session retrieved`);
+
+      console.log(`[useImpersonation:${requestId}] Calling start-impersonation function...`);
       const { data, error } = await supabase.functions.invoke('start-impersonation', {
         body: { impersonated_user_id: userId },
       });
 
-      console.log('[useImpersonation] Function response:', { data, error });
+      console.log(`[useImpersonation:${requestId}] Function response received`);
 
       if (error) {
-        console.error('[useImpersonation] Error object:', JSON.stringify(error, null, 2));
-        throw new Error(error.message || 'Failed to start impersonation');
+        console.error(`[useImpersonation:${requestId}] ✗ Function error:`, error);
+        console.error(`[useImpersonation:${requestId}] Error details:`, JSON.stringify(error, null, 2));
+        const errorMessage = error.message || error.msg || 'Failed to start impersonation';
+        throw new Error(errorMessage);
       }
 
-      if (!data || !data.session || !data.impersonated_profile) {
-        console.error('[useImpersonation] Invalid data structure:', data);
-        throw new Error('Invalid response from server');
+      if (!data) {
+        console.error(`[useImpersonation:${requestId}] ✗ No data returned from function`);
+        throw new Error('No response data from server. Please try again.');
       }
 
-      console.log('[useImpersonation] Session created successfully:', data.session.session_token);
+      if (!data.session) {
+        console.error(`[useImpersonation:${requestId}] ✗ Missing session in response:`, Object.keys(data));
+        throw new Error('Invalid response: Missing session data');
+      }
+
+      if (!data.impersonated_profile) {
+        console.error(`[useImpersonation:${requestId}] ✗ Missing profile in response:`, Object.keys(data));
+        throw new Error('Invalid response: Missing user profile data');
+      }
+
+      console.log(`[useImpersonation:${requestId}] ✓ Session created:`, data.session.session_token.substring(0, 8) + '...');
+      console.log(`[useImpersonation:${requestId}] ✓ Target user:`, data.impersonated_profile.full_name);
 
       // Store admin session and impersonation data
       const sessionData = {
@@ -171,15 +199,21 @@ export function ImpersonationProvider({ children }: { children: React.ReactNode 
         adminProfile: profile,
         adminUserId: user.id,
         impersonatedUserId: userId,
+        timestamp: new Date().toISOString(),
       };
 
-      sessionStorage.setItem(STORAGE_KEY, JSON.stringify(sessionData));
+      console.log(`[useImpersonation:${requestId}] Storing session data in sessionStorage`);
+      try {
+        sessionStorage.setItem(STORAGE_KEY, JSON.stringify(sessionData));
+        console.log(`[useImpersonation:${requestId}] ✓ Session data stored`);
+      } catch (storageError) {
+        console.error(`[useImpersonation:${requestId}] ✗ Failed to store session:`, storageError);
+        throw new Error('Failed to store impersonation session. Please check browser storage.');
+      }
 
-      // Now sign out the admin and sign in as the impersonated user
-      // We'll use the service role to create a session for the impersonated user
-      console.log('[useImpersonation] Switching to impersonated user session...');
+      // Create authentication session for the impersonated user
+      console.log(`[useImpersonation:${requestId}] Creating auth session for impersonated user...`);
 
-      // Call a new edge function that creates an auth session for the impersonated user
       const { data: authData, error: authError } = await supabase.functions.invoke('create-impersonation-auth-session', {
         body: {
           session_token: data.session.session_token,
@@ -187,31 +221,73 @@ export function ImpersonationProvider({ children }: { children: React.ReactNode 
         },
       });
 
-      if (authError || !authData?.access_token) {
-        throw new Error('Failed to create auth session for impersonated user');
+      console.log(`[useImpersonation:${requestId}] Auth session response received`);
+
+      if (authError) {
+        console.error(`[useImpersonation:${requestId}] ✗ Auth session creation error:`, authError);
+        const errorMessage = authError.message || authError.msg || 'Failed to create auth session';
+        throw new Error(errorMessage);
       }
 
+      if (!authData) {
+        console.error(`[useImpersonation:${requestId}] ✗ No auth data returned`);
+        throw new Error('No authentication data received from server');
+      }
+
+      if (!authData.access_token) {
+        console.error(`[useImpersonation:${requestId}] ✗ Missing access_token:`, Object.keys(authData));
+        throw new Error('Invalid authentication response: Missing access token');
+      }
+
+      console.log(`[useImpersonation:${requestId}] ✓ Auth tokens received`);
+      console.log(`[useImpersonation:${requestId}] Access token length:`, authData.access_token.length);
+      console.log(`[useImpersonation:${requestId}] Has refresh token:`, !!authData.refresh_token);
+
       // Set the new session
-      const { error: setSessionError } = await supabase.auth.setSession({
+      console.log(`[useImpersonation:${requestId}] Setting impersonated user session...`);
+      const { data: sessionSetData, error: setSessionError } = await supabase.auth.setSession({
         access_token: authData.access_token,
         refresh_token: authData.refresh_token,
       });
 
       if (setSessionError) {
-        throw new Error('Failed to switch to impersonated user session');
+        console.error(`[useImpersonation:${requestId}] ✗ setSession error:`, setSessionError.message);
+        throw new Error(`Failed to activate impersonated session: ${setSessionError.message}`);
       }
 
+      if (!sessionSetData?.session) {
+        console.error(`[useImpersonation:${requestId}] ✗ No session returned from setSession`);
+        throw new Error('Failed to activate session: No session data returned');
+      }
+
+      console.log(`[useImpersonation:${requestId}] ✓ Session activated for user:`, sessionSetData.user?.id);
+
+      console.log(`[useImpersonation:${requestId}] Updating local state...`);
       setImpersonationSession(data.session);
       setImpersonatedProfile(data.impersonated_profile);
       setAdminProfile(profile);
       setIsImpersonating(true);
 
+      console.log(`[useImpersonation:${requestId}] ✓✓✓ IMPERSONATION SUCCESSFUL ✓✓✓`);
+      console.log(`[useImpersonation:${requestId}] Redirecting to dashboard...`);
+
+      // Small delay to ensure state is committed
+      await new Promise(resolve => setTimeout(resolve, 100));
+
       // Reload the page to ensure all auth state is refreshed
       window.location.href = '/dashboard';
 
     } catch (err: any) {
-      console.error('Error starting impersonation:', err);
-      setError(err.message || 'Failed to start impersonation');
+      console.error(`[useImpersonation:${requestId}] ✗✗✗ IMPERSONATION FAILED ✗✗✗`);
+      console.error(`[useImpersonation:${requestId}] Error:`, err.message || err);
+      console.error(`[useImpersonation:${requestId}] Stack:`, err.stack);
+
+      const errorMessage = err.message || 'Failed to start impersonation. Please try again.';
+      setError(errorMessage);
+
+      // Clear any partial state
+      sessionStorage.removeItem(STORAGE_KEY);
+
       throw err;
     } finally {
       setLoading(false);
