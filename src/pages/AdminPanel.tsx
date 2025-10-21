@@ -1,6 +1,6 @@
 import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Users, FileText, Settings, Eye, Check, X, Trash2, ChevronLeft, Shield, TrendingUp, Home, Star, Power, ChevronDown, Search, ChevronRight, BarChart3, MessageSquare, Mail, UserCheck, MessagesSquare } from 'lucide-react';
+import { Users, FileText, Settings, Eye, Check, X, Trash2, ChevronLeft, Shield, TrendingUp, Home, Star, Power, ChevronDown, Search, ChevronRight, BarChart3, MessageSquare, Mail, UserCheck } from 'lucide-react';
 import { listingsService } from '../services/listings';
 import { agenciesService } from '../services/agencies';
 import { useAuth } from '@/hooks/useAuth';
@@ -13,7 +13,6 @@ const StaticPagesTab = lazy(() => import('./admin/tabs/StaticPagesTab'));
 const FeaturedSettingsTab = lazy(() => import('./admin/tabs/FeaturedSettingsTab'));
 const ModalManagementTab = lazy(() => import('./admin/tabs/ModalManagementTab'));
 const DailyCardsSettings = lazy(() => import('./admin/DailyCardsSettings'));
-const ChatAnalyticsTab = lazy(() => import('./admin/tabs/ChatAnalyticsTab'));
 
 const ADMIN_TAB_KEYS = [
   'overview',
@@ -22,7 +21,6 @@ const ADMIN_TAB_KEYS = [
   'pending',
   'settings',
   'analytics',
-  'chat-analytics',
   'static-pages',
   'featured',
   'modals',
@@ -41,7 +39,6 @@ const ADMIN_TABS: { id: AdminTabKey; label: string; icon: React.ElementType }[] 
   { id: 'pending', label: 'Pending', icon: Eye },
   { id: 'settings', label: 'Settings', icon: Settings },
   { id: 'analytics', label: 'Analytics', icon: BarChart3 },
-  { id: 'chat-analytics', label: 'Chat Analytics', icon: MessagesSquare },
   { id: 'static-pages', label: 'Static Pages', icon: FileText },
   { id: 'featured', label: 'Featured Settings', icon: Star },
   { id: 'modals', label: 'Modals', icon: MessageSquare },
@@ -872,10 +869,9 @@ export function AdminPanel() {
         </div>
       ) : (
         <>
-          {activeTab === 'analytics' || activeTab === 'chat-analytics' || activeTab === 'static-pages' || activeTab === 'featured' || activeTab === 'modals' || activeTab === 'daily-cards' ? (
+          {activeTab === 'analytics' || activeTab === 'static-pages' || activeTab === 'featured' || activeTab === 'modals' || activeTab === 'daily-cards' ? (
             <Suspense fallback={<div className="p-6 text-sm text-muted-foreground">Loading…</div>}>
               {activeTab === 'analytics' && <AnalyticsTab />}
-              {activeTab === 'chat-analytics' && <ChatAnalyticsTab />}
               {activeTab === 'static-pages' && <StaticPagesTab />}
               {activeTab === 'featured' && <FeaturedSettingsTab />}
               {activeTab === 'modals' && <ModalManagementTab />}
