@@ -159,27 +159,31 @@ Deno.serve(async (req: Request) => {
 
     console.log(`[admin-sign-in-as-user:${requestId}] Token verified successfully`);
 
-    // Extract the JWT tokens from the verified session
+    // Extract the tokens from the verified session
     const { access_token, refresh_token } = verifyData.session;
 
-    // Validate that tokens are proper JWTs (should have 3 parts separated by dots)
+    // Validate access token is a proper JWT (should have 3 parts separated by dots)
     if (!access_token || access_token.split('.').length !== 3) {
       console.error(`[admin-sign-in-as-user:${requestId}] Invalid access token structure`);
+      console.error(`[admin-sign-in-as-user:${requestId}] Access token length:`, access_token?.length);
       return new Response(
         JSON.stringify({ error: 'Received invalid access token structure' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    if (!refresh_token || refresh_token.split('.').length !== 3) {
-      console.error(`[admin-sign-in-as-user:${requestId}] Invalid refresh token structure`);
+    // Validate refresh token exists (it may not be a JWT - can be an opaque token)
+    if (!refresh_token) {
+      console.error(`[admin-sign-in-as-user:${requestId}] Missing refresh token`);
       return new Response(
-        JSON.stringify({ error: 'Received invalid refresh token structure' }),
+        JSON.stringify({ error: 'Missing refresh token in session' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    console.log(`[admin-sign-in-as-user:${requestId}] JWT tokens validated successfully`);
+    console.log(`[admin-sign-in-as-user:${requestId}] Tokens validated successfully`);
+    console.log(`[admin-sign-in-as-user:${requestId}] Access token is JWT:`, access_token.split('.').length === 3);
+    console.log(`[admin-sign-in-as-user:${requestId}] Refresh token length:`, refresh_token.length);
     console.log(`[admin-sign-in-as-user:${requestId}] SUCCESS - Admin ${adminProfile.full_name} signing in as ${targetProfile.full_name}`);
 
     // Log for security audit (server-side only)

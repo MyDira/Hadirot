@@ -36,13 +36,9 @@ export function useAdminSignInAsUser() {
         throw new Error('Invalid response: missing authentication tokens');
       }
 
-      // Validate JWT structure before attempting to set session
+      // Validate access token JWT structure (refresh token may be opaque)
       if (data.access_token.split('.').length !== 3) {
         throw new Error('Invalid access token format received from server');
-      }
-
-      if (data.refresh_token.split('.').length !== 3) {
-        throw new Error('Invalid refresh token format received from server');
       }
 
       // Set the session using the validated tokens
