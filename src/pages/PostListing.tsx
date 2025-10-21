@@ -5,6 +5,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { listingsService } from "../services/listings";
 import { emailService, renderBrandEmail } from "../services/email";
 import { draftListingsService, DraftData } from "../services/draftListings";
+import { agenciesService } from "../services/agencies";
 import { Modal } from "../components/shared/Modal";
 import { AuthForm } from "../components/auth/AuthForm";
 import { compressImage } from "../utils/imageUtils";
@@ -63,6 +64,7 @@ export function PostListing() {
   const [neighborhoodSelectValue, setNeighborhoodSelectValue] = useState<string>("");
   const [showCustomNeighborhood, setShowCustomNeighborhood] = useState(false);
   const [customNeighborhoodInput, setCustomNeighborhoodInput] = useState("");
+  const [ownedAgencyId, setOwnedAgencyId] = useState<string | null>(null);
   const [formData, setFormData] = useState<ListingFormData>({
     title: "",
     description: "",
@@ -143,6 +145,28 @@ export function PostListing() {
       }));
     }
   }, [profile]);
+
+  // Load user's owned agency if they have agency management permissions
+  useEffect(() => {
+    if (!user?.id || !profile) {
+      setOwnedAgencyId(null);
+      return;
+    }
+
+    if (profile.can_manage_agency || profile.is_admin) {
+      agenciesService
+        .getAgencyOwnedByProfile(user.id)
+        .then((agency) => {
+          setOwnedAgencyId(agency?.id || null);
+        })
+        .catch((error) => {
+          console.error("Error loading owned agency:", error);
+          setOwnedAgencyId(null);
+        });
+    } else {
+      setOwnedAgencyId(null);
+    }
+  }, [user?.id, profile?.can_manage_agency, profile?.is_admin]);
 
 
   const loadDraftData = async (): Promise<boolean> => {
@@ -438,6 +462,7 @@ export function PostListing() {
         broker_fee: false,
         neighborhood,
         user_id: user.id,
+        agency_id: ownedAgencyId || null,
         is_active: false,
         approved: false,
         price: formData.call_for_price ? null : formData.price,
