@@ -22,7 +22,7 @@ interface LayoutProps {
 
 export function Layout({ children }: LayoutProps) {
   const { user, profile, signOut, loading, authContextId } = useAuth();
-  const { isImpersonating } = useImpersonation();
+  const { isImpersonating, logAction } = useImpersonation();
 
   // Initialize analytics tracking
   useAnalyticsInit();
@@ -54,6 +54,13 @@ export function Layout({ children }: LayoutProps) {
       prevPathnameRef.current = location.pathname;
     }
   }, [location.pathname]);
+
+  // Track page views during impersonation
+  useEffect(() => {
+    if (isImpersonating) {
+      logAction('page_view', { page: location.pathname });
+    }
+  }, [location.pathname, isImpersonating, logAction]);
 
   // Close dropdown when clicking outside
   useEffect(() => {

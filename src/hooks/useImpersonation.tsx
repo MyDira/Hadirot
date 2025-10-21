@@ -1,5 +1,4 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
-import { useLocation } from 'react-router-dom';
 import { supabase, Profile, ImpersonationSession } from '../config/supabase';
 import { useAuth } from './useAuth';
 
@@ -24,7 +23,6 @@ const CHECK_INTERVAL = 30000; // Check every 30 seconds
 
 export function ImpersonationProvider({ children }: { children: React.ReactNode }) {
   const { user, profile, refreshProfile, setProfile } = useAuth();
-  const location = useLocation();
   const [isImpersonating, setIsImpersonating] = useState(false);
   const [impersonationSession, setImpersonationSession] = useState<ImpersonationSession | null>(null);
   const [impersonatedProfile, setImpersonatedProfile] = useState<Profile | null>(null);
@@ -249,12 +247,7 @@ export function ImpersonationProvider({ children }: { children: React.ReactNode 
     }
   }, [isImpersonating, impersonationSession]);
 
-  // Log page changes
-  useEffect(() => {
-    if (isImpersonating) {
-      logAction('page_view', { page: location.pathname });
-    }
-  }, [location.pathname, isImpersonating, logAction]);
+  // Page tracking is handled by usePageTracking hook in Layout component
 
   const value: ImpersonationContextValue = {
     isImpersonating,
