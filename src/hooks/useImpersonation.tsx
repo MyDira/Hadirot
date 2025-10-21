@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import { useLocation } from 'react-router-dom';
 import { supabase, Profile, ImpersonationSession } from '../config/supabase';
 import { useAuth } from './useAuth';
 
@@ -23,6 +24,7 @@ const CHECK_INTERVAL = 30000; // Check every 30 seconds
 
 export function ImpersonationProvider({ children }: { children: React.ReactNode }) {
   const { user, profile, refreshProfile, setProfile } = useAuth();
+  const location = useLocation();
   const [isImpersonating, setIsImpersonating] = useState(false);
   const [impersonationSession, setImpersonationSession] = useState<ImpersonationSession | null>(null);
   const [impersonatedProfile, setImpersonatedProfile] = useState<Profile | null>(null);
@@ -72,10 +74,12 @@ export function ImpersonationProvider({ children }: { children: React.ReactNode 
     window.location.href = '/admin?tab=users';
   };
 
-  // Restore session from storage on mount
+  // Restore session from storage on mount (only run once when user is loaded)
   useEffect(() => {
+    if (!user || isImpersonating) return;
+
     const storedSession = sessionStorage.getItem(STORAGE_KEY);
-    if (storedSession && user && profile?.is_admin) {
+    if (storedSession) {
       try {
         const parsed = JSON.parse(storedSession);
 
@@ -97,7 +101,7 @@ export function ImpersonationProvider({ children }: { children: React.ReactNode 
         sessionStorage.removeItem(STORAGE_KEY);
       }
     }
-  }, [user, profile?.is_admin]);
+  }, [user?.id, setProfile]);
 
   // Periodic session validity check (simplified - just check expiration time)
   useEffect(() => {
@@ -248,9 +252,9 @@ export function ImpersonationProvider({ children }: { children: React.ReactNode 
   // Log page changes
   useEffect(() => {
     if (isImpersonating) {
-      logAction('page_view', { page: window.location.pathname });
+      logAction('page_view', { page: location.pathname });
     }
-  }, [window.location.pathname, isImpersonating, logAction]);
+  }, [location.pathname, isImpersonating, logAction]);
 
   const value: ImpersonationContextValue = {
     isImpersonating,
