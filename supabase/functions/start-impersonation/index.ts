@@ -17,7 +17,13 @@ Deno.serve(async (req: Request) => {
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
+
+    // Admin client for privileged operations
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    // Regular client for verifying the user's JWT
+    const supabaseClient = createClient(supabaseUrl, supabaseAnonKey);
 
     console.log('[start-impersonation] Getting auth header');
     const authHeader = req.headers.get('Authorization');
@@ -32,8 +38,8 @@ Deno.serve(async (req: Request) => {
     console.log('[start-impersonation] Verifying user token');
     const token = authHeader.replace('Bearer ', '');
 
-    // Verify the JWT token using the admin API
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+    // Verify the JWT token using the anon client
+    const { data: { user }, error: authError } = await supabaseClient.auth.getUser(token);
 
     if (authError || !user) {
       console.error('[start-impersonation] Auth error:', authError);
