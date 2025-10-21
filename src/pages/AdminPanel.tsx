@@ -4,7 +4,7 @@ import { Users, FileText, Settings, Eye, Check, X, Trash2, ChevronLeft, Shield, 
 import { listingsService } from '../services/listings';
 import { agenciesService } from '../services/agencies';
 import { useAuth } from '@/hooks/useAuth';
-import { useImpersonation } from '@/hooks/useImpersonation';
+import { useAdminSignInAsUser } from '@/hooks/useAdminSignInAsUser';
 import { supabase, Profile, Listing } from '../config/supabase';
 import { formatPhoneForDisplay } from '@/utils/phone';
 
@@ -72,7 +72,7 @@ const isListingCurrentlyFeatured = (listing: Listing) => {
 
 export function AdminPanel() {
   const { user, profile } = useAuth();
-  const { startImpersonation, loading: impersonationLoading } = useImpersonation();
+  const { signInAsUser, loading: signingInAsUser } = useAdminSignInAsUser();
   const [params, setParams] = useSearchParams();
   const rawTabParam = params.get('tab');
   const initialTab: AdminTabKey = isValidAdminTab(rawTabParam) ? rawTabParam : 'overview';
@@ -683,22 +683,21 @@ export function AdminPanel() {
     }
   };
 
-  const handleImpersonate = async (targetUser: Profile) => {
+  const handleSignInAsUser = async (targetUser: Profile) => {
     if (!profile?.is_admin) {
       return;
     }
 
     if (targetUser.is_admin) {
-      alert('Cannot impersonate another admin user.');
+      alert('Cannot sign in as another admin user.');
       return;
     }
 
     const confirmed = confirm(
-      `You are about to impersonate ${targetUser.full_name}.\n\n` +
-      `• You will have full access as this user for 2 hours\n` +
-      `• All actions will be logged for compliance\n` +
-      `• Changes you make will be permanent\n\n` +
-      `Do you want to continue?`
+      `Sign in as ${targetUser.full_name}?\n\n` +
+      `You will be signed out of your admin account and signed in as this user.\n` +
+      `To return to your admin account, sign out and sign back in with your admin credentials.\n\n` +
+      `Continue?`
     );
 
     if (!confirmed) {
@@ -708,12 +707,12 @@ export function AdminPanel() {
     setImpersonatingUserId(targetUser.id);
 
     try {
-      await startImpersonation(targetUser.id);
-      // Redirect to dashboard
+      await signInAsUser(targetUser.id);
+      // Redirect to dashboard after successful sign-in
       window.location.href = '/dashboard';
     } catch (error: any) {
-      console.error('Failed to start impersonation:', error);
-      alert(`Failed to start impersonation: ${error.message}`);
+      console.error('Failed to sign in as user:', error);
+      alert(`Failed to sign in as user: ${error.message}`);
     } finally {
       setImpersonatingUserId(null);
     }
@@ -1216,10 +1215,10 @@ export function AdminPanel() {
                             <div className="flex justify-end gap-2">
                               {!user.is_admin && (
                                 <button
-                                  onClick={() => handleImpersonate(user)}
-                                  disabled={impersonatingUserId === user.id || impersonationLoading}
+                                  onClick={() => handleSignInAsUser(user)}
+                                  disabled={impersonatingUserId === user.id || signingInAsUser}
                                   className="text-blue-600 transition-colors hover:text-blue-800 disabled:cursor-not-allowed disabled:opacity-50"
-                                  title="Impersonate User"
+                                  title="Sign In As User"
                                 >
                                   {impersonatingUserId === user.id ? (
                                     <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />

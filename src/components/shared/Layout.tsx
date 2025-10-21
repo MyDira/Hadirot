@@ -2,11 +2,9 @@ import React, { useState, useEffect } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { Home, Search, Plus, User, Heart, LogOut, Settings, LayoutDashboard, FileText, CreditCard as Edit3, Star, BarChart3, Menu, X, Building2, Paintbrush } from "lucide-react";
 import { useAuth, AUTH_CONTEXT_ID } from "@/hooks/useAuth";
-import { useImpersonation } from "@/hooks/useImpersonation";
 import { useAnalyticsInit } from "@/hooks/useAnalyticsInit";
 import { Footer } from "./Footer";
 import { ModalManager } from "./ModalManager";
-import { ImpersonationBanner } from "./ImpersonationBanner";
 import { capitalizeName } from "../../utils/formatters";
 import { supabase, type Agency } from "@/config/supabase";
 import { agenciesService } from "@/services/agencies";
@@ -22,7 +20,6 @@ interface LayoutProps {
 
 export function Layout({ children }: LayoutProps) {
   const { user, profile, signOut, loading, authContextId } = useAuth();
-  const { isImpersonating, logAction } = useImpersonation();
 
   // Initialize analytics tracking
   useAnalyticsInit();
@@ -55,12 +52,6 @@ export function Layout({ children }: LayoutProps) {
     }
   }, [location.pathname]);
 
-  // Track page views during impersonation
-  useEffect(() => {
-    if (isImpersonating) {
-      logAction('page_view', { page: location.pathname });
-    }
-  }, [location.pathname, isImpersonating, logAction]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -239,10 +230,7 @@ export function Layout({ children }: LayoutProps) {
 
   return (
     <div className="min-h-screen flex flex-col">
-      {/* Impersonation Banner */}
-      <ImpersonationBanner />
-
-      <header className={`sticky z-40 bg-brand-800 text-white border-b border-black/5 shadow-sm ${isImpersonating ? 'top-[72px] md:top-[60px]' : 'top-0'}`}>
+      <header className="sticky top-0 z-40 bg-brand-800 text-white border-b border-black/5 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 md:px-6 h-14 md:h-16 flex items-center justify-between">
           {/* Left spacer for balance */}
           <div className="flex-1"></div>
