@@ -847,18 +847,18 @@ export function AdminPanel() {
 
       {/* Navigation Tabs */}
       <div className="mb-8">
-        <nav className="flex space-x-8 border-b border-gray-200">
+        <nav className="flex space-x-2 sm:space-x-4 lg:space-x-8 border-b border-gray-200 overflow-x-auto pb-px scrollbar-hide">
           {ADMIN_TABS.map(({ id, label, icon: Icon }) => (
             <button
               key={id}
               onClick={() => handleTabChange(id)}
-              className={`flex items-center px-3 py-2 border-b-2 font-medium text-sm transition-colors ${
+              className={`flex items-center px-2 sm:px-3 py-2 border-b-2 font-medium text-xs sm:text-sm whitespace-nowrap transition-colors flex-shrink-0 ${
                 activeTab === id
                   ? 'border-[#4E4B43] text-[#4E4B43]'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
               }`}
             >
-              <Icon className="w-4 h-4 mr-2" />
+              <Icon className="w-4 h-4 mr-1 sm:mr-2" />
               {label}
             </button>
           ))}

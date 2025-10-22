@@ -17,7 +17,7 @@ import {
   KnowledgeBaseArticle,
 } from '../../../services/knowledgeBase';
 
-export function KnowledgeBaseTab() {
+export default function KnowledgeBaseTab() {
   const [categories, setCategories] = useState<KnowledgeBaseCategory[]>([]);
   const [articles, setArticles] = useState<KnowledgeBaseArticle[]>([]);
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | 'all'>('all');
