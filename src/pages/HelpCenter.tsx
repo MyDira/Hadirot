@@ -193,9 +193,6 @@ export function HelpCenter() {
                     <span className="text-sm text-brand-600 font-medium group-hover:underline">
                       Read article →
                     </span>
-                    <div className="flex items-center gap-4 text-xs text-gray-500">
-                      <span>{article.view_count} views</span>
-                    </div>
                   </div>
                 </Link>
               ))}
