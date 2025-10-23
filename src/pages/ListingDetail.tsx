@@ -467,6 +467,21 @@ export function ListingDetail() {
                 >
                   Send Message
                 </a>
+
+                {/*
+                  RELOCATED: Share button moved to contact card (Mobile)
+                  - Less intrusive than title position
+                  - Logically grouped with communication actions
+                  - Still accessible but not prominently placed
+                */}
+                <div className="w-full">
+                  <ShareButton
+                    listingId={listing.id}
+                    listingTitle={listing.title}
+                    variant="detail"
+                    className="w-full justify-center"
+                  />
+                </div>
               </div>
 
               <div className="mt-4 pt-4 border-t border-gray-200 text-xs text-gray-500">
@@ -474,35 +489,14 @@ export function ListingDetail() {
               </div>
             </div>
           </section>
-          {/* Title and Share Button - Third on mobile */}
-          {/*
-            POSITIONING STRATEGY (Detail Page):
-            - Share button is positioned prominently near the listing title
-            - Placed at the top of the info section for high visibility
-            - Uses flex layout to keep title and share button aligned
-            - On mobile: share button appears below title to maintain readability
-            - On desktop: share button can be inline with title for compact layout
-            - Separate from favorite button to avoid confusion (favorite is on image)
-          */}
+          {/* Title - Third on mobile */}
           <section id="ld-title" className="order-3 lg:order-none">
-            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-2">
-              <div className="flex-1">
-                <h1 className="text-2xl md:text-[1.65rem] font-semibold text-[#273140]">
-                  {listing.title}
-                </h1>
-                {postedDateText && (
-                  <p className="text-xs text-muted-foreground mt-1">Posted: {postedDateText}</p>
-                )}
-              </div>
-              {/* Share button positioned prominently near title */}
-              <div className="flex-shrink-0">
-                <ShareButton
-                  listingId={listing.id}
-                  listingTitle={listing.title}
-                  variant="detail"
-                />
-              </div>
-            </div>
+            <h1 className="text-2xl md:text-[1.65rem] font-semibold text-[#273140] mb-2">
+              {listing.title}
+            </h1>
+            {postedDateText && (
+              <p className="text-xs text-muted-foreground mt-1">Posted: {postedDateText}</p>
+            )}
           </section>
 
           {/* Location + Tag (mobile-safe truncation) - Third on mobile */}
@@ -660,6 +654,22 @@ export function ListingDetail() {
                 >
                   Send Message
                 </a>
+
+                {/*
+                  RELOCATED: Share button moved to contact card (Desktop)
+                  - Less intrusive than prominent title position
+                  - Natural grouping with other communication/action buttons
+                  - Still easily discoverable within contact context
+                  - Improves visual hierarchy and reduces clutter
+                */}
+                <div className="w-full">
+                  <ShareButton
+                    listingId={listing.id}
+                    listingTitle={listing.title}
+                    variant="detail"
+                    className="w-full justify-center"
+                  />
+                </div>
               </div>
 
               <div className="mt-4 pt-4 border-t border-gray-200 text-xs text-gray-500">
