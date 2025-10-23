@@ -9,6 +9,7 @@ import { gaEvent, gaListing } from "@/lib/ga";
 void gaEvent;
 import NumericText from "@/components/common/NumericText";
 import { computePrimaryListingImage } from "../../utils/stockImage";
+import { ShareButton } from "../shared/ShareButton";
 
 interface ListingCardProps {
   listing: Listing;
@@ -200,11 +201,27 @@ export function ListingCard({
           />
         </div>
 
-        {/* Poster label and featured */}
-        <div className="mt-2 pt-2 border-t border-gray-100 flex items-center justify-between">
-          <span className="text-xs text-gray-600">by {getPosterLabel()}</span>
+        {/* Poster label, share button, and featured badge */}
+        {/*
+          POSITIONING STRATEGY (Card):
+          - Share button is placed in the bottom section of the card
+          - Positioned OUTSIDE the image area to avoid interfering with image interactions
+          - Sits in the footer area alongside the "by Owner/Agency" label
+          - Responsive flex layout ensures proper spacing on all screen sizes
+          - Does not overlap with favorite button (top-right of image) or other interactive elements
+        */}
+        <div className="mt-2 pt-2 border-t border-gray-100 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 flex-1 min-w-0">
+            <span className="text-xs text-gray-600 truncate">by {getPosterLabel()}</span>
+            {/* Share button positioned in footer, separate from image */}
+            <ShareButton
+              listingId={listing.id}
+              listingTitle={listing.title}
+              variant="card"
+            />
+          </div>
           {listing.is_featured && showFeaturedBadge && (
-            <span className="inline-flex items-center bg-accent-500 text-white text-xs px-2 py-0.5 rounded">
+            <span className="inline-flex items-center bg-accent-500 text-white text-xs px-2 py-0.5 rounded flex-shrink-0">
               Featured
             </span>
           )}

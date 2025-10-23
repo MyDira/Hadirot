@@ -26,6 +26,7 @@ import { gaEvent, gaListing } from "@/lib/ga";
 import { trackListingView } from "../lib/analytics";
 void gaEvent;
 import NumericText from "@/components/common/NumericText";
+import { ShareButton } from "../components/shared/ShareButton";
 
 const SCROLL_THRESHOLDS = [25, 50, 75, 100] as const;
 
@@ -473,14 +474,35 @@ export function ListingDetail() {
               </div>
             </div>
           </section>
-          {/* Title - Third on mobile */}
+          {/* Title and Share Button - Third on mobile */}
+          {/*
+            POSITIONING STRATEGY (Detail Page):
+            - Share button is positioned prominently near the listing title
+            - Placed at the top of the info section for high visibility
+            - Uses flex layout to keep title and share button aligned
+            - On mobile: share button appears below title to maintain readability
+            - On desktop: share button can be inline with title for compact layout
+            - Separate from favorite button to avoid confusion (favorite is on image)
+          */}
           <section id="ld-title" className="order-3 lg:order-none">
-            <h1 className="text-2xl md:text-[1.65rem] font-semibold text-[#273140] mb-2">
-              {listing.title}
-            </h1>
-            {postedDateText && (
-              <p className="text-xs text-muted-foreground mt-1">Posted: {postedDateText}</p>
-            )}
+            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-2">
+              <div className="flex-1">
+                <h1 className="text-2xl md:text-[1.65rem] font-semibold text-[#273140]">
+                  {listing.title}
+                </h1>
+                {postedDateText && (
+                  <p className="text-xs text-muted-foreground mt-1">Posted: {postedDateText}</p>
+                )}
+              </div>
+              {/* Share button positioned prominently near title */}
+              <div className="flex-shrink-0">
+                <ShareButton
+                  listingId={listing.id}
+                  listingTitle={listing.title}
+                  variant="detail"
+                />
+              </div>
+            </div>
           </section>
 
           {/* Location + Tag (mobile-safe truncation) - Third on mobile */}
