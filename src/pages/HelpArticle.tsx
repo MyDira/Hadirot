@@ -215,7 +215,7 @@ export function HelpArticle() {
   const sanitizedContent = DOMPurify.sanitize(article.content);
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-brand-50/30">
       {/* Breadcrumb */}
       <div className="bg-white border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
@@ -253,7 +253,7 @@ export function HelpArticle() {
               </Link>
 
               {tableOfContents.length > 0 && (
-                <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
+                <div className="bg-white/70 backdrop-blur-sm rounded-xl p-6 border border-gray-200/70">
                   <h3 className="font-semibold text-gray-900 mb-4">
                     In this article
                   </h3>
@@ -290,7 +290,7 @@ export function HelpArticle() {
           {/* Main Content */}
           <div className="lg:col-span-3 order-1 lg:order-2">
             {/* Article Header */}
-            <div className="bg-white rounded-2xl p-8 md:p-10 mb-8 shadow-sm border border-gray-200">
+            <div className="mb-12">
               <h1 className="text-4xl md:text-5xl font-bold text-brand-700 mb-4 leading-tight">
                 {article.title}
               </h1>
@@ -313,7 +313,7 @@ export function HelpArticle() {
             </div>
 
             {/* Article Content */}
-            <div className="bg-white rounded-2xl p-8 md:p-10 mb-8 shadow-sm border border-gray-200">
+            <div className="mb-8">
               <div
                 ref={contentRef}
                 className="prose prose-lg max-w-none
@@ -352,7 +352,7 @@ export function HelpArticle() {
             </div>
 
             {/* Feedback Widget */}
-            <div className="bg-white rounded-2xl p-8 mb-8 shadow-sm border border-gray-200">
+            <div className="bg-white/60 backdrop-blur-sm rounded-2xl p-8 mb-8 border border-gray-200">
               {feedbackSubmitted ? (
                 <div className="text-center py-4">
                   <CheckCircle className="w-12 h-12 text-green-500 mx-auto mb-3" />
@@ -420,7 +420,7 @@ export function HelpArticle() {
 
             {/* Related Articles */}
             {relatedArticles.length > 0 && (
-              <div className="bg-white rounded-2xl p-8 shadow-sm border border-gray-200">
+              <div className="bg-white/60 backdrop-blur-sm rounded-2xl p-8 border border-gray-200">
                 <h3 className="text-2xl font-bold text-brand-700 mb-6">
                   Related Articles
                 </h3>
