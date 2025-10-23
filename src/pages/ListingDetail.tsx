@@ -27,6 +27,8 @@ import { trackListingView } from "../lib/analytics";
 void gaEvent;
 import NumericText from "@/components/common/NumericText";
 import { ShareButton } from "../components/shared/ShareButton";
+import { agenciesService } from "../services/agencies";
+import { agencyNameToSlug } from "../utils/agency";
 
 const SCROLL_THRESHOLDS = [25, 50, 75, 100] as const;
 
@@ -47,6 +49,7 @@ export function ListingDetail() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const hasViewedRef = React.useRef(false);
+  const [agencyPageExists, setAgencyPageExists] = useState<boolean>(false);
 
   const getOrdinalSuffixText = (num: number): string => {
     const j = num % 10;
@@ -128,6 +131,32 @@ export function ListingDetail() {
       loadListing();
     }
   }, [id, user, authLoading]);
+
+  // Check if agency page exists
+  useEffect(() => {
+    const checkAgencyPage = async () => {
+      if (!listing?.owner?.agency) {
+        setAgencyPageExists(false);
+        return;
+      }
+
+      try {
+        const agencySlug = agencyNameToSlug(listing.owner.agency);
+        if (!agencySlug) {
+          setAgencyPageExists(false);
+          return;
+        }
+
+        const agency = await agenciesService.getAgencyBySlug(agencySlug);
+        setAgencyPageExists(!!agency);
+      } catch (error) {
+        console.error("Error checking agency page:", error);
+        setAgencyPageExists(false);
+      }
+    };
+
+    checkAgencyPage();
+  }, [listing?.owner?.agency]);
 
   // Separate useEffect for view increment - runs only once per listing ID
   useEffect(() => {
@@ -535,12 +564,24 @@ export function ListingDetail() {
                       : getRoleLabel()
                   }
                 >
-                  {/* EXISTING TAG/BADGE JSX HERE (unchanged). */}
-                  <span className="bg-[#667B9A] text-white px-3 py-1 rounded-full text-sm font-medium">
-                    {listing.owner?.role === "agent" && listing.owner?.agency
-                      ? listing.owner.agency
-                      : getRoleLabel()}
-                  </span>
+                  {/* Agency badge - clickable if agency page exists */}
+                  {listing.owner?.role === "agent" && listing.owner?.agency && agencyPageExists ? (
+                    <Link
+                      to={`/agencies/${agencyNameToSlug(listing.owner.agency)}`}
+                      className="bg-[#667B9A] text-white px-3 py-1 rounded-full text-sm font-medium hover:bg-[#566886] transition-colors cursor-pointer"
+                      onClick={() => {
+                        gaListing("listing_agency_click", listing.id, { agency_name: listing.owner?.agency });
+                      }}
+                    >
+                      {listing.owner.agency}
+                    </Link>
+                  ) : (
+                    <span className="bg-[#667B9A] text-white px-3 py-1 rounded-full text-sm font-medium">
+                      {listing.owner?.role === "agent" && listing.owner?.agency
+                        ? listing.owner.agency
+                        : getRoleLabel()}
+                    </span>
+                  )}
                 </div>
               </div>
             </div>

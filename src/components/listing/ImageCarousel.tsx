@@ -88,7 +88,7 @@ export default function ImageCarousel({
     <div className={`relative w-full ${className}`}>
       {/* Main image */}
       <div
-        className="relative w-full h-96 overflow-hidden rounded-lg"
+        className="relative w-full h-96 overflow-hidden rounded-lg bg-gray-100"
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
@@ -96,7 +96,7 @@ export default function ImageCarousel({
         <img
           src={displayImages[currentIndex].url}
           alt={displayImages[currentIndex].alt}
-          className="w-full h-full object-cover select-none"
+          className="w-full h-full object-contain select-none"
         />
 
         {/* Property type and lease length badges - bottom right */}
