@@ -321,9 +321,7 @@ export function PostListing() {
     setFormData((prev) => ({ ...prev, neighborhood: value }));
   };
 
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || []);
-
+  const processFiles = async (files: File[]) => {
     handleFirstInteraction();
 
     if (!user) {
@@ -401,6 +399,24 @@ export function PostListing() {
         });
       }
     }
+  };
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    await processFiles(files);
+  };
+
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const handleDrop = async (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    const files = Array.from(e.dataTransfer.files);
+    await processFiles(files);
   };
 
   const removeImage = (index: number) => {
@@ -940,7 +956,11 @@ export function PostListing() {
 
           <div className="mb-4">
             <label className="block w-full">
-              <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-[#273140] transition-colors cursor-pointer">
+              <div
+                className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-[#273140] transition-colors cursor-pointer"
+                onDragOver={handleDragOver}
+                onDrop={handleDrop}
+              >
                 {Object.keys(uploadingImages).length > 0 ? (
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#273140] mx-auto mb-2"></div>
                 ) : (

@@ -214,9 +214,7 @@ export function EditListing() {
     setFormData((prev) => ({ ...prev, neighborhood: value }));
   };
 
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || []);
-
+  const processFiles = async (files: File[]) => {
     if (!user) {
       alert("Please sign in to upload images");
       return;
@@ -288,6 +286,24 @@ export function EditListing() {
         alert("Failed to upload image. Please try again.");
       }
     }
+  };
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    await processFiles(files);
+  };
+
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const handleDrop = async (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    const files = Array.from(e.dataTransfer.files);
+    await processFiles(files);
   };
 
   const removeNewImage = (index: number) => {
@@ -894,7 +910,11 @@ export function EditListing() {
           {/* Upload New Images */}
           <div className="mb-4">
             <label className="block w-full">
-              <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-[#273140] transition-colors cursor-pointer">
+              <div
+                className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-[#273140] transition-colors cursor-pointer"
+                onDragOver={handleDragOver}
+                onDrop={handleDrop}
+              >
                 <Upload className="w-8 h-8 mx-auto mb-2 text-gray-400" />
                 <span className="text-sm text-gray-600">
                   Click to upload new images or drag and drop
