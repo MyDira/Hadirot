@@ -41,30 +41,8 @@ export function ShareButton({
       variant: variant,
     });
 
-    // Try native Web Share API first (mobile-friendly)
-    if (navigator.share) {
-      try {
-        await navigator.share({
-          title: listingTitle,
-          text: `Check out this listing: ${listingTitle}`,
-          url: listingUrl,
-        });
-
-        // Track successful share
-        gaEvent("share_listing_success", {
-          listing_id: listingId,
-          method: "native",
-        });
-      } catch (error) {
-        // User cancelled or error occurred
-        if ((error as Error).name !== "AbortError") {
-          console.error("Error sharing:", error);
-        }
-      }
-    } else {
-      // Fallback to custom modal
-      setShowModal(true);
-    }
+    // Always show custom modal with copy link option
+    setShowModal(true);
   };
 
   const handleCopyLink = async () => {
