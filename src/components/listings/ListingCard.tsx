@@ -146,12 +146,14 @@ export function ListingCard({
         )}
 
         {/* Action buttons - top right */}
-        <div className="absolute top-3 right-3 flex items-center gap-2">
-          <ShareButton
-            listingId={listing.id}
-            listingTitle={listing.title}
-            variant="card"
-          />
+        <div className="absolute top-3 right-3 flex items-center gap-2 z-10">
+          <div onClick={(e) => e.stopPropagation()}>
+            <ShareButton
+              listingId={listing.id}
+              listingTitle={listing.title}
+              variant="card"
+            />
+          </div>
           <button
             onClick={handleFavoriteToggle}
             className="p-1.5 bg-white rounded-full shadow-sm hover:shadow-md transition-shadow"
