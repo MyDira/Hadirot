@@ -145,19 +145,26 @@ export function ListingCard({
           </div>
         )}
 
-        {/* Favorite button - top right */}
-        <button
-          onClick={handleFavoriteToggle}
-          className="absolute top-3 right-3 p-1.5 bg-white rounded-full shadow-sm hover:shadow-md transition-shadow"
-        >
-          <Heart
-            className={`w-3.5 h-3.5 ${
-              isFavorited
-                ? "text-red-500 fill-current"
-                : "text-gray-400 hover:text-red-500"
-            }`}
+        {/* Action buttons - top right */}
+        <div className="absolute top-3 right-3 flex items-center gap-2">
+          <ShareButton
+            listingId={listing.id}
+            listingTitle={listing.title}
+            variant="card"
           />
-        </button>
+          <button
+            onClick={handleFavoriteToggle}
+            className="p-1.5 bg-white rounded-full shadow-sm hover:shadow-md transition-shadow"
+          >
+            <Heart
+              className={`w-3.5 h-3.5 ${
+                isFavorited
+                  ? "text-red-500 fill-current"
+                  : "text-gray-400 hover:text-red-500"
+              }`}
+            />
+          </button>
+        </div>
       </div>
 
       <div className="p-3">
@@ -201,25 +208,9 @@ export function ListingCard({
           />
         </div>
 
-        {/* Poster label, share button, and featured badge */}
-        {/*
-          POSITIONING STRATEGY (Card):
-          - Share button is placed in the bottom section of the card
-          - Positioned OUTSIDE the image area to avoid interfering with image interactions
-          - Sits in the footer area alongside the "by Owner/Agency" label
-          - Responsive flex layout ensures proper spacing on all screen sizes
-          - Does not overlap with favorite button (top-right of image) or other interactive elements
-        */}
+        {/* Poster label and featured badge */}
         <div className="mt-2 pt-2 border-t border-gray-100 flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2 flex-1 min-w-0">
-            <span className="text-xs text-gray-600 truncate">by {getPosterLabel()}</span>
-            {/* Share button positioned in footer, separate from image */}
-            <ShareButton
-              listingId={listing.id}
-              listingTitle={listing.title}
-              variant="card"
-            />
-          </div>
+          <span className="text-xs text-gray-600 truncate">by {getPosterLabel()}</span>
           {listing.is_featured && showFeaturedBadge && (
             <span className="inline-flex items-center bg-accent-500 text-white text-xs px-2 py-0.5 rounded flex-shrink-0">
               Featured
