@@ -1591,72 +1591,87 @@ const articles: Article[] = [
     slug: 'community-guidelines',
     excerpt: 'Rules and best practices for using our platform responsibly.',
     content: `
-      <h2>Community Guidelines</h2>
-      <p>Our platform thrives on trust and respect. Please follow these guidelines to maintain a positive community.</p>
+      <h2>Building a Trustworthy Community Together</h2>
+      <p>Our platform thrives on trust and respect between landlords and tenants. These community guidelines help ensure that everyone has a positive, safe experience when searching for or listing rental properties. By following these guidelines, you contribute to a community where honest transactions and respectful interactions are the standard.</p>
+
+      <h2>Creating Quality Listings</h2>
+      <p>When posting a rental property, accuracy and honesty are essential. Quality listings help tenants make informed decisions and build trust in our community.</p>
 
       <h3>Posting Requirements</h3>
-      <p>All listings must:</p>
+      <p>All listings on our platform must meet these essential requirements:</p>
       <ul>
-        <li>Be for actual available rental properties</li>
-        <li>Include accurate information and pricing</li>
-        <li>Use real photos of the property</li>
-        <li>Comply with fair housing laws</li>
-        <li>Include legitimate contact information</li>
+        <li><strong>Actual Availability:</strong> Only post properties that are genuinely available for rent</li>
+        <li><strong>Accurate Information:</strong> Provide truthful details about the property, including pricing, features, and terms</li>
+        <li><strong>Real Photos:</strong> Use authentic photos that accurately represent the property's current condition</li>
+        <li><strong>Fair Housing Compliance:</strong> Follow all fair housing laws and regulations</li>
+        <li><strong>Valid Contact Information:</strong> Include legitimate contact details so interested tenants can reach you</li>
       </ul>
 
       <h3>Prohibited Content</h3>
-      <p>Do not post:</p>
+      <p>To maintain the integrity of our platform, the following types of content are strictly prohibited and will be removed:</p>
       <ul>
-        <li>Fake or fraudulent listings</li>
-        <li>Properties you don't have authority to rent</li>
-        <li>Discriminatory content or requirements</li>
-        <li>Spam or promotional content unrelated to rentals</li>
-        <li>Duplicate listings</li>
-        <li>Inappropriate or offensive content</li>
+        <li><strong>Fraudulent Listings:</strong> Fake properties, scams, or misleading information</li>
+        <li><strong>Unauthorized Properties:</strong> Listings for properties you don't have legal authority to rent</li>
+        <li><strong>Discriminatory Content:</strong> Any requirements or language that violates fair housing laws</li>
+        <li><strong>Spam or Promotions:</strong> Content unrelated to legitimate rental properties</li>
+        <li><strong>Duplicate Listings:</strong> Multiple postings of the same property</li>
+        <li><strong>Inappropriate Content:</strong> Offensive, abusive, or unprofessional material</li>
       </ul>
 
-      <h3>Communication Guidelines</h3>
+      <h2>Professional Communication Standards</h2>
+      <p>Clear, respectful communication is the foundation of successful rental transactions. Whether you're a landlord responding to inquiries or a tenant reaching out about a property, these guidelines help ensure productive conversations.</p>
+
+      <h3>Communication Best Practices</h3>
       <ul>
-        <li>Be professional and respectful</li>
-        <li>Respond to inquiries in a timely manner</li>
-        <li>Provide accurate information</li>
-        <li>No harassment or inappropriate behavior</li>
-        <li>Keep communications on-platform when possible</li>
+        <li><strong>Be Professional:</strong> Maintain a courteous and professional tone in all interactions</li>
+        <li><strong>Respond Promptly:</strong> Reply to inquiries in a timely manner to keep the rental process moving smoothly</li>
+        <li><strong>Provide Accurate Information:</strong> Answer questions honestly and completely</li>
+        <li><strong>Respect Boundaries:</strong> No harassment, pressure tactics, or inappropriate behavior</li>
+        <li><strong>Keep Records:</strong> When possible, conduct communications through our platform to maintain a record</li>
       </ul>
 
-      <h3>Fair Housing Compliance</h3>
-      <p>All users must comply with fair housing laws. Listings cannot discriminate based on:</p>
+      <h2>Fair Housing Compliance</h2>
+      <p>Fair housing laws exist to ensure everyone has equal access to rental housing. All users must comply with these laws when posting listings or communicating with potential tenants.</p>
+
+      <p>Listings and communications cannot discriminate based on:</p>
       <ul>
-        <li>Race or color</li>
-        <li>Religion</li>
-        <li>National origin</li>
-        <li>Sex or gender</li>
-        <li>Familial status</li>
-        <li>Disability</li>
+        <li><strong>Race or Color:</strong> All racial and ethnic backgrounds must be treated equally</li>
+        <li><strong>Religion:</strong> Religious beliefs or practices cannot be a factor</li>
+        <li><strong>National Origin:</strong> Country of origin or ancestry is not a valid consideration</li>
+        <li><strong>Sex or Gender:</strong> Gender identity and expression are protected categories</li>
+        <li><strong>Familial Status:</strong> Families with children have equal housing rights</li>
+        <li><strong>Disability:</strong> Reasonable accommodations must be made for individuals with disabilities</li>
       </ul>
+
+      <h2>Enforcement and Consequences</h2>
+      <p>We take violations of these guidelines seriously. Our team actively monitors the platform and investigates all reported issues to maintain a safe, trustworthy community.</p>
 
       <h3>Consequences of Violations</h3>
-      <p>Violations may result in:</p>
+      <p>Depending on the severity and frequency of violations, consequences may include:</p>
       <ul>
-        <li>Listing removal</li>
-        <li>Account warnings</li>
-        <li>Temporary suspension</li>
-        <li>Permanent account ban</li>
-        <li>Legal action for serious violations</li>
+        <li><strong>Content Removal:</strong> Immediate removal of listings or content that violate guidelines</li>
+        <li><strong>Account Warnings:</strong> Formal notifications about policy violations</li>
+        <li><strong>Temporary Suspension:</strong> Limited account access for a specified period</li>
+        <li><strong>Permanent Ban:</strong> Complete removal of account access for serious or repeated violations</li>
+        <li><strong>Legal Action:</strong> Involvement of law enforcement for fraudulent activity or serious violations</li>
       </ul>
 
       <h3>Reporting Issues</h3>
-      <p>If you encounter inappropriate content or behavior:</p>
+      <p>If you encounter content or behavior that violates these guidelines, please report it immediately. Your reports help us maintain a safe community for everyone.</p>
+
+      <p>To report an issue:</p>
       <ol>
-        <li>Use the "Report" button on the listing or profile</li>
-        <li>Provide details about the issue</li>
-        <li>Our team will review and take appropriate action</li>
+        <li>Click the "Report" button on the listing or user profile in question</li>
+        <li>Select the type of violation and provide specific details about what you observed</li>
+        <li>Our moderation team will review your report and take appropriate action within 24-48 hours</li>
       </ol>
+
+      <p>All reports are taken seriously and reviewed by our team. We appreciate your help in keeping our community safe and trustworthy.</p>
     `,
     tags: ['guidelines', 'rules', 'policy', 'prohibited', 'compliance'],
     sort_order: 1,
     is_published: true,
-    read_time_minutes: 5,
+    read_time_minutes: 7,
   },
   {
     category_slug: 'guidelines',
@@ -1664,62 +1679,82 @@ const articles: Article[] = [
     slug: 'privacy-data',
     excerpt: 'How we protect your personal information and privacy.',
     content: `
-      <h2>Privacy and Data Protection</h2>
-      <p>We take your privacy seriously and are committed to protecting your personal information.</p>
+      <h2>Your Privacy Matters to Us</h2>
+      <p>We take your privacy seriously and are committed to protecting your personal information. This guide explains what information we collect, how we use it, and the rights you have over your data. Our goal is to be transparent about our practices and give you control over your information.</p>
 
-      <h3>Information We Collect</h3>
+      <p>When you use our platform to search for rentals or list properties, certain information is necessary to provide these services. We handle this information responsibly and never sell your personal data to third parties.</p>
+
+      <h2>Information We Collect</h2>
+      <p>To provide you with a functional rental platform, we collect several types of information. Understanding what we collect helps you make informed decisions about using our service.</p>
+
+      <h3>Account and Profile Data</h3>
       <ul>
-        <li><strong>Account Information:</strong> Name, email, phone number, role</li>
-        <li><strong>Listing Information:</strong> Property details and photos you upload</li>
-        <li><strong>Usage Data:</strong> How you interact with the platform</li>
-        <li><strong>Communications:</strong> Messages sent through our platform</li>
+        <li><strong>Account Information:</strong> Your name, email address, phone number, and role (tenant, landlord, or agent)</li>
+        <li><strong>Listing Information:</strong> Property details, descriptions, photos, and pricing for any listings you create</li>
+        <li><strong>Usage Data:</strong> Information about how you interact with the platform, including pages viewed and features used</li>
+        <li><strong>Communications:</strong> Messages and inquiries sent through our platform to maintain service quality and resolve disputes</li>
       </ul>
 
-      <h3>How We Use Your Information</h3>
+      <h2>How We Use Your Information</h2>
+      <p>The information we collect serves specific purposes related to operating the platform and providing you with a quality experience. We only use your data for legitimate business purposes.</p>
+
+      <h3>Primary Uses</h3>
       <ul>
-        <li>Provide platform services</li>
-        <li>Display your listings and contact information</li>
-        <li>Send important account notifications</li>
-        <li>Improve our services</li>
-        <li>Ensure platform security</li>
+        <li><strong>Service Delivery:</strong> Provide core platform functionality including listing creation, search, and communication features</li>
+        <li><strong>Public Display:</strong> Show your listings and contact information to potential tenants when you post a property</li>
+        <li><strong>Account Notifications:</strong> Send important updates about your account, listings, or platform changes</li>
+        <li><strong>Service Improvement:</strong> Analyze usage patterns to enhance features and user experience</li>
+        <li><strong>Platform Security:</strong> Detect and prevent fraudulent activity, spam, and policy violations</li>
       </ul>
 
-      <h3>Information Sharing</h3>
-      <p>We do not sell your personal information. Information is only shared:</p>
+      <h2>Information Sharing and Disclosure</h2>
+      <p>We believe in transparency about when and how your information might be shared with others. Your trust is important to us, which is why we maintain strict policies about data sharing.</p>
+
+      <h3>When Information is Shared</h3>
+      <p>We do not sell your personal information to third parties. Your information is only shared in these specific circumstances:</p>
       <ul>
-        <li>As displayed in your public listings</li>
-        <li>When you contact other users</li>
-        <li>When required by law</li>
-        <li>With your explicit consent</li>
+        <li><strong>Public Listings:</strong> Information you choose to include in property listings is visible to all platform users</li>
+        <li><strong>User Interactions:</strong> When you contact other users, your contact information is shared as part of the communication</li>
+        <li><strong>Legal Requirements:</strong> When required by law, court order, or government regulation</li>
+        <li><strong>Explicit Consent:</strong> Only when you specifically authorize us to share your information</li>
       </ul>
 
-      <h3>Your Privacy Rights</h3>
+      <h2>Your Privacy Rights</h2>
+      <p>You have important rights regarding your personal information. We provide tools and processes to help you exercise these rights and maintain control over your data.</p>
+
+      <h3>What You Can Do</h3>
       <ul>
-        <li>Access your personal data</li>
-        <li>Correct inaccurate information</li>
-        <li>Request data deletion</li>
-        <li>Opt out of marketing communications</li>
-        <li>Export your data</li>
+        <li><strong>Access Your Data:</strong> Request a copy of all personal information we have about you</li>
+        <li><strong>Correct Information:</strong> Update or correct any inaccurate information in your account</li>
+        <li><strong>Request Deletion:</strong> Ask us to delete your account and associated personal data</li>
+        <li><strong>Opt Out:</strong> Unsubscribe from marketing communications while still receiving essential account notifications</li>
+        <li><strong>Export Data:</strong> Download your information in a portable format</li>
       </ul>
 
-      <h3>Data Security</h3>
-      <p>We implement security measures including:</p>
+      <p>To exercise any of these rights, visit your account settings or contact our support team. We will respond to all requests within 30 days.</p>
+
+      <h2>Data Security Measures</h2>
+      <p>Protecting your information from unauthorized access is a top priority. We implement industry-standard security practices to safeguard your data.</p>
+
+      <h3>Security Practices</h3>
       <ul>
-        <li>Encrypted data transmission</li>
-        <li>Secure password storage</li>
-        <li>Regular security updates</li>
-        <li>Access controls and monitoring</li>
+        <li><strong>Encrypted Transmission:</strong> All data sent between your browser and our servers is encrypted using secure protocols</li>
+        <li><strong>Secure Storage:</strong> Passwords are hashed and salted, never stored in plain text</li>
+        <li><strong>Regular Updates:</strong> Our systems receive regular security patches and updates</li>
+        <li><strong>Access Controls:</strong> Strict internal controls limit who can access user data, with all access logged and monitored</li>
       </ul>
 
-      <h3>Contact Us About Privacy</h3>
-      <p>For privacy concerns or requests, contact us through our Contact page or email us directly.</p>
+      <h2>Contact Us About Privacy</h2>
+      <p>If you have questions about how we handle your personal information, concerns about your privacy, or want to exercise your data rights, we're here to help.</p>
 
-      <p><em>For complete details, please review our full Privacy Policy.</em></p>
+      <p>You can reach our privacy team through our Contact page or by emailing us directly. We aim to respond to all privacy inquiries within 48 hours.</p>
+
+      <p><em>This article provides an overview of our privacy practices. For complete legal details, please review our full Privacy Policy available in the footer of every page.</em></p>
     `,
     tags: ['privacy', 'data', 'security', 'GDPR', 'personal information'],
     sort_order: 2,
     is_published: true,
-    read_time_minutes: 4,
+    read_time_minutes: 6,
   },
 
   // Technical Support
