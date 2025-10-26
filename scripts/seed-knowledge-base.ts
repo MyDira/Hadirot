@@ -270,50 +270,219 @@ const articles: Article[] = [
     category_slug: 'posting-listings',
     title: 'Managing Your Listings',
     slug: 'managing-listings',
-    excerpt: 'Learn how to edit, update, and manage your property listings.',
+    excerpt: 'Learn how to edit, update, and manage your property listings effectively.',
     content: `
-      <h2>Managing Your Listings</h2>
-      <p>Keep your listings up to date and manage them effectively from your dashboard.</p>
+      <h2>Managing Your Property Listings</h2>
+      <p>Once your listing is live, you have complete control to edit, update, and manage it from your dashboard. This guide covers everything you need to know about keeping your listings current and effective.</p>
 
-      <h3>Accessing Your Listings</h3>
+      <h2>Accessing Your Dashboard</h2>
+      <p>Your dashboard is the central hub for managing all your listings:</p>
       <ol>
-        <li>Log in to your account</li>
-        <li>Click "Dashboard" in the navigation</li>
-        <li>View all your listings with their current status</li>
+        <li>Log in to your account using your email and password</li>
+        <li>Click "Dashboard" in the main navigation menu</li>
+        <li>View all your listings displayed with their current status</li>
+        <li>Use the filters to sort by active, inactive, or pending approval</li>
       </ol>
+      <p>From your dashboard, you can see at a glance:</p>
+      <ul>
+        <li><strong>Total Listings:</strong> The number of properties you have posted</li>
+        <li><strong>Active Listings:</strong> Properties currently visible in search results</li>
+        <li><strong>Inactive Listings:</strong> Properties you've temporarily removed from search</li>
+        <li><strong>Pending Approval:</strong> New or edited listings awaiting review</li>
+      </ul>
 
-      <h3>Editing a Listing</h3>
-      <p>To make changes to an existing listing:</p>
-      <ol>
-        <li>Go to your Dashboard</li>
-        <li>Find the listing you want to edit</li>
-        <li>Click the "Edit" button</li>
-        <li>Make your changes</li>
-        <li>Save the updates</li>
-      </ol>
-      <p><em>Note: Major changes may require re-approval.</em></p>
+      <h2>Editing Your Listing</h2>
+      <p>Need to update information about your property? Making changes is simple:</p>
 
-      <h3>Deactivating a Listing</h3>
-      <p>When your property is rented:</p>
+      <h3>Making Edits</h3>
       <ol>
         <li>Navigate to your Dashboard</li>
-        <li>Find the listing</li>
-        <li>Toggle the "Active" status to deactivate</li>
+        <li>Find the listing you want to modify</li>
+        <li>Click the "Edit" button on the listing card</li>
+        <li>Update any information you need to change:
+          <ul>
+            <li>Property details (bedrooms, bathrooms, square footage)</li>
+            <li>Pricing and availability</li>
+            <li>Description and features</li>
+            <li>Photos (add, remove, or reorder)</li>
+            <li>Contact information</li>
+            <li>Amenities and utilities</li>
+          </ul>
+        </li>
+        <li>Review all your changes carefully</li>
+        <li>Click "Save Changes" to submit</li>
       </ol>
-      <p>Deactivated listings won't appear in search results but remain in your dashboard for future reference.</p>
 
-      <h3>Listing Statistics</h3>
-      <p>Track your listing performance:</p>
+      <h3>What Requires Re-Approval</h3>
+      <p>Minor updates are published immediately, but significant changes may require our team to re-review your listing. Changes that typically need approval include:</p>
       <ul>
-        <li><strong>Views:</strong> How many times people viewed your listing</li>
-        <li><strong>Impressions:</strong> How often your listing appeared in search results</li>
-        <li><strong>Posted Date:</strong> When the listing went live</li>
+        <li>Major price changes</li>
+        <li>Changes to the number of bedrooms or bathrooms</li>
+        <li>Adding or replacing primary photos</li>
+        <li>Significant rewrites to the description</li>
+        <li>Changes to the property type or location</li>
+      </ul>
+      <p><strong>Note:</strong> If your edit requires re-approval, your listing will remain live with the old information until the new version is approved.</p>
+
+      <h3>Updates That Go Live Immediately</h3>
+      <p>These changes typically don't require re-approval:</p>
+      <ul>
+        <li>Minor description updates or typo corrections</li>
+        <li>Small price adjustments (within 10%)</li>
+        <li>Contact information changes</li>
+        <li>Availability date updates</li>
+        <li>Adding or removing amenity checkboxes</li>
+      </ul>
+
+      <h2>Managing Listing Status</h2>
+
+      <h3>Deactivating a Listing</h3>
+      <p>When your property is rented or temporarily unavailable, you should deactivate the listing:</p>
+      <ol>
+        <li>Go to your Dashboard</li>
+        <li>Locate the listing you want to deactivate</li>
+        <li>Click the toggle switch or "Deactivate" button</li>
+        <li>Confirm the deactivation</li>
+      </ol>
+      <p><strong>What happens when you deactivate:</strong></p>
+      <ul>
+        <li>The listing is immediately removed from search results</li>
+        <li>The listing page shows "No longer available"</li>
+        <li>Saved links to the listing still work but show it's unavailable</li>
+        <li>All listing data is preserved in your dashboard</li>
+        <li>You can reactivate it anytime in the future</li>
+      </ul>
+
+      <h3>Reactivating a Listing</h3>
+      <p>Need to relist the same property? Reactivating is easy:</p>
+      <ol>
+        <li>Navigate to your Dashboard</li>
+        <li>Filter to show inactive listings</li>
+        <li>Find the listing you want to reactivate</li>
+        <li>Click the toggle switch or "Activate" button</li>
+        <li>Review the listing information for accuracy</li>
+        <li>Update any outdated information (price, availability, etc.)</li>
+        <li>Confirm reactivation</li>
+      </ol>
+      <p><em>Note: Reactivated listings may require re-approval if significant time has passed or if you made changes.</em></p>
+
+      <h3>Deleting a Listing</h3>
+      <p>If you no longer need a listing and don't plan to use it again:</p>
+      <ol>
+        <li>Go to your Dashboard</li>
+        <li>Find the listing you want to permanently remove</li>
+        <li>Click the "Delete" button (usually in a dropdown menu)</li>
+        <li>Confirm the deletion when prompted</li>
+      </ol>
+      <p><strong>Warning:</strong> Deletion is permanent and cannot be undone. If you might need the listing again in the future, deactivate it instead.</p>
+
+      <h2>Monitoring Listing Performance</h2>
+
+      <h3>Understanding Your Statistics</h3>
+      <p>Each listing provides valuable metrics to help you understand its performance:</p>
+
+      <ul>
+        <li><strong>Views:</strong> The total number of times people have viewed your listing detail page. This shows how many people were interested enough to click through and read more.</li>
+        <li><strong>Impressions:</strong> How many times your listing appeared in search results, regardless of whether anyone clicked on it. A high impression count with low views might mean your photos or title need improvement.</li>
+        <li><strong>Click-Through Rate:</strong> The percentage of people who viewed your listing after seeing it in search (Views ÷ Impressions). Industry average is 5-15%.</li>
+        <li><strong>Days Active:</strong> How long your listing has been published. This helps you track how quickly properties in your area typically rent.</li>
+        <li><strong>Posted Date:</strong> The exact date and time your listing went live.</li>
+        <li><strong>Last Updated:</strong> When you most recently edited the listing.</li>
+      </ul>
+
+      <h3>Improving Performance</h3>
+      <p>If your listing isn't getting enough views:</p>
+      <ul>
+        <li><strong>Update Photos:</strong> Add brighter, clearer images that showcase your property's best features</li>
+        <li><strong>Revise Title:</strong> Make it more descriptive and include key selling points</li>
+        <li><strong>Adjust Pricing:</strong> Research comparable properties and ensure competitive pricing</li>
+        <li><strong>Enhance Description:</strong> Add more details about unique features and neighborhood amenities</li>
+        <li><strong>Update Regularly:</strong> Even small updates can boost your listing in search results</li>
+        <li><strong>Consider Featured Status:</strong> Featured listings get significantly more visibility</li>
+      </ul>
+
+      <h2>Best Practices for Listing Management</h2>
+
+      <h3>Keep Information Current</h3>
+      <ul>
+        <li>Update availability dates as soon as they change</li>
+        <li>Adjust pricing if market conditions shift</li>
+        <li>Add new photos if you make improvements to the property</li>
+        <li>Keep contact information current so interested renters can reach you</li>
+        <li>Update the description if neighborhood amenities change</li>
+      </ul>
+
+      <h3>Respond Promptly to Inquiries</h3>
+      <ul>
+        <li>Check your email and phone messages regularly</li>
+        <li>Aim to respond to inquiries within 24 hours</li>
+        <li>Keep your contact information up to date</li>
+        <li>Set up email notifications for new inquiries</li>
+      </ul>
+
+      <h3>Maintain Professional Standards</h3>
+      <ul>
+        <li>Be honest and accurate in all listing information</li>
+        <li>Use high-quality, current photos</li>
+        <li>Write clear, professional descriptions</li>
+        <li>Disclose any important issues or limitations upfront</li>
+        <li>Follow fair housing laws in all communications</li>
+      </ul>
+
+      <h3>Regular Maintenance Schedule</h3>
+      <p>Set reminders to review your listings regularly:</p>
+      <ul>
+        <li><strong>Weekly:</strong> Check for and respond to any inquiries</li>
+        <li><strong>Bi-weekly:</strong> Review your listing statistics and performance</li>
+        <li><strong>Monthly:</strong> Update information to keep it fresh and accurate</li>
+        <li><strong>Quarterly:</strong> Review and update photos if needed</li>
+      </ul>
+
+      <h2>Troubleshooting Common Issues</h2>
+
+      <h3>My Edits Aren't Saving</h3>
+      <p>If you're having trouble saving changes:</p>
+      <ul>
+        <li>Ensure all required fields are filled out</li>
+        <li>Check that you haven't exceeded photo or description limits</li>
+        <li>Verify your internet connection is stable</li>
+        <li>Try refreshing the page and starting again</li>
+        <li>Clear your browser cache and try once more</li>
+        <li>Contact support if the problem persists</li>
+      </ul>
+
+      <h3>My Listing Disappeared</h3>
+      <p>If you can't find your listing:</p>
+      <ul>
+        <li>Check if it's been accidentally deactivated in your dashboard</li>
+        <li>Look in the "Pending Approval" section if you recently edited it</li>
+        <li>Verify you're logged into the correct account</li>
+        <li>Check your email for any notifications about the listing status</li>
+        <li>Contact support with your listing details</li>
+      </ul>
+
+      <h3>I Need to Make an Urgent Update</h3>
+      <p>For time-sensitive changes:</p>
+      <ul>
+        <li>Make minor edits that don't require approval for immediate updates</li>
+        <li>If you must make changes requiring approval, note this in your edit</li>
+        <li>Contact support to expedite the review if it's truly urgent</li>
+        <li>Consider temporarily deactivating if the information is significantly incorrect</li>
+      </ul>
+
+      <h2>Need More Help?</h2>
+      <p>If you have questions about managing your listings that aren't covered here:</p>
+      <ul>
+        <li>Browse other articles in the Posting Listings section</li>
+        <li>Check our Community Guidelines for best practices</li>
+        <li>Contact our support team through the Contact page</li>
+        <li>Review our FAQ for quick answers</li>
       </ul>
     `,
-    tags: ['edit', 'manage', 'update', 'dashboard', 'deactivate'],
+    tags: ['edit', 'manage', 'update', 'dashboard', 'deactivate', 'statistics', 'performance'],
     sort_order: 3,
     is_published: true,
-    read_time_minutes: 5,
+    read_time_minutes: 10,
   },
   {
     category_slug: 'posting-listings',
@@ -372,56 +541,322 @@ const articles: Article[] = [
     category_slug: 'browsing-properties',
     title: 'Searching for Properties',
     slug: 'searching-properties',
-    excerpt: 'Learn how to use our search and filter tools to find your perfect rental.',
+    excerpt: 'Master our search and filter tools to find your perfect rental quickly and efficiently.',
     content: `
-      <h2>Finding Your Perfect Rental</h2>
-      <p>Our powerful search tools help you find properties that match your needs.</p>
+      <h2>Finding Your Perfect Rental Home</h2>
+      <p>Our platform makes it easy to search through available rental properties with powerful filtering and sorting tools. Whether you're looking for a studio apartment, a family home, or something in between, this guide will help you navigate the search process efficiently.</p>
 
-      <h3>Getting Started</h3>
-      <p>Click "Find Yours" on the homepage or "Browse" in the navigation to see all available listings.</p>
+      <h2>Getting Started with Search</h2>
 
-      <h3>Using Filters</h3>
-      <p>Narrow down results with our filter options:</p>
+      <h3>Accessing the Browse Page</h3>
+      <p>There are several ways to start your property search:</p>
       <ul>
-        <li><strong>Bedrooms:</strong> Select 1, 2, 3, 4, or 5+ bedrooms</li>
-        <li><strong>Price Range:</strong> Set minimum and maximum rent</li>
-        <li><strong>Property Type:</strong> Choose apartment building, apartment in house, or full house</li>
-        <li><strong>Parking:</strong> Filter by parking availability</li>
-        <li><strong>Amenities:</strong> Filter for washer/dryer hookup, dishwasher, etc.</li>
-        <li><strong>Heat:</strong> Select if heat is included or tenant pays</li>
+        <li>Click "Find Yours" on the homepage hero section</li>
+        <li>Select "Browse" from the main navigation menu</li>
+        <li>Use the quick search bar on the homepage (if available)</li>
+        <li>Navigate directly to the browse page from any location on the site</li>
+      </ul>
+      <p>Once on the browse page, you'll see all currently available rental listings displayed in an easy-to-scan grid format.</p>
+
+      <h3>Understanding the Default View</h3>
+      <p>By default, listings are displayed with:</p>
+      <ul>
+        <li><strong>Grid Layout:</strong> Properties shown as cards with key information</li>
+        <li><strong>Most Recent First:</strong> Newest listings appear at the top</li>
+        <li><strong>All Property Types:</strong> No filters applied initially</li>
+        <li><strong>Active Listings Only:</strong> Only currently available properties</li>
       </ul>
 
-      <h3>Viewing Results</h3>
-      <p>Browse listings in an easy-to-scan grid format showing:</p>
+      <h2>Using Search Filters</h2>
+      <p>Filters help you narrow down the search results to find exactly what you're looking for. Our comprehensive filter system includes:</p>
+
+      <h3>Basic Filters</h3>
+
+      <p><strong>Number of Bedrooms</strong></p>
+      <p>Select the number of bedrooms you need:</p>
       <ul>
-        <li>Property photo</li>
-        <li>Price</li>
-        <li>Location</li>
-        <li>Number of bedrooms and bathrooms</li>
-        <li>Key features</li>
+        <li>Studio/Efficiency (0 bedrooms)</li>
+        <li>1 Bedroom</li>
+        <li>2 Bedrooms</li>
+        <li>3 Bedrooms</li>
+        <li>4 Bedrooms</li>
+        <li>5+ Bedrooms</li>
+      </ul>
+      <p><em>Tip: You can select multiple bedroom options to see a range (e.g., 2 or 3 bedrooms).</em></p>
+
+      <p><strong>Price Range</strong></p>
+      <p>Set your budget with minimum and maximum monthly rent:</p>
+      <ul>
+        <li>Enter a minimum price to exclude properties below your budget</li>
+        <li>Enter a maximum price to filter out properties above your range</li>
+        <li>Use one or both fields depending on your needs</li>
+        <li>Prices typically range from $500 to $3000+ per month</li>
+      </ul>
+      <p><em>Note: Some listings show "Call for Price" and will appear regardless of price filters.</em></p>
+
+      <p><strong>Property Type</strong></p>
+      <p>Choose the type of rental that fits your lifestyle:</p>
+      <ul>
+        <li><strong>Apartment Building:</strong> Unit in a multi-family apartment complex</li>
+        <li><strong>Apartment in House:</strong> Converted space within a single-family home</li>
+        <li><strong>Full House:</strong> Entire single-family home for rent</li>
       </ul>
 
-      <h3>Sorting Options</h3>
-      <p>Sort listings by:</p>
+      <h3>Advanced Filters</h3>
+
+      <p><strong>Parking Options</strong></p>
+      <p>Filter by parking availability:</p>
       <ul>
-        <li>Most Recent (default)</li>
-        <li>Price: Low to High</li>
-        <li>Price: High to Low</li>
-        <li>Most Popular</li>
+        <li><strong>Yes (Included):</strong> Parking included in rent at no extra cost</li>
+        <li><strong>Yes (Optional):</strong> Parking available for additional fee</li>
+        <li><strong>No:</strong> No parking available with the property</li>
       </ul>
 
-      <h3>Tips for Effective Searching</h3>
+      <p><strong>Amenities and Features</strong></p>
+      <p>Select specific amenities you need:</p>
       <ul>
-        <li>Start with broad criteria and narrow down gradually</li>
-        <li>Check back regularly for new listings</li>
-        <li>Save properties you like to compare later</li>
-        <li>Contact landlords quickly for popular properties</li>
+        <li><strong>Washer/Dryer Hookup:</strong> In-unit laundry connections available</li>
+        <li><strong>Dishwasher:</strong> Built-in dishwasher included</li>
+        <li><strong>Pet Friendly:</strong> Pets allowed (check individual listings for restrictions)</li>
+        <li><strong>Furnished:</strong> Property comes with furniture</li>
+        <li><strong>Air Conditioning:</strong> Central or window AC units</li>
+      </ul>
+
+      <p><strong>Utilities and Heat</strong></p>
+      <p>Filter by what's included in rent:</p>
+      <ul>
+        <li><strong>Heat Included:</strong> Heating costs paid by landlord</li>
+        <li><strong>Tenant Pays Heat:</strong> Tenant responsible for heating bills</li>
+        <li><strong>All Utilities Included:</strong> Rent covers all utility costs</li>
+      </ul>
+
+      <p><strong>Additional Options</strong></p>
+      <ul>
+        <li><strong>Lease Length:</strong> Month-to-month, 6 months, 1 year, or flexible</li>
+        <li><strong>Availability Date:</strong> Filter by when you need to move in</li>
+        <li><strong>Number of Bathrooms:</strong> Full and half bathroom counts</li>
+        <li><strong>Square Footage:</strong> Minimum size requirements</li>
+      </ul>
+
+      <h3>Applying and Clearing Filters</h3>
+      <ol>
+        <li>Select your desired filter options from the sidebar or filter panel</li>
+        <li>Filters apply automatically as you select them (or click "Apply Filters" if required)</li>
+        <li>Watch the results update in real-time to match your criteria</li>
+        <li>The listing count shows how many properties match your filters</li>
+        <li>To start over, click "Clear All Filters" to reset to the default view</li>
+      </ol>
+
+      <h2>Sorting Search Results</h2>
+      <p>Once you've filtered your results, use sorting to organize them in the most helpful way:</p>
+
+      <h3>Available Sort Options</h3>
+      <ul>
+        <li><strong>Most Recent:</strong> Newest listings first (default) - great for seeing what just became available</li>
+        <li><strong>Price: Low to High:</strong> Most affordable options first - perfect for budget-conscious searches</li>
+        <li><strong>Price: High to Low:</strong> Premium properties first - ideal when price isn't a constraint</li>
+        <li><strong>Most Popular:</strong> Listings with the most views and saves - helps identify desirable properties</li>
+      </ul>
+
+      <h3>Combining Filters and Sorting</h3>
+      <p>For best results, use filters and sorting together:</p>
+      <ol>
+        <li>Start by applying filters to match your requirements</li>
+        <li>Then use sorting to organize the filtered results</li>
+        <li>Adjust filters as needed to expand or narrow results</li>
+        <li>Save promising properties to your favorites for comparison</li>
+      </ol>
+
+      <h2>Viewing Search Results</h2>
+
+      <h3>Understanding Listing Cards</h3>
+      <p>Each property in the search results displays as a card showing:</p>
+      <ul>
+        <li><strong>Primary Photo:</strong> Main image of the property</li>
+        <li><strong>Price:</strong> Monthly rent or "Call for Price"</li>
+        <li><strong>Location:</strong> Street address or general neighborhood</li>
+        <li><strong>Bedrooms & Bathrooms:</strong> Number of each (e.g., "2 BR / 1 BA")</li>
+        <li><strong>Property Type:</strong> Quick icon or text indicating type</li>
+        <li><strong>Key Features:</strong> Highlighted amenities (parking, washer/dryer, etc.)</li>
+        <li><strong>Featured Badge:</strong> Special marker for promoted listings</li>
+        <li><strong>Save Button:</strong> Heart icon to add to favorites</li>
+      </ul>
+
+      <h3>Interacting with Listings</h3>
+      <p>From the search results page, you can:</p>
+      <ul>
+        <li><strong>Click Anywhere on Card:</strong> Opens the full listing details page</li>
+        <li><strong>Click Heart Icon:</strong> Saves property to your favorites (requires login)</li>
+        <li><strong>Hover for Quick Preview:</strong> See additional photos on hover (desktop only)</li>
+        <li><strong>Share Listing:</strong> Use share button to send to friends or family</li>
+      </ul>
+
+      <h2>Advanced Search Strategies</h2>
+
+      <h3>The Funnel Approach</h3>
+      <p>Start broad and gradually narrow your search:</p>
+      <ol>
+        <li><strong>Begin with Must-Haves:</strong> Apply only essential filters (bedrooms, max price)</li>
+        <li><strong>Review Results:</strong> Browse what's available in your basic criteria</li>
+        <li><strong>Add Nice-to-Haves:</strong> Layer on additional filters (parking, amenities)</li>
+        <li><strong>Adjust as Needed:</strong> If too few results, remove less critical filters</li>
+        <li><strong>Save Favorites:</strong> Mark interesting properties throughout the process</li>
+      </ol>
+
+      <h3>What to Do When You Have Too Many Results</h3>
+      <p>If you're overwhelmed with options:</p>
+      <ul>
+        <li>Narrow your price range to be more specific</li>
+        <li>Add more amenity requirements</li>
+        <li>Filter by property type if you have a preference</li>
+        <li>Sort by "Most Popular" to see what others are interested in</li>
+        <li>Focus on recently posted listings by sorting by "Most Recent"</li>
+      </ul>
+
+      <h3>What to Do When You Have Too Few Results</h3>
+      <p>Not finding enough options? Try:</p>
+      <ul>
+        <li>Expanding your price range slightly</li>
+        <li>Removing some amenity filters (keep only essentials)</li>
+        <li>Including multiple bedroom options instead of just one</li>
+        <li>Considering different property types</li>
+        <li>Adjusting your move-in date to be more flexible</li>
+        <li>Checking back regularly as new listings are added daily</li>
+      </ul>
+
+      <h2>Saving and Organizing Your Search</h2>
+
+      <h3>Using the Favorites Feature</h3>
+      <p>Create a shortlist of properties you're interested in:</p>
+      <ol>
+        <li>Click the heart icon on any listing card or detail page</li>
+        <li>Access all your saved properties by clicking "Favorites" in navigation</li>
+        <li>Compare multiple favorites side by side</li>
+        <li>Remove properties as you narrow down your choices</li>
+        <li>Share your favorites list with roommates or family</li>
+      </ol>
+      <p><em>Note: You must be logged in to save favorites.</em></p>
+
+      <h3>Taking Notes</h3>
+      <p>As you browse, keep track of important details:</p>
+      <ul>
+        <li>Screenshot or save photos of properties you like</li>
+        <li>Note down questions to ask landlords</li>
+        <li>Create a spreadsheet comparing key features</li>
+        <li>Record your impressions while they're fresh</li>
+        <li>Note any red flags or concerns</li>
+      </ul>
+
+      <h2>Best Practices for Property Search</h2>
+
+      <h3>Timing Your Search</h3>
+      <ul>
+        <li><strong>Start Early:</strong> Begin searching 4-8 weeks before you need to move</li>
+        <li><strong>Check Daily:</strong> New listings are added regularly, often in the morning</li>
+        <li><strong>Be Ready to Act:</strong> Popular properties get inquiries quickly</li>
+        <li><strong>Consider Off-Peak:</strong> Summer is busy; winter may have more availability</li>
+      </ul>
+
+      <h3>What to Look For</h3>
+      <p>While searching, pay attention to:</p>
+      <ul>
+        <li><strong>Photo Quality:</strong> Clear, well-lit photos suggest a well-maintained property</li>
+        <li><strong>Detailed Descriptions:</strong> Comprehensive information indicates a serious landlord</li>
+        <li><strong>Realistic Pricing:</strong> Compare to similar properties in the area</li>
+        <li><strong>Recent Posting Date:</strong> Listings open for months may have issues</li>
+        <li><strong>Complete Information:</strong> Missing details might indicate incomplete or rushed listing</li>
+      </ul>
+
+      <h3>Red Flags to Watch For</h3>
+      <ul>
+        <li>Prices significantly below market rate</li>
+        <li>Stock photos or very limited images</li>
+        <li>Vague or minimal descriptions</li>
+        <li>Requests for money before viewing</li>
+        <li>Landlord refusing in-person showings</li>
+        <li>Too-good-to-be-true deals or features</li>
+      </ul>
+
+      <h2>Next Steps After Finding Properties</h2>
+
+      <h3>Reviewing Listing Details</h3>
+      <p>Once you've found interesting properties:</p>
+      <ol>
+        <li>Click through to read the full listing</li>
+        <li>Review all photos carefully</li>
+        <li>Read the complete description</li>
+        <li>Check what utilities and amenities are included</li>
+        <li>Note the contact information</li>
+        <li>Look for any special requirements or restrictions</li>
+      </ol>
+
+      <h3>Contacting Landlords</h3>
+      <p>Ready to inquire about a property?</p>
+      <ul>
+        <li>Use the contact form on the listing page</li>
+        <li>Call the phone number provided</li>
+        <li>Prepare a brief introduction about yourself</li>
+        <li>Have your questions ready</li>
+        <li>Mention your desired move-in date</li>
+        <li>Be professional and courteous</li>
+      </ul>
+      <p>See our "Contacting Landlords" article for detailed guidance on making a great first impression.</p>
+
+      <h2>Mobile Search Tips</h2>
+      <p>Searching on your phone or tablet? Here are some mobile-specific tips:</p>
+      <ul>
+        <li><strong>Filter Panel:</strong> Tap the filter icon to access all filter options</li>
+        <li><strong>Swipe Through Photos:</strong> Swipe left/right on listing cards to see more images</li>
+        <li><strong>Save on the Go:</strong> Heart listings when you're out exploring neighborhoods</li>
+        <li><strong>Enable Notifications:</strong> Get alerts for new listings matching your criteria</li>
+        <li><strong>Use Maps:</strong> View properties on a map to understand their locations</li>
+      </ul>
+
+      <h2>Troubleshooting Search Issues</h2>
+
+      <h3>No Results Showing</h3>
+      <p>If you see no properties:</p>
+      <ul>
+        <li>Click "Clear All Filters" to reset</li>
+        <li>Check that your filters aren't too restrictive</li>
+        <li>Refresh the page</li>
+        <li>Try a different browser if issues persist</li>
+        <li>Contact support if the problem continues</li>
+      </ul>
+
+      <h3>Filters Not Working</h3>
+      <p>If filters don't seem to apply:</p>
+      <ul>
+        <li>Refresh the page and try again</li>
+        <li>Clear your browser cache</li>
+        <li>Make sure JavaScript is enabled</li>
+        <li>Try using a different browser</li>
+        <li>Check your internet connection</li>
+      </ul>
+
+      <h3>Listings Loading Slowly</h3>
+      <p>For performance issues:</p>
+      <ul>
+        <li>Check your internet connection speed</li>
+        <li>Close unnecessary browser tabs</li>
+        <li>Disable browser extensions temporarily</li>
+        <li>Try during off-peak hours</li>
+        <li>Use a wired connection instead of WiFi if possible</li>
+      </ul>
+
+      <h2>Need Additional Help?</h2>
+      <p>For more information about finding your perfect rental:</p>
+      <ul>
+        <li>Read "Understanding Listing Details" to learn what information each listing provides</li>
+        <li>Check out "Contacting Landlords" for tips on reaching out to property owners</li>
+        <li>Browse our "For Tenants" section for complete renter resources</li>
+        <li>Contact our support team if you have specific questions</li>
       </ul>
     `,
-    tags: ['search', 'browse', 'filter', 'find'],
+    tags: ['search', 'browse', 'filter', 'find', 'tenants', 'properties', 'sorting'],
     sort_order: 1,
     is_published: true,
-    read_time_minutes: 5,
+    read_time_minutes: 12,
   },
   {
     category_slug: 'browsing-properties',
@@ -488,65 +923,388 @@ const articles: Article[] = [
     category_slug: 'browsing-properties',
     title: 'Contacting Landlords',
     slug: 'contacting-landlords',
-    excerpt: 'Best practices for reaching out to property owners and agents.',
+    excerpt: 'Master the art of reaching out to property owners and making a memorable first impression.',
     content: `
-      <h2>Contacting Property Owners</h2>
-      <p>Ready to inquire about a property? Here's how to make a great first impression.</p>
+      <h2>Making Contact with Property Owners</h2>
+      <p>You've found the perfect property—now it's time to reach out to the landlord or agent. Making a strong first impression through your initial contact can significantly improve your chances of securing a viewing and ultimately getting the rental. This guide will help you communicate professionally and effectively.</p>
 
-      <h3>How to Contact</h3>
-      <p>Each listing provides contact information. You can:</p>
+      <h2>Understanding Your Contact Options</h2>
+
+      <h3>Available Contact Methods</h3>
+      <p>Most listings provide multiple ways to get in touch:</p>
+
+      <p><strong>Phone Call</strong></p>
       <ul>
-        <li>Call the phone number listed</li>
-        <li>Use the contact form on the listing page</li>
+        <li><strong>Best for:</strong> Quick questions, immediate availability, urgent inquiries</li>
+        <li><strong>Timing:</strong> Call during business hours (9 AM - 7 PM) on weekdays</li>
+        <li><strong>Advantages:</strong> Immediate response, personal connection, can ask follow-up questions</li>
+        <li><strong>Tips:</strong> Be in a quiet location, have the listing open in front of you, take notes</li>
       </ul>
 
-      <h3>What to Include in Your Message</h3>
-      <p>When contacting a landlord, include:</p>
+      <p><strong>Contact Form or Email</strong></p>
       <ul>
-        <li>Your full name</li>
-        <li>The property you're interested in</li>
-        <li>Your desired move-in date</li>
-        <li>Number of occupants</li>
-        <li>Brief background (employment, references)</li>
+        <li><strong>Best for:</strong> Detailed inquiries, multiple questions, documenting communication</li>
+        <li><strong>Timing:</strong> Can send anytime; expect response within 24-48 hours</li>
+        <li><strong>Advantages:</strong> Time to compose thoughts, written record, can include attachments</li>
+        <li><strong>Tips:</strong> Use clear subject lines, check spelling and grammar, keep it concise</li>
+      </ul>
+
+      <p><strong>Text Message</strong></p>
+      <ul>
+        <li><strong>Best for:</strong> Follow-ups, confirming appointments, quick updates</li>
+        <li><strong>Timing:</strong> Only after initial contact, respect business hours</li>
+        <li><strong>Advantages:</strong> Quick and convenient for both parties</li>
+        <li><strong>Tips:</strong> Stay professional, keep messages brief, identify yourself</li>
+      </ul>
+
+      <h2>Crafting Your Initial Message</h2>
+
+      <h3>Essential Information to Include</h3>
+      <p>Whether calling or writing, your first contact should include:</p>
+
+      <ol>
+        <li><strong>Your Full Name:</strong> Introduction with first and last name</li>
+        <li><strong>Property Reference:</strong> Specific address or listing title to avoid confusion</li>
+        <li><strong>Move-In Timeline:</strong> When you're looking to move (be realistic)</li>
+        <li><strong>Household Information:</strong> Number of adults, children, and pets (if any)</li>
+        <li><strong>Brief Background:</strong> Current occupation or student status</li>
+        <li><strong>Viewing Request:</strong> Ask about scheduling a showing</li>
+        <li><strong>Your Contact Info:</strong> Best phone number and email to reach you</li>
+      </ol>
+
+      <h3>Optional But Helpful Details</h3>
+      <p>These additional points can strengthen your inquiry:</p>
+      <ul>
+        <li>Why you're interested in this specific property</li>
+        <li>Your current rental situation (if applicable)</li>
+        <li>That you have stable income and good references</li>
         <li>Any specific questions about the property</li>
-        <li>Your contact information</li>
+        <li>Your flexibility with viewing times</li>
       </ul>
 
-      <h3>Sample Message Template</h3>
-      <div style="background: #f5f5f5; padding: 16px; border-radius: 8px; margin: 16px 0;">
-        <p style="margin: 0;"><em>
-          "Hello, my name is [Your Name] and I'm interested in your [X] bedroom property at [Location].
-          I'm looking to move in around [Date] and would love to schedule a viewing.
-          I work as a [Your Profession] and can provide references.
-          Please let me know what times work for a showing.
-          You can reach me at [Your Phone]. Thank you!"
-        </em></p>
+      <h2>Message Templates and Examples</h2>
+
+      <h3>Template for First Contact</h3>
+      <div style="background: #f5f5f5; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #3b82f6;">
+        <p style="margin: 0; line-height: 1.6;"><strong>Subject: Inquiry About 2BR Apartment at [Address]</strong></p>
+        <p style="margin: 16px 0 0 0; line-height: 1.6;">
+          Hello,<br><br>
+          My name is [Your Full Name] and I'm interested in your [number of bedrooms] bedroom property at [specific address/location].<br><br>
+          I'm looking to move in around [target date] and would love to schedule a viewing at your earliest convenience. I work as a [your profession] at [company/industry] and can provide employment verification and references.<br><br>
+          It will be [number] adult(s) [and number children if applicable] living in the unit. [Add if applicable: We have one well-behaved pet, a [type of pet].] We're looking for [length of lease] and can move in flexibly within the next [timeframe].<br><br>
+          I'm particularly interested in this property because [mention specific features you like]. I have a few questions:<br>
+          - [Question 1]<br>
+          - [Question 2]<br><br>
+          I'm available for a showing [mention your availability]. Please let me know what times work best for you.<br><br>
+          You can reach me at [phone number] or reply to this email. I look forward to hearing from you.<br><br>
+          Best regards,<br>
+          [Your Full Name]<br>
+          [Phone Number]
+        </p>
       </div>
 
-      <h3>Response Times</h3>
-      <p>Most landlords respond within 24-48 hours. For popular listings, expect faster response times and act quickly.</p>
+      <h3>Template for Phone Call</h3>
+      <div style="background: #f5f5f5; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #3b82f6;">
+        <p style="margin: 0; line-height: 1.6;"><strong>Phone Script Outline:</strong></p>
+        <p style="margin: 16px 0 0 0; line-height: 1.6;">
+          "Hello, my name is [Your Name]. I'm calling about the [number] bedroom property you have listed at [address]. Is this still available?<br><br>
+          [If yes:] Great! I'm very interested and would love to schedule a viewing. I'm looking to move in around [date]. I work as a [profession] and can provide references. When would be a good time to see the property?<br><br>
+          [Have pen and paper ready to write down showing date/time]<br><br>
+          [Ask 1-2 quick questions if time permits]<br><br>
+          Thank you so much. I'm looking forward to seeing it. My number is [phone] if you need to reach me."
+        </p>
+      </div>
 
-      <h3>Tips for Success</h3>
+      <h2>Questions to Ask</h2>
+
+      <h3>Essential Questions for First Contact</h3>
+      <p>Get clarity on the basics:</p>
       <ul>
-        <li>Be professional and courteous</li>
-        <li>Respond promptly to follow-up questions</li>
-        <li>Be prepared for a viewing with questions ready</li>
-        <li>Have your documentation ready (ID, proof of income, references)</li>
-        <li>Be honest about your situation and needs</li>
+        <li>Is the property still available?</li>
+        <li>When is the earliest available move-in date?</li>
+        <li>When can I schedule a viewing?</li>
+        <li>What is the application process?</li>
+        <li>What documents will I need to provide?</li>
+      </ul>
+
+      <h3>Important Follow-Up Questions</h3>
+      <p>Ask during viewing or after initial contact:</p>
+      <ul>
+        <li>What utilities are included in the rent?</li>
+        <li>Is there a security deposit? How much?</li>
+        <li>Are there any additional fees? (application fee, parking, pets)</li>
+        <li>What is the lease length required?</li>
+        <li>What are the income requirements?</li>
+        <li>Is renters insurance required?</li>
+        <li>How is maintenance handled?</li>
+        <li>What is the pet policy specifically?</li>
+      </ul>
+
+      <h3>Questions About the Property Itself</h3>
+      <ul>
+        <li>Which utilities does the tenant pay?</li>
+        <li>What is the average utility cost?</li>
+        <li>Is laundry in-unit, in-building, or nearby?</li>
+        <li>Is parking included? Street or designated?</li>
+        <li>Are any appliances or furniture included?</li>
+        <li>How old is the building/when was it renovated?</li>
+        <li>What storage options are available?</li>
+        <li>Is there air conditioning/heating throughout?</li>
+      </ul>
+
+      <h2>Response Times and Follow-Up</h2>
+
+      <h3>What to Expect</h3>
+      <p>Understanding typical response patterns:</p>
+      <ul>
+        <li><strong>Email/Form:</strong> 24-48 hours for first response</li>
+        <li><strong>Phone:</strong> Immediate if answered; leave voicemail if not</li>
+        <li><strong>Peak Times:</strong> Faster responses during business hours Monday-Friday</li>
+        <li><strong>Popular Listings:</strong> May receive automated response or quick reply</li>
+        <li><strong>Weekends/Evenings:</strong> Responses may take longer</li>
+      </ul>
+
+      <h3>Following Up Professionally</h3>
+      <p>If you haven't heard back:</p>
+      <ol>
+        <li><strong>Wait 48-72 Hours:</strong> Give landlord time to respond to initial inquiry</li>
+        <li><strong>Send One Follow-Up:</strong> Polite reminder of your interest</li>
+        <li><strong>Try Different Method:</strong> If you emailed, try calling (or vice versa)</li>
+        <li><strong>Keep It Brief:</strong> Reference your previous message</li>
+        <li><strong>Know When to Move On:</strong> After 2-3 attempts with no response, focus elsewhere</li>
+      </ol>
+
+      <h3>Follow-Up Message Template</h3>
+      <div style="background: #f5f5f5; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #3b82f6;">
+        <p style="margin: 0; line-height: 1.6;">
+          "Hello,<br><br>
+          I wanted to follow up on my inquiry from [date] about your [number] bedroom property at [address]. I remain very interested in viewing the property and learning more about it.<br><br>
+          Please let me know if it's still available and when might be a good time for a showing. You can reach me at [phone].<br><br>
+          Thank you,<br>
+          [Your Name]"
+        </p>
+      </div>
+
+      <h2>Best Practices for Communication</h2>
+
+      <h3>Do's</h3>
+      <ul>
+        <li><strong>Be Prompt:</strong> Respond quickly to landlord replies</li>
+        <li><strong>Be Professional:</strong> Use proper grammar, spelling, and formatting</li>
+        <li><strong>Be Honest:</strong> Provide accurate information about yourself</li>
+        <li><strong>Be Specific:</strong> Reference the exact property and your timeline</li>
+        <li><strong>Be Prepared:</strong> Have your questions and information ready</li>
+        <li><strong>Be Respectful:</strong> Thank them for their time and consideration</li>
+        <li><strong>Be Flexible:</strong> Offer multiple viewing time options</li>
+        <li><strong>Be Complete:</strong> Include all relevant contact information</li>
+      </ul>
+
+      <h3>Don'ts</h3>
+      <ul>
+        <li><strong>Don't Mass Message:</strong> Customize each inquiry to the property</li>
+        <li><strong>Don't Be Pushy:</strong> Avoid excessive follow-ups or demands</li>
+        <li><strong>Don't Overshare:</strong> Keep initial contact professional and concise</li>
+        <li><strong>Don't Negotiate Yet:</strong> Save pricing discussions for after viewing</li>
+        <li><strong>Don't Ghost:</strong> If you lose interest, let the landlord know</li>
+        <li><strong>Don't Use Slang:</strong> Maintain professional tone in all communications</li>
+        <li><strong>Don't Forget Details:</strong> Include your contact info in every message</li>
+        <li><strong>Don't Contact After Hours:</strong> Unless it's an emergency</li>
+      </ul>
+
+      <h2>Preparing for the Viewing</h2>
+
+      <h3>Before the Showing</h3>
+      <p>Once you've scheduled a viewing:</p>
+      <ul>
+        <li>Confirm the appointment 24 hours before</li>
+        <li>Note the exact address and apartment number</li>
+        <li>Plan to arrive 5-10 minutes early</li>
+        <li>Prepare your list of questions</li>
+        <li>Bring necessary documents (if requested)</li>
+        <li>Charge your phone for photos/notes</li>
+        <li>Review the listing again for questions</li>
+      </ul>
+
+      <h3>Documents to Bring</h3>
+      <p>Have these ready if landlord requests:</p>
+      <ul>
+        <li>Photo ID (driver's license or passport)</li>
+        <li>Recent pay stubs or employment letter</li>
+        <li>Bank statements (if requested)</li>
+        <li>References list with contact information</li>
+        <li>Previous landlord contact information</li>
+        <li>Completed rental application (if provided in advance)</li>
+      </ul>
+
+      <h2>Safety Considerations</h2>
+
+      <h3>Protecting Yourself</h3>
+      <p>Stay safe during the rental search process:</p>
+      <ul>
+        <li><strong>Verify Identity:</strong> Confirm you're dealing with the actual property owner or authorized agent</li>
+        <li><strong>Meet in Person:</strong> Always view the property in person before committing</li>
+        <li><strong>Bring Someone:</strong> Take a friend or family member to viewings when possible</li>
+        <li><strong>Share Your Plans:</strong> Let someone know where you're going and when</li>
+        <li><strong>Trust Your Instincts:</strong> If something feels off, walk away</li>
+        <li><strong>Verify the Property:</strong> Ensure the listing matches the actual property</li>
       </ul>
 
       <h3>Red Flags to Watch For</h3>
+      <p>Be cautious if you encounter:</p>
       <ul>
-        <li>Requests for money before viewing the property</li>
-        <li>Landlords who won't allow property viewings</li>
-        <li>Prices significantly below market rate</li>
-        <li>Pressure to commit immediately without seeing the property</li>
+        <li><strong>No Viewing Allowed:</strong> Landlord refuses in-person showing</li>
+        <li><strong>Pressure Tactics:</strong> Demands immediate decision or payment</li>
+        <li><strong>Too Good to Be True:</strong> Price significantly below market rate</li>
+        <li><strong>Wire Transfer Requests:</strong> Asks for money before viewing or via untraceable methods</li>
+        <li><strong>Overseas Landlord:</strong> Claims to be out of country and can't show property</li>
+        <li><strong>No Lease Agreement:</strong> Unwilling to provide written lease terms</li>
+        <li><strong>Suspicious Documents:</strong> Requests unusual personal information upfront</li>
+        <li><strong>Property Mismatch:</strong> Actual property doesn't match listing photos</li>
+      </ul>
+
+      <h3>Legitimate Requests vs. Scams</h3>
+      <p><strong>Legitimate landlords may ask for:</strong></p>
+      <ul>
+        <li>Application fee (typically $20-50, after viewing)</li>
+        <li>Credit and background check authorization</li>
+        <li>Employment and income verification</li>
+        <li>References from previous landlords</li>
+        <li>Security deposit (after approval, with signed lease)</li>
+      </ul>
+
+      <p><strong>Red flags indicating potential scams:</strong></p>
+      <ul>
+        <li>Money requested before viewing the property</li>
+        <li>Pressure to wire money or use gift cards</li>
+        <li>No written lease agreement offered</li>
+        <li>Landlord can't meet in person or show property</li>
+        <li>Copy/paste responses that don't answer your questions</li>
+      </ul>
+
+      <h2>After the Initial Contact</h2>
+
+      <h3>Following Up After Viewing</h3>
+      <p>If you're interested after seeing the property:</p>
+      <ol>
+        <li>Send a thank-you message within 24 hours</li>
+        <li>Reiterate your interest in the property</li>
+        <li>Mention specific features you liked</li>
+        <li>Ask about next steps in the application process</li>
+        <li>Provide any additional information requested</li>
+        <li>Submit your application promptly</li>
+      </ol>
+
+      <h3>Post-Viewing Thank You Template</h3>
+      <div style="background: #f5f5f5; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #3b82f6;">
+        <p style="margin: 0; line-height: 1.6;">
+          "Hi [Landlord Name],<br><br>
+          Thank you for taking the time to show me the property at [address] today. I really appreciated the opportunity to see it in person.<br><br>
+          I'm very interested in renting the property. I particularly liked [mention 1-2 specific features]. The location and [other features] would be perfect for my needs.<br><br>
+          I'm ready to move forward with the application process. Please let me know what the next steps are and what additional information you need from me. I can provide any necessary documents right away.<br><br>
+          Thank you again, and I look forward to hearing from you soon.<br><br>
+          Best regards,<br>
+          [Your Name]<br>
+          [Phone Number]"
+        </p>
+      </div>
+
+      <h3>If You're Not Interested</h3>
+      <p>Professional courtesy matters even when declining:</p>
+      <ul>
+        <li>Let the landlord know you're no longer interested</li>
+        <li>Keep the message brief and polite</li>
+        <li>Thank them for their time</li>
+        <li>No need to explain in detail why it's not a fit</li>
+        <li>This maintains good relationships in a small rental community</li>
+      </ul>
+
+      <h2>Special Situations</h2>
+
+      <h3>Contacting About Pet-Friendly Rentals</h3>
+      <p>If you have pets, be upfront and provide details:</p>
+      <ul>
+        <li>Mention pets in your initial inquiry</li>
+        <li>Specify type, breed, size, and age</li>
+        <li>Highlight that pets are well-trained/house-trained</li>
+        <li>Offer to provide pet references if available</li>
+        <li>Ask about pet deposit or monthly pet rent</li>
+        <li>Be prepared to provide vaccination records</li>
+      </ul>
+
+      <h3>Inquiring with Roommates</h3>
+      <p>When renting with others:</p>
+      <ul>
+        <li>Designate one person as primary contact</li>
+        <li>Mention the total number of adults who will live there</li>
+        <li>Indicate that all tenants will be on the lease</li>
+        <li>Be prepared for all roommates to apply</li>
+        <li>Coordinate schedules for group viewing</li>
+      </ul>
+
+      <h3>As a Student</h3>
+      <p>Student renters should emphasize:</p>
+      <ul>
+        <li>Which school you attend and your program</li>
+        <li>Expected graduation date or length of stay</li>
+        <li>Source of income (job, financial aid, family support)</li>
+        <li>Willingness to have a co-signer if needed</li>
+        <li>Serious attitude toward renting responsibilities</li>
+      </ul>
+
+      <h2>Tips for Competitive Markets</h2>
+
+      <h3>Standing Out in High-Demand Areas</h3>
+      <p>When competition is fierce:</p>
+      <ul>
+        <li><strong>Respond Immediately:</strong> Contact landlords within hours of listing posting</li>
+        <li><strong>Be Prepared:</strong> Have all documents ready to submit same-day</li>
+        <li><strong>Be Flexible:</strong> Offer flexible move-in dates or longer lease terms</li>
+        <li><strong>Provide References:</strong> Attach reference letters to your initial inquiry</li>
+        <li><strong>Show Financial Stability:</strong> Mention stable employment and good credit score</li>
+        <li><strong>Express Genuine Interest:</strong> Explain why this property is perfect for you</li>
+        <li><strong>Be Professional:</strong> Error-free, well-composed messages show responsibility</li>
+      </ul>
+
+      <h2>Common Mistakes to Avoid</h2>
+
+      <h3>Inquiry Mistakes</h3>
+      <ul>
+        <li>Sending generic, copy-paste messages</li>
+        <li>Asking questions already answered in the listing</li>
+        <li>Making demands before viewing the property</li>
+        <li>Being vague about your timeline or situation</li>
+        <li>Forgetting to include contact information</li>
+        <li>Using unprofessional email addresses</li>
+        <li>Sending messages with typos or errors</li>
+        <li>Coming across as desperate or overly aggressive</li>
+      </ul>
+
+      <h3>Communication Mistakes</h3>
+      <ul>
+        <li>Taking days to respond to landlord messages</li>
+        <li>Providing inconsistent information</li>
+        <li>Being dishonest about income, pets, or occupants</li>
+        <li>Arguing about price or terms before viewing</li>
+        <li>Not confirming scheduled appointments</li>
+        <li>No-showing for scheduled viewings</li>
+        <li>Being rude or entitled in tone</li>
+        <li>Ghosting after viewing if not interested</li>
+      </ul>
+
+      <h2>Need More Help?</h2>
+      <p>For additional guidance on your rental search:</p>
+      <ul>
+        <li>Read "Searching for Properties" to find listings that match your needs</li>
+        <li>Check out "Understanding Listing Details" to know what to look for</li>
+        <li>Review "Saving Favorite Properties" to organize your search</li>
+        <li>Browse our Community Guidelines for platform best practices</li>
+        <li>Contact our support team if you encounter any issues</li>
       </ul>
     `,
-    tags: ['contact', 'landlord', 'message', 'inquiry'],
+    tags: ['contact', 'landlord', 'message', 'inquiry', 'communication', 'viewing', 'tenants'],
     sort_order: 3,
     is_published: true,
-    read_time_minutes: 5,
+    read_time_minutes: 15,
   },
 
   // Account Management
