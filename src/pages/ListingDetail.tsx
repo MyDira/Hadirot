@@ -341,6 +341,8 @@ export function ListingDetail() {
         return "Apartment in House";
       case "full_house":
         return "Full House";
+      case "duplex":
+        return "Duplex";
       default:
         return listing.property_type;
     }

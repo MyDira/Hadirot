@@ -715,6 +715,7 @@ export function PostListing() {
                 </option>
                 <option value="apartment_house">Apartment in a house</option>
                 <option value="full_house">Full house</option>
+                <option value="duplex">Duplex</option>
               </select>
             </div>
           </div>
