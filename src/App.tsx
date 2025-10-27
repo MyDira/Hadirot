@@ -12,7 +12,6 @@ import { Favorites } from './pages/Favorites';
 import { AdminPanel } from './pages/AdminPanel';
 import { Dashboard } from './pages/Dashboard';
 import { AgencySettings } from './pages/AgencySettings';
-import { FooterEditor } from './pages/admin/FooterEditor';
 import { AccountSettings } from './pages/AccountSettings';
 import { About } from './pages/About';
 import { Contact } from './pages/Contact';
@@ -72,7 +71,7 @@ function App() {
                 <Route path="/favorites" element={<Favorites />} />
                 <Route path="/admin" element={<AdminPanel />} />
                 <Route path="/admin/static-pages" element={<Navigate to="/admin?tab=static-pages" replace />} />
-                <Route path="/admin/footer" element={<FooterEditor />} />
+                <Route path="/admin/footer" element={<Navigate to="/admin?tab=footer" replace />} />
                 <Route path="/admin/featured-settings" element={<Navigate to="/admin?tab=featured" replace />} />
                 <Route path="/dashboard" element={<Dashboard />} />
                 <Route path="/dashboard/agency-settings" element={<AgencySettings />} />
