@@ -144,7 +144,11 @@ export function ListingFilters({
             <option value="1">1 BR</option>
             <option value="2">2 BR</option>
             <option value="3">3 BR</option>
-            <option value="4">4+ BR</option>
+            <option value="4">4 BR</option>
+            <option value="5">5 BR</option>
+            <option value="6">6 BR</option>
+            <option value="7">7 BR</option>
+            <option value="8">8+ BR</option>
           </select>
         </div>
 

@@ -12,6 +12,8 @@ import {
   Listing,
   ListingImage,
   TempListingImage,
+  AcType,
+  ApartmentCondition,
 } from "../config/supabase";
 import { compressImage } from "../utils/imageUtils";
 
@@ -22,6 +24,7 @@ interface ListingFormData {
   neighborhood?: string;
   bedrooms: number;
   bathrooms: number;
+  additional_rooms?: number | null;
   floor?: number;
   price: number | null;
   call_for_price: boolean;
@@ -31,6 +34,8 @@ interface ListingFormData {
   dishwasher: boolean;
   lease_length?: LeaseLength | null;
   heat: HeatType;
+  ac_type?: AcType | null;
+  apartment_conditions?: ApartmentCondition[];
   property_type: PropertyType;
   contact_name: string;
   contact_phone: string;
@@ -68,6 +73,7 @@ export function EditListing() {
     neighborhood: "",
     bedrooms: 1,
     bathrooms: 1,
+    additional_rooms: null,
     floor: undefined,
     price: null,
     call_for_price: false,
@@ -77,6 +83,8 @@ export function EditListing() {
     dishwasher: false,
     lease_length: null,
     heat: "tenant_pays",
+    ac_type: null,
+    apartment_conditions: [],
     property_type: "apartment_house",
     contact_name: "",
     contact_phone: "",
@@ -120,6 +128,7 @@ export function EditListing() {
         neighborhood: data.neighborhood || "",
         bedrooms: data.bedrooms,
         bathrooms: data.bathrooms,
+        additional_rooms: data.additional_rooms || null,
         floor: data.floor || undefined,
         price: data.call_for_price ? null : data.price,
         call_for_price: !!data.call_for_price,
@@ -129,6 +138,8 @@ export function EditListing() {
         dishwasher: data.dishwasher,
         lease_length: data.lease_length || null,
         heat: data.heat,
+        ac_type: data.ac_type || null,
+        apartment_conditions: data.apartment_conditions || [],
         property_type: data.property_type,
         contact_name: data.contact_name,
         contact_phone: data.contact_phone,
@@ -634,8 +645,30 @@ export function EditListing() {
                 <option value={2}>2 Bedrooms</option>
                 <option value={3}>3 Bedrooms</option>
                 <option value={4}>4 Bedrooms</option>
-                <option value={5}>5+ Bedrooms</option>
+                <option value={5}>5 Bedrooms</option>
+                <option value={6}>6 Bedrooms</option>
+                <option value={7}>7 Bedrooms</option>
+                <option value={8}>8+ Bedrooms</option>
               </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Additional Rooms (Optional)
+              </label>
+              <select
+                name="additional_rooms"
+                value={formData.additional_rooms ?? ""}
+                onChange={handleInputChange}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
+              >
+                <option value="">None</option>
+                <option value={1}>+1 Room</option>
+                <option value={2}>+2 Rooms</option>
+              </select>
+              <p className="text-xs text-gray-500 mt-1">
+                Extra rooms beyond bedrooms (e.g., office, den)
+              </p>
             </div>
 
             <div>
@@ -770,6 +803,115 @@ export function EditListing() {
                 <option value="tenant_pays">Tenant Pays</option>
                 <option value="included">Heat Included</option>
               </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                AC Type (Optional)
+              </label>
+              <select
+                name="ac_type"
+                value={formData.ac_type || ""}
+                onChange={handleInputChange}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
+              >
+                <option value="">Select AC type</option>
+                <option value="central">Central</option>
+                <option value="split_unit">Split Unit</option>
+                <option value="window">Window</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="mt-6">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Apartment Conditions (Optional)
+            </label>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+              <label className="flex items-center">
+                <input
+                  type="checkbox"
+                  checked={formData.apartment_conditions?.includes('modern') || false}
+                  onChange={(e) => {
+                    const conditions = formData.apartment_conditions || [];
+                    if (e.target.checked) {
+                      setFormData(prev => ({ ...prev, apartment_conditions: [...conditions, 'modern'] }));
+                    } else {
+                      setFormData(prev => ({ ...prev, apartment_conditions: conditions.filter(c => c !== 'modern') }));
+                    }
+                  }}
+                  className="h-4 w-4 text-[#273140] focus:ring-[#273140] border-gray-300 rounded"
+                />
+                <span className="ml-2 text-sm text-gray-700">Modern</span>
+              </label>
+
+              <label className="flex items-center">
+                <input
+                  type="checkbox"
+                  checked={formData.apartment_conditions?.includes('renovated') || false}
+                  onChange={(e) => {
+                    const conditions = formData.apartment_conditions || [];
+                    if (e.target.checked) {
+                      setFormData(prev => ({ ...prev, apartment_conditions: [...conditions, 'renovated'] }));
+                    } else {
+                      setFormData(prev => ({ ...prev, apartment_conditions: conditions.filter(c => c !== 'renovated') }));
+                    }
+                  }}
+                  className="h-4 w-4 text-[#273140] focus:ring-[#273140] border-gray-300 rounded"
+                />
+                <span className="ml-2 text-sm text-gray-700">Renovated</span>
+              </label>
+
+              <label className="flex items-center">
+                <input
+                  type="checkbox"
+                  checked={formData.apartment_conditions?.includes('large_rooms') || false}
+                  onChange={(e) => {
+                    const conditions = formData.apartment_conditions || [];
+                    if (e.target.checked) {
+                      setFormData(prev => ({ ...prev, apartment_conditions: [...conditions, 'large_rooms'] }));
+                    } else {
+                      setFormData(prev => ({ ...prev, apartment_conditions: conditions.filter(c => c !== 'large_rooms') }));
+                    }
+                  }}
+                  className="h-4 w-4 text-[#273140] focus:ring-[#273140] border-gray-300 rounded"
+                />
+                <span className="ml-2 text-sm text-gray-700">Large Rooms</span>
+              </label>
+
+              <label className="flex items-center">
+                <input
+                  type="checkbox"
+                  checked={formData.apartment_conditions?.includes('high_ceilings') || false}
+                  onChange={(e) => {
+                    const conditions = formData.apartment_conditions || [];
+                    if (e.target.checked) {
+                      setFormData(prev => ({ ...prev, apartment_conditions: [...conditions, 'high_ceilings'] }));
+                    } else {
+                      setFormData(prev => ({ ...prev, apartment_conditions: conditions.filter(c => c !== 'high_ceilings') }));
+                    }
+                  }}
+                  className="h-4 w-4 text-[#273140] focus:ring-[#273140] border-gray-300 rounded"
+                />
+                <span className="ml-2 text-sm text-gray-700">High Ceilings</span>
+              </label>
+
+              <label className="flex items-center">
+                <input
+                  type="checkbox"
+                  checked={formData.apartment_conditions?.includes('large_closets') || false}
+                  onChange={(e) => {
+                    const conditions = formData.apartment_conditions || [];
+                    if (e.target.checked) {
+                      setFormData(prev => ({ ...prev, apartment_conditions: [...conditions, 'large_closets'] }));
+                    } else {
+                      setFormData(prev => ({ ...prev, apartment_conditions: conditions.filter(c => c !== 'large_closets') }));
+                    }
+                  }}
+                  className="h-4 w-4 text-[#273140] focus:ring-[#273140] border-gray-300 rounded"
+                />
+                <span className="ml-2 text-sm text-gray-700">Large Closets</span>
+              </label>
             </div>
           </div>
 
