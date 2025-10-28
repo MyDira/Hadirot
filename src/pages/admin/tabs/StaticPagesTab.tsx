@@ -1,10 +1,10 @@
 import React from 'react';
+import { StaticPageEditor } from '@/pages/admin/StaticPageEditor';
 
 export default function StaticPagesTab() {
   return (
-    <div className="p-6">
-      <h2 className="text-2xl font-bold mb-4">Static Pages</h2>
-      <p className="text-gray-600">Static pages management coming soon.</p>
+    <div className="mt-6">
+      <StaticPageEditor showHeader={false} />
     </div>
   );
 }
