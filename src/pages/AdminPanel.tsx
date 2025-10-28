@@ -1,6 +1,6 @@
 import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Users, FileText, Settings, Eye, Check, X, Trash2, ChevronLeft, Shield, TrendingUp, Home, Star, Power, ChevronDown, Search, ChevronRight, BarChart3, MessageSquare, Mail, UserCheck, BookOpen } from 'lucide-react';
+import { Users, FileText, Settings, Eye, Check, X, Trash2, ChevronLeft, Shield, TrendingUp, Home, Star, Power, ChevronDown, Search, ChevronRight, BarChart3, MessageSquare, Mail, UserCheck, BookOpen, Copy } from 'lucide-react';
 import { listingsService } from '../services/listings';
 import { agenciesService } from '../services/agencies';
 import { useAuth } from '@/hooks/useAuth';
@@ -680,6 +680,71 @@ export function AdminPanel() {
       setToast({ message: 'Failed to send email. Please try again.', tone: 'error' });
     } finally {
       setSendingEmailListingId(null);
+    }
+  };
+
+  const copyListingToClipboard = async (listing: Listing) => {
+    try {
+      const siteUrl = window.location.origin;
+      const whatsappLink = 'https://chat.whatsapp.com/C3qmgo7DNOI63OE0RAZRgt';
+
+      // Format price
+      const formatPrice = () => {
+        if (listing.call_for_price) return 'Call for Price';
+        if (listing.price != null) {
+          return new Intl.NumberFormat('en-US', {
+            style: 'currency',
+            currency: 'USD',
+            minimumFractionDigits: 0,
+            maximumFractionDigits: 0,
+          }).format(listing.price);
+        }
+        return 'Price Not Available';
+      };
+
+      // Format bedroom text
+      const bedroomText = listing.bedrooms === 0
+        ? 'Studio'
+        : `${listing.bedrooms} bedroom${listing.bedrooms !== 1 ? 's' : ''}`;
+
+      // Format bathroom text
+      const bathroomText = `${listing.bathrooms} bathroom${listing.bathrooms !== 1 ? 's' : ''}`;
+
+      // Format parking
+      const parkingText = listing.parking === 'yes' || listing.parking === 'included'
+        ? 'Parking included'
+        : listing.parking === 'available'
+        ? 'Parking available'
+        : 'No parking';
+
+      // Fee text
+      const feeText = listing.broker_fee ? 'Broker Fee' : 'No Fee';
+
+      // Location
+      const locationText = listing.neighborhood
+        ? `${listing.neighborhood}, ${listing.location}`
+        : listing.location;
+
+      // Owner/Agency
+      const ownerText = listing.profiles?.role === 'agent' && listing.profiles?.agency
+        ? listing.profiles.agency
+        : 'By Owner';
+
+      // Listing URL
+      const listingUrl = `${siteUrl}/listing/${listing.id}`;
+
+      // Build the text
+      const text = `${formatPrice()}
+🛏️ ${bedroomText}, 🛁 ${bathroomText}, 🅿️ ${parkingText}, ${feeText}
+📍 ${locationText}
+${ownerText}
+Click here to view the apartment: ${listingUrl}`;
+
+      await navigator.clipboard.writeText(text);
+      setToast({ message: 'Listing details copied to clipboard!', tone: 'success' });
+    } catch (error) {
+      console.error('Error copying to clipboard:', error);
+      setToast({ message: 'Failed to copy to clipboard.', tone: 'error' });
     }
   };
 
@@ -1539,22 +1604,31 @@ export function AdminPanel() {
                                 <Eye className="w-5 h-5" />
                               </Link>
                               {listing.approved && (
-                                <button
-                                  onClick={() => sendListingEmail(listing.id, listing.title)}
-                                  disabled={sendingEmailListingId === listing.id}
-                                  className={`transition-colors ${
-                                    sendingEmailListingId === listing.id
-                                      ? 'text-gray-400 cursor-wait'
-                                      : 'text-purple-600 hover:text-purple-800'
-                                  }`}
-                                  title="Send email to admins"
-                                >
-                                  {sendingEmailListingId === listing.id ? (
-                                    <div className="w-5 h-5 border-2 border-purple-600 border-t-transparent rounded-full animate-spin" />
-                                  ) : (
-                                    <Mail className="w-5 h-5" />
-                                  )}
-                                </button>
+                                <>
+                                  <button
+                                    onClick={() => sendListingEmail(listing.id, listing.title)}
+                                    disabled={sendingEmailListingId === listing.id}
+                                    className={`transition-colors ${
+                                      sendingEmailListingId === listing.id
+                                        ? 'text-gray-400 cursor-wait'
+                                        : 'text-purple-600 hover:text-purple-800'
+                                    }`}
+                                    title="Send email to admins"
+                                  >
+                                    {sendingEmailListingId === listing.id ? (
+                                      <div className="w-5 h-5 border-2 border-purple-600 border-t-transparent rounded-full animate-spin" />
+                                    ) : (
+                                      <Mail className="w-5 h-5" />
+                                    )}
+                                  </button>
+                                  <button
+                                    onClick={() => copyListingToClipboard(listing)}
+                                    className="text-gray-600 hover:text-gray-800 transition-colors"
+                                    title="Copy listing details to clipboard"
+                                  >
+                                    <Copy className="w-5 h-5" />
+                                  </button>
+                                </>
                               )}
                               <button
                                 onClick={() => toggleListingFeatured(listing.id, listing.is_featured)}
