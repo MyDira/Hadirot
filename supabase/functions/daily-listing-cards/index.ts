@@ -1,20 +1,11 @@
 /**
- * Daily Listing Cards Email Function - Text-Only WhatsApp Format
- *
- * Runs automatically via cron job to send text-only listing emails.
- * Can also be triggered manually by admins.
- *
- * Schedule: Daily at 5:00 PM (17:00) - configurable via database
+ * Daily Listing Cards Email Function - Pure Text Format
  */
 
 import { createClient } from 'jsr:@supabase/supabase-js@2';
 import { corsHeaders } from '../_shared/cors.ts';
 import { sendViaZepto } from '../_shared/zepto.ts';
-import {
-  generateDailyCardsEmail,
-  generateDailyCardsEmailHTML,
-  generatePlainTextEmail,
-} from '../_shared/dailyCardsEmailTemplate.ts';
+import { generateDailyCardsTextEmail } from '../_shared/dailyCardsEmailTemplate.ts';
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -44,9 +35,6 @@ interface Listing {
   created_at: string;
 }
 
-/**
- * Main function to generate and send daily listing emails
- */
 async function generateAndSendDailyCards(triggeredBy = 'cron') {
   const startTime = Date.now();
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
@@ -57,9 +45,8 @@ async function generateAndSendDailyCards(triggeredBy = 'cron') {
   let errorMessage: string | null = null;
 
   try {
-    console.log('🚀 Starting daily listing cards generation...');
+    console.log('Starting daily listing cards generation...');
 
-    // 1. Fetch configuration
     const { data: config, error: configError } = await supabase
       .from('daily_cards_config')
       .select('*')
@@ -72,28 +59,24 @@ async function generateAndSendDailyCards(triggeredBy = 'cron') {
 
     const typedConfig = config as unknown as DailyCardsConfig;
 
-    // Check if automation is enabled
     if (!typedConfig.enabled && triggeredBy === 'cron') {
-      console.log('⏸️ Automation is disabled. Skipping execution.');
+      console.log('Automation is disabled. Skipping execution.');
       return { success: true, message: 'Automation disabled' };
     }
 
-    // Check if recipients are configured
     if (!typedConfig.recipient_emails || typedConfig.recipient_emails.length === 0) {
       throw new Error('No recipient emails configured');
     }
 
-    // Get WhatsApp group URL
     const whatsappGroupUrl = typedConfig.whatsapp_group_url || 'https://chat.whatsapp.com/C3qmgo7DNOI63OE0RAZRgt';
 
-    console.log('✅ Configuration loaded:', {
+    console.log('Configuration loaded:', {
       enabled: typedConfig.enabled,
       recipients: typedConfig.recipient_emails.length,
       maxListings: typedConfig.max_listings,
       whatsappGroup: whatsappGroupUrl,
     });
 
-    // 2. Fetch active listings from past 24 hours
     const cutoffDate = new Date();
     cutoffDate.setHours(cutoffDate.getHours() - 24);
 
@@ -117,7 +100,7 @@ async function generateAndSendDailyCards(triggeredBy = 'cron') {
     }
 
     if (!listings || listings.length === 0) {
-      console.log('ℹ️ No listings found matching criteria');
+      console.log('No listings found matching criteria');
       success = true;
       await logExecution(supabase, {
         success: true,
@@ -132,9 +115,8 @@ async function generateAndSendDailyCards(triggeredBy = 'cron') {
     }
 
     listingsCount = listings.length;
-    console.log(`📋 Found ${listingsCount} listings to process`);
+    console.log(`Found ${listingsCount} listings to process`);
 
-    // 3. Format listings data for email
     const listingsData = (listings as Listing[]).map((listing) => ({
       id: listing.id,
       title: listing.title,
@@ -149,7 +131,6 @@ async function generateAndSendDailyCards(triggeredBy = 'cron') {
       listingUrl: `https://hadirot.com/listing/${listing.id}`,
     }));
 
-    // 4. Generate email content
     const dateStr = new Date().toLocaleDateString('en-US', {
       weekday: 'long',
       year: 'numeric',
@@ -157,26 +138,23 @@ async function generateAndSendDailyCards(triggeredBy = 'cron') {
       day: 'numeric',
     });
 
-    const htmlContent = generateDailyCardsEmailHTML(listingsData, dateStr, whatsappGroupUrl);
-    const textContent = generatePlainTextEmail(listingsData, dateStr, whatsappGroupUrl);
+    const textContent = generateDailyCardsTextEmail(listingsData, dateStr, whatsappGroupUrl);
 
-    console.log('📧 Sending email to:', typedConfig.recipient_emails);
+    console.log('Sending email to:', typedConfig.recipient_emails);
 
-    // 5. Send email
     await sendViaZepto({
       to: typedConfig.recipient_emails,
       subject: `Today's Hadirot Listings - ${dateStr} (${listingsCount} listings)`,
-      html: htmlContent,
       text: textContent,
+      html: textContent,
       fromName: 'Hadirot Daily Listings',
     });
 
     emailSent = true;
     success = true;
 
-    console.log('✅ Email sent successfully!');
+    console.log('Email sent successfully!');
 
-    // 6. Log successful execution
     await logExecution(supabase, {
       success: true,
       listings_count: listingsCount,
@@ -195,9 +173,8 @@ async function generateAndSendDailyCards(triggeredBy = 'cron') {
     };
   } catch (error) {
     errorMessage = error.message || String(error);
-    console.error('❌ Error in daily cards generation:', errorMessage);
+    console.error('Error in daily cards generation:', errorMessage);
 
-    // Log failed execution
     await logExecution(supabase, {
       success: false,
       listings_count: listingsCount,
@@ -212,9 +189,6 @@ async function generateAndSendDailyCards(triggeredBy = 'cron') {
   }
 }
 
-/**
- * Log execution to database
- */
 async function logExecution(
   supabase: ReturnType<typeof createClient>,
   log: {
@@ -243,16 +217,12 @@ async function logExecution(
   }
 }
 
-/**
- * HTTP handler for both cron and manual triggers
- */
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { status: 200, headers: corsHeaders });
   }
 
   try {
-    // Check authentication
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
       return new Response(JSON.stringify({ error: 'Missing authorization' }), {
@@ -276,7 +246,6 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Check if user is admin
     const { data: profile } = await supabase
       .from('profiles')
       .select('is_admin')
@@ -290,7 +259,6 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Execute the daily cards generation
     const result = await generateAndSendDailyCards('manual');
 
     return new Response(JSON.stringify(result), {
@@ -311,14 +279,11 @@ Deno.serve(async (req) => {
   }
 });
 
-/**
- * Cron job: Run daily at 5:00 PM (17:00)
- */
 Deno.cron('daily-listing-cards', '0 17 * * *', async () => {
   try {
-    console.log('🕔 Cron triggered at 5:00 PM');
+    console.log('Cron triggered at 5:00 PM');
     await generateAndSendDailyCards('cron');
   } catch (error) {
-    console.error('❌ Cron job failed:', error);
+    console.error('Cron job failed:', error);
   }
 });
