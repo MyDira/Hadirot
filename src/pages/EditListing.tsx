@@ -401,13 +401,6 @@ export function EditListing() {
           ? customNeighborhoodInput.trim()
           : neighborhoodSelectValue;
 
-      // Validate neighborhood is selected
-      if (!neighborhood || neighborhood.trim() === "") {
-        alert("Please select or enter a neighborhood");
-        setSaving(false);
-        return;
-      }
-
       if (neighborhoodSelectValue === "other" && neighborhood === "") {
         alert("Please enter a neighborhood");
         setSaving(false);
@@ -582,14 +575,13 @@ export function EditListing() {
                 placeholder="Main St & 1st Ave"
               />
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Neighborhood *
+                Neighborhood (Optional)
               </label>
               <select
                 name="neighborhood"
                 value={neighborhoodSelectValue}
                 onChange={handleNeighborhoodSelect}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
-                required
               >
                 <option value="">Select a neighborhood</option>
                 <option value="Midwood">Midwood</option>
