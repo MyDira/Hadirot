@@ -1,11 +1,21 @@
 /**
- * Daily Listing Cards Email Function - Pure Text Format
+ * Daily Listing Cards Email Function
+ *
+ * Runs automatically via cron job to generate listing card images and email them.
+ * Can also be triggered manually by admins.
+ *
+ * Schedule: Daily at 6:00 AM (configurable via database)
+ * Deno.cron("daily-listing-cards", "0 6 * * *", async () => { ... })
  */
 
 import { createClient } from 'jsr:@supabase/supabase-js@2';
 import { corsHeaders } from '../_shared/cors.ts';
 import { sendViaZepto } from '../_shared/zepto.ts';
-import { generateDailyCardsTextEmail } from '../_shared/dailyCardsEmailTemplate.ts';
+import { generateListingCardHTML } from '../_shared/listingCardTemplate.ts';
+import {
+  generateDailyCardsEmail,
+  generatePlainTextEmail,
+} from '../_shared/dailyCardsEmailTemplate.ts';
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -18,7 +28,6 @@ interface DailyCardsConfig {
   include_featured_only: boolean;
   days_to_include: number;
   timezone: string;
-  whatsapp_group_url: string;
 }
 
 interface Listing {
@@ -30,23 +39,42 @@ interface Listing {
   bathrooms: number;
   location: string;
   cross_streets: string | null;
+  neighborhood: string | null;
   broker_fee: boolean;
   parking: string | null;
+  is_featured: boolean;
+  property_type: string | null;
+  lease_length: string | null;
   created_at: string;
+  owner?: {
+    full_name: string;
+    role: string;
+    agency: string | null;
+  };
+  listing_images?: Array<{
+    image_url: string;
+    is_featured: boolean;
+    sort_order: number;
+  }>;
 }
 
+/**
+ * Main function to generate and send daily listing cards
+ */
 async function generateAndSendDailyCards(triggeredBy = 'cron') {
   const startTime = Date.now();
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
   let success = false;
   let listingsCount = 0;
+  let imagesGenerated = 0;
   let emailSent = false;
   let errorMessage: string | null = null;
 
   try {
-    console.log('Starting daily listing cards generation...');
+    console.log('🚀 Starting daily listing cards generation...');
 
+    // 1. Fetch configuration
     const { data: config, error: configError } = await supabase
       .from('daily_cards_config')
       .select('*')
@@ -59,30 +87,36 @@ async function generateAndSendDailyCards(triggeredBy = 'cron') {
 
     const typedConfig = config as unknown as DailyCardsConfig;
 
+    // Check if automation is enabled
     if (!typedConfig.enabled && triggeredBy === 'cron') {
-      console.log('Automation is disabled. Skipping execution.');
+      console.log('⏸️ Automation is disabled. Skipping execution.');
       return { success: true, message: 'Automation disabled' };
     }
 
+    // Check if recipients are configured
     if (!typedConfig.recipient_emails || typedConfig.recipient_emails.length === 0) {
       throw new Error('No recipient emails configured');
     }
 
-    const whatsappGroupUrl = typedConfig.whatsapp_group_url || 'https://chat.whatsapp.com/C3qmgo7DNOI63OE0RAZRgt';
-
-    console.log('Configuration loaded:', {
+    console.log('✅ Configuration loaded:', {
       enabled: typedConfig.enabled,
       recipients: typedConfig.recipient_emails.length,
       maxListings: typedConfig.max_listings,
-      whatsappGroup: whatsappGroupUrl,
     });
 
+    // 2. Fetch active listings
     const cutoffDate = new Date();
-    cutoffDate.setHours(cutoffDate.getHours() - 24);
+    cutoffDate.setDate(cutoffDate.getDate() - typedConfig.days_to_include);
 
     let query = supabase
       .from('listings')
-      .select('*')
+      .select(
+        `
+        *,
+        owner:profiles!listings_user_id_fkey(full_name, role, agency),
+        listing_images(image_url, is_featured, sort_order)
+      `
+      )
       .eq('approved', true)
       .eq('is_active', true)
       .gte('created_at', cutoffDate.toISOString())
@@ -100,7 +134,7 @@ async function generateAndSendDailyCards(triggeredBy = 'cron') {
     }
 
     if (!listings || listings.length === 0) {
-      console.log('No listings found matching criteria');
+      console.log('ℹ️ No listings found matching criteria');
       success = true;
       await logExecution(supabase, {
         success: true,
@@ -115,22 +149,201 @@ async function generateAndSendDailyCards(triggeredBy = 'cron') {
     }
 
     listingsCount = listings.length;
-    console.log(`Found ${listingsCount} listings to process`);
+    console.log(`📋 Found ${listingsCount} listings to process`);
 
-    const listingsData = (listings as Listing[]).map((listing) => ({
-      id: listing.id,
-      title: listing.title,
-      price: listing.price,
-      call_for_price: listing.call_for_price,
-      bedrooms: listing.bedrooms,
-      bathrooms: listing.bathrooms,
-      location: listing.location,
-      cross_streets: listing.cross_streets,
-      broker_fee: listing.broker_fee,
-      parking: listing.parking,
-      listingUrl: `https://hadirot.com/listing/${listing.id}`,
-    }));
+    // 3. Generate images and upload to storage
+    const listingsWithImages: Array<{
+      id: string;
+      title: string;
+      price: number | null;
+      call_for_price: boolean;
+      bedrooms: number;
+      bathrooms: number;
+      location: string;
+      cross_streets: string | null;
+      neighborhood: string | null;
+      broker_fee: boolean;
+      parking: string | null;
+      imageUrl: string;
+      listingUrl: string;
+    }> = [];
 
+    const today = new Date().toISOString().split('T')[0];
+    const storagePath = `${today}`;
+
+    for (const listing of listings as Listing[]) {
+      try {
+        console.log(`🖼️ Generating card image for listing: ${listing.id}`);
+
+        // Get primary image URL from listing_images
+        const sortedImages = listing.listing_images?.sort((a, b) => {
+          if (a.is_featured && !b.is_featured) return -1;
+          if (!a.is_featured && b.is_featured) return 1;
+          return a.sort_order - b.sort_order;
+        });
+
+        const primaryImageUrl = sortedImages?.[0]?.image_url || 'https://via.placeholder.com/400x267?text=No+Image';
+
+        // Generate HTML for the listing card
+        const html = generateListingCardHTML({
+          id: listing.id,
+          title: listing.title,
+          price: listing.price,
+          call_for_price: listing.call_for_price,
+          bedrooms: listing.bedrooms,
+          bathrooms: listing.bathrooms,
+          parking: listing.parking || 'no',
+          broker_fee: listing.broker_fee,
+          location: listing.location,
+          neighborhood: listing.neighborhood,
+          property_type: listing.property_type || 'apartment',
+          lease_length: listing.lease_length || '12_months',
+          imageUrl: primaryImageUrl,
+          ownerName: listing.owner?.full_name,
+          ownerRole: listing.owner?.role || 'landlord',
+          ownerAgency: listing.owner?.agency,
+          is_featured: listing.is_featured,
+        });
+
+        // Use htmlcsstoimage.com API for server-side rendering
+        const htmlCssToImageUserId = Deno.env.get('HTMLCSSTOIMAGE_USER_ID');
+        const htmlCssToImageApiKey = Deno.env.get('HTMLCSSTOIMAGE_API_KEY');
+
+        if (!htmlCssToImageUserId || !htmlCssToImageApiKey) {
+          console.warn('⚠️ HTML/CSS to Image API not configured, using listing photo');
+          // Fallback to listing photo if image generation not configured
+          listingsWithImages.push({
+            id: listing.id,
+            title: listing.title,
+            price: listing.price,
+            call_for_price: listing.call_for_price,
+            bedrooms: listing.bedrooms,
+            bathrooms: listing.bathrooms,
+            location: listing.location,
+            cross_streets: listing.cross_streets,
+            neighborhood: listing.neighborhood,
+            broker_fee: listing.broker_fee,
+            parking: listing.parking,
+            imageUrl: primaryImageUrl,
+            listingUrl: `https://hadirot.com/listing/${listing.id}`,
+          });
+          continue;
+        }
+
+        // Create base64 auth string
+        const auth = btoa(`${htmlCssToImageUserId}:${htmlCssToImageApiKey}`);
+
+        // Call HTML/CSS to Image API
+        const imageResponse = await fetch('https://hcti.io/v1/image', {
+          method: 'POST',
+          headers: {
+            Authorization: `Basic ${auth}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            html: html,
+            viewport_width: 400,
+            viewport_height: 600,
+            device_scale: 2,
+          }),
+        });
+
+        if (!imageResponse.ok) {
+          console.error(`❌ Failed to generate image for ${listing.id}, using listing photo`);
+          // Fallback to listing photo
+          listingsWithImages.push({
+            id: listing.id,
+            title: listing.title,
+            price: listing.price,
+            call_for_price: listing.call_for_price,
+            bedrooms: listing.bedrooms,
+            bathrooms: listing.bathrooms,
+            location: listing.location,
+            cross_streets: listing.cross_streets,
+            neighborhood: listing.neighborhood,
+            broker_fee: listing.broker_fee,
+            parking: listing.parking,
+            imageUrl: primaryImageUrl,
+            listingUrl: `https://hadirot.com/listing/${listing.id}`,
+          });
+          continue;
+        }
+
+        const imageData = await imageResponse.json();
+        const imageUrl = imageData.url;
+
+        // Download the generated image
+        const imageFileResponse = await fetch(imageUrl);
+        const imageBuffer = await imageFileResponse.arrayBuffer();
+
+        // Upload to Supabase Storage
+        const fileName = `listing-${listing.id}.png`;
+        const filePath = `${storagePath}/${fileName}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from('daily-listing-cards')
+          .upload(filePath, imageBuffer, {
+            contentType: 'image/png',
+            upsert: true,
+          });
+
+        if (uploadError) {
+          console.error(`❌ Failed to upload image for ${listing.id}:`, uploadError);
+          // Fallback to generated image URL
+          listingsWithImages.push({
+            id: listing.id,
+            title: listing.title,
+            price: listing.price,
+            call_for_price: listing.call_for_price,
+            bedrooms: listing.bedrooms,
+            bathrooms: listing.bathrooms,
+            location: listing.location,
+            cross_streets: listing.cross_streets,
+            neighborhood: listing.neighborhood,
+            broker_fee: listing.broker_fee,
+            parking: listing.parking,
+            imageUrl: imageUrl,
+            listingUrl: `https://hadirot.com/listing/${listing.id}`,
+          });
+        } else {
+          // Get public URL from storage
+          const { data: urlData } = supabase.storage
+            .from('daily-listing-cards')
+            .getPublicUrl(filePath);
+
+          imagesGenerated++;
+
+          listingsWithImages.push({
+            id: listing.id,
+            title: listing.title,
+            price: listing.price,
+            call_for_price: listing.call_for_price,
+            bedrooms: listing.bedrooms,
+            bathrooms: listing.bathrooms,
+            location: listing.location,
+            cross_streets: listing.cross_streets,
+            neighborhood: listing.neighborhood,
+            broker_fee: listing.broker_fee,
+            parking: listing.parking,
+            imageUrl: urlData.publicUrl,
+            listingUrl: `https://hadirot.com/listing/${listing.id}`,
+          });
+        }
+
+        console.log(`✅ Card image generated and uploaded for ${listing.id}`);
+      } catch (imageError) {
+        console.error(`❌ Error processing listing ${listing.id}:`, imageError);
+        // Continue with other listings even if one fails
+      }
+    }
+
+    if (listingsWithImages.length === 0) {
+      throw new Error('Failed to generate any images');
+    }
+
+    console.log(`✅ Generated ${imagesGenerated} images successfully`);
+
+    // 4. Generate and send email
     const dateStr = new Date().toLocaleDateString('en-US', {
       weekday: 'long',
       year: 'numeric',
@@ -138,27 +351,28 @@ async function generateAndSendDailyCards(triggeredBy = 'cron') {
       day: 'numeric',
     });
 
-    const textContent = generateDailyCardsTextEmail(listingsData, dateStr, whatsappGroupUrl);
+    const htmlContent = generateDailyCardsEmail(listingsWithImages, dateStr);
+    const textContent = generatePlainTextEmail(listingsWithImages, dateStr);
 
-    console.log('Sending email to:', typedConfig.recipient_emails);
+    console.log('📧 Sending email to:', typedConfig.recipient_emails);
 
     await sendViaZepto({
       to: typedConfig.recipient_emails,
-      subject: `Today's Hadirot Listings - ${dateStr} (${listingsCount} listings)`,
-      text: textContent,
-      html: textContent,
+      subject: `Daily Listing Cards - ${dateStr} (${listingsWithImages.length} listings)`,
+      html: htmlContent,
       fromName: 'Hadirot Daily Listings',
     });
 
     emailSent = true;
     success = true;
 
-    console.log('Email sent successfully!');
+    console.log('✅ Email sent successfully!');
 
+    // 5. Log successful execution
     await logExecution(supabase, {
       success: true,
       listings_count: listingsCount,
-      images_generated: 0,
+      images_generated: imagesGenerated,
       email_sent: true,
       error_message: null,
       execution_time_ms: Date.now() - startTime,
@@ -168,17 +382,19 @@ async function generateAndSendDailyCards(triggeredBy = 'cron') {
     return {
       success: true,
       listingsCount,
+      imagesGenerated,
       emailSent: true,
       executionTimeMs: Date.now() - startTime,
     };
   } catch (error) {
     errorMessage = error.message || String(error);
-    console.error('Error in daily cards generation:', errorMessage);
+    console.error('❌ Error in daily cards generation:', errorMessage);
 
+    // Log failed execution
     await logExecution(supabase, {
       success: false,
       listings_count: listingsCount,
-      images_generated: 0,
+      images_generated: imagesGenerated,
       email_sent: emailSent,
       error_message: errorMessage,
       execution_time_ms: Date.now() - startTime,
@@ -189,6 +405,9 @@ async function generateAndSendDailyCards(triggeredBy = 'cron') {
   }
 }
 
+/**
+ * Log execution to database
+ */
 async function logExecution(
   supabase: ReturnType<typeof createClient>,
   log: {
@@ -217,12 +436,16 @@ async function logExecution(
   }
 }
 
+/**
+ * HTTP handler for both cron and manual triggers
+ */
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { status: 200, headers: corsHeaders });
   }
 
   try {
+    // Check authentication
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
       return new Response(JSON.stringify({ error: 'Missing authorization' }), {
@@ -246,6 +469,7 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Check if user is admin
     const { data: profile } = await supabase
       .from('profiles')
       .select('is_admin')
@@ -259,6 +483,7 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Execute the daily cards generation
     const result = await generateAndSendDailyCards('manual');
 
     return new Response(JSON.stringify(result), {
@@ -276,14 +501,5 @@ Deno.serve(async (req) => {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       }
     );
-  }
-});
-
-Deno.cron('daily-listing-cards', '0 17 * * *', async () => {
-  try {
-    console.log('Cron triggered at 5:00 PM');
-    await generateAndSendDailyCards('cron');
-  } catch (error) {
-    console.error('Cron job failed:', error);
   }
 });

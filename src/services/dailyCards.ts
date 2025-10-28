@@ -15,7 +15,6 @@ export interface DailyCardsConfig {
   include_featured_only: boolean;
   days_to_include: number;
   timezone: string;
-  whatsapp_group_url: string;
   created_at: string;
   updated_at: string;
 }

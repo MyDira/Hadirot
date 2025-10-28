@@ -1,7 +1,7 @@
 const ZEPTO_API_URL = "https://api.zeptomail.com/v1.1/email";
 
 interface ZeptoAttachment {
-  content: string;
+  content: string; // base64 encoded
   mime_type: string;
   name: string;
 }
@@ -10,14 +10,13 @@ interface ZeptoParams {
   to: string | string[];
   subject: string;
   html: string;
-  text?: string;
   from?: string;
   fromName?: string;
   replyTo?: string;
   attachments?: ZeptoAttachment[];
 }
 
-export async function sendViaZepto({ to, subject, html, text, from, fromName, replyTo, attachments }: ZeptoParams) {
+export async function sendViaZepto({ to, subject, html, from, fromName, replyTo, attachments }: ZeptoParams) {
   const token = Deno.env.get("ZEPTO_TOKEN");
   const address = from || Deno.env.get("ZEPTO_FROM_ADDRESS") || "";
   const name = fromName || Deno.env.get("ZEPTO_FROM_NAME") || "";
@@ -32,7 +31,7 @@ export async function sendViaZepto({ to, subject, html, text, from, fromName, re
     from: { address, name },
     to: toList.map((addr) => ({ email_address: { address: addr } })),
     subject,
-    textbody: text || html,
+    htmlbody: html,
     reply_to: replyToAddress ? [{ address: replyToAddress }] : undefined,
     track_opens: false,
     track_clicks: false,
