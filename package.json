@@ -11,8 +11,7 @@
     "smoke:analytics": "tsx scripts/analytics-smoke.ts",
     "debug:analytics": "tsx scripts/analytics-debug.ts",
     "test:deactivation": "tsx scripts/test-deactivation-system.ts",
-    "seed:deactivation-tests": "tsx scripts/seed-deactivation-test-data.ts",
-    "test:digest": "tsx scripts/test-daily-digest.ts"
+    "seed:deactivation-tests": "tsx scripts/seed-deactivation-test-data.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.1",
