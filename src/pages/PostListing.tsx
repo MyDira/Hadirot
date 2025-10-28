@@ -32,7 +32,7 @@ interface ListingFormData {
   title: string;
   description: string;
   location: string;
-  neighborhood?: string;
+  neighborhood: string;
   bedrooms: number;
   bathrooms: number;
   additional_rooms?: number | null;
@@ -466,6 +466,13 @@ export function PostListing() {
           ? customNeighborhoodInput.trim()
           : neighborhoodSelectValue;
 
+    // Validate neighborhood is selected
+    if (!neighborhood || neighborhood.trim() === "") {
+      alert("Please select or enter a neighborhood");
+      setLoading(false);
+      return;
+    }
+
     if (neighborhoodSelectValue === "other" && neighborhood === "") {
       alert("Please enter a neighborhood");
       setLoading(false);
@@ -672,13 +679,14 @@ export function PostListing() {
                 placeholder="Main St & 1st Ave"
               />
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Neighborhood (Optional)
+                Neighborhood *
               </label>
               <select
                 name="neighborhood"
                 value={neighborhoodSelectValue}
                 onChange={handleNeighborhoodSelect}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
+                required
               >
                 <option value="">Select a neighborhood</option>
                 <option value="Midwood">Midwood</option>
