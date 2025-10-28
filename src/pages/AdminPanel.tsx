@@ -702,20 +702,20 @@ export function AdminPanel() {
         return 'Price Not Available';
       };
 
-      // Format bedroom text - just number or "Studio"
+      // Format bedroom text
       const bedroomText = listing.bedrooms === 0
         ? 'Studio'
-        : `${listing.bedrooms}`;
+        : `${listing.bedrooms} bedroom${listing.bedrooms !== 1 ? 's' : ''}`;
 
-      // Format bathroom text - just number
-      const bathroomText = `${listing.bathrooms}`;
+      // Format bathroom text
+      const bathroomText = `${listing.bathrooms} bathroom${listing.bathrooms !== 1 ? 's' : ''}`;
 
-      // Format parking - text only, or empty string if no parking
+      // Format parking
       const parkingText = listing.parking === 'yes' || listing.parking === 'included'
         ? 'Parking included'
         : listing.parking === 'available'
         ? 'Parking available'
-        : '';
+        : 'No parking';
 
       // Fee text
       const feeText = listing.broker_fee ? 'Broker Fee' : 'No Fee';
@@ -733,16 +733,9 @@ export function AdminPanel() {
       // Listing URL
       const listingUrl = `${siteUrl}/listing/${listing.id}`;
 
-      // Build line 2 with icons for bed/bath, text for parking (only if exists)
-      let line2 = `🛏️ ${bedroomText}, 🛁 ${bathroomText}`;
-      if (parkingText) {
-        line2 += `, ${parkingText}`;
-      }
-      line2 += `, ${feeText}`;
-
       // Build the text
       const text = `${formatPrice()}
-${line2}
+🛏️ ${bedroomText}, 🛁 ${bathroomText}, 🅿️ ${parkingText}, ${feeText}
 📍 ${locationText}
 ${ownerText}
 Click here to view the apartment: ${listingUrl}`;

@@ -35,7 +35,7 @@ function formatPrice(listing: DigestListing): string {
 function getParkingText(parking: string): string {
   if (parking === "yes" || parking === "included") return "Parking included";
   if (parking === "available") return "Parking available";
-  return ""; // No text if no parking
+  return "No parking";
 }
 
 function getOwnerText(listing: DigestListing): string {
@@ -57,23 +57,16 @@ function getLocationText(listing: DigestListing): string {
  */
 export function formatListingText(listing: DigestListing, siteUrl: string): string {
   const price = formatPrice(listing);
-  const bedrooms = listing.bedrooms === 0 ? "Studio" : `${listing.bedrooms}`;
-  const bathrooms = `${listing.bathrooms}`;
+  const bedrooms = listing.bedrooms === 0 ? "Studio" : `${listing.bedrooms} bedroom${listing.bedrooms !== 1 ? "s" : ""}`;
+  const bathrooms = `${listing.bathrooms} bathroom${listing.bathrooms !== 1 ? "s" : ""}`;
   const parking = getParkingText(listing.parking);
   const fee = listing.broker_fee ? "Broker Fee" : "No Fee";
   const location = getLocationText(listing);
   const owner = getOwnerText(listing);
   const listingUrl = `${siteUrl}/listing/${listing.id}`;
 
-  // Build line 2 with icons for bed/bath, text for parking (only if exists)
-  let line2 = `🛏️ ${bedrooms}, 🛁 ${bathrooms}`;
-  if (parking) {
-    line2 += `, ${parking}`;
-  }
-  line2 += `, ${fee}`;
-
   return `${price}
-${line2}
+🛏️ ${bedrooms}, 🛁 ${bathrooms}, 🅿️ ${parking}, ${fee}
 📍 ${location}
 ${owner}
 Click here to view the apartment: ${listingUrl}`;
@@ -90,20 +83,13 @@ export function generateDailyDigestEmail(
   const listingsHtml = listings
     .map((listing) => {
       const price = formatPrice(listing);
-      const bedrooms = listing.bedrooms === 0 ? "Studio" : `${listing.bedrooms}`;
-      const bathrooms = `${listing.bathrooms}`;
+      const bedrooms = listing.bedrooms === 0 ? "Studio" : `${listing.bedrooms} bedroom${listing.bedrooms !== 1 ? "s" : ""}`;
+      const bathrooms = `${listing.bathrooms} bathroom${listing.bathrooms !== 1 ? "s" : ""}`;
       const parking = getParkingText(listing.parking);
       const fee = listing.broker_fee ? "Broker Fee" : "No Fee";
       const location = getLocationText(listing);
       const owner = getOwnerText(listing);
       const listingUrl = `${siteUrl}/listing/${listing.id}`;
-
-      // Build line 2 with icons for bed/bath, text for parking (only if exists)
-      let line2 = `🛏️ ${bedrooms}, 🛁 ${bathrooms}`;
-      if (parking) {
-        line2 += `, ${parking}`;
-      }
-      line2 += `, ${fee}`;
 
       return `
         <div style="margin-bottom: 30px; padding: 20px; background: #ffffff; border: 1px solid #e5e7eb; border-radius: 8px;">
@@ -111,7 +97,7 @@ export function generateDailyDigestEmail(
             ${price}
           </div>
           <div style="color: #4b5563; margin-bottom: 8px; font-size: 15px;">
-            ${line2}
+            🛏️ ${bedrooms}, 🛁 ${bathrooms}, 🅿️ ${parking}, ${fee}
           </div>
           <div style="color: #4b5563; margin-bottom: 12px; font-size: 15px;">
             📍 ${location}
