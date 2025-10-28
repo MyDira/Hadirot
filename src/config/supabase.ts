@@ -15,12 +15,10 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
 });
 
 export type UserRole = 'tenant' | 'landlord' | 'agent';
-export type PropertyType = 'apartment_building' | 'apartment_house' | 'full_house' | 'duplex';
+export type PropertyType = 'apartment_building' | 'apartment_house' | 'full_house';
 export type ParkingType = 'yes' | 'included' | 'optional' | 'no';
 export type HeatType = 'included' | 'tenant_pays';
 export type LeaseLength = 'short_term' | '1_year' | '18_months' | '2_years';
-export type AcType = 'central' | 'split_unit' | 'window';
-export type ApartmentCondition = 'modern' | 'renovated' | 'large_rooms' | 'high_ceilings' | 'large_closets';
 
 export interface Profile {
   id: string;
@@ -48,7 +46,6 @@ export interface Listing {
   neighborhood?: string;
   bedrooms: number;
   bathrooms: number;
-  additional_rooms?: number | null;
   floor?: number;
   price: number | null;
   call_for_price?: boolean;
@@ -59,8 +56,6 @@ export interface Listing {
   broker_fee: boolean;
   lease_length?: LeaseLength | null;
   heat: HeatType;
-  ac_type?: AcType | null;
-  apartment_conditions?: ApartmentCondition[] | null;
   property_type: PropertyType;
   contact_name: string;
   contact_phone: string;

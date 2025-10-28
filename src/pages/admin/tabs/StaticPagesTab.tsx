@@ -1,7 +1,10 @@
+import React from 'react';
+import { StaticPageEditor } from '@/pages/admin/StaticPageEditor';
+
 export default function StaticPagesTab() {
   return (
-    <div>
-      <p className="text-gray-600">Static Pages tab component placeholder</p>
+    <div className="mt-6">
+      <StaticPageEditor showHeader={false} />
     </div>
   );
 }

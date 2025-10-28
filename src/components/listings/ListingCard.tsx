@@ -191,10 +191,7 @@ export function ListingCard({
           {listing.bedrooms === 0 ? (
             <span className="text-sm">Studio</span>
           ) : (
-            <span className="text-sm num-font">
-              {listing.bedrooms}
-              {listing.additional_rooms ? `+${listing.additional_rooms}` : ""}
-            </span>
+            <span className="text-sm num-font">{listing.bedrooms}</span>
           )}
           <Bath className="w-4 h-4 align-middle" />
           <span className="text-sm num-font">{listing.bathrooms}</span>

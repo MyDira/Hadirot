@@ -1,7 +1,10 @@
+import React from 'react';
+import { InternalAnalytics } from '@/pages/InternalAnalytics';
+
 export default function AnalyticsTab() {
   return (
-    <div>
-      <p className="text-gray-600">Analytics tab component placeholder</p>
+    <div className="mt-6">
+      <InternalAnalytics />
     </div>
   );
 }
