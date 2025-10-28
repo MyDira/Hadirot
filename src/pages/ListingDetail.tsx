@@ -16,6 +16,12 @@ import {
   Droplets,
   WashingMachine,
   DollarSign,
+  Wind,
+  Sparkles,
+  Wrench,
+  Maximize,
+  MoveVertical,
+  Archive,
 } from "lucide-react";
 import { Listing } from "../config/supabase";
 import { listingsService } from "../services/listings";
@@ -335,6 +341,8 @@ export function ListingDetail() {
         return "Apartment in House";
       case "full_house":
         return "Full House";
+      case "duplex":
+        return "Duplex";
       default:
         return listing.property_type;
     }
@@ -451,74 +459,7 @@ export function ListingDetail() {
             </div>
           </section>
 
-          {/* Mobile Contact Card - Second on mobile */}
-          <section id="ld-contact-card-mobile" className="lg:hidden text-base">
-            <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-6">
-              <h3 className="text-xl font-bold text-[#273140] mb-4">
-                Contact Information
-              </h3>
-
-              <div className="space-y-4">
-                <div className="flex items-center">
-                  <User className="w-5 h-5 text-[#273140] mr-3" />
-                  <div>
-                    <div className="font-semibold">{listing.contact_name}</div>
-                    <div className="text-sm text-gray-500">{getRoleLabel()}</div>
-                  </div>
-                </div>
-
-                <div className="flex items-center">
-                  <Phone className="w-5 h-5 text-[#273140] mr-3" />
-                  <a
-                    href={`tel:${listing.contact_phone}`}
-                    className="text-[#273140] hover:text-[#1e252f] font-medium transition-colors"
-                    onClick={handleCallClick}
-                  >
-                    {formatPhoneNumber(listing.contact_phone)}
-                  </a>
-                </div>
-              </div>
-
-              <div className="mt-6 space-y-3">
-                <a
-                  href={`tel:${listing.contact_phone}`}
-                  className="w-full bg-[#273140] text-white py-3 px-4 rounded-md font-semibold hover:bg-[#1e252f] transition-colors flex items-center justify-center"
-                  onClick={handleCallClick}
-                >
-                  <Phone className="w-5 h-5 mr-2" />
-                  Call Now
-                </a>
-
-                <a
-                  href={`sms:${listing.contact_phone.replace(/\D/g, "")}?body=Hi, I'm interested in your listing: ${listing.title}`}
-                  className="w-full bg-accent-500 text-white py-3 px-4 rounded-md font-semibold hover:bg-accent-600 transition-colors flex items-center justify-center"
-                  onClick={handleMessageClick}
-                >
-                  Send Message
-                </a>
-
-                {/*
-                  RELOCATED: Share button moved to contact card (Mobile)
-                  - Less intrusive than title position
-                  - Logically grouped with communication actions
-                  - Still accessible but not prominently placed
-                */}
-                <div className="w-full">
-                  <ShareButton
-                    listingId={listing.id}
-                    listingTitle={listing.title}
-                    variant="detail"
-                    className="w-full justify-center"
-                  />
-                </div>
-              </div>
-
-              <div className="mt-4 pt-4 border-t border-gray-200 text-xs text-gray-500">
-                Listed {new Date(listing.created_at).toLocaleDateString()}
-              </div>
-            </div>
-          </section>
-          {/* Title - Third on mobile */}
+          {/* Title - Second on mobile */}
           <section id="ld-title" className="order-3 lg:order-none">
             <h1 className="text-2xl md:text-[1.65rem] font-semibold text-[#273140] mb-2">
               {listing.title}
@@ -610,7 +551,10 @@ export function ListingDetail() {
                     {listing.bedrooms === 0 ? (
                       "Studio"
                     ) : (
-                      <span className="num-font">{listing.bedrooms}</span>
+                      <span className="num-font">
+                        {listing.bedrooms}
+                        {listing.additional_rooms ? `+${listing.additional_rooms}` : ""}
+                      </span>
                     )}
                   </div>
                 </div>
@@ -646,6 +590,74 @@ export function ListingDetail() {
                   </div>
                 </div>
                 <HomeIcon className="w-5 h-5 text-[#273140] ml-2 align-middle" />
+              </div>
+            </div>
+          </section>
+
+          {/* Mobile Contact Card - After basic info on mobile */}
+          <section id="ld-contact-card-mobile" className="lg:hidden text-base">
+            <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-6">
+              <h3 className="text-xl font-bold text-[#273140] mb-4">
+                Contact Information
+              </h3>
+
+              <div className="space-y-4">
+                <div className="flex items-center">
+                  <User className="w-5 h-5 text-[#273140] mr-3" />
+                  <div>
+                    <div className="font-semibold">{listing.contact_name}</div>
+                    <div className="text-sm text-gray-500">{getRoleLabel()}</div>
+                  </div>
+                </div>
+
+                <div className="flex items-center">
+                  <Phone className="w-5 h-5 text-[#273140] mr-3" />
+                  <a
+                    href={`tel:${listing.contact_phone}`}
+                    className="text-[#273140] hover:text-[#1e252f] font-medium transition-colors"
+                    onClick={handleCallClick}
+                  >
+                    {formatPhoneNumber(listing.contact_phone)}
+                  </a>
+                </div>
+              </div>
+
+              <div className="mt-6 space-y-3">
+                <a
+                  href={`tel:${listing.contact_phone}`}
+                  className="w-full bg-[#273140] text-white py-3 px-4 rounded-md font-semibold hover:bg-[#1e252f] transition-colors flex items-center justify-center"
+                  onClick={handleCallClick}
+                >
+                  <Phone className="w-5 h-5 mr-2" />
+                  Call Now
+                </a>
+
+                <a
+                  href={`sms:${listing.contact_phone.replace(/\D/g, "")}?body=Hi, I'm interested in your listing: ${listing.title}`}
+                  className="w-full bg-accent-500 text-white py-3 px-4 rounded-md font-semibold hover:bg-accent-600 transition-colors flex items-center justify-center"
+                  onClick={handleMessageClick}
+                >
+                  Send Message
+                </a>
+
+                {/*
+                  RELOCATED: Share button moved to contact card (Mobile)
+                  - Less intrusive than title position
+                  - Logically grouped with communication actions
+                  - Still accessible but not prominently placed
+                */}
+                <div className="w-full">
+                  <ShareButton
+                    listingId={listing.id}
+                    listingTitle={listing.title}
+                    variant="detail"
+                    className="w-full justify-center"
+                  />
+                </div>
+              </div>
+
+              <div className="mt-4 pt-4 border-t border-gray-200 text-xs text-gray-500">
+                Listed {new Date(listing.created_at).toLocaleDateString()}
               </div>
             </div>
           </section>
@@ -779,6 +791,52 @@ export function ListingDetail() {
                     <Calendar className="w-5 h-5 text-[#273140] mr-3" />
                     <span>Lease: {formatLeaseLength(listing.lease_length)}</span>
                   </div>
+                )}
+
+                {listing.ac_type && (
+                  <div className="flex items-center">
+                    <Wind className="w-5 h-5 text-[#273140] mr-3" />
+                    <span>
+                      {listing.ac_type === 'central' && 'Central AC'}
+                      {listing.ac_type === 'split_unit' && 'Split Unit AC'}
+                      {listing.ac_type === 'window' && 'Window AC'}
+                    </span>
+                  </div>
+                )}
+
+                {listing.apartment_conditions && listing.apartment_conditions.length > 0 && (
+                  <>
+                    {listing.apartment_conditions.includes('modern') && (
+                      <div className="flex items-center">
+                        <Sparkles className="w-5 h-5 text-[#273140] mr-3" />
+                        <span>Modern</span>
+                      </div>
+                    )}
+                    {listing.apartment_conditions.includes('renovated') && (
+                      <div className="flex items-center">
+                        <Wrench className="w-5 h-5 text-[#273140] mr-3" />
+                        <span>Renovated</span>
+                      </div>
+                    )}
+                    {listing.apartment_conditions.includes('large_rooms') && (
+                      <div className="flex items-center">
+                        <Maximize className="w-5 h-5 text-[#273140] mr-3" />
+                        <span>Large Rooms</span>
+                      </div>
+                    )}
+                    {listing.apartment_conditions.includes('high_ceilings') && (
+                      <div className="flex items-center">
+                        <MoveVertical className="w-5 h-5 text-[#273140] mr-3" />
+                        <span>High Ceilings</span>
+                      </div>
+                    )}
+                    {listing.apartment_conditions.includes('large_closets') && (
+                      <div className="flex items-center">
+                        <Archive className="w-5 h-5 text-[#273140] mr-3" />
+                        <span>Large Closets</span>
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             </div>
