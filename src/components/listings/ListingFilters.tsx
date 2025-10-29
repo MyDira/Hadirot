@@ -285,6 +285,7 @@ export function ListingFilters({
             <option value="">All Types</option>
             <option value="apartment_building">Apartment in Building</option>
             <option value="apartment_house">Apartment in House</option>
+            <option value="duplex">Duplex</option>
             <option value="full_house">Full House</option>
           </select>
         </div>

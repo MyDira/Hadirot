@@ -85,7 +85,7 @@ export function PostListing() {
     dishwasher: false,
     lease_length: null,
     heat: "tenant_pays",
-    property_type: "apartment_house",
+    property_type: "" as PropertyType,
     contact_name: profile?.full_name || "",
     contact_phone: profile?.phone || "",
     is_featured: false,
@@ -331,22 +331,18 @@ export function PostListing() {
     setFormData((prev) => ({ ...prev, neighborhood: value }));
   };
 
-  const handleBedroomChange = (value: string) => {
-    // Parse bedroom format: "3+1" -> bedrooms: 3, additional_rooms: 1
-    if (value.includes('+')) {
-      const [main, additional] = value.split('+').map(v => parseInt(v));
-      setFormData((prev) => ({
-        ...prev,
-        bedrooms: main || 0,
-        additional_rooms: additional || 0
-      }));
-    } else {
-      setFormData((prev) => ({
-        ...prev,
-        bedrooms: parseInt(value) || 0,
-        additional_rooms: 0
-      }));
-    }
+  const handleMainBedroomChange = (value: string) => {
+    setFormData((prev) => ({
+      ...prev,
+      bedrooms: parseInt(value) || 0
+    }));
+  };
+
+  const handleAdditionalRoomsChange = (value: string) => {
+    setFormData((prev) => ({
+      ...prev,
+      additional_rooms: value === "" ? 0 : parseInt(value) || 0
+    }));
   };
 
   const handleApartmentConditionToggle = (condition: string) => {
@@ -754,12 +750,15 @@ export function PostListing() {
                 name="property_type"
                 value={formData.property_type}
                 onChange={handleInputChange}
+                required
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
               >
+                <option value="">Select Property Type</option>
                 <option value="apartment_building">
                   Apartment in a building
                 </option>
                 <option value="apartment_house">Apartment in a house</option>
+                <option value="duplex">Duplex</option>
                 <option value="full_house">Full house</option>
               </select>
             </div>
@@ -779,29 +778,37 @@ export function PostListing() {
               </label>
               <select
                 name="bedrooms"
-                value={formData.additional_rooms > 0 ? `${formData.bedrooms}+${formData.additional_rooms}` : formData.bedrooms}
-                onChange={(e) => handleBedroomChange(e.target.value)}
+                value={formData.bedrooms}
+                onChange={(e) => handleMainBedroomChange(e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
               >
                 <option value={0}>Studio</option>
                 <option value={1}>1 Bedroom</option>
                 <option value={2}>2 Bedrooms</option>
                 <option value={3}>3 Bedrooms</option>
-                <option value="3+1">3+1 Bedrooms</option>
-                <option value="3+2">3+2 Bedrooms</option>
                 <option value={4}>4 Bedrooms</option>
-                <option value="4+1">4+1 Bedrooms</option>
-                <option value="4+2">4+2 Bedrooms</option>
                 <option value={5}>5 Bedrooms</option>
-                <option value="5+1">5+1 Bedrooms</option>
-                <option value="5+2">5+2 Bedrooms</option>
                 <option value={6}>6 Bedrooms</option>
-                <option value="6+1">6+1 Bedrooms</option>
-                <option value="6+2">6+2 Bedrooms</option>
                 <option value={7}>7 Bedrooms</option>
-                <option value="7+1">7+1 Bedrooms</option>
-                <option value="7+2">7+2 Bedrooms</option>
                 <option value={8}>8+ Bedrooms</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Additional Rooms (optional)
+              </label>
+              <select
+                name="additional_rooms"
+                value={formData.additional_rooms || ""}
+                onChange={(e) => handleAdditionalRoomsChange(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
+              >
+                <option value="">None</option>
+                <option value={1}>+1</option>
+                <option value={2}>+2</option>
+                <option value={3}>+3</option>
+                <option value={4}>+4</option>
               </select>
             </div>
 
@@ -875,7 +882,8 @@ export function PostListing() {
               </label>
             </div>
 
-            <div>
+            {/* Square Footage - Hidden but kept for future use */}
+            <div style={{ display: 'none' }}>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Square Footage
               </label>

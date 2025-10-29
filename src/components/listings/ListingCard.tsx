@@ -132,6 +132,11 @@ export function ListingCard({
               Full House
             </div>
           )}
+          {listing.property_type === "duplex" && (
+            <div className="rounded-full bg-black/35 px-3 py-1 text-xs font-medium text-white backdrop-blur-sm">
+              Duplex
+            </div>
+          )}
           {listing.lease_length === "short_term" && (
             <div className="rounded-full bg-black/35 px-3 py-1 text-xs font-medium text-white backdrop-blur-sm">
               Short Term
