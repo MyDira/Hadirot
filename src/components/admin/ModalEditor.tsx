@@ -212,13 +212,20 @@ export function ModalEditor({ modalForm, isEditing, onSave, onCancel, onChange }
                   Button URL <span className="text-red-500">*</span>
                 </label>
                 <input
-                  type="url"
+                  type="text"
                   value={modalForm.button_url}
                   onChange={(e) => onChange({ button_url: e.target.value })}
-                  placeholder="https://chat.whatsapp.com/..."
+                  onBlur={(e) => {
+                    let url = e.target.value.trim();
+                    // Auto-add https:// if no protocol is specified and URL is not empty
+                    if (url && !url.match(/^[a-zA-Z]+:\/\//)) {
+                      onChange({ button_url: 'https://' + url });
+                    }
+                  }}
+                  placeholder="https://chat.whatsapp.com/... or amazon.com"
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-accent-500 focus:border-transparent"
                 />
-                <p className="mt-1 text-xs text-gray-500">Opens in a new tab</p>
+                <p className="mt-1 text-xs text-gray-500">Opens in a new tab. https:// will be added automatically if missing.</p>
               </div>
 
               <div className="flex items-center gap-2">

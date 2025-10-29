@@ -14,7 +14,12 @@ export function CustomModal({ modal, isOpen, onClose, onButtonClick }: CustomMod
 
   const handleButtonClick = () => {
     onButtonClick();
-    window.open(modal.button_url, '_blank', 'noopener,noreferrer');
+    // Ensure URL has protocol - if missing, add https://
+    let url = modal.button_url;
+    if (url && !url.match(/^[a-zA-Z]+:\/\//)) {
+      url = 'https://' + url;
+    }
+    window.open(url, '_blank', 'noopener,noreferrer');
   };
 
   const handleBackdropClick = (e: React.MouseEvent<HTMLDivElement>) => {
