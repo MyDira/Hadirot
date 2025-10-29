@@ -11,10 +11,8 @@ import { trackFilterApply } from "../lib/analytics";
 import { useListingImpressions } from "../hooks/useListingImpressions";
 import { useBrowseFilters } from "../hooks/useBrowseFilters";
 
-export type SortOption = 'newest' | 'oldest' | 'price_asc' | 'price_desc' | 'bedrooms_asc' | 'bedrooms_desc' | 'bathrooms_asc' | 'bathrooms_desc';
-
 interface FilterState {
-  bedrooms?: number[];
+  bedrooms?: number;
   poster_type?: string;
   agency_name?: string;
   property_type?: string;
@@ -23,7 +21,6 @@ interface FilterState {
   parking_included?: boolean;
   no_fee_only?: boolean;
   neighborhoods?: string[];
-  sort?: SortOption;
 }
 
 export function BrowseListings() {
@@ -298,10 +295,10 @@ export function BrowseListings() {
     gaEvent("filter_apply", {
       price_min: newFilters.min_price ?? null,
       price_max: newFilters.max_price ?? null,
-      bedrooms: newFilters.bedrooms?.join(",") ?? null,
+      bedrooms: newFilters.bedrooms ?? null,
       neighborhood: newFilters.neighborhoods?.join(",") ?? null,
       no_fee_only: !!newFilters.no_fee_only,
-      sort: newFilters.sort ?? null,
+      sort: null,
     });
 
     // Track with our analytics system
@@ -392,13 +389,12 @@ export function BrowseListings() {
         >
           <Filter className="w-5 h-5 mr-2" />
           <span className="font-medium">Filter Listings</span>
-          {((filters.bedrooms && filters.bedrooms.length > 0) ||
+          {(filters.bedrooms !== undefined ||
             filters.poster_type ||
             filters.property_type ||
             filters.min_price ||
             filters.max_price ||
             filters.parking_included ||
-            filters.sort ||
             (filters.neighborhoods && filters.neighborhoods.length > 0)) && (
             <span className="ml-2 bg-[#667B9A] text-white text-xs px-2 py-1 rounded-full">
               Active

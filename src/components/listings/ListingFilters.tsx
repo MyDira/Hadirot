@@ -1,11 +1,9 @@
 import React from "react";
-import { Filter, ArrowUpDown } from "lucide-react";
+import { Filter } from "lucide-react";
 import { listingsService } from "../../services/listings";
 
-export type SortOption = 'newest' | 'oldest' | 'price_asc' | 'price_desc' | 'bedrooms_asc' | 'bedrooms_desc' | 'bathrooms_asc' | 'bathrooms_desc';
-
 interface FilterState {
-  bedrooms?: number[];
+  bedrooms?: number;
   poster_type?: string;
   agency_name?: string;
   property_type?: string;
@@ -14,7 +12,6 @@ interface FilterState {
   parking_included?: boolean;
   no_fee_only?: boolean;
   neighborhoods?: string[];
-  sort?: SortOption;
 }
 
 interface ListingFiltersProps {
@@ -34,12 +31,9 @@ export function ListingFilters({
 }: ListingFiltersProps) {
   const [showNeighborhoodDropdown, setShowNeighborhoodDropdown] =
     React.useState(false);
-  const [showBedroomDropdown, setShowBedroomDropdown] = React.useState(false);
   const [neighborhoodOptions, setNeighborhoodOptions] = React.useState<string[]>(
     allNeighborhoods,
   );
-  const [bedroomOptions, setBedroomOptions] = React.useState<{ bedrooms: number; count: number; label: string }[]>([]);
-  const [loadingBedrooms, setLoadingBedrooms] = React.useState(false);
 
   React.useEffect(() => {
     const loadNeighborhoods = async () => {
@@ -49,61 +43,25 @@ export function ListingFilters({
     loadNeighborhoods();
   }, []);
 
-  // Load available bedroom options based on current filters
-  React.useEffect(() => {
-    const loadBedroomOptions = async () => {
-      setLoadingBedrooms(true);
-      try {
-        const { bedrooms: currentBedrooms, ...otherFilters } = filters;
-        const { no_fee_only, ...restFilters } = otherFilters;
-        const serviceFilters = { ...restFilters, noFeeOnly: no_fee_only };
-
-        const counts = await listingsService.getAvailableBedroomCounts(serviceFilters);
-
-        const options = counts.map(({ bedrooms, count }) => {
-          let label = '';
-          if (bedrooms === 0) {
-            label = 'Studio';
-          } else if (bedrooms >= 4) {
-            label = `${bedrooms}+ BR`;
-          } else {
-            label = `${bedrooms} BR`;
-          }
-          return { bedrooms, count, label };
-        });
-
-        setBedroomOptions(options);
-      } catch (error) {
-        console.error('Error loading bedroom options:', error);
-        setBedroomOptions([]);
-      } finally {
-        setLoadingBedrooms(false);
-      }
-    };
-
-    loadBedroomOptions();
-  }, [filters.property_type, filters.min_price, filters.max_price, filters.parking_included, filters.no_fee_only, filters.neighborhoods, filters.poster_type, filters.agency_name]);
-
   // Debug: Log when filters prop changes
   React.useEffect(() => {
     console.log('🎛️ ListingFilters: Received filters prop:', filters);
   }, [filters]);
 
-  // Close dropdowns when clicking outside
+  // Close dropdown when clicking outside
   React.useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       const target = event.target as Element;
-      if (!target.closest(".dropdown-container")) {
+      if (!target.closest(".relative")) {
         setShowNeighborhoodDropdown(false);
-        setShowBedroomDropdown(false);
       }
     };
 
-    if (showNeighborhoodDropdown || showBedroomDropdown) {
+    if (showNeighborhoodDropdown) {
       document.addEventListener("click", handleClickOutside);
       return () => document.removeEventListener("click", handleClickOutside);
     }
-  }, [showNeighborhoodDropdown, showBedroomDropdown]);
+  }, [showNeighborhoodDropdown]);
 
   const handleFilterChange = (key: keyof FilterState, value: any) => {
     const newFilters = {
@@ -153,82 +111,41 @@ export function ListingFilters({
         className={`grid gap-4 ${
           isMobile
             ? "grid-cols-1"
-            : "grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-8"
+            : "grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-7"
         }`}
       >
-        {/* Bedrooms - Multi-select */}
+        {/* Bedrooms */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
             Bedrooms
           </label>
-          <div className="relative dropdown-container">
-            <div
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus-within:ring-[#273140] focus-within:border-[#273140] h-10 cursor-pointer bg-white flex items-center justify-between"
-              onClick={() => setShowBedroomDropdown(!showBedroomDropdown)}
-            >
-              <span className="text-sm text-gray-700 truncate">
-                {loadingBedrooms
-                  ? "Loading..."
-                  : filters.bedrooms && filters.bedrooms.length > 0
-                    ? `${filters.bedrooms.length} selected`
-                    : "Select bedrooms..."}
-              </span>
-              <svg
-                className="w-4 h-4 text-gray-400"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M19 9l-7 7-7-7"
-                />
-              </svg>
-            </div>
-
-            {showBedroomDropdown && bedroomOptions.length > 0 && (
-              <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
-                {bedroomOptions.map((option) => {
-                  const isSelected = filters.bedrooms?.includes(option.bedrooms) || false;
-                  return (
-                    <div
-                      key={option.bedrooms}
-                      className="px-3 py-2 hover:bg-gray-50 cursor-pointer flex items-center justify-between"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        const currentBedrooms = filters.bedrooms || [];
-                        let newBedrooms;
-
-                        if (isSelected) {
-                          newBedrooms = currentBedrooms.filter((b) => b !== option.bedrooms);
-                        } else {
-                          newBedrooms = [...currentBedrooms, option.bedrooms];
-                        }
-
-                        handleFilterChange(
-                          "bedrooms",
-                          newBedrooms.length > 0 ? newBedrooms : undefined
-                        );
-                      }}
-                    >
-                      <div className="flex items-center">
-                        <input
-                          type="checkbox"
-                          checked={isSelected}
-                          onChange={() => {}}
-                          className="mr-2 h-4 w-4 text-[#273140] focus:ring-[#273140] border-gray-300 rounded"
-                        />
-                        <span className="text-sm">{option.label}</span>
-                      </div>
-                      <span className="text-xs text-gray-500">({option.count})</span>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
+          <select
+            value={
+              filters.bedrooms === 0
+                ? "0"
+                : filters.bedrooms === undefined
+                  ? ""
+                  : filters.bedrooms
+            }
+            onChange={(e) => {
+              const selectedValue = e.target.value;
+              let newBedroomsFilter: number | undefined;
+              if (selectedValue === "") {
+                newBedroomsFilter = undefined; // This handles the "Any" option
+              } else {
+                newBedroomsFilter = parseInt(selectedValue); // This correctly parses "0" as the number 0
+              }
+              handleFilterChange("bedrooms", newBedroomsFilter);
+            }}
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
+          >
+            <option value="">Any</option>
+            <option value="0">Studio</option>
+            <option value="1">1 BR</option>
+            <option value="2">2 BR</option>
+            <option value="3">3 BR</option>
+            <option value="4">4+ BR</option>
+          </select>
         </div>
 
         {/* Who is Listing */}
@@ -411,30 +328,6 @@ export function ListingFilters({
           />
         </div>
 
-        {/* Sort */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            <ArrowUpDown className="w-4 h-4 inline mr-1" />
-            Sort By
-          </label>
-          <select
-            value={filters.sort || "newest"}
-            onChange={(e) =>
-              handleFilterChange("sort", e.target.value || undefined)
-            }
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
-          >
-            <option value="newest">Newest to Oldest</option>
-            <option value="oldest">Oldest to Newest</option>
-            <option value="price_asc">Price: Low to High</option>
-            <option value="price_desc">Price: High to Low</option>
-            <option value="bedrooms_asc">Bedrooms: Low to High</option>
-            <option value="bedrooms_desc">Bedrooms: High to Low</option>
-            <option value="bathrooms_asc">Bathrooms: Low to High</option>
-            <option value="bathrooms_desc">Bathrooms: High to Low</option>
-          </select>
-        </div>
-
         {/* Parking Included & No Fee */}
         <div className="flex flex-col space-y-2 justify-end">
           <label className="flex items-start gap-2">
@@ -481,48 +374,10 @@ export function ListingFilters({
         </div>
       )}
 
-      {/* Selected filter tags - displayed horizontally below filters */}
-      {((filters.bedrooms && filters.bedrooms.length > 0) || (filters.neighborhoods && filters.neighborhoods.length > 0)) && (
+      {/* Selected neighborhoods tags - displayed horizontally below filters */}
+      {filters.neighborhoods && filters.neighborhoods.length > 0 && (
         <div className="mt-4 flex flex-wrap gap-2">
-          {/* Bedroom tags */}
-          {filters.bedrooms && filters.bedrooms.length > 0 && filters.bedrooms.map((bedrooms) => {
-            const option = bedroomOptions.find(opt => opt.bedrooms === bedrooms);
-            const label = option?.label || `${bedrooms} BR`;
-            return (
-              <span
-                key={`bedroom-${bedrooms}`}
-                className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-[#273140] text-white"
-              >
-                {label}
-                <button
-                  type="button"
-                  onClick={() => {
-                    const newBedrooms = filters.bedrooms?.filter((b) => b !== bedrooms);
-                    handleFilterChange(
-                      "bedrooms",
-                      newBedrooms?.length ? newBedrooms : undefined
-                    );
-                  }}
-                  className="ml-2 hover:bg-[#1e252f] rounded-full p-0.5"
-                >
-                  <svg
-                    className="w-3 h-3"
-                    fill="currentColor"
-                    viewBox="0 0 20 20"
-                  >
-                    <path
-                      fillRule="evenodd"
-                      d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
-                      clipRule="evenodd"
-                    />
-                  </svg>
-                </button>
-              </span>
-            );
-          })}
-
-          {/* Neighborhood tags */}
-          {filters.neighborhoods && filters.neighborhoods.length > 0 && filters.neighborhoods.map((neighborhood) => (
+          {filters.neighborhoods.map((neighborhood) => (
             <span
               key={neighborhood}
               className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-[#667B9A] text-white"
