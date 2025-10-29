@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useSearchParams, useNavigate } from 'react-router-dom';
-import { Users, FileText, Eye, Trash2, Shield, TrendingUp, Home, Star, Power, ChevronDown, Search, ChevronRight, BarChart3, MessageSquare, UserCheck, ArrowRight } from 'lucide-react';
+import { Users, FileText, Eye, Trash2, Shield, TrendingUp, Home, Star, Power, ChevronDown, Search, ChevronRight, BarChart3, MessageSquare, UserCheck, ArrowRight, Mail } from 'lucide-react';
 import { listingsService } from '../services/listings';
 import { agenciesService } from '../services/agencies';
 import { useAuth } from '@/hooks/useAuth';
