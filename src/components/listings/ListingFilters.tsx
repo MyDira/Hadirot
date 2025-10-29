@@ -64,7 +64,7 @@ export function ListingFilters({
           let label = '';
           if (bedrooms === 0) {
             label = 'Studio';
-          } else if (bedrooms >= 8) {
+          } else if (bedrooms >= 4) {
             label = `${bedrooms}+ BR`;
           } else {
             label = `${bedrooms} BR`;
@@ -487,16 +487,7 @@ export function ListingFilters({
           {/* Bedroom tags */}
           {filters.bedrooms && filters.bedrooms.length > 0 && filters.bedrooms.map((bedrooms) => {
             const option = bedroomOptions.find(opt => opt.bedrooms === bedrooms);
-            let label = option?.label;
-            if (!label) {
-              if (bedrooms === 0) {
-                label = 'Studio';
-              } else if (bedrooms >= 8) {
-                label = `${bedrooms}+ BR`;
-              } else {
-                label = `${bedrooms} BR`;
-              }
-            }
+            const label = option?.label || `${bedrooms} BR`;
             return (
               <span
                 key={`bedroom-${bedrooms}`}
