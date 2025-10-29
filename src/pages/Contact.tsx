@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Mail, Phone, User, Send } from 'lucide-react';
 import { staticPagesService, StaticPage } from '../services/staticPages';
 import { sanitizeHtml } from '../utils/sanitize';
+import { supabase } from '../config/supabase';
 import '@/styles/static-page.css';
 
 interface ContactFormData {
@@ -72,24 +73,21 @@ export function Contact() {
     setFormStatus({ type: 'loading', message: 'Sending your message...' });
 
     try {
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const response = await fetch(`${supabaseUrl}/functions/v1/send-contact-message`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
+      const { data, error } = await supabase.functions.invoke('send-contact-message', {
+        body: {
           name: formData.name,
           email: formData.email,
           phone: formData.phone || undefined,
           message: formData.message,
-        }),
+        },
       });
 
-      const data = await response.json();
+      if (error) {
+        throw new Error(error.message || 'Failed to send message');
+      }
 
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to send message');
+      if (data?.error) {
+        throw new Error(data.error);
       }
 
       setFormStatus({
@@ -97,7 +95,6 @@ export function Contact() {
         message: 'Thank you for your message! We\'ll get back to you soon.',
       });
 
-      // Reset form
       setFormData({
         name: '',
         email: '',
