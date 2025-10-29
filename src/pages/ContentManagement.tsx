@@ -1,10 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { FileText, Star, MessageSquare, Save, Trash2, Plus, Eye, EyeOff, Edit2, X } from 'lucide-react';
+import { FileText, Star, MessageSquare, Save, Trash2, Plus, Eye, EyeOff, Edit2, X, Settings, Search, ChevronLeft, Monitor, Smartphone, BarChart3, Users, Power } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { staticPagesService, StaticPage } from '../services/staticPages';
 import { modalsService, ModalPopup, CreateModalInput } from '../services/modals';
 import { supabase, Profile } from '../config/supabase';
+import { ModalPreview } from '../components/admin/ModalPreview';
+import { ModalManagement } from '../components/admin/ModalManagement';
+import { ModalEditor } from '../components/admin/ModalEditor';
 
 const CONTENT_TAB_KEYS = ['static-pages', 'featured', 'modals'] as const;
 type ContentTabKey = (typeof CONTENT_TAB_KEYS)[number];
@@ -53,6 +56,19 @@ export function ContentManagement() {
     delay_seconds: 0,
     priority: 0,
   });
+  const [modalSearchTerm, setModalSearchTerm] = useState('');
+  const [modalStats, setModalStats] = useState<{ [key: string]: { totalShown: number; totalClicked: number; totalDismissed: number; clickThroughRate: number } }>({});
+  const [selectedModal, setSelectedModal] = useState<ModalPopup | null>(null);
+
+  // Featured Settings state
+  const [globalFeaturedLimit, setGlobalFeaturedLimit] = useState<number>(9);
+  const [perUserFeaturedLimit, setPerUserFeaturedLimit] = useState<number>(0);
+  const [userSearchTerm, setUserSearchTerm] = useState('');
+  const [savingGlobalSettings, setSavingGlobalSettings] = useState(false);
+
+  // Static Pages state
+  const [selectedPageId, setSelectedPageId] = useState<string | null>(null);
+  const [showPageEditor, setShowPageEditor] = useState(false);
 
   const [toast, setToast] = useState<{ message: string; tone: 'success' | 'error' } | null>(null);
 
@@ -103,6 +119,9 @@ export function ContentManagement() {
       if (activeTab === 'static-pages') {
         const pages = await staticPagesService.getAllStaticPages();
         setStaticPages(pages);
+        if (pages.length > 0 && !selectedPageId) {
+          setSelectedPageId(pages[0].id);
+        }
       } else if (activeTab === 'featured') {
         const { data, error } = await supabase
           .from('profiles')
@@ -111,9 +130,32 @@ export function ContentManagement() {
         if (!error && data) {
           setUsers(data);
         }
+
+        // Load global settings
+        const { data: settingsData } = await supabase
+          .from('admin_settings')
+          .select('max_featured_listings, max_featured_per_user')
+          .single();
+
+        if (settingsData) {
+          setGlobalFeaturedLimit(settingsData.max_featured_listings || 9);
+          setPerUserFeaturedLimit(settingsData.max_featured_per_user || 0);
+        }
       } else if (activeTab === 'modals') {
         const allModals = await modalsService.getAllModals();
         setModals(allModals);
+
+        // Load statistics for each modal
+        const stats: { [key: string]: any } = {};
+        for (const modal of allModals) {
+          try {
+            const modalStats = await modalsService.getModalStatistics(modal.id);
+            stats[modal.id] = modalStats;
+          } catch (e) {
+            console.error('Error loading stats for modal:', modal.id, e);
+          }
+        }
+        setModalStats(stats);
       }
     } catch (error) {
       console.error('Error loading data:', error);
@@ -167,7 +209,7 @@ export function ContentManagement() {
     try {
       const { error } = await supabase
         .from('profiles')
-        .update({ max_featured_listings: newLimit })
+        .update({ max_featured_listings_per_user: newLimit })
         .eq('id', userId);
 
       if (error) throw error;
@@ -208,9 +250,11 @@ export function ContentManagement() {
 
   const handleCreateModal = async () => {
     try {
-      await modalsService.createModal(modalForm);
+      const newModal = await modalsService.createModal(modalForm);
       setToast({ message: 'Modal created successfully', tone: 'success' });
       setShowCreateModal(false);
+      setSelectedModal(newModal);
+      setEditingModalId(newModal.id);
       setModalForm({
         name: '',
         heading: '',
@@ -228,6 +272,80 @@ export function ContentManagement() {
     } catch (error) {
       console.error('Error creating modal:', error);
       setToast({ message: 'Failed to create modal', tone: 'error' });
+    }
+  };
+
+  const handleEditModal = (modal: ModalPopup) => {
+    setSelectedModal(modal);
+    setEditingModalId(modal.id);
+    setModalForm({
+      name: modal.name,
+      heading: modal.heading,
+      subheading: modal.subheading || '',
+      additional_text_lines: modal.additional_text_lines || [],
+      button_text: modal.button_text,
+      button_url: modal.button_url,
+      is_active: modal.is_active,
+      trigger_pages: modal.trigger_pages || [],
+      display_frequency: modal.display_frequency,
+      custom_interval_hours: modal.custom_interval_hours,
+      delay_seconds: modal.delay_seconds,
+      priority: modal.priority,
+    });
+  };
+
+  const handleSaveModal = async () => {
+    if (!editingModalId) return;
+
+    try {
+      await modalsService.updateModal(editingModalId, modalForm);
+      setToast({ message: 'Modal updated successfully', tone: 'success' });
+      setEditingModalId(null);
+      setSelectedModal(null);
+      loadData();
+    } catch (error) {
+      console.error('Error updating modal:', error);
+      setToast({ message: 'Failed to update modal', tone: 'error' });
+    }
+  };
+
+  const handleCancelModalEdit = () => {
+    setEditingModalId(null);
+    setSelectedModal(null);
+    setModalForm({
+      name: '',
+      heading: '',
+      subheading: '',
+      additional_text_lines: [],
+      button_text: '',
+      button_url: '',
+      is_active: false,
+      trigger_pages: [],
+      display_frequency: 'once_per_session',
+      delay_seconds: 0,
+      priority: 0,
+    });
+  };
+
+  const handleSaveGlobalSettings = async () => {
+    setSavingGlobalSettings(true);
+    try {
+      const { error } = await supabase
+        .from('admin_settings')
+        .update({
+          max_featured_listings: globalFeaturedLimit,
+          max_featured_per_user: perUserFeaturedLimit,
+        })
+        .eq('id', (await supabase.from('admin_settings').select('id').single()).data?.id);
+
+      if (error) throw error;
+
+      setToast({ message: 'Global settings saved successfully', tone: 'success' });
+    } catch (error) {
+      console.error('Error saving global settings:', error);
+      setToast({ message: 'Failed to save global settings', tone: 'error' });
+    } finally {
+      setSavingGlobalSettings(false);
     }
   };
 
@@ -278,191 +396,320 @@ export function ContentManagement() {
             ) : (
               <>
                 {activeTab === 'static-pages' && (
-                  <div className="space-y-6">
-                    <h2 className="text-xl font-semibold text-gray-900">Static Pages</h2>
-                    {staticPages.map((page) => (
-                      <div key={page.id} className="border border-gray-200 rounded-lg p-4">
-                        {editingPageId === page.id ? (
-                          <div className="space-y-4">
-                            <input
-                              type="text"
-                              value={pageEdits[page.id]?.title || ''}
-                              onChange={(e) => setPageEdits(prev => ({
-                                ...prev,
-                                [page.id]: { ...prev[page.id], title: e.target.value, content: prev[page.id]?.content || '' }
-                              }))}
-                              className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                              placeholder="Page Title"
-                            />
-                            <textarea
-                              value={pageEdits[page.id]?.content || ''}
-                              onChange={(e) => setPageEdits(prev => ({
-                                ...prev,
-                                [page.id]: { ...prev[page.id], title: prev[page.id]?.title || '', content: e.target.value }
-                              }))}
-                              rows={10}
-                              className="w-full px-3 py-2 border border-gray-300 rounded-lg font-mono text-sm"
-                              placeholder="HTML Content"
-                            />
-                            <div className="flex gap-2">
-                              <button
-                                onClick={() => handleSavePage(page.id)}
-                                className="flex items-center px-4 py-2 bg-brand-600 text-white rounded-lg hover:bg-brand-700"
-                              >
-                                <Save className="w-4 h-4 mr-2" />
-                                Save
-                              </button>
-                              <button
-                                onClick={() => handleCancelEdit(page.id)}
-                                className="flex items-center px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
-                              >
-                                <X className="w-4 h-4 mr-2" />
-                                Cancel
-                              </button>
-                            </div>
-                          </div>
-                        ) : (
-                          <div>
-                            <div className="flex items-center justify-between mb-2">
-                              <h3 className="text-lg font-semibold text-gray-900">{page.title}</h3>
-                              <button
-                                onClick={() => handleEditPage(page.id)}
-                                className="flex items-center px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200"
-                              >
-                                <Edit2 className="w-4 h-4 mr-1" />
-                                Edit
-                              </button>
-                            </div>
-                            <p className="text-sm text-gray-500">ID: {page.id}</p>
+                  <div className="flex gap-6 h-[calc(100vh-300px)]">
+                    {/* Page Selector Sidebar */}
+                    <div className="w-80 flex-shrink-0 border-r border-gray-200 pr-6">
+                      <div className="space-y-4">
+                        <button
+                          className="w-full flex items-center justify-center px-4 py-2 bg-accent-500 text-white rounded-lg hover:bg-accent-600 transition-colors"
+                        >
+                          <Plus className="w-4 h-4 mr-2" />
+                          Create New Page
+                        </button>
+
+                        <div className="space-y-2">
+                          {staticPages.map((page) => (
+                            <button
+                              key={page.id}
+                              onClick={() => {
+                                setSelectedPageId(page.id);
+                                setEditingPageId(page.id);
+                                handleEditPage(page.id);
+                              }}
+                              className={`w-full text-left px-4 py-3 rounded-lg transition-colors ${
+                                selectedPageId === page.id
+                                  ? 'bg-gray-800 text-white'
+                                  : 'bg-white border border-gray-200 hover:bg-gray-50'
+                              }`}
+                            >
+                              <div className="font-medium">{page.title}</div>
+                            </button>
+                          ))}
+                        </div>
+
+                        {staticPages.length > 0 && (
+                          <div className="text-xs text-gray-500 pt-4">
+                            Last updated: {new Date().toLocaleDateString()}
                           </div>
                         )}
                       </div>
-                    ))}
-                  </div>
-                )}
-
-                {activeTab === 'featured' && (
-                  <div className="space-y-6">
-                    <h2 className="text-xl font-semibold text-gray-900">Featured Listing Limits</h2>
-                    <div className="space-y-4">
-                      {users.map((user) => (
-                        <div key={user.id} className="flex items-center justify-between border border-gray-200 rounded-lg p-4">
-                          <div>
-                            <p className="font-medium text-gray-900">{user.full_name}</p>
-                            <p className="text-sm text-gray-500">{user.role}</p>
-                          </div>
-                          <div className="flex items-center gap-4">
-                            <input
-                              type="number"
-                              min="0"
-                              value={user.max_featured_listings || 0}
-                              onChange={(e) => handleUpdateFeaturedLimit(user.id, parseInt(e.target.value) || 0)}
-                              disabled={updatingUserId === user.id}
-                              className="w-20 px-3 py-2 border border-gray-300 rounded-lg text-center"
-                            />
-                            <span className="text-sm text-gray-600">max featured</span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {activeTab === 'modals' && (
-                  <div className="space-y-6">
-                    <div className="flex items-center justify-between">
-                      <h2 className="text-xl font-semibold text-gray-900">Modal Popups</h2>
-                      <button
-                        onClick={() => setShowCreateModal(true)}
-                        className="flex items-center px-4 py-2 bg-brand-600 text-white rounded-lg hover:bg-brand-700"
-                      >
-                        <Plus className="w-4 h-4 mr-2" />
-                        Create Modal
-                      </button>
                     </div>
 
-                    {showCreateModal && (
-                      <div className="border border-gray-200 rounded-lg p-4 bg-gray-50">
-                        <h3 className="text-lg font-semibold mb-4">Create New Modal</h3>
-                        <div className="space-y-4">
-                          <input
-                            type="text"
-                            placeholder="Modal Name"
-                            value={modalForm.name}
-                            onChange={(e) => setModalForm(prev => ({ ...prev, name: e.target.value }))}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                          />
-                          <input
-                            type="text"
-                            placeholder="Heading"
-                            value={modalForm.heading}
-                            onChange={(e) => setModalForm(prev => ({ ...prev, heading: e.target.value }))}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                          />
-                          <input
-                            type="text"
-                            placeholder="Button Text"
-                            value={modalForm.button_text}
-                            onChange={(e) => setModalForm(prev => ({ ...prev, button_text: e.target.value }))}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                          />
-                          <input
-                            type="text"
-                            placeholder="Button URL"
-                            value={modalForm.button_url}
-                            onChange={(e) => setModalForm(prev => ({ ...prev, button_url: e.target.value }))}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                          />
+                    {/* Page Editor */}
+                    {selectedPageId && editingPageId && (
+                      <div className="flex-1 space-y-4">
+                        <div className="flex items-center justify-between">
+                          <h2 className="text-xl font-bold text-gray-900">
+                            Editing: {staticPages.find(p => p.id === selectedPageId)?.title}
+                          </h2>
                           <div className="flex gap-2">
                             <button
-                              onClick={handleCreateModal}
-                              className="px-4 py-2 bg-brand-600 text-white rounded-lg hover:bg-brand-700"
-                            >
-                              Create
-                            </button>
-                            <button
-                              onClick={() => setShowCreateModal(false)}
-                              className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
+                              onClick={() => handleCancelEdit(selectedPageId)}
+                              className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
                             >
                               Cancel
                             </button>
+                            <button
+                              onClick={() => handleSavePage(selectedPageId)}
+                              className="flex items-center px-4 py-2 bg-accent-500 text-white rounded-lg hover:bg-accent-600"
+                            >
+                              <Save className="w-4 h-4 mr-2" />
+                              Save
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="space-y-4">
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                              Page Title
+                            </label>
+                            <input
+                              type="text"
+                              value={pageEdits[selectedPageId]?.title || ''}
+                              onChange={(e) => setPageEdits(prev => ({
+                                ...prev,
+                                [selectedPageId]: { ...prev[selectedPageId], title: e.target.value, content: prev[selectedPageId]?.content || '' }
+                              }))}
+                              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-accent-500 focus:border-transparent"
+                              placeholder="Page Title"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                              Page Content
+                            </label>
+                            <textarea
+                              value={pageEdits[selectedPageId]?.content || ''}
+                              onChange={(e) => setPageEdits(prev => ({
+                                ...prev,
+                                [selectedPageId]: { ...prev[selectedPageId], title: prev[selectedPageId]?.title || '', content: e.target.value }
+                              }))}
+                              rows={20}
+                              className="w-full px-4 py-3 border border-gray-300 rounded-lg font-mono text-sm focus:ring-2 focus:ring-accent-500 focus:border-transparent"
+                              placeholder="HTML Content"
+                            />
                           </div>
                         </div>
                       </div>
                     )}
 
-                    <div className="space-y-4">
-                      {modals.map((modal) => (
-                        <div key={modal.id} className="border border-gray-200 rounded-lg p-4">
-                          <div className="flex items-center justify-between mb-2">
-                            <h3 className="text-lg font-semibold text-gray-900">{modal.name}</h3>
-                            <div className="flex items-center gap-2">
-                              <button
-                                onClick={() => handleToggleModalActive(modal.id, modal.is_active)}
-                                className={`flex items-center px-3 py-1 text-sm rounded ${
-                                  modal.is_active
-                                    ? 'bg-green-100 text-green-700'
-                                    : 'bg-gray-100 text-gray-700'
-                                }`}
-                              >
-                                {modal.is_active ? <Eye className="w-4 h-4 mr-1" /> : <EyeOff className="w-4 h-4 mr-1" />}
-                                {modal.is_active ? 'Active' : 'Inactive'}
-                              </button>
-                              <button
-                                onClick={() => handleDeleteModal(modal.id)}
-                                className="flex items-center px-3 py-1 text-sm bg-red-100 text-red-700 rounded hover:bg-red-200"
-                              >
-                                <Trash2 className="w-4 h-4 mr-1" />
-                                Delete
-                              </button>
-                            </div>
-                          </div>
-                          <p className="text-gray-600">{modal.heading}</p>
-                          <p className="text-sm text-gray-500 mt-1">Priority: {modal.priority} | Delay: {modal.delay_seconds}s</p>
+                    {!selectedPageId && (
+                      <div className="flex-1 flex items-center justify-center text-gray-500">
+                        Select a page to edit or create a new one
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {activeTab === 'featured' && (
+                  <div className="space-y-8">
+                    {/* Global Limits Section */}
+                    <div className="bg-white rounded-lg border border-gray-200 p-6">
+                      <div className="flex items-center mb-6">
+                        <Settings className="w-5 h-5 text-gray-600 mr-2" />
+                        <h2 className="text-xl font-bold text-gray-900">Global Limits</h2>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Maximum Featured Listings (Platform-wide)
+                          </label>
+                          <input
+                            type="number"
+                            min="0"
+                            value={globalFeaturedLimit}
+                            onChange={(e) => setGlobalFeaturedLimit(parseInt(e.target.value) || 0)}
+                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-accent-500 focus:border-transparent text-2xl font-semibold text-center"
+                          />
+                          <p className="mt-2 text-xs text-gray-500">
+                            Total number of listings that can be featured at once across the entire platform
+                          </p>
                         </div>
-                      ))}
+
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Maximum Per User
+                          </label>
+                          <input
+                            type="number"
+                            min="0"
+                            value={perUserFeaturedLimit}
+                            onChange={(e) => setPerUserFeaturedLimit(parseInt(e.target.value) || 0)}
+                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-accent-500 focus:border-transparent text-2xl font-semibold text-center"
+                          />
+                          <p className="mt-2 text-xs text-gray-500">
+                            Maximum number of listings each user can feature simultaneously
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex justify-end">
+                        <button
+                          onClick={handleSaveGlobalSettings}
+                          disabled={savingGlobalSettings}
+                          className="flex items-center px-6 py-3 bg-accent-500 text-white rounded-lg hover:bg-accent-600 disabled:opacity-50 disabled:cursor-not-allowed font-medium"
+                        >
+                          <Save className="w-4 h-4 mr-2" />
+                          {savingGlobalSettings ? 'Saving...' : 'Save Settings'}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* User Permissions Section */}
+                    <div className="bg-white rounded-lg border border-gray-200 p-6">
+                      <div className="flex items-center mb-6">
+                        <Users className="w-5 h-5 text-gray-600 mr-2" />
+                        <h2 className="text-xl font-bold text-gray-900">User Permissions</h2>
+                      </div>
+
+                      {/* Search Bar */}
+                      <div className="mb-6">
+                        <div className="relative">
+                          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+                          <input
+                            type="text"
+                            placeholder="Search users by name, email, agency, or role..."
+                            value={userSearchTerm}
+                            onChange={(e) => setUserSearchTerm(e.target.value)}
+                            className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-accent-500 focus:border-transparent"
+                          />
+                        </div>
+                      </div>
+
+                      {/* User Table */}
+                      <div className="overflow-x-auto">
+                        <table className="min-w-full">
+                          <thead className="bg-gray-50">
+                            <tr>
+                              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                <input type="checkbox" className="rounded" />
+                              </th>
+                              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                User
+                              </th>
+                              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Role
+                              </th>
+                              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Listings
+                              </th>
+                              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Featured
+                              </th>
+                              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Max Featured (User)
+                              </th>
+                              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Actions
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody className="bg-white divide-y divide-gray-200">
+                            {users
+                              .filter(user =>
+                                !userSearchTerm ||
+                                user.full_name.toLowerCase().includes(userSearchTerm.toLowerCase()) ||
+                                user.email.toLowerCase().includes(userSearchTerm.toLowerCase()) ||
+                                (user.agency && user.agency.toLowerCase().includes(userSearchTerm.toLowerCase())) ||
+                                user.role.toLowerCase().includes(userSearchTerm.toLowerCase())
+                              )
+                              .map((user) => (
+                              <tr key={user.id} className="hover:bg-gray-50">
+                                <td className="px-4 py-4">
+                                  <input type="checkbox" className="rounded" />
+                                </td>
+                                <td className="px-4 py-4">
+                                  <div>
+                                    <div className="font-medium text-gray-900">{user.full_name}</div>
+                                    <div className="text-sm text-gray-500">{user.email}</div>
+                                    {user.agency && (
+                                      <div className="text-xs text-gray-400">{user.agency}</div>
+                                    )}
+                                  </div>
+                                </td>
+                                <td className="px-4 py-4">
+                                  <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${
+                                    user.role === 'landlord' ? 'bg-green-100 text-green-800' :
+                                    user.role === 'agent' ? 'bg-blue-100 text-blue-800' :
+                                    'bg-gray-100 text-gray-800'
+                                  }`}>
+                                    {user.role}
+                                  </span>
+                                </td>
+                                <td className="px-4 py-4 text-sm text-gray-900">
+                                  1
+                                </td>
+                                <td className="px-4 py-4 text-sm text-gray-900">
+                                  0 / 0
+                                </td>
+                                <td className="px-4 py-4">
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    value={user.max_featured_listings_per_user || 0}
+                                    onChange={(e) => handleUpdateFeaturedLimit(user.id, parseInt(e.target.value) || 0)}
+                                    disabled={updatingUserId === user.id}
+                                    className="w-20 px-3 py-2 border border-gray-300 rounded-md text-center focus:ring-2 focus:ring-accent-500 focus:border-transparent"
+                                  />
+                                </td>
+                                <td className="px-4 py-4 text-sm">
+                                  <div className="flex items-center gap-2">
+                                    <button className="text-blue-600 hover:text-blue-800 font-medium">
+                                      Default
+                                    </button>
+                                    <button className="text-red-600 hover:text-red-800 font-medium">
+                                      Remove
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
                     </div>
                   </div>
+                )}
+
+                {activeTab === 'modals' && (
+                  <>
+                    {editingModalId || showCreateModal ? (
+                      <ModalEditor
+                        modalForm={modalForm}
+                        isEditing={!!editingModalId}
+                        onSave={editingModalId ? handleSaveModal : handleCreateModal}
+                        onCancel={handleCancelModalEdit}
+                        onChange={(updates) => setModalForm(prev => ({ ...prev, ...updates }))}
+                      />
+                    ) : (
+                      <ModalManagement
+                        modals={modals}
+                        modalStats={modalStats}
+                        onToggleActive={handleToggleModalActive}
+                        onDelete={handleDeleteModal}
+                        onCreate={() => {
+                          setShowCreateModal(true);
+                          setModalForm({
+                            name: '',
+                            heading: '',
+                            subheading: '',
+                            additional_text_lines: [],
+                            button_text: '',
+                            button_url: '',
+                            is_active: false,
+                            trigger_pages: [],
+                            display_frequency: 'once_per_session',
+                            delay_seconds: 3,
+                            priority: 100,
+                          });
+                        }}
+                        onEdit={handleEditModal}
+                      />
+                    )}
+                  </>
                 )}
               </>
             )}
