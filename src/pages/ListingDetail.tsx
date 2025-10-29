@@ -459,8 +459,8 @@ export function ListingDetail() {
             </div>
           </section>
 
-          {/* Mobile Contact Card - Sixth on mobile (after basic info) */}
-          <section id="ld-contact-card-mobile" className="lg:hidden text-base order-6">
+          {/* Mobile Contact Card - Second on mobile */}
+          <section id="ld-contact-card-mobile" className="lg:hidden text-base">
             <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-6">
               <h3 className="text-xl font-bold text-[#273140] mb-4">
                 Contact Information
@@ -526,8 +526,8 @@ export function ListingDetail() {
               </div>
             </div>
           </section>
-          {/* Title - Second on mobile */}
-          <section id="ld-title" className="order-2 lg:order-none">
+          {/* Title - Third on mobile */}
+          <section id="ld-title" className="order-3 lg:order-none">
             <h1 className="text-2xl md:text-[1.65rem] font-semibold text-[#273140] mb-2">
               {listing.title}
             </h1>
@@ -595,8 +595,8 @@ export function ListingDetail() {
             </div>
           </section>
 
-          {/* Price - Fourth on mobile */}
-          <section id="ld-price" className="order-4 lg:order-none">
+          {/* Price - Third on mobile */}
+          <section id="ld-price" className="order-3 lg:order-none">
             {listing.call_for_price ? (
               <strong>Call for Price</strong>
             ) : (
@@ -609,8 +609,8 @@ export function ListingDetail() {
             )}
           </section>
 
-          {/* Basic info - Fifth on mobile */}
-          <section id="ld-basic-info" className="order-5 lg:order-none">
+          {/* Basic info - Fourth on mobile */}
+          <section id="ld-basic-info" className="order-4 lg:order-none">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 bg-gray-50 rounded-lg">
               <div className="flex items-center leading-none">
                 <div>
@@ -729,8 +729,8 @@ export function ListingDetail() {
             </div>
           </section>
 
-          {/* Property Details (Features & Amenities) - Seventh on mobile */}
-          <section id="ld-details" className="order-7 lg:order-none">
+          {/* Property Details - Mobile: after basic info, Desktop: in sidebar */}
+          <section id="ld-details" className="order-5 lg:order-none">
             <div className="mb-8">
               <h2 className="text-2xl font-bold text-[#273140] mb-4">
                 Features & Amenities
@@ -845,9 +845,9 @@ export function ListingDetail() {
               )}
             </div>
           </section>
-          {/* Mobile Description - Eighth on mobile (last) */}
+          {/* Mobile Description - Last on mobile */}
           {listing.description && (
-            <section id="ld-description-mobile" className="lg:hidden order-8">
+            <section id="ld-description-mobile" className="lg:hidden order-6">
               <h2 className="text-2xl font-bold text-[#273140] mb-4">
                 Description
               </h2>
