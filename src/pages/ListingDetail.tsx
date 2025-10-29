@@ -16,12 +16,6 @@ import {
   Droplets,
   WashingMachine,
   DollarSign,
-  Wind,
-  Sparkles,
-  Wrench,
-  Maximize2,
-  MoveVertical,
-  Archive,
 } from "lucide-react";
 import { Listing } from "../config/supabase";
 import { listingsService } from "../services/listings";
@@ -35,7 +29,6 @@ import NumericText from "@/components/common/NumericText";
 import { ShareButton } from "../components/shared/ShareButton";
 import { agenciesService } from "../services/agencies";
 import { agencyNameToSlug } from "../utils/agency";
-import { formatBedroomLabel } from "../utils/bedroomUtils";
 
 const SCROLL_THRESHOLDS = [25, 50, 75, 100] as const;
 
@@ -342,58 +335,8 @@ export function ListingDetail() {
         return "Apartment in House";
       case "full_house":
         return "Full House";
-      case "duplex":
-        return "Duplex";
       default:
         return listing.property_type;
-    }
-  };
-
-  const getACTypeLabel = (acType: string | null | undefined) => {
-    if (!acType) return null;
-    switch (acType) {
-      case "central":
-        return "Central AC";
-      case "split_unit":
-        return "Split Unit AC";
-      case "window":
-        return "Window AC";
-      default:
-        return null;
-    }
-  };
-
-  const getConditionLabel = (condition: string) => {
-    switch (condition) {
-      case "modern":
-        return "Modern";
-      case "renovated":
-        return "Renovated";
-      case "large_rooms":
-        return "Large Rooms";
-      case "high_ceilings":
-        return "High Ceilings";
-      case "large_closets":
-        return "Large Closets";
-      default:
-        return condition;
-    }
-  };
-
-  const getConditionIcon = (condition: string) => {
-    switch (condition) {
-      case "modern":
-        return <Sparkles className="w-5 h-5 text-[#273140] mr-3" />;
-      case "renovated":
-        return <Wrench className="w-5 h-5 text-[#273140] mr-3" />;
-      case "large_rooms":
-        return <Maximize2 className="w-5 h-5 text-[#273140] mr-3" />;
-      case "high_ceilings":
-        return <MoveVertical className="w-5 h-5 text-[#273140] mr-3" />;
-      case "large_closets":
-        return <Archive className="w-5 h-5 text-[#273140] mr-3" />;
-      default:
-        return null;
     }
   };
 
@@ -667,12 +610,7 @@ export function ListingDetail() {
                     {listing.bedrooms === 0 ? (
                       "Studio"
                     ) : (
-                      <span className="num-font">
-                        {listing.bedrooms}
-                        {listing.additional_rooms && listing.additional_rooms > 0
-                          ? `+${listing.additional_rooms}`
-                          : ""}
-                      </span>
+                      <span className="num-font">{listing.bedrooms}</span>
                     )}
                   </div>
                 </div>
@@ -825,13 +763,6 @@ export function ListingDetail() {
                   </span>
                 </div>
 
-                {listing.ac_type && getACTypeLabel(listing.ac_type) && (
-                  <div className="flex items-center">
-                    <Wind className="w-5 h-5 text-[#273140] mr-3" />
-                    <span>{getACTypeLabel(listing.ac_type)}</span>
-                  </div>
-                )}
-
                 {listing.floor && (
                   <div className="flex items-center">
                     <div className="w-5 h-5 bg-[#273140] rounded mr-3 flex items-center justify-center">
@@ -849,13 +780,6 @@ export function ListingDetail() {
                     <span>Lease: {formatLeaseLength(listing.lease_length)}</span>
                   </div>
                 )}
-
-                {listing.apartment_conditions && listing.apartment_conditions.length > 0 && listing.apartment_conditions.map((condition) => (
-                  <div key={condition} className="flex items-center">
-                    {getConditionIcon(condition)}
-                    <span>{getConditionLabel(condition)}</span>
-                  </div>
-                ))}
               </div>
             </div>
           </section>
