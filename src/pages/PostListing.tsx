@@ -43,7 +43,7 @@ interface ListingFormData {
   dishwasher: boolean;
   lease_length?: LeaseLength | null;
   heat: HeatType;
-  property_type: PropertyType;
+  property_type: PropertyType | '';
   contact_name: string;
   contact_phone: string;
   is_featured: boolean;
@@ -85,7 +85,7 @@ export function PostListing() {
     dishwasher: false,
     lease_length: null,
     heat: "tenant_pays",
-    property_type: "" as PropertyType,
+    property_type: "",
     contact_name: profile?.full_name || "",
     contact_phone: profile?.phone || "",
     is_featured: false,
@@ -506,6 +506,12 @@ export function PostListing() {
 
     if (neighborhoodSelectValue === "other" && neighborhood === "") {
       alert("Please enter a neighborhood");
+      setLoading(false);
+      return;
+    }
+
+    if (!formData.property_type || formData.property_type === "") {
+      alert("Please select a property type");
       setLoading(false);
       return;
     }

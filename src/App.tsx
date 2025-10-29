@@ -10,11 +10,9 @@ import { EditListing } from './pages/EditListing';
 import { ListingDetail } from './pages/ListingDetail';
 import { Favorites } from './pages/Favorites';
 import { AdminPanel } from './pages/AdminPanel';
-import { AdminAnalytics } from './pages/admin/AdminAnalytics';
-import { AdminContentManagement } from './pages/admin/AdminContentManagement';
+import { InternalAnalytics } from './pages/InternalAnalytics';
 import { Dashboard } from './pages/Dashboard';
 import { AgencySettings } from './pages/AgencySettings';
-import { FooterEditor } from './pages/admin/FooterEditor';
 import { AccountSettings } from './pages/AccountSettings';
 import { About } from './pages/About';
 import { Contact } from './pages/Contact';
@@ -73,10 +71,8 @@ function App() {
                 <Route path="/listing/:id" element={<ListingDetail />} />
                 <Route path="/favorites" element={<Favorites />} />
                 <Route path="/admin" element={<AdminPanel />} />
-                <Route path="/admin/analytics" element={<AdminAnalytics />} />
-                <Route path="/admin/content-management" element={<AdminContentManagement />} />
+                <Route path="/admin/analytics" element={<InternalAnalytics />} />
                 <Route path="/admin/static-pages" element={<Navigate to="/admin/content-management?tab=static-pages" replace />} />
-                <Route path="/admin/footer" element={<FooterEditor />} />
                 <Route path="/admin/featured-settings" element={<Navigate to="/admin/content-management?tab=featured" replace />} />
                 <Route path="/dashboard" element={<Dashboard />} />
                 <Route path="/dashboard/agency-settings" element={<AgencySettings />} />

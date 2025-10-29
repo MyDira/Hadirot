@@ -32,7 +32,7 @@ interface ListingFormData {
   dishwasher: boolean;
   lease_length?: LeaseLength | null;
   heat: HeatType;
-  property_type: PropertyType;
+  property_type: PropertyType | '';
   contact_name: string;
   contact_phone: string;
   broker_fee: boolean;
@@ -441,6 +441,12 @@ export function EditListing() {
 
       if (neighborhoodSelectValue === "other" && neighborhood === "") {
         alert("Please enter a neighborhood");
+        setSaving(false);
+        return;
+      }
+
+      if (!formData.property_type || formData.property_type === "") {
+        alert("Please select a property type");
         setSaving(false);
         return;
       }
