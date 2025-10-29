@@ -23,6 +23,8 @@ import {
   ParkingType,
   HeatType,
   LeaseLength,
+  ACType,
+  ApartmentCondition,
   TempListingImage,
 } from "../config/supabase";
 
@@ -33,6 +35,7 @@ interface ListingFormData {
   neighborhood?: string;
   bedrooms: number;
   bathrooms: number;
+  additional_rooms?: number;
   floor?: number;
   price: number | null;
   call_for_price: boolean;
@@ -42,6 +45,8 @@ interface ListingFormData {
   dishwasher: boolean;
   lease_length?: LeaseLength | null;
   heat: HeatType;
+  ac_type?: ACType | null;
+  apartment_conditions?: ApartmentCondition[];
   property_type: PropertyType;
   contact_name: string;
   contact_phone: string;
@@ -72,6 +77,7 @@ export function PostListing() {
     neighborhood: "",
     bedrooms: 1,
     bathrooms: 1,
+    additional_rooms: undefined,
     floor: undefined,
     price: null,
     call_for_price: false,
@@ -81,6 +87,8 @@ export function PostListing() {
     dishwasher: false,
     lease_length: null,
     heat: "tenant_pays",
+    ac_type: null,
+    apartment_conditions: [],
     property_type: "apartment_house",
     contact_name: profile?.full_name || "",
     contact_phone: profile?.phone || "",
@@ -202,6 +210,7 @@ export function PostListing() {
           neighborhood: draftData.neighborhood || "",
           bedrooms: draftData.bedrooms || 1,
           bathrooms: draftData.bathrooms || 1,
+          additional_rooms: draftData.additional_rooms,
           floor: draftData.floor,
           price: draftData.call_for_price ? null : draftData.price ?? null,
           call_for_price: draftData.call_for_price ?? false,
@@ -211,6 +220,8 @@ export function PostListing() {
           dishwasher: draftData.dishwasher || false,
           lease_length: draftData.lease_length || null,
           heat: draftData.heat || "tenant_pays",
+          ac_type: draftData.ac_type || null,
+          apartment_conditions: draftData.apartment_conditions || [],
           property_type: draftData.property_type || "apartment_house",
           contact_name: draftData.contact_name || profile?.full_name || "",
           contact_phone: draftData.contact_phone || profile?.phone || "",
@@ -319,6 +330,25 @@ export function PostListing() {
     const value = e.target.value;
     setCustomNeighborhoodInput(value);
     setFormData((prev) => ({ ...prev, neighborhood: value }));
+  };
+
+  const handleConditionToggle = (condition: ApartmentCondition) => {
+    setFormData((prev) => {
+      const currentConditions = prev.apartment_conditions || [];
+      const isSelected = currentConditions.includes(condition);
+
+      if (isSelected) {
+        return {
+          ...prev,
+          apartment_conditions: currentConditions.filter((c) => c !== condition),
+        };
+      } else {
+        return {
+          ...prev,
+          apartment_conditions: [...currentConditions, condition],
+        };
+      }
+    });
   };
 
   const processFiles = async (files: File[]) => {
@@ -454,6 +484,12 @@ export function PostListing() {
         neighborhoodSelectValue === "other"
           ? customNeighborhoodInput.trim()
           : neighborhoodSelectValue;
+
+    if (!neighborhood || neighborhood === "") {
+      alert("Please select or enter a neighborhood");
+      setLoading(false);
+      return;
+    }
 
     if (neighborhoodSelectValue === "other" && neighborhood === "") {
       alert("Please enter a neighborhood");
@@ -661,12 +697,13 @@ export function PostListing() {
                 placeholder="Main St & 1st Ave"
               />
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Neighborhood (Optional)
+                Neighborhood *
               </label>
               <select
                 name="neighborhood"
                 value={neighborhoodSelectValue}
                 onChange={handleNeighborhoodSelect}
+                required
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
               >
                 <option value="">Select a neighborhood</option>
@@ -704,6 +741,7 @@ export function PostListing() {
                 </option>
                 <option value="apartment_house">Apartment in a house</option>
                 <option value="full_house">Full house</option>
+                <option value="duplex">Duplex</option>
               </select>
             </div>
           </div>
@@ -731,8 +769,30 @@ export function PostListing() {
                 <option value={2}>2 Bedrooms</option>
                 <option value={3}>3 Bedrooms</option>
                 <option value={4}>4 Bedrooms</option>
-                <option value={5}>5+ Bedrooms</option>
+                <option value={5}>5 Bedrooms</option>
+                <option value={6}>6 Bedrooms</option>
+                <option value={7}>7 Bedrooms</option>
+                <option value={8}>8+ Bedrooms</option>
               </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Additional Rooms
+              </label>
+              <select
+                name="additional_rooms"
+                value={formData.additional_rooms || ""}
+                onChange={handleInputChange}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
+              >
+                <option value="">None</option>
+                <option value={1}>+1</option>
+                <option value={2}>+2</option>
+              </select>
+              <p className="text-xs text-gray-500 mt-1">
+                For formats like 3+1, 4+2
+              </p>
             </div>
 
             <div>
@@ -867,6 +927,76 @@ export function PostListing() {
                 <option value="tenant_pays">Tenant Pays</option>
                 <option value="included">Heat Included</option>
               </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                AC Type
+              </label>
+              <select
+                name="ac_type"
+                value={formData.ac_type || ""}
+                onChange={handleInputChange}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
+              >
+                <option value="">Select AC Type (optional)</option>
+                <option value="central">Central</option>
+                <option value="split_unit">Split Unit</option>
+                <option value="window">Window</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="mt-6">
+            <label className="block text-sm font-medium text-gray-700 mb-3">
+              Apartment Conditions (Optional)
+            </label>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+              <label className="flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={formData.apartment_conditions?.includes('modern') || false}
+                  onChange={() => handleConditionToggle('modern')}
+                  className="h-4 w-4 text-[#273140] focus:ring-[#273140] border-gray-300 rounded"
+                />
+                <span className="ml-2 text-sm text-gray-700">Modern</span>
+              </label>
+              <label className="flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={formData.apartment_conditions?.includes('renovated') || false}
+                  onChange={() => handleConditionToggle('renovated')}
+                  className="h-4 w-4 text-[#273140] focus:ring-[#273140] border-gray-300 rounded"
+                />
+                <span className="ml-2 text-sm text-gray-700">Renovated</span>
+              </label>
+              <label className="flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={formData.apartment_conditions?.includes('large_rooms') || false}
+                  onChange={() => handleConditionToggle('large_rooms')}
+                  className="h-4 w-4 text-[#273140] focus:ring-[#273140] border-gray-300 rounded"
+                />
+                <span className="ml-2 text-sm text-gray-700">Large Rooms</span>
+              </label>
+              <label className="flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={formData.apartment_conditions?.includes('high_ceilings') || false}
+                  onChange={() => handleConditionToggle('high_ceilings')}
+                  className="h-4 w-4 text-[#273140] focus:ring-[#273140] border-gray-300 rounded"
+                />
+                <span className="ml-2 text-sm text-gray-700">High Ceilings</span>
+              </label>
+              <label className="flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={formData.apartment_conditions?.includes('large_closets') || false}
+                  onChange={() => handleConditionToggle('large_closets')}
+                  className="h-4 w-4 text-[#273140] focus:ring-[#273140] border-gray-300 rounded"
+                />
+                <span className="ml-2 text-sm text-gray-700">Large Closets</span>
+              </label>
             </div>
           </div>
 

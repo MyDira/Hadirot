@@ -12,6 +12,8 @@ interface FilterState {
   parking_included?: boolean;
   no_fee_only?: boolean;
   neighborhoods?: string[];
+  ac_type?: string;
+  apartment_conditions?: string[];
 }
 
 interface ListingFiltersProps {
@@ -144,7 +146,11 @@ export function ListingFilters({
             <option value="1">1 BR</option>
             <option value="2">2 BR</option>
             <option value="3">3 BR</option>
-            <option value="4">4+ BR</option>
+            <option value="4">4 BR</option>
+            <option value="5">5 BR</option>
+            <option value="6">6 BR</option>
+            <option value="7">7 BR</option>
+            <option value="8">8+ BR</option>
           </select>
         </div>
 
@@ -286,6 +292,7 @@ export function ListingFilters({
             <option value="apartment_building">Apartment in Building</option>
             <option value="apartment_house">Apartment in House</option>
             <option value="full_house">Full House</option>
+            <option value="duplex">Duplex</option>
           </select>
         </div>
 
@@ -327,6 +334,25 @@ export function ListingFilters({
           />
         </div>
 
+        {/* AC Type */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            AC Type
+          </label>
+          <select
+            value={filters.ac_type || ""}
+            onChange={(e) =>
+              handleFilterChange("ac_type", e.target.value || undefined)
+            }
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
+          >
+            <option value="">Any</option>
+            <option value="central">Central</option>
+            <option value="split_unit">Split Unit</option>
+            <option value="window">Window</option>
+          </select>
+        </div>
+
         {/* Parking Included & No Fee */}
         <div className="flex flex-col space-y-2 justify-end">
           <label className="flex items-start gap-2">
@@ -358,6 +384,44 @@ export function ListingFilters({
               No Broker Fee only
             </span>
           </label>
+        </div>
+      </div>
+
+      {/* Apartment Conditions */}
+      <div className="mt-4">
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          Apartment Conditions
+        </label>
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2">
+          {[
+            { value: 'modern', label: 'Modern' },
+            { value: 'renovated', label: 'Renovated' },
+            { value: 'large_rooms', label: 'Large Rooms' },
+            { value: 'high_ceilings', label: 'High Ceilings' },
+            { value: 'large_closets', label: 'Large Closets' },
+          ].map((condition) => (
+            <label key={condition.value} className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={filters.apartment_conditions?.includes(condition.value) || false}
+                onChange={(e) => {
+                  const currentConditions = filters.apartment_conditions || [];
+                  let newConditions;
+                  if (e.target.checked) {
+                    newConditions = [...currentConditions, condition.value];
+                  } else {
+                    newConditions = currentConditions.filter((c) => c !== condition.value);
+                  }
+                  handleFilterChange(
+                    "apartment_conditions",
+                    newConditions.length > 0 ? newConditions : undefined
+                  );
+                }}
+                className="h-4 w-4 text-[#273140] focus:ring-[#273140] border-gray-300 rounded"
+              />
+              <span className="text-sm text-gray-700">{condition.label}</span>
+            </label>
+          ))}
         </div>
       </div>
 
