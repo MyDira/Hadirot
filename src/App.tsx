@@ -10,6 +10,8 @@ import { EditListing } from './pages/EditListing';
 import { ListingDetail } from './pages/ListingDetail';
 import { Favorites } from './pages/Favorites';
 import { AdminPanel } from './pages/AdminPanel';
+import { AdminAnalytics } from './pages/admin/AdminAnalytics';
+import { AdminContentManagement } from './pages/admin/AdminContentManagement';
 import { Dashboard } from './pages/Dashboard';
 import { AgencySettings } from './pages/AgencySettings';
 import { FooterEditor } from './pages/admin/FooterEditor';
@@ -71,16 +73,18 @@ function App() {
                 <Route path="/listing/:id" element={<ListingDetail />} />
                 <Route path="/favorites" element={<Favorites />} />
                 <Route path="/admin" element={<AdminPanel />} />
-                <Route path="/admin/static-pages" element={<Navigate to="/admin?tab=static-pages" replace />} />
+                <Route path="/admin/analytics" element={<AdminAnalytics />} />
+                <Route path="/admin/content-management" element={<AdminContentManagement />} />
+                <Route path="/admin/static-pages" element={<Navigate to="/admin/content-management?tab=static-pages" replace />} />
                 <Route path="/admin/footer" element={<FooterEditor />} />
-                <Route path="/admin/featured-settings" element={<Navigate to="/admin?tab=featured" replace />} />
+                <Route path="/admin/featured-settings" element={<Navigate to="/admin/content-management?tab=featured" replace />} />
                 <Route path="/dashboard" element={<Dashboard />} />
                 <Route path="/dashboard/agency-settings" element={<AgencySettings />} />
                 <Route path="/account-settings" element={<AccountSettings />} />
-                <Route path="/internal-analytics" element={<Navigate to="/admin?tab=analytics" replace />} />
-                <Route path="/analytics" element={<Navigate to="/admin?tab=analytics" replace />} />
-                <Route path="/static-pages" element={<Navigate to="/admin?tab=static-pages" replace />} />
-                <Route path="/featured-settings" element={<Navigate to="/admin?tab=featured" replace />} />
+                <Route path="/internal-analytics" element={<Navigate to="/admin/analytics" replace />} />
+                <Route path="/analytics" element={<Navigate to="/admin/analytics" replace />} />
+                <Route path="/static-pages" element={<Navigate to="/admin/content-management?tab=static-pages" replace />} />
+                <Route path="/featured-settings" element={<Navigate to="/admin/content-management?tab=featured" replace />} />
                 <Route path="/about" element={<About />} />
                 <Route path="/contact" element={<Contact />} />
                 <Route path="/privacy" element={<Privacy />} />

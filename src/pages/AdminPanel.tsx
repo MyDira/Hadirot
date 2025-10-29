@@ -1,6 +1,6 @@
-import React, { useState, useEffect, lazy, Suspense } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
-import { Users, FileText, Settings, Eye, Check, X, Trash2, ChevronLeft, Shield, TrendingUp, Home, Star, Power, ChevronDown, Search, ChevronRight, BarChart3, MessageSquare, Mail, UserCheck, BookOpen } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Link, useSearchParams, useNavigate } from 'react-router-dom';
+import { Users, FileText, Eye, Trash2, Shield, TrendingUp, Home, Star, Power, ChevronDown, Search, ChevronRight, BarChart3, MessageSquare, UserCheck, ArrowRight } from 'lucide-react';
 import { listingsService } from '../services/listings';
 import { agenciesService } from '../services/agencies';
 import { useAuth } from '@/hooks/useAuth';
@@ -8,25 +8,11 @@ import { useAdminSignInAsUser } from '@/hooks/useAdminSignInAsUser';
 import { supabase, Profile, Listing } from '../config/supabase';
 import { formatPhoneForDisplay } from '@/utils/phone';
 
-const AnalyticsTab = lazy(() => import('./admin/tabs/AnalyticsTab'));
-const StaticPagesTab = lazy(() => import('./admin/tabs/StaticPagesTab'));
-const FeaturedSettingsTab = lazy(() => import('./admin/tabs/FeaturedSettingsTab'));
-const ModalManagementTab = lazy(() => import('./admin/tabs/ModalManagementTab'));
-const DailyCardsSettings = lazy(() => import('./admin/DailyCardsSettings'));
-const KnowledgeBaseTab = lazy(() => import('./admin/tabs/KnowledgeBaseTab'));
-
 const ADMIN_TAB_KEYS = [
   'overview',
   'users',
   'listings',
   'pending',
-  'settings',
-  'analytics',
-  'static-pages',
-  'featured',
-  'modals',
-  'daily-cards',
-  'knowledge-base',
 ] as const;
 
 type AdminTabKey = (typeof ADMIN_TAB_KEYS)[number];
@@ -39,13 +25,6 @@ const ADMIN_TABS: { id: AdminTabKey; label: string; icon: React.ElementType }[] 
   { id: 'users', label: 'Users', icon: Users },
   { id: 'listings', label: 'Listings', icon: Home },
   { id: 'pending', label: 'Pending', icon: Eye },
-  { id: 'settings', label: 'Settings', icon: Settings },
-  { id: 'analytics', label: 'Analytics', icon: BarChart3 },
-  { id: 'static-pages', label: 'Static Pages', icon: FileText },
-  { id: 'featured', label: 'Featured Settings', icon: Star },
-  { id: 'modals', label: 'Modals', icon: MessageSquare },
-  { id: 'daily-cards', label: 'Daily Cards', icon: Mail },
-  { id: 'knowledge-base', label: 'Help Center', icon: BookOpen },
 ];
 
 interface AdminStats {
@@ -76,6 +55,7 @@ const isListingCurrentlyFeatured = (listing: Listing) => {
 export function AdminPanel() {
   const { user, profile } = useAuth();
   const { signInAsUser, loading: signingInAsUser } = useAdminSignInAsUser();
+  const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
   const rawTabParam = params.get('tab');
   const initialTab: AdminTabKey = isValidAdminTab(rawTabParam) ? rawTabParam : 'overview';
@@ -872,17 +852,6 @@ export function AdminPanel() {
         </div>
       ) : (
         <>
-          {activeTab === 'analytics' || activeTab === 'static-pages' || activeTab === 'featured' || activeTab === 'modals' || activeTab === 'daily-cards' || activeTab === 'knowledge-base' ? (
-            <Suspense fallback={<div className="p-6 text-sm text-muted-foreground">Loading…</div>}>
-              {activeTab === 'analytics' && <AnalyticsTab />}
-              {activeTab === 'static-pages' && <StaticPagesTab />}
-              {activeTab === 'featured' && <FeaturedSettingsTab />}
-              {activeTab === 'modals' && <ModalManagementTab />}
-              {activeTab === 'daily-cards' && <DailyCardsSettings />}
-              {activeTab === 'knowledge-base' && <KnowledgeBaseTab />}
-            </Suspense>
-          ) : (
-            <>
           {/* Overview Tab */}
           {activeTab === 'overview' && (
             <div className="space-y-8">
@@ -909,8 +878,46 @@ export function AdminPanel() {
                   icon={TrendingUp}
                   title="Active Users"
                   value={stats.activeUsers}
-                  color="bg-purple-500"
+                  color="bg-gray-500"
                 />
+              </div>
+
+              {/* Quick Links to Other Admin Pages */}
+              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                <h3 className="text-lg font-semibold text-[#4E4B43] mb-4">Admin Tools</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <button
+                    onClick={() => navigate('/admin/analytics')}
+                    className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:border-[#4E4B43] hover:bg-gray-50 transition-all group"
+                  >
+                    <div className="flex items-center">
+                      <div className="p-2 bg-blue-100 rounded-lg mr-3">
+                        <BarChart3 className="w-5 h-5 text-blue-600" />
+                      </div>
+                      <div className="text-left">
+                        <p className="font-medium text-gray-900">Analytics Dashboard</p>
+                        <p className="text-sm text-gray-500">View platform metrics and insights</p>
+                      </div>
+                    </div>
+                    <ArrowRight className="w-5 h-5 text-gray-400 group-hover:text-[#4E4B43]" />
+                  </button>
+
+                  <button
+                    onClick={() => navigate('/admin/content-management')}
+                    className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:border-[#4E4B43] hover:bg-gray-50 transition-all group"
+                  >
+                    <div className="flex items-center">
+                      <div className="p-2 bg-green-100 rounded-lg mr-3">
+                        <FileText className="w-5 h-5 text-green-600" />
+                      </div>
+                      <div className="text-left">
+                        <p className="font-medium text-gray-900">Content Management</p>
+                        <p className="text-sm text-gray-500">Manage pages, featured settings, modals</p>
+                      </div>
+                    </div>
+                    <ArrowRight className="w-5 h-5 text-gray-400 group-hover:text-[#4E4B43]" />
+                  </button>
+                </div>
               </div>
 
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -1850,67 +1857,6 @@ export function AdminPanel() {
               </div>
             </div>
       )}
-
-      {/* Settings Tab */}
-      {activeTab === 'settings' && (
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-              <h3 className="text-lg font-semibold text-[#4E4B43] mb-6">Platform Settings</h3>
-              
-              <div className="space-y-6">
-                <div>
-                  <h4 className="text-md font-medium text-gray-900 mb-3">Featured Listings</h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Maximum Featured Listings
-                      </label>
-                      <input
-                        type="number"
-                        defaultValue={10}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#4E4B43] focus:border-[#4E4B43]"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Featured Duration (days)
-                      </label>
-                      <input
-                        type="number"
-                        defaultValue={30}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#4E4B43] focus:border-[#4E4B43]"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                <div>
-                  <h4 className="text-md font-medium text-gray-900 mb-3">System Status</h4>
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-gray-600">Database Status</span>
-                      <span className="px-2 py-1 text-xs bg-green-100 text-green-800 rounded-full">Connected</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-gray-600">Storage Status</span>
-                      <span className="px-2 py-1 text-xs bg-green-100 text-green-800 rounded-full">Active</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-gray-600">Stripe Integration</span>
-                      <span className="px-2 py-1 text-xs bg-yellow-100 text-yellow-800 rounded-full">Pending</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="pt-4">
-                  <button className="bg-[#4E4B43] text-white px-6 py-2 rounded-md font-medium hover:bg-[#3a3832] transition-colors">
-                    Save Settings
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-            </>
-          )}
         </>
       )}
 
