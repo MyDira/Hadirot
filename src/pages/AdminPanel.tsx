@@ -1,4 +1,4 @@
-import React, { useState, useEffect, lazy, Suspense } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { Users, FileText, Settings, Eye, Check, X, Trash2, ChevronLeft, Shield, TrendingUp, Home, Star, Power, ChevronDown, Search, ChevronRight, BarChart3, MessageSquare, Mail, UserCheck, BookOpen } from 'lucide-react';
 import { listingsService } from '../services/listings';
@@ -8,12 +8,6 @@ import { useAdminSignInAsUser } from '@/hooks/useAdminSignInAsUser';
 import { supabase, Profile, Listing } from '../config/supabase';
 import { formatPhoneForDisplay } from '@/utils/phone';
 
-const AnalyticsTab = lazy(() => import('./admin/tabs/AnalyticsTab'));
-const StaticPagesTab = lazy(() => import('./admin/tabs/StaticPagesTab'));
-const FeaturedSettingsTab = lazy(() => import('./admin/tabs/FeaturedSettingsTab'));
-const ModalManagementTab = lazy(() => import('./admin/tabs/ModalManagementTab'));
-const DailyCardsSettings = lazy(() => import('./admin/DailyCardsSettings'));
-const KnowledgeBaseTab = lazy(() => import('./admin/tabs/KnowledgeBaseTab'));
 
 const ADMIN_TAB_KEYS = [
   'overview',
@@ -873,14 +867,17 @@ export function AdminPanel() {
       ) : (
         <>
           {activeTab === 'analytics' || activeTab === 'static-pages' || activeTab === 'featured' || activeTab === 'modals' || activeTab === 'daily-cards' || activeTab === 'knowledge-base' ? (
-            <Suspense fallback={<div className="p-6 text-sm text-muted-foreground">Loading…</div>}>
-              {activeTab === 'analytics' && <AnalyticsTab />}
-              {activeTab === 'static-pages' && <StaticPagesTab />}
-              {activeTab === 'featured' && <FeaturedSettingsTab />}
-              {activeTab === 'modals' && <ModalManagementTab />}
-              {activeTab === 'daily-cards' && <DailyCardsSettings />}
-              {activeTab === 'knowledge-base' && <KnowledgeBaseTab />}
-            </Suspense>
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+              <h3 className="text-lg font-semibold text-[#4E4B43] mb-4">
+                {activeTab === 'analytics' && 'Analytics'}
+                {activeTab === 'static-pages' && 'Static Pages'}
+                {activeTab === 'featured' && 'Featured Settings'}
+                {activeTab === 'modals' && 'Modal Management'}
+                {activeTab === 'daily-cards' && 'Daily Cards'}
+                {activeTab === 'knowledge-base' && 'Help Center'}
+              </h3>
+              <p className="text-gray-600">This feature is currently under development.</p>
+            </div>
           ) : (
             <>
           {/* Overview Tab */}
