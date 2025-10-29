@@ -24,6 +24,7 @@ import { AgencyPage } from './pages/AgencyPage';
 import { HelpCenter } from './pages/HelpCenter';
 import { HelpCategory } from './pages/HelpCategory';
 import { HelpArticle } from './pages/HelpArticle';
+import { ContentManagement } from './pages/ContentManagement';
 import { useAuth } from '@/hooks/useAuth';
 import GASmokeTest from '@/dev/gaSmokeTest';
 
@@ -72,6 +73,7 @@ function App() {
                 <Route path="/favorites" element={<Favorites />} />
                 <Route path="/admin" element={<AdminPanel />} />
                 <Route path="/admin/analytics" element={<InternalAnalytics />} />
+                <Route path="/admin/content-management" element={<ContentManagement />} />
                 <Route path="/admin/static-pages" element={<Navigate to="/admin/content-management?tab=static-pages" replace />} />
                 <Route path="/admin/featured-settings" element={<Navigate to="/admin/content-management?tab=featured" replace />} />
                 <Route path="/dashboard" element={<Dashboard />} />
