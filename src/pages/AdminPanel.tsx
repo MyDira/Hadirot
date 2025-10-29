@@ -8,12 +8,12 @@ import { useAdminSignInAsUser } from '@/hooks/useAdminSignInAsUser';
 import { supabase, Profile, Listing } from '../config/supabase';
 import { formatPhoneForDisplay } from '@/utils/phone';
 
-// const AnalyticsTab = lazy(() => import('./admin/tabs/AnalyticsTab'));
-// const StaticPagesTab = lazy(() => import('./admin/tabs/StaticPagesTab'));
-// const FeaturedSettingsTab = lazy(() => import('./admin/tabs/FeaturedSettingsTab'));
-// const ModalManagementTab = lazy(() => import('./admin/tabs/ModalManagementTab'));
-// const DailyCardsSettings = lazy(() => import('./admin/DailyCardsSettings'));
-// const KnowledgeBaseTab = lazy(() => import('./admin/tabs/KnowledgeBaseTab'));
+const AnalyticsTab = lazy(() => import('./admin/tabs/AnalyticsTab'));
+const StaticPagesTab = lazy(() => import('./admin/tabs/StaticPagesTab'));
+const FeaturedSettingsTab = lazy(() => import('./admin/tabs/FeaturedSettingsTab'));
+const ModalManagementTab = lazy(() => import('./admin/tabs/ModalManagementTab'));
+const DailyCardsSettings = lazy(() => import('./admin/DailyCardsSettings'));
+const KnowledgeBaseTab = lazy(() => import('./admin/tabs/KnowledgeBaseTab'));
 
 const ADMIN_TAB_KEYS = [
   'overview',
@@ -873,14 +873,14 @@ export function AdminPanel() {
       ) : (
         <>
           {activeTab === 'analytics' || activeTab === 'static-pages' || activeTab === 'featured' || activeTab === 'modals' || activeTab === 'daily-cards' || activeTab === 'knowledge-base' ? (
-            <div className="p-6">
-              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                <p className="text-yellow-800 font-medium">Tab Under Construction</p>
-                <p className="text-yellow-700 text-sm mt-1">
-                  The {activeTab} tab is currently being rebuilt. Please use the other available tabs.
-                </p>
-              </div>
-            </div>
+            <Suspense fallback={<div className="p-6 text-sm text-muted-foreground">Loading…</div>}>
+              {activeTab === 'analytics' && <AnalyticsTab />}
+              {activeTab === 'static-pages' && <StaticPagesTab />}
+              {activeTab === 'featured' && <FeaturedSettingsTab />}
+              {activeTab === 'modals' && <ModalManagementTab />}
+              {activeTab === 'daily-cards' && <DailyCardsSettings />}
+              {activeTab === 'knowledge-base' && <KnowledgeBaseTab />}
+            </Suspense>
           ) : (
             <>
           {/* Overview Tab */}
