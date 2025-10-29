@@ -16,6 +16,12 @@ import {
   Droplets,
   WashingMachine,
   DollarSign,
+  Wind,
+  Sparkles,
+  Wrench,
+  Maximize2,
+  ArrowUpFromLine,
+  Package,
 } from "lucide-react";
 import { Listing } from "../config/supabase";
 import { listingsService } from "../services/listings";
@@ -609,6 +615,8 @@ export function ListingDetail() {
                   <div className="font-semibold">
                     {listing.bedrooms === 0 ? (
                       "Studio"
+                    ) : listing.additional_rooms && listing.additional_rooms > 0 ? (
+                      <span className="num-font">{listing.bedrooms}+{listing.additional_rooms}</span>
                     ) : (
                       <span className="num-font">{listing.bedrooms}</span>
                     )}
@@ -780,7 +788,59 @@ export function ListingDetail() {
                     <span>Lease: {formatLeaseLength(listing.lease_length)}</span>
                   </div>
                 )}
+
+                {listing.ac_type && (
+                  <div className="flex items-center">
+                    <Wind className="w-5 h-5 text-[#273140] mr-3" />
+                    <span>
+                      {listing.ac_type === 'central' && 'Central AC'}
+                      {listing.ac_type === 'split_unit' && 'Split Unit AC'}
+                      {listing.ac_type === 'window' && 'Window AC'}
+                    </span>
+                  </div>
+                )}
               </div>
+
+              {/* Apartment Conditions */}
+              {listing.apartment_conditions && listing.apartment_conditions.length > 0 && (
+                <div className="mt-6">
+                  <h3 className="text-lg font-semibold text-[#273140] mb-3">
+                    Apartment Features
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {listing.apartment_conditions.includes('modern') && (
+                      <div className="flex items-center">
+                        <Sparkles className="w-5 h-5 text-[#273140] mr-3" />
+                        <span>Modern</span>
+                      </div>
+                    )}
+                    {listing.apartment_conditions.includes('renovated') && (
+                      <div className="flex items-center">
+                        <Wrench className="w-5 h-5 text-[#273140] mr-3" />
+                        <span>Renovated</span>
+                      </div>
+                    )}
+                    {listing.apartment_conditions.includes('large_rooms') && (
+                      <div className="flex items-center">
+                        <Maximize2 className="w-5 h-5 text-[#273140] mr-3" />
+                        <span>Large Rooms</span>
+                      </div>
+                    )}
+                    {listing.apartment_conditions.includes('high_ceilings') && (
+                      <div className="flex items-center">
+                        <ArrowUpFromLine className="w-5 h-5 text-[#273140] mr-3" />
+                        <span>High Ceilings</span>
+                      </div>
+                    )}
+                    {listing.apartment_conditions.includes('large_closets') && (
+                      <div className="flex items-center">
+                        <Package className="w-5 h-5 text-[#273140] mr-3" />
+                        <span>Large Closets</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           </section>
           {/* Mobile Description - Last on mobile */}

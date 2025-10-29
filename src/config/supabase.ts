@@ -19,6 +19,8 @@ export type PropertyType = 'apartment_building' | 'apartment_house' | 'full_hous
 export type ParkingType = 'yes' | 'included' | 'optional' | 'no';
 export type HeatType = 'included' | 'tenant_pays';
 export type LeaseLength = 'short_term' | '1_year' | '18_months' | '2_years';
+export type ACType = 'central' | 'split_unit' | 'window';
+export type ApartmentCondition = 'modern' | 'renovated' | 'large_rooms' | 'high_ceilings' | 'large_closets';
 
 export interface Profile {
   id: string;
@@ -43,7 +45,7 @@ export interface Listing {
   title: string;
   description?: string;
   location: string;
-  neighborhood?: string;
+  neighborhood: string;
   bedrooms: number;
   bathrooms: number;
   floor?: number;
@@ -70,6 +72,9 @@ export interface Listing {
   updated_at: string;
   last_published_at: string;
   approved: boolean;
+  ac_type?: ACType | null;
+  apartment_conditions?: string[] | null;
+  additional_rooms?: number | null;
   owner?: Profile;
   listing_images?: ListingImage[];
   is_favorited?: boolean;

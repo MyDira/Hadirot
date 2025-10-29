@@ -5,7 +5,7 @@ export interface DraftData {
   title: string;
   description: string;
   location: string;
-  neighborhood?: string;
+  neighborhood: string;
   bedrooms: number;
   bathrooms: number;
   floor?: number;
@@ -22,6 +22,9 @@ export interface DraftData {
   contact_phone: string;
   is_featured: boolean;
   broker_fee: boolean;
+  ac_type?: string | null;
+  apartment_conditions?: string[];
+  additional_rooms?: number;
   tempImages?: TempListingImage[];
 }
 

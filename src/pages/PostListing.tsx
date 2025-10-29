@@ -24,13 +24,14 @@ import {
   HeatType,
   LeaseLength,
   TempListingImage,
+  ACType,
 } from "../config/supabase";
 
 interface ListingFormData {
   title: string;
   description: string;
   location: string;
-  neighborhood?: string;
+  neighborhood: string;
   bedrooms: number;
   bathrooms: number;
   floor?: number;
@@ -47,6 +48,9 @@ interface ListingFormData {
   contact_phone: string;
   is_featured: boolean;
   broker_fee: boolean;
+  ac_type?: ACType | null;
+  apartment_conditions: string[];
+  additional_rooms: number;
 }
 
 export function PostListing() {
@@ -86,6 +90,9 @@ export function PostListing() {
     contact_phone: profile?.phone || "",
     is_featured: false,
     broker_fee: false,
+    ac_type: null,
+    apartment_conditions: [],
+    additional_rooms: 0,
   });
 
   const [hasDraft, setHasDraft] = useState<boolean | null>(null);
@@ -216,6 +223,9 @@ export function PostListing() {
           contact_phone: draftData.contact_phone || profile?.phone || "",
           is_featured: draftData.is_featured || false,
           broker_fee: false,
+          ac_type: (draftData as any).ac_type || null,
+          apartment_conditions: (draftData as any).apartment_conditions || [],
+          additional_rooms: (draftData as any).additional_rooms || 0,
         });
 
         // Restore temp images if they exist
@@ -319,6 +329,43 @@ export function PostListing() {
     const value = e.target.value;
     setCustomNeighborhoodInput(value);
     setFormData((prev) => ({ ...prev, neighborhood: value }));
+  };
+
+  const handleBedroomChange = (value: string) => {
+    // Parse bedroom format: "3+1" -> bedrooms: 3, additional_rooms: 1
+    if (value.includes('+')) {
+      const [main, additional] = value.split('+').map(v => parseInt(v));
+      setFormData((prev) => ({
+        ...prev,
+        bedrooms: main || 0,
+        additional_rooms: additional || 0
+      }));
+    } else {
+      setFormData((prev) => ({
+        ...prev,
+        bedrooms: parseInt(value) || 0,
+        additional_rooms: 0
+      }));
+    }
+  };
+
+  const handleApartmentConditionToggle = (condition: string) => {
+    setFormData((prev) => {
+      const current = prev.apartment_conditions || [];
+      const isSelected = current.includes(condition);
+
+      if (isSelected) {
+        return {
+          ...prev,
+          apartment_conditions: current.filter(c => c !== condition)
+        };
+      } else {
+        return {
+          ...prev,
+          apartment_conditions: [...current, condition]
+        };
+      }
+    });
   };
 
   const processFiles = async (files: File[]) => {
@@ -455,6 +502,12 @@ export function PostListing() {
           ? customNeighborhoodInput.trim()
           : neighborhoodSelectValue;
 
+    if (!neighborhood || neighborhood === "") {
+      alert("Please select or enter a neighborhood");
+      setLoading(false);
+      return;
+    }
+
     if (neighborhoodSelectValue === "other" && neighborhood === "") {
       alert("Please enter a neighborhood");
       setLoading(false);
@@ -483,6 +536,9 @@ export function PostListing() {
         approved: false,
         price: formData.call_for_price ? null : formData.price,
         call_for_price: !!formData.call_for_price,
+        ac_type: formData.ac_type || null,
+        apartment_conditions: formData.apartment_conditions.length > 0 ? formData.apartment_conditions : null,
+        additional_rooms: formData.additional_rooms > 0 ? formData.additional_rooms : null,
       } as any;
       const listing = await listingsService.createListing(payload);
 
@@ -661,12 +717,13 @@ export function PostListing() {
                 placeholder="Main St & 1st Ave"
               />
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Neighborhood (Optional)
+                Neighborhood *
               </label>
               <select
                 name="neighborhood"
                 value={neighborhoodSelectValue}
                 onChange={handleNeighborhoodSelect}
+                required
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
               >
                 <option value="">Select a neighborhood</option>
@@ -722,16 +779,29 @@ export function PostListing() {
               </label>
               <select
                 name="bedrooms"
-                value={formData.bedrooms}
-                onChange={handleInputChange}
+                value={formData.additional_rooms > 0 ? `${formData.bedrooms}+${formData.additional_rooms}` : formData.bedrooms}
+                onChange={(e) => handleBedroomChange(e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
               >
                 <option value={0}>Studio</option>
                 <option value={1}>1 Bedroom</option>
                 <option value={2}>2 Bedrooms</option>
                 <option value={3}>3 Bedrooms</option>
+                <option value="3+1">3+1 Bedrooms</option>
+                <option value="3+2">3+2 Bedrooms</option>
                 <option value={4}>4 Bedrooms</option>
-                <option value={5}>5+ Bedrooms</option>
+                <option value="4+1">4+1 Bedrooms</option>
+                <option value="4+2">4+2 Bedrooms</option>
+                <option value={5}>5 Bedrooms</option>
+                <option value="5+1">5+1 Bedrooms</option>
+                <option value="5+2">5+2 Bedrooms</option>
+                <option value={6}>6 Bedrooms</option>
+                <option value="6+1">6+1 Bedrooms</option>
+                <option value="6+2">6+2 Bedrooms</option>
+                <option value={7}>7 Bedrooms</option>
+                <option value="7+1">7+1 Bedrooms</option>
+                <option value="7+2">7+2 Bedrooms</option>
+                <option value={8}>8+ Bedrooms</option>
               </select>
             </div>
 
@@ -867,6 +937,81 @@ export function PostListing() {
                 <option value="tenant_pays">Tenant Pays</option>
                 <option value="included">Heat Included</option>
               </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                AC Type
+              </label>
+              <select
+                name="ac_type"
+                value={formData.ac_type || ""}
+                onChange={(e) => setFormData(prev => ({ ...prev, ac_type: e.target.value as ACType || null }))}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
+              >
+                <option value="">Select AC Type (optional)</option>
+                <option value="central">Central AC</option>
+                <option value="split_unit">Split Unit AC</option>
+                <option value="window">Window AC</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Apartment Conditions */}
+          <div className="mt-6">
+            <label className="block text-sm font-medium text-gray-700 mb-3">
+              Apartment Conditions
+            </label>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <label className="flex items-center">
+                <input
+                  type="checkbox"
+                  checked={formData.apartment_conditions.includes('modern')}
+                  onChange={() => handleApartmentConditionToggle('modern')}
+                  className="h-4 w-4 text-[#273140] focus:ring-[#273140] border-gray-300 rounded"
+                />
+                <span className="ml-2 text-sm font-medium text-gray-700">Modern</span>
+              </label>
+
+              <label className="flex items-center">
+                <input
+                  type="checkbox"
+                  checked={formData.apartment_conditions.includes('renovated')}
+                  onChange={() => handleApartmentConditionToggle('renovated')}
+                  className="h-4 w-4 text-[#273140] focus:ring-[#273140] border-gray-300 rounded"
+                />
+                <span className="ml-2 text-sm font-medium text-gray-700">Renovated</span>
+              </label>
+
+              <label className="flex items-center">
+                <input
+                  type="checkbox"
+                  checked={formData.apartment_conditions.includes('large_rooms')}
+                  onChange={() => handleApartmentConditionToggle('large_rooms')}
+                  className="h-4 w-4 text-[#273140] focus:ring-[#273140] border-gray-300 rounded"
+                />
+                <span className="ml-2 text-sm font-medium text-gray-700">Large Rooms</span>
+              </label>
+
+              <label className="flex items-center">
+                <input
+                  type="checkbox"
+                  checked={formData.apartment_conditions.includes('high_ceilings')}
+                  onChange={() => handleApartmentConditionToggle('high_ceilings')}
+                  className="h-4 w-4 text-[#273140] focus:ring-[#273140] border-gray-300 rounded"
+                />
+                <span className="ml-2 text-sm font-medium text-gray-700">High Ceilings</span>
+              </label>
+
+              <label className="flex items-center">
+                <input
+                  type="checkbox"
+                  checked={formData.apartment_conditions.includes('large_closets')}
+                  onChange={() => handleApartmentConditionToggle('large_closets')}
+                  className="h-4 w-4 text-[#273140] focus:ring-[#273140] border-gray-300 rounded"
+                />
+                <span className="ml-2 text-sm font-medium text-gray-700">Large Closets</span>
+              </label>
             </div>
           </div>
 
