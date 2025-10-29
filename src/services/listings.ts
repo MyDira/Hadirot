@@ -1,8 +1,10 @@
 import { supabase, Listing } from '../config/supabase';
 import { capitalizeName } from '../utils/formatters';
 
+export type SortOption = 'newest' | 'oldest' | 'price_asc' | 'price_desc' | 'bedrooms_asc' | 'bedrooms_desc' | 'bathrooms_asc' | 'bathrooms_desc';
+
 interface GetListingsFilters {
-  bedrooms?: number;
+  bedrooms?: number[];
   property_type?: string;
   min_price?: number;
   max_price?: number;
@@ -12,6 +14,7 @@ interface GetListingsFilters {
   noFeeOnly?: boolean;
   poster_type?: string;
   agency_name?: string;
+  sort?: SortOption;
 }
 
 export type ListingCreateInput = Omit<Listing, 'id' | 'created_at' | 'updated_at'> & {
@@ -78,8 +81,8 @@ export const listingsService = {
       .eq('is_active', true)
       .eq('approved', true);
 
-    if (filters.bedrooms !== undefined) {
-      query = query.eq('bedrooms', filters.bedrooms);
+    if (filters.bedrooms !== undefined && filters.bedrooms.length > 0) {
+      query = query.in('bedrooms', filters.bedrooms);
     }
     if (filters.property_type) {
       query = query.eq('property_type', filters.property_type);
@@ -117,7 +120,34 @@ export const listingsService = {
       }
     }
 
-    query = query.order('created_at', { ascending: false });
+    // Apply sorting
+    switch (filters.sort) {
+      case 'oldest':
+        query = query.order('created_at', { ascending: true });
+        break;
+      case 'price_asc':
+        query = query.order('price', { ascending: true, nullsFirst: false }).order('created_at', { ascending: false });
+        break;
+      case 'price_desc':
+        query = query.order('price', { ascending: false, nullsFirst: false }).order('created_at', { ascending: false });
+        break;
+      case 'bedrooms_asc':
+        query = query.order('bedrooms', { ascending: true }).order('created_at', { ascending: false });
+        break;
+      case 'bedrooms_desc':
+        query = query.order('bedrooms', { ascending: false }).order('created_at', { ascending: false });
+        break;
+      case 'bathrooms_asc':
+        query = query.order('bathrooms', { ascending: true }).order('created_at', { ascending: false });
+        break;
+      case 'bathrooms_desc':
+        query = query.order('bathrooms', { ascending: false }).order('created_at', { ascending: false });
+        break;
+      case 'newest':
+      default:
+        query = query.order('created_at', { ascending: false });
+        break;
+    }
 
     // Only apply pagination if requested
     if (applyPagination) {
@@ -1011,5 +1041,65 @@ async getUniqueNeighborhoods(): Promise<string[]> {
     }
 
     return count || 0;
+  },
+
+  async getAvailableBedroomCounts(filters: Omit<GetListingsFilters, 'bedrooms' | 'sort'> = {}): Promise<{ bedrooms: number; count: number }[]> {
+    const posterType = filters?.poster_type as 'owner' | 'agent' | undefined;
+    const agencyName = (filters as any)?.agency_name || undefined;
+
+    const ownerSelect = posterType === 'owner' || posterType === 'agent' || !!agencyName
+      ? 'bedrooms,owner:profiles!inner(id,role,agency)'
+      : 'bedrooms';
+
+    let query = supabase
+      .from('listings')
+      .select(ownerSelect, { count: 'exact' })
+      .eq('is_active', true)
+      .eq('approved', true);
+
+    if (filters.property_type) {
+      query = query.eq('property_type', filters.property_type);
+    }
+    if (filters.min_price) {
+      query = query.gte('price', filters.min_price);
+    }
+    if (filters.max_price) {
+      query = query.lte('price', filters.max_price);
+    }
+    if (filters.parking_included) {
+      query = query.in('parking', ['yes', 'included']);
+    }
+    if (filters.neighborhoods && filters.neighborhoods.length > 0) {
+      query = query.in('neighborhood', filters.neighborhoods);
+    }
+    if (filters.noFeeOnly) {
+      query = query.eq('broker_fee', false);
+    }
+
+    if (posterType === 'owner') {
+      query = query.or('role.eq.landlord,role.eq.tenant', { foreignTable: 'owner' });
+    } else if (posterType === 'agent') {
+      query = query.or('role.eq.agent', { foreignTable: 'owner' });
+      if (agencyName) {
+        query = query.eq('owner.agency', agencyName);
+      }
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      console.error('Error fetching available bedroom counts:', error);
+      return [];
+    }
+
+    const bedroomCounts = new Map<number, number>();
+    (data || []).forEach((listing: any) => {
+      const bedrooms = listing.bedrooms;
+      bedroomCounts.set(bedrooms, (bedroomCounts.get(bedrooms) || 0) + 1);
+    });
+
+    return Array.from(bedroomCounts.entries())
+      .map(([bedrooms, count]) => ({ bedrooms, count }))
+      .sort((a, b) => a.bedrooms - b.bedrooms);
   },
 };
