@@ -1,8 +1,10 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useSearchParams, useLocation } from 'react-router-dom';
 
+export type SortOption = 'newest' | 'oldest' | 'price_asc' | 'price_desc' | 'bedrooms_asc' | 'bedrooms_desc' | 'bathrooms_asc' | 'bathrooms_desc';
+
 interface FilterState {
-  bedrooms?: number;
+  bedrooms?: number[];
   poster_type?: string;
   agency_name?: string;
   property_type?: string;
@@ -11,6 +13,7 @@ interface FilterState {
   parking_included?: boolean;
   no_fee_only?: boolean;
   neighborhoods?: string[];
+  sort?: SortOption;
 }
 
 interface BrowseState {
@@ -73,7 +76,11 @@ export function useBrowseFilters() {
     const urlFilters: FilterState = {};
 
     const bedrooms = params.get('bedrooms');
-    if (bedrooms) urlFilters.bedrooms = parseInt(bedrooms);
+    if (bedrooms) {
+      // Support both array (comma-separated) and single value for backward compatibility
+      const bedroomValues = bedrooms.split(',').map(b => parseInt(b.trim())).filter(b => !isNaN(b));
+      if (bedroomValues.length > 0) urlFilters.bedrooms = bedroomValues;
+    }
 
     const poster_type = params.get('poster_type');
     if (poster_type) urlFilters.poster_type = poster_type;
@@ -101,6 +108,9 @@ export function useBrowseFilters() {
       urlFilters.neighborhoods = neighborhoods.split(',').filter(Boolean);
     }
 
+    const sort = params.get('sort');
+    if (sort) urlFilters.sort = sort as SortOption;
+
     const page = params.get('page');
     const pageNum = page ? parseInt(page) : 1;
 
@@ -126,7 +136,9 @@ export function useBrowseFilters() {
 
         // Update URL to match restored state
         const params = new URLSearchParams();
-        if (savedState.filters.bedrooms !== undefined) params.set('bedrooms', savedState.filters.bedrooms.toString());
+        if (savedState.filters.bedrooms && savedState.filters.bedrooms.length > 0) {
+          params.set('bedrooms', savedState.filters.bedrooms.join(','));
+        }
         if (savedState.filters.poster_type) params.set('poster_type', savedState.filters.poster_type);
         if (savedState.filters.agency_name) params.set('agency_name', savedState.filters.agency_name);
         if (savedState.filters.property_type) params.set('property_type', savedState.filters.property_type);
@@ -137,6 +149,7 @@ export function useBrowseFilters() {
         if (savedState.filters.neighborhoods && savedState.filters.neighborhoods.length > 0) {
           params.set('neighborhoods', savedState.filters.neighborhoods.join(','));
         }
+        if (savedState.filters.sort) params.set('sort', savedState.filters.sort);
         params.set('page', savedState.page.toString());
         setSearchParams(params, { replace: true });
 
@@ -207,7 +220,9 @@ export function useBrowseFilters() {
     // Update URL with new filters
     const params = new URLSearchParams();
 
-    if (newFilters.bedrooms !== undefined) params.set('bedrooms', newFilters.bedrooms.toString());
+    if (newFilters.bedrooms && newFilters.bedrooms.length > 0) {
+      params.set('bedrooms', newFilters.bedrooms.join(','));
+    }
     if (newFilters.poster_type) params.set('poster_type', newFilters.poster_type);
     if (newFilters.agency_name) params.set('agency_name', newFilters.agency_name);
     if (newFilters.property_type) params.set('property_type', newFilters.property_type);
@@ -219,6 +234,8 @@ export function useBrowseFilters() {
     if (newFilters.neighborhoods && newFilters.neighborhoods.length > 0) {
       params.set('neighborhoods', newFilters.neighborhoods.join(','));
     }
+
+    if (newFilters.sort) params.set('sort', newFilters.sort);
 
     params.set('page', '1');
     setSearchParams(params);
