@@ -72,23 +72,23 @@ interface BrandEmailParams {
 }
 
 function renderBrandEmail({ title, intro, bodyHtml, ctaLabel, ctaHref }: BrandEmailParams) {
-  const introHtml = intro ? `<p style="margin-top:0;">${intro}</p>` : "";
-  const button = ctaLabel && ctaHref ? `<div style="text-align:center;margin:32px 0;">
-       <a href="${ctaHref}" style="background-color:#7CB342;color:#FFFFFF;padding:12px 24px;text-decoration:none;border-radius:6px;display:inline-block;font-weight:bold;">${ctaLabel}</a>
+  const introHtml = intro ? `<p style=\"margin-top:0;\">${intro}</p>` : "";
+  const button = ctaLabel && ctaHref ? `<div style=\"text-align:center;margin:32px 0;\">
+       <a href=\"${ctaHref}\" style=\"background-color:#7CB342;color:#FFFFFF;padding:12px 24px;text-decoration:none;border-radius:6px;display:inline-block;font-weight:bold;\">${ctaLabel}</a>
      </div>` : "";
   return `
-    <div style="font-family:Arial,sans-serif;background-color:#F7F9FC;padding:24px;">
-      <div style="max-width:600px;margin:0 auto;background-color:#FFFFFF;border:1px solid #E5E7EB;border-radius:8px;overflow:hidden;">
-        <div style="background-color:#1E4A74;color:#FFFFFF;padding:24px;text-align:center;">
-          <h1 style="margin:0;font-size:24px;">Hadirot</h1>
+    <div style=\"font-family:Arial,sans-serif;background-color:#F7F9FC;padding:24px;\">
+      <div style=\"max-width:600px;margin:0 auto;background-color:#FFFFFF;border:1px solid #E5E7EB;border-radius:8px;overflow:hidden;\">
+        <div style=\"background-color:#1E4A74;color:#FFFFFF;padding:24px;text-align:center;\">
+          <h1 style=\"margin:0;font-size:24px;\">Hadirot</h1>
         </div>
-        <div style="padding:24px;color:#374151;font-size:16px;line-height:1.5;">
-          <h2 style="margin:0 0 16px 0;font-size:20px;color:#1E4A74;">${title}</h2>
+        <div style=\"padding:24px;color:#374151;font-size:16px;line-height:1.5;\">
+          <h2 style=\"margin:0 0 16px 0;font-size:20px;color:#1E4A74;\">${title}</h2>
           ${introHtml}
           ${bodyHtml}
           ${button}
         </div>
-        <div style="background-color:#F7F9FC;color:#6B7280;text-align:center;font-size:12px;padding:16px;">
+        <div style=\"background-color:#F7F9FC;color:#6B7280;text-align:center;font-size:12px;padding:16px;\">
           © ${new Date().getFullYear()} Hadirot. All rights reserved.
         </div>
       </div>
@@ -107,7 +107,6 @@ interface Listing {
   broker_fee: boolean;
   location: string;
   neighborhood: string | null;
-  cross_streets: string | null;
   property_type: string;
   lease_length: string;
   is_featured: boolean;
@@ -126,12 +125,11 @@ Deno.serve(async (req) => {
   }
 
   try {
-    console.log("📧 Starting daily admin digest email job");
+    console.log("\ud83d\udce7 Starting daily admin digest email job");
 
-    // Check authorization
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
-      console.error("❌ No Authorization header provided");
+      console.error("\u274c No Authorization header provided");
       return new Response(
         JSON.stringify({ error: "Unauthorized", message: "Authentication required" }),
         {
@@ -146,9 +144,9 @@ Deno.serve(async (req) => {
       try {
         const body = await req.json();
         force = body.force === true;
-        console.log(`🔧 Force parameter: ${force}`);
+        console.log(`\ud83d\udd27 Force parameter: ${force}`);
       } catch (e) {
-        console.warn("⚠️ Could not parse request body:", e);
+        console.warn("\u26a0\ufe0f Could not parse request body:", e);
       }
     }
 
@@ -163,12 +161,11 @@ Deno.serve(async (req) => {
       }
     );
 
-    // Verify user is admin
     const token = authHeader.replace("Bearer ", "");
     const { data: { user }, error: userError } = await supabaseAdmin.auth.getUser(token);
 
     if (userError || !user) {
-      console.error("❌ Invalid auth token:", userError);
+      console.error("\u274c Invalid auth token:", userError);
       return new Response(
         JSON.stringify({ error: "Unauthorized", message: "Invalid authentication token" }),
         {
@@ -185,7 +182,7 @@ Deno.serve(async (req) => {
       .maybeSingle();
 
     if (profileError || !profile || !profile.is_admin) {
-      console.error("❌ User is not an admin:", user.id);
+      console.error("\u274c User is not an admin:", user.id);
       return new Response(
         JSON.stringify({ error: "Forbidden", message: "Admin access required" }),
         {
@@ -195,7 +192,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    console.log(`✅ Authorized admin user: ${user.id}`);
+    console.log(`\u2705 Authorized admin user: ${user.id}`);
 
     const { data: config, error: configError } = await supabaseAdmin
       .from("daily_admin_digest_config")
@@ -204,7 +201,7 @@ Deno.serve(async (req) => {
       .maybeSingle();
 
     if (configError) {
-      console.error("❌ Error fetching config:", configError);
+      console.error("\u274c Error fetching config:", configError);
       return new Response(
         JSON.stringify({
           error: "Database error",
@@ -219,7 +216,7 @@ Deno.serve(async (req) => {
     }
 
     if (!force && (!config || !config.enabled)) {
-      console.log("⏸️ Daily digest is disabled");
+      console.log("\u23f8\ufe0f Daily digest is disabled");
       return new Response(
         JSON.stringify({ message: "Daily digest is disabled" }),
         {
@@ -230,7 +227,7 @@ Deno.serve(async (req) => {
     }
 
     if (force) {
-      console.log("🔧 Force parameter set - bypassing enabled check");
+      console.log("\ud83d\udd27 Force parameter set - bypassing enabled check");
     }
 
     const { data: adminProfiles, error: adminsError } = await supabaseAdmin
@@ -239,7 +236,7 @@ Deno.serve(async (req) => {
       .eq("is_admin", true);
 
     if (adminsError) {
-      console.error("❌ Error fetching admins:", adminsError);
+      console.error("\u274c Error fetching admins:", adminsError);
       return new Response(
         JSON.stringify({
           error: "Database error",
@@ -254,7 +251,7 @@ Deno.serve(async (req) => {
     }
 
     if (!adminProfiles || adminProfiles.length === 0) {
-      console.log("⚠️ No admin users found");
+      console.log("\u26a0\ufe0f No admin users found");
       return new Response(
         JSON.stringify({ message: "No admin users to send email to" }),
         {
@@ -267,7 +264,7 @@ Deno.serve(async (req) => {
     const { data: { users }, error: usersError } = await supabaseAdmin.auth.admin.listUsers();
 
     if (usersError) {
-      console.error("❌ Error fetching user emails:", usersError);
+      console.error("\u274c Error fetching user emails:", usersError);
       return new Response(
         JSON.stringify({
           error: "Authentication error",
@@ -288,7 +285,7 @@ Deno.serve(async (req) => {
       .filter((email): email is string => !!email) || [];
 
     if (adminEmails.length === 0) {
-      console.log("⚠️ No admin email addresses found");
+      console.log("\u26a0\ufe0f No admin email addresses found");
       return new Response(
         JSON.stringify({ message: "No admin email addresses to send to" }),
         {
@@ -298,7 +295,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    console.log(`👥 Found ${adminEmails.length} admin user(s)`);
+    console.log(`\ud83d\udc65 Found ${adminEmails.length} admin user(s)`);
 
     const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
     const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
@@ -316,7 +313,6 @@ Deno.serve(async (req) => {
         broker_fee,
         location,
         neighborhood,
-        cross_streets,
         property_type,
         lease_length,
         is_featured,
@@ -330,7 +326,7 @@ Deno.serve(async (req) => {
       .order("created_at", { ascending: false });
 
     if (listingsError) {
-      console.error("❌ Error fetching listings:", listingsError);
+      console.error("\u274c Error fetching listings:", listingsError);
       return new Response(
         JSON.stringify({
           error: "Database error",
@@ -345,7 +341,7 @@ Deno.serve(async (req) => {
     }
 
     if (!listings || listings.length === 0) {
-      console.log("ℹ️ No new approved listings in last 24 hours");
+      console.log("\u2139\ufe0f No new approved listings in last 24 hours");
 
       await supabaseAdmin.from("daily_admin_digest_logs").insert({
         run_at: new Date().toISOString(),
@@ -380,7 +376,7 @@ Deno.serve(async (req) => {
     );
 
     if (newListings.length === 0) {
-      console.log("ℹ️ All listings already sent within past 7 days");
+      console.log("\u2139\ufe0f All listings already sent within past 7 days");
 
       await supabaseAdmin.from("daily_admin_digest_logs").insert({
         run_at: new Date().toISOString(),
@@ -404,7 +400,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    console.log(`📋 Found ${newListings.length} new listing(s) to send`);
+    console.log(`\ud83d\udccb Found ${newListings.length} new listing(s) to send`);
 
     const siteUrl = Deno.env.get("PUBLIC_SITE_URL") || "https://hadirot.com";
 
@@ -464,10 +460,9 @@ Deno.serve(async (req) => {
         ? listing.owner.agency
         : "Owner";
       const hasParking = getParkingDisplay(listing.parking);
-      const location = listing.cross_streets || listing.location;
       const locationWithNeighborhood = listing.neighborhood
-        ? `${listing.neighborhood}, ${location}`
-        : location;
+        ? `${listing.neighborhood}, ${listing.location}`
+        : listing.location;
 
       listingsTextContent += `${formatPrice(listing)}\n`;
 
@@ -498,8 +493,8 @@ Deno.serve(async (req) => {
 
     const bodyHtml = `
       <p>You have ${newListings.length} new approved and active listing${newListings.length !== 1 ? 's' : ''} from the past 24 hours.</p>
-      <div style="background-color:#F7F9FC;padding:20px;border-radius:8px;margin:20px 0;">
-        <pre style="margin:0;font-family:monospace;font-size:14px;line-height:1.6;color:#374151;white-space:pre-wrap;word-wrap:break-word;">${listingsTextContent}</pre>
+      <div style=\"background-color:#F7F9FC;padding:20px;border-radius:8px;margin:20px 0;\">
+        <pre style=\"margin:0;font-family:monospace;font-size:14px;line-height:1.6;color:#374151;white-space:pre-wrap;word-wrap:break-word;\">${listingsTextContent}</pre>
       </div>
     `;
 
@@ -508,15 +503,14 @@ Deno.serve(async (req) => {
       bodyHtml,
     });
 
-    console.log(`📤 Sending email to ${adminEmails.length} admin(s)`);
+    console.log(`\ud83d\udce4 Sending email to ${adminEmails.length} admin(s)`);
 
-    // Verify email configuration before attempting to send
     const zeptoToken = Deno.env.get("ZEPTO_TOKEN");
     const zeptoFromAddress = Deno.env.get("ZEPTO_FROM_ADDRESS");
     const zeptoFromName = Deno.env.get("ZEPTO_FROM_NAME");
 
     if (!zeptoToken) {
-      console.error("❌ ZEPTO_TOKEN environment variable is not set");
+      console.error("\u274c ZEPTO_TOKEN environment variable is not set");
       return new Response(
         JSON.stringify({
           error: "Configuration error",
@@ -530,10 +524,10 @@ Deno.serve(async (req) => {
     }
 
     if (!zeptoFromAddress || !zeptoFromName) {
-      console.warn("⚠️ ZEPTO_FROM_ADDRESS or ZEPTO_FROM_NAME not set, using defaults");
+      console.warn("\u26a0\ufe0f ZEPTO_FROM_ADDRESS or ZEPTO_FROM_NAME not set, using defaults");
     }
 
-    console.log("✅ Email configuration verified");
+    console.log("\u2705 Email configuration verified");
 
     try {
       await sendViaZepto({
@@ -542,9 +536,9 @@ Deno.serve(async (req) => {
         html: emailHtml,
         fromName: "HaDirot Admin",
       });
-      console.log("✅ Email sent successfully");
+      console.log("\u2705 Email sent successfully");
     } catch (emailError) {
-      console.error("❌ Failed to send email:", emailError);
+      console.error("\u274c Failed to send email:", emailError);
       return new Response(
         JSON.stringify({
           error: "Email service error",
@@ -569,9 +563,9 @@ Deno.serve(async (req) => {
       .insert(sentRecords);
 
     if (insertError) {
-      console.error("❌ Error recording sent listings:", insertError);
+      console.error("\u274c Error recording sent listings:", insertError);
     } else {
-      console.log(`✅ Recorded ${listingIds.length} sent listing(s)`);
+      console.log(`\u2705 Recorded ${listingIds.length} sent listing(s)`);
     }
 
     await supabaseAdmin.from("daily_admin_digest_logs").insert({
@@ -591,13 +585,12 @@ Deno.serve(async (req) => {
       {
         status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
+        }
     );
   } catch (error) {
-    console.error("❌ Unexpected error in daily admin digest job:", error);
-    console.error("❌ Error stack:", error instanceof Error ? error.stack : "No stack trace");
+    console.error("\u274c Unexpected error in daily admin digest job:", error);
+    console.error("\u274c Error stack:", error instanceof Error ? error.stack : "No stack trace");
 
-    // Attempt to log the error
     try {
       const supabaseAdmin = createClient(
         Deno.env.get("SUPABASE_URL") ?? "",
@@ -618,7 +611,7 @@ Deno.serve(async (req) => {
         error_message: error instanceof Error ? error.message : String(error),
       });
     } catch (logError) {
-      console.error("❌ Failed to log error to database:", logError);
+      console.error("\u274c Failed to log error to database:", logError);
     }
 
     const errorMessage = error instanceof Error ? error.message : String(error);
