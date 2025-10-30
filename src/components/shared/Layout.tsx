@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
-import { Home, Search, Plus, User, Heart, LogOut, Settings, LayoutDashboard, FileText, CreditCard as Edit3, Star, BarChart3, Menu, X, Building2, Paintbrush } from "lucide-react";
+import { Home, Search, Plus, User, Heart, LogOut, Settings, LayoutDashboard, BarChart3, Menu, X, Building2, Paintbrush } from "lucide-react";
 import { useAuth, AUTH_CONTEXT_ID } from "@/hooks/useAuth";
 import { useAnalyticsInit } from "@/hooks/useAnalyticsInit";
 import { Footer } from "./Footer";
@@ -343,30 +343,6 @@ export function Layout({ children }: LayoutProps) {
                               Admin Panel
                             </Link>
                             <Link
-                              to="/admin?tab=static-pages"
-                              className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                              onClick={() => setShowUserMenu(false)}
-                            >
-                              <FileText className="w-4 h-4 mr-2" />
-                              Static Pages
-                            </Link>
-                            <Link
-                              to="/admin/footer"
-                              className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                              onClick={() => setShowUserMenu(false)}
-                            >
-                              <Edit3 className="w-4 h-4 mr-2" />
-                              Footer Editor
-                            </Link>
-                            <Link
-                              to="/admin?tab=featured"
-                              className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                              onClick={() => setShowUserMenu(false)}
-                            >
-                              <Star className="w-4 h-4 mr-2" />
-                              Featured Settings
-                            </Link>
-                            <Link
                               to="/admin?tab=analytics"
                               className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
                               onClick={() => setShowUserMenu(false)}
@@ -556,38 +532,6 @@ export function Layout({ children }: LayoutProps) {
                           >
                             <Settings className="w-5 h-5 mr-3" />
                             Admin Panel
-                          </Link>
-                          <Link
-                            to="/admin?tab=static-pages"
-                            onClick={() => setIsMobileMenuOpen(false)}
-                            className="flex items-center px-4 py-3 text-base font-medium text-gray-600 hover:text-[#273140] hover:bg-gray-50 rounded-md transition-colors"
-                          >
-                            <FileText className="w-5 h-5 mr-3" />
-                            Static Pages
-                          </Link>
-                          <Link
-                            to="/admin/footer"
-                            onClick={() => setIsMobileMenuOpen(false)}
-                            className="flex items-center px-4 py-3 text-base font-medium text-gray-600 hover:text-[#273140] hover:bg-gray-50 rounded-md transition-colors"
-                          >
-                            <Edit3 className="w-5 h-5 mr-3" />
-                            Footer Editor
-                          </Link>
-                          <Link
-                            to="/admin?tab=featured"
-                            onClick={() => setIsMobileMenuOpen(false)}
-                            className="flex items-center px-4 py-3 text-base font-medium text-gray-600 hover:text-[#273140] hover:bg-gray-50 rounded-md transition-colors"
-                          >
-                            <Star className="w-5 h-5 mr-3" />
-                            Featured Settings
-                          </Link>
-                          <Link
-                            to="/admin?tab=analytics"
-                            onClick={() => setIsMobileMenuOpen(false)}
-                            className="flex items-center px-4 py-3 text-base font-medium text-gray-600 hover:text-[#273140] hover:bg-gray-50 rounded-md transition-colors"
-                          >
-                            <BarChart3 className="w-5 h-5 mr-3" />
-                            Analytics
                           </Link>
                           <Link
                             to="/admin?tab=analytics"
