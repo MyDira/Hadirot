@@ -231,6 +231,9 @@ export function ContentManagement() {
         headers: {
           Authorization: `Bearer ${session.access_token}`,
         },
+        body: {
+          force: true
+        }
       });
 
       if (error) {

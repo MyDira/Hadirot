@@ -34,6 +34,16 @@ Deno.serve(async (req) => {
   try {
     console.log("📧 Starting daily admin digest email job");
 
+    let force = false;
+    if (req.method === "POST") {
+      try {
+        const body = await req.json();
+        force = body.force === true;
+      } catch {
+        // Ignore JSON parse errors
+      }
+    }
+
     const supabaseAdmin = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
@@ -56,7 +66,7 @@ Deno.serve(async (req) => {
       throw configError;
     }
 
-    if (!config || !config.enabled) {
+    if (!force && (!config || !config.enabled)) {
       console.log("⏸️ Daily digest is disabled");
       return new Response(
         JSON.stringify({ message: "Daily digest is disabled" }),
@@ -65,6 +75,10 @@ Deno.serve(async (req) => {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         }
       );
+    }
+
+    if (force) {
+      console.log("🔧 Force parameter set - bypassing enabled check");
     }
 
     const { data: adminProfiles, error: adminsError } = await supabaseAdmin
