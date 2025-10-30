@@ -76,6 +76,9 @@ export function ContentManagement() {
   const [digestLogs, setDigestLogs] = useState<any[]>([]);
   const [sendingTestDigest, setSendingTestDigest] = useState(false);
   const [loadingEmailData, setLoadingEmailData] = useState(false);
+  const [updatingConfig, setUpdatingConfig] = useState(false);
+  const [editingDeliveryTime, setEditingDeliveryTime] = useState(false);
+  const [tempDeliveryTime, setTempDeliveryTime] = useState('');
 
   const [toast, setToast] = useState<{ message: string; tone: 'success' | 'error' } | null>(null);
 
@@ -252,6 +255,64 @@ export function ContentManagement() {
       setToast({ message: 'Failed to send test digest. Please try again.', tone: 'error' });
     } finally {
       setSendingTestDigest(false);
+    }
+  };
+
+  const toggleDigestEnabled = async () => {
+    if (!digestConfig) return;
+
+    setUpdatingConfig(true);
+    try {
+      const newEnabledState = !digestConfig.enabled;
+
+      const { error } = await supabase
+        .from('daily_admin_digest_config')
+        .update({ enabled: newEnabledState, updated_at: new Date().toISOString() })
+        .eq('id', digestConfig.id);
+
+      if (error) {
+        console.error('Error updating digest config:', error);
+        setToast({ message: 'Failed to update configuration', tone: 'error' });
+        return;
+      }
+
+      setDigestConfig({ ...digestConfig, enabled: newEnabledState });
+      setToast({
+        message: `Daily digest ${newEnabledState ? 'enabled' : 'disabled'} successfully`,
+        tone: 'success'
+      });
+    } catch (error) {
+      console.error('Error toggling digest:', error);
+      setToast({ message: 'Failed to update configuration', tone: 'error' });
+    } finally {
+      setUpdatingConfig(false);
+    }
+  };
+
+  const updateDeliveryTime = async () => {
+    if (!digestConfig || !tempDeliveryTime) return;
+
+    setUpdatingConfig(true);
+    try {
+      const { error } = await supabase
+        .from('daily_admin_digest_config')
+        .update({ delivery_time: tempDeliveryTime, updated_at: new Date().toISOString() })
+        .eq('id', digestConfig.id);
+
+      if (error) {
+        console.error('Error updating delivery time:', error);
+        setToast({ message: 'Failed to update delivery time', tone: 'error' });
+        return;
+      }
+
+      setDigestConfig({ ...digestConfig, delivery_time: tempDeliveryTime });
+      setEditingDeliveryTime(false);
+      setToast({ message: 'Delivery time updated successfully', tone: 'success' });
+    } catch (error) {
+      console.error('Error updating delivery time:', error);
+      setToast({ message: 'Failed to update delivery time', tone: 'error' });
+    } finally {
+      setUpdatingConfig(false);
     }
   };
 
@@ -824,51 +885,122 @@ export function ContentManagement() {
                           <p className="text-gray-600 mt-2">Loading configuration...</p>
                         </div>
                       ) : (
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                          {/* Status */}
-                          <div className="bg-gray-50 rounded-lg p-4">
-                            <div className="flex items-center justify-between">
-                              <span className="text-sm font-medium text-gray-700">Status</span>
+                        <div className="space-y-6">
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                            {/* Status with Toggle */}
+                            <div className="bg-gray-50 rounded-lg p-4">
+                              <div className="flex items-center justify-between mb-2">
+                                <span className="text-sm font-medium text-gray-700">Automated Digest</span>
+                                <button
+                                  type="button"
+                                  role="switch"
+                                  aria-checked={digestConfig?.enabled}
+                                  onClick={toggleDigestEnabled}
+                                  disabled={updatingConfig}
+                                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                                    digestConfig?.enabled ? 'bg-green-600' : 'bg-gray-300'
+                                  } ${updatingConfig ? 'cursor-wait opacity-60' : 'cursor-pointer'}`}
+                                >
+                                  <span
+                                    className={`inline-block h-5 w-5 transform rounded-full bg-white transition ${
+                                      digestConfig?.enabled ? 'translate-x-5' : 'translate-x-1'
+                                    }`}
+                                  />
+                                </button>
+                              </div>
                               <div className={`flex items-center ${digestConfig?.enabled ? 'text-green-600' : 'text-gray-400'}`}>
                                 {digestConfig?.enabled ? (
                                   <>
-                                    <CheckCircle className="w-5 h-5 mr-1" />
-                                    <span className="text-sm font-semibold">Enabled</span>
+                                    <CheckCircle className="w-4 h-4 mr-1" />
+                                    <span className="text-xs font-semibold">Active</span>
                                   </>
                                 ) : (
                                   <>
-                                    <XCircle className="w-5 h-5 mr-1" />
-                                    <span className="text-sm font-semibold">Disabled</span>
+                                    <XCircle className="w-4 h-4 mr-1" />
+                                    <span className="text-xs font-semibold">Inactive</span>
                                   </>
                                 )}
                               </div>
                             </div>
-                          </div>
 
-                          {/* Delivery Time */}
-                          <div className="bg-gray-50 rounded-lg p-4">
-                            <div className="flex items-center justify-between">
-                              <span className="text-sm font-medium text-gray-700">Delivery Time</span>
+                            {/* Delivery Time with Editor */}
+                            <div className="bg-gray-50 rounded-lg p-4">
+                              <div className="flex items-center justify-between mb-2">
+                                <span className="text-sm font-medium text-gray-700">Delivery Time</span>
+                                {!editingDeliveryTime && (
+                                  <button
+                                    onClick={() => {
+                                      setEditingDeliveryTime(true);
+                                      setTempDeliveryTime(digestConfig?.delivery_time || '09:00:00');
+                                    }}
+                                    className="text-blue-600 hover:text-blue-800 transition-colors"
+                                  >
+                                    <Edit2 className="w-4 h-4" />
+                                  </button>
+                                )}
+                              </div>
+                              {editingDeliveryTime ? (
+                                <div className="space-y-2">
+                                  <input
+                                    type="time"
+                                    value={tempDeliveryTime}
+                                    onChange={(e) => setTempDeliveryTime(e.target.value)}
+                                    className="w-full px-2 py-1 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+                                  />
+                                  <div className="flex gap-2">
+                                    <button
+                                      onClick={updateDeliveryTime}
+                                      disabled={updatingConfig}
+                                      className="flex-1 px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+                                    >
+                                      Save
+                                    </button>
+                                    <button
+                                      onClick={() => setEditingDeliveryTime(false)}
+                                      className="flex-1 px-2 py-1 text-xs bg-gray-200 text-gray-700 rounded hover:bg-gray-300"
+                                    >
+                                      Cancel
+                                    </button>
+                                  </div>
+                                </div>
+                              ) : (
+                                <div className="flex items-center text-gray-900">
+                                  <Clock className="w-4 h-4 mr-1 text-blue-600" />
+                                  <span className="text-xs font-semibold">
+                                    {digestConfig?.delivery_time ? new Date('2000-01-01T' + digestConfig.delivery_time).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }) : 'N/A'} EST
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Last Run */}
+                            <div className="bg-gray-50 rounded-lg p-4">
+                              <div className="flex items-center justify-between mb-2">
+                                <span className="text-sm font-medium text-gray-700">Last Successful Run</span>
+                              </div>
                               <div className="flex items-center text-gray-900">
-                                <Clock className="w-5 h-5 mr-1 text-blue-600" />
-                                <span className="text-sm font-semibold">
-                                  {digestConfig?.delivery_time ? new Date('2000-01-01T' + digestConfig.delivery_time).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }) : 'N/A'} EST
+                                <BarChart3 className="w-4 h-4 mr-1 text-blue-600" />
+                                <span className="text-xs font-semibold">
+                                  {digestLogs.find(log => log.success)
+                                    ? new Date(digestLogs.find(log => log.success)!.run_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+                                    : 'Never'}
                                 </span>
                               </div>
                             </div>
                           </div>
 
-                          {/* Last Run */}
-                          <div className="bg-gray-50 rounded-lg p-4">
-                            <div className="flex items-center justify-between">
-                              <span className="text-sm font-medium text-gray-700">Last Successful Run</span>
-                              <div className="flex items-center text-gray-900">
-                                <BarChart3 className="w-5 h-5 mr-1 text-blue-600" />
-                                <span className="text-sm font-semibold">
-                                  {digestLogs.find(log => log.success)
-                                    ? new Date(digestLogs.find(log => log.success)!.run_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-                                    : 'Never'}
-                                </span>
+                          {/* Info Box */}
+                          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                            <div className="flex items-start">
+                              <AlertCircle className="w-5 h-5 text-blue-600 mr-3 mt-0.5 flex-shrink-0" />
+                              <div className="text-sm text-blue-900">
+                                <p className="font-medium mb-1">How it works:</p>
+                                <ul className="list-disc list-inside space-y-1 text-blue-800">
+                                  <li>When <strong>Active</strong>, the system sends automatic digest emails at the scheduled time</li>
+                                  <li>You can manually trigger a digest anytime using the button below</li>
+                                  <li>Manual triggers work regardless of the Active/Inactive status</li>
+                                  <li>Emails include all approved listings from the past 24 hours</li>
+                                </ul>
                               </div>
                             </div>
                           </div>
@@ -880,21 +1012,18 @@ export function ContentManagement() {
                     <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border border-blue-200 p-6">
                       <div className="flex items-start justify-between">
                         <div className="flex-1">
-                          <h3 className="text-lg font-semibold text-gray-900 mb-2">Send Test Digest Now</h3>
-                          <p className="text-sm text-gray-600 mb-4">
-                            Manually trigger the daily digest email to all admins. This will send an email containing all approved and active listings from the past 24 hours.
+                          <h3 className="text-lg font-semibold text-gray-900 mb-2">Manual Trigger</h3>
+                          <p className="text-sm text-gray-600 mb-2">
+                            Instantly send a digest email to all admins with approved and active listings from the past 24 hours.
                           </p>
-                          {!digestConfig?.enabled && (
-                            <div className="flex items-center text-amber-700 bg-amber-50 px-3 py-2 rounded-md text-sm mb-4">
-                              <AlertCircle className="w-4 h-4 mr-2" />
-                              <span>Note: The digest system is currently disabled in configuration.</span>
-                            </div>
-                          )}
+                          <p className="text-xs text-gray-500">
+                            This works independently of the automated schedule. You can test the digest at any time.
+                          </p>
                         </div>
                         <button
                           onClick={sendTestDigest}
                           disabled={sendingTestDigest}
-                          className="flex items-center px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium transition-colors ml-4"
+                          className="flex items-center px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium transition-colors ml-4 shadow-md"
                         >
                           {sendingTestDigest ? (
                             <>
@@ -904,7 +1033,7 @@ export function ContentManagement() {
                           ) : (
                             <>
                               <Send className="w-5 h-5 mr-2" />
-                              Send Test Email
+                              Send Now
                             </>
                           )}
                         </button>
