@@ -238,24 +238,57 @@ export function ContentManagement() {
 
       if (error) {
         console.error('Error sending test digest:', error);
-        setToast({ message: `Failed to send test digest: ${error.message}`, tone: 'error' });
+        console.error('Error details:', JSON.stringify(error, null, 2));
+
+        let errorMessage = 'Failed to send test digest';
+
+        if (error.message) {
+          if (error.message.includes('ZEPTO_TOKEN') || error.message.includes('Email service not configured')) {
+            errorMessage = 'Email service not configured. Please set ZEPTO_TOKEN in Supabase Edge Functions settings.';
+          } else if (error.message.includes('Unauthorized') || error.message.includes('Authentication')) {
+            errorMessage = 'Authentication failed. Please refresh the page and try again.';
+          } else if (error.message.includes('Forbidden') || error.message.includes('Admin')) {
+            errorMessage = 'Admin access required. Please ensure you have admin privileges.';
+          } else if (error.message.includes('non-2xx')) {
+            errorMessage = 'Server error occurred. Check Supabase Edge Function logs for details.';
+          } else {
+            errorMessage = `Failed to send test digest: ${error.message}`;
+          }
+        }
+
+        setToast({ message: errorMessage, tone: 'error' });
         return;
       }
 
-      if (data.listingCount === 0) {
+      if (data?.listingCount === 0) {
         setToast({ message: 'No new listings to send in the digest.', tone: 'success' });
-      } else {
+      } else if (data?.listingCount) {
         setToast({
           message: `Digest sent successfully! ${data.listingCount} listing(s) sent to ${data.adminCount} admin(s).`,
           tone: 'success'
         });
+      } else {
+        setToast({ message: 'Digest process completed.', tone: 'success' });
       }
 
       // Reload logs to show the new entry
       await loadEmailTools();
     } catch (error) {
-      console.error('Error sending test digest:', error);
-      setToast({ message: 'Failed to send test digest. Please try again.', tone: 'error' });
+      console.error('Unexpected error sending test digest:', error);
+
+      let errorMessage = 'Failed to send test digest. Please try again.';
+
+      if (error instanceof Error) {
+        if (error.message.includes('ZEPTO_TOKEN') || error.message.includes('Email service not configured')) {
+          errorMessage = 'Email service not configured. Please set ZEPTO_TOKEN in Supabase Edge Functions settings.';
+        } else if (error.message.includes('non-2xx')) {
+          errorMessage = 'Server error occurred. Check Supabase Edge Function logs in the Dashboard for details.';
+        } else if (error.message) {
+          errorMessage = `Failed to send test digest: ${error.message}`;
+        }
+      }
+
+      setToast({ message: errorMessage, tone: 'error' });
     } finally {
       setSendingTestDigest(false);
     }

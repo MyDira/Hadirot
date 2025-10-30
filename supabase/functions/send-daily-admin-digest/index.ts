@@ -128,13 +128,27 @@ Deno.serve(async (req) => {
   try {
     console.log("📧 Starting daily admin digest email job");
 
+    // Check authorization
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader) {
+      console.error("❌ No Authorization header provided");
+      return new Response(
+        JSON.stringify({ error: "Unauthorized", message: "Authentication required" }),
+        {
+          status: 401,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
     let force = false;
     if (req.method === "POST") {
       try {
         const body = await req.json();
         force = body.force === true;
-      } catch {
-        // Ignore JSON parse errors
+        console.log(`🔧 Force parameter: ${force}`);
+      } catch (e) {
+        console.warn("⚠️ Could not parse request body:", e);
       }
     }
 
@@ -149,6 +163,40 @@ Deno.serve(async (req) => {
       }
     );
 
+    // Verify user is admin
+    const token = authHeader.replace("Bearer ", "");
+    const { data: { user }, error: userError } = await supabaseAdmin.auth.getUser(token);
+
+    if (userError || !user) {
+      console.error("❌ Invalid auth token:", userError);
+      return new Response(
+        JSON.stringify({ error: "Unauthorized", message: "Invalid authentication token" }),
+        {
+          status: 401,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
+    const { data: profile, error: profileError } = await supabaseAdmin
+      .from("profiles")
+      .select("is_admin")
+      .eq("id", user.id)
+      .maybeSingle();
+
+    if (profileError || !profile || !profile.is_admin) {
+      console.error("❌ User is not an admin:", user.id);
+      return new Response(
+        JSON.stringify({ error: "Forbidden", message: "Admin access required" }),
+        {
+          status: 403,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
+    console.log(`✅ Authorized admin user: ${user.id}`);
+
     const { data: config, error: configError } = await supabaseAdmin
       .from("daily_admin_digest_config")
       .select("*")
@@ -157,7 +205,17 @@ Deno.serve(async (req) => {
 
     if (configError) {
       console.error("❌ Error fetching config:", configError);
-      throw configError;
+      return new Response(
+        JSON.stringify({
+          error: "Database error",
+          message: "Failed to fetch digest configuration",
+          details: configError.message
+        }),
+        {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
     }
 
     if (!force && (!config || !config.enabled)) {
@@ -182,7 +240,17 @@ Deno.serve(async (req) => {
 
     if (adminsError) {
       console.error("❌ Error fetching admins:", adminsError);
-      throw adminsError;
+      return new Response(
+        JSON.stringify({
+          error: "Database error",
+          message: "Failed to fetch admin users",
+          details: adminsError.message
+        }),
+        {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
     }
 
     if (!adminProfiles || adminProfiles.length === 0) {
@@ -200,7 +268,17 @@ Deno.serve(async (req) => {
 
     if (usersError) {
       console.error("❌ Error fetching user emails:", usersError);
-      throw usersError;
+      return new Response(
+        JSON.stringify({
+          error: "Authentication error",
+          message: "Failed to fetch user email addresses",
+          details: usersError.message
+        }),
+        {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
     }
 
     const adminIds = new Set(adminProfiles.map(p => p.id));
@@ -253,7 +331,17 @@ Deno.serve(async (req) => {
 
     if (listingsError) {
       console.error("❌ Error fetching listings:", listingsError);
-      throw listingsError;
+      return new Response(
+        JSON.stringify({
+          error: "Database error",
+          message: "Failed to fetch listings",
+          details: listingsError.message
+        }),
+        {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
     }
 
     if (!listings || listings.length === 0) {
@@ -422,14 +510,53 @@ Deno.serve(async (req) => {
 
     console.log(`📤 Sending email to ${adminEmails.length} admin(s)`);
 
-    await sendViaZepto({
-      to: adminEmails,
-      subject: `Daily Listing Digest - ${currentDate}`,
-      html: emailHtml,
-      fromName: "HaDirot Admin",
-    });
+    // Verify email configuration before attempting to send
+    const zeptoToken = Deno.env.get("ZEPTO_TOKEN");
+    const zeptoFromAddress = Deno.env.get("ZEPTO_FROM_ADDRESS");
+    const zeptoFromName = Deno.env.get("ZEPTO_FROM_NAME");
 
-    console.log("✅ Email sent successfully");
+    if (!zeptoToken) {
+      console.error("❌ ZEPTO_TOKEN environment variable is not set");
+      return new Response(
+        JSON.stringify({
+          error: "Configuration error",
+          message: "Email service is not configured. Please set ZEPTO_TOKEN environment variable in Supabase Edge Functions settings.",
+        }),
+        {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
+    if (!zeptoFromAddress || !zeptoFromName) {
+      console.warn("⚠️ ZEPTO_FROM_ADDRESS or ZEPTO_FROM_NAME not set, using defaults");
+    }
+
+    console.log("✅ Email configuration verified");
+
+    try {
+      await sendViaZepto({
+        to: adminEmails,
+        subject: `Daily Listing Digest - ${currentDate}`,
+        html: emailHtml,
+        fromName: "HaDirot Admin",
+      });
+      console.log("✅ Email sent successfully");
+    } catch (emailError) {
+      console.error("❌ Failed to send email:", emailError);
+      return new Response(
+        JSON.stringify({
+          error: "Email service error",
+          message: "Failed to send digest email",
+          details: emailError instanceof Error ? emailError.message : String(emailError)
+        }),
+        {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
 
     const listingIds = newListings.map(l => l.id);
     const sentRecords = listingIds.map(id => ({
@@ -467,31 +594,41 @@ Deno.serve(async (req) => {
       }
     );
   } catch (error) {
-    console.error("❌ Error in daily admin digest job:", error);
+    console.error("❌ Unexpected error in daily admin digest job:", error);
+    console.error("❌ Error stack:", error instanceof Error ? error.stack : "No stack trace");
 
-    const supabaseAdmin = createClient(
-      Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
-      {
-        auth: {
-          autoRefreshToken: false,
-          persistSession: false,
-        },
-      }
-    );
+    // Attempt to log the error
+    try {
+      const supabaseAdmin = createClient(
+        Deno.env.get("SUPABASE_URL") ?? "",
+        Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
+        {
+          auth: {
+            autoRefreshToken: false,
+            persistSession: false,
+          },
+        }
+      );
 
-    await supabaseAdmin.from("daily_admin_digest_logs").insert({
-      run_at: new Date().toISOString(),
-      listings_count: 0,
-      recipients_count: 0,
-      success: false,
-      error_message: error instanceof Error ? error.message : String(error),
-    });
+      await supabaseAdmin.from("daily_admin_digest_logs").insert({
+        run_at: new Date().toISOString(),
+        listings_count: 0,
+        recipients_count: 0,
+        success: false,
+        error_message: error instanceof Error ? error.message : String(error),
+      });
+    } catch (logError) {
+      console.error("❌ Failed to log error to database:", logError);
+    }
+
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    const errorDetails = error instanceof Error ? error.stack : undefined;
 
     return new Response(
       JSON.stringify({
         error: "Internal server error",
-        message: error instanceof Error ? error.message : String(error),
+        message: errorMessage,
+        details: errorDetails,
       }),
       {
         status: 500,
