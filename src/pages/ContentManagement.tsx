@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { FileText, Star, MessageSquare, Save, Trash2, Plus, Eye, EyeOff, Edit2, X, Settings, Search, ChevronLeft, Monitor, Smartphone, BarChart3, Users, Power } from 'lucide-react';
+import { FileText, Star, MessageSquare, Save, Trash2, Plus, Eye, EyeOff, Edit2, X, Settings, Search, ChevronLeft, Monitor, Smartphone, BarChart3, Users, Power, Mail, Send, Clock, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { staticPagesService, StaticPage } from '../services/staticPages';
 import { modalsService, ModalPopup, CreateModalInput } from '../services/modals';
@@ -9,7 +9,7 @@ import { ModalPreview } from '../components/admin/ModalPreview';
 import { ModalManagement } from '../components/admin/ModalManagement';
 import { ModalEditor } from '../components/admin/ModalEditor';
 
-const CONTENT_TAB_KEYS = ['static-pages', 'featured', 'modals'] as const;
+const CONTENT_TAB_KEYS = ['static-pages', 'featured', 'modals', 'email-tools'] as const;
 type ContentTabKey = (typeof CONTENT_TAB_KEYS)[number];
 
 const isValidContentTab = (value: string | null): value is ContentTabKey =>
@@ -19,6 +19,7 @@ const CONTENT_TABS: { id: ContentTabKey; label: string; icon: React.ElementType 
   { id: 'static-pages', label: 'Static Pages', icon: FileText },
   { id: 'featured', label: 'Featured Settings', icon: Star },
   { id: 'modals', label: 'Modal Popups', icon: MessageSquare },
+  { id: 'email-tools', label: 'Email Tools', icon: Mail },
 ];
 
 export function ContentManagement() {
@@ -69,6 +70,12 @@ export function ContentManagement() {
   // Static Pages state
   const [selectedPageId, setSelectedPageId] = useState<string | null>(null);
   const [showPageEditor, setShowPageEditor] = useState(false);
+
+  // Email Tools state
+  const [digestConfig, setDigestConfig] = useState<any>(null);
+  const [digestLogs, setDigestLogs] = useState<any[]>([]);
+  const [sendingTestDigest, setSendingTestDigest] = useState(false);
+  const [loadingEmailData, setLoadingEmailData] = useState(false);
 
   const [toast, setToast] = useState<{ message: string; tone: 'success' | 'error' } | null>(null);
 
@@ -156,12 +163,95 @@ export function ContentManagement() {
           }
         }
         setModalStats(stats);
+      } else if (activeTab === 'email-tools') {
+        await loadEmailTools();
       }
     } catch (error) {
       console.error('Error loading data:', error);
       setToast({ message: 'Failed to load data', tone: 'error' });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadEmailTools = async () => {
+    setLoadingEmailData(true);
+    try {
+      // Load digest configuration
+      const { data: configData, error: configError } = await supabase
+        .from('daily_admin_digest_config')
+        .select('*')
+        .limit(1)
+        .maybeSingle();
+
+      if (configError) {
+        console.error('Error loading digest config:', configError);
+      } else {
+        setDigestConfig(configData);
+      }
+
+      // Load recent digest logs
+      const { data: logsData, error: logsError } = await supabase
+        .from('daily_admin_digest_logs')
+        .select('*')
+        .order('run_at', { ascending: false })
+        .limit(10);
+
+      if (logsError) {
+        console.error('Error loading digest logs:', logsError);
+      } else {
+        setDigestLogs(logsData || []);
+      }
+    } catch (error) {
+      console.error('Error loading email tools data:', error);
+      setToast({ message: 'Failed to load email tools data', tone: 'error' });
+    } finally {
+      setLoadingEmailData(false);
+    }
+  };
+
+  const sendTestDigest = async () => {
+    if (!confirm('Send a test digest email now? This will send an email to all admins with listings from the past 24 hours.')) {
+      return;
+    }
+
+    setSendingTestDigest(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+
+      if (!session) {
+        setToast({ message: 'Authentication error. Please refresh and try again.', tone: 'error' });
+        return;
+      }
+
+      const { data, error } = await supabase.functions.invoke('send-daily-admin-digest', {
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      });
+
+      if (error) {
+        console.error('Error sending test digest:', error);
+        setToast({ message: `Failed to send test digest: ${error.message}`, tone: 'error' });
+        return;
+      }
+
+      if (data.listingCount === 0) {
+        setToast({ message: 'No new listings to send in the digest.', tone: 'success' });
+      } else {
+        setToast({
+          message: `Digest sent successfully! ${data.listingCount} listing(s) sent to ${data.adminCount} admin(s).`,
+          tone: 'success'
+        });
+      }
+
+      // Reload logs to show the new entry
+      await loadEmailTools();
+    } catch (error) {
+      console.error('Error sending test digest:', error);
+      setToast({ message: 'Failed to send test digest. Please try again.', tone: 'error' });
+    } finally {
+      setSendingTestDigest(false);
     }
   };
 
@@ -710,6 +800,233 @@ export function ContentManagement() {
                       />
                     )}
                   </>
+                )}
+
+                {activeTab === 'email-tools' && (
+                  <div className="space-y-6">
+                    {/* Configuration Status Section */}
+                    <div className="bg-white rounded-lg border border-gray-200 p-6">
+                      <div className="flex items-center justify-between mb-6">
+                        <div className="flex items-center">
+                          <Mail className="w-6 h-6 text-blue-600 mr-3" />
+                          <div>
+                            <h2 className="text-xl font-bold text-gray-900">Daily Digest Email System</h2>
+                            <p className="text-sm text-gray-600 mt-1">
+                              Automatically sends digest emails to admins with new approved listings
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+
+                      {loadingEmailData ? (
+                        <div className="text-center py-8">
+                          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+                          <p className="text-gray-600 mt-2">Loading configuration...</p>
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                          {/* Status */}
+                          <div className="bg-gray-50 rounded-lg p-4">
+                            <div className="flex items-center justify-between">
+                              <span className="text-sm font-medium text-gray-700">Status</span>
+                              <div className={`flex items-center ${digestConfig?.enabled ? 'text-green-600' : 'text-gray-400'}`}>
+                                {digestConfig?.enabled ? (
+                                  <>
+                                    <CheckCircle className="w-5 h-5 mr-1" />
+                                    <span className="text-sm font-semibold">Enabled</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <XCircle className="w-5 h-5 mr-1" />
+                                    <span className="text-sm font-semibold">Disabled</span>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Delivery Time */}
+                          <div className="bg-gray-50 rounded-lg p-4">
+                            <div className="flex items-center justify-between">
+                              <span className="text-sm font-medium text-gray-700">Delivery Time</span>
+                              <div className="flex items-center text-gray-900">
+                                <Clock className="w-5 h-5 mr-1 text-blue-600" />
+                                <span className="text-sm font-semibold">
+                                  {digestConfig?.delivery_time ? new Date('2000-01-01T' + digestConfig.delivery_time).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }) : 'N/A'} EST
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Last Run */}
+                          <div className="bg-gray-50 rounded-lg p-4">
+                            <div className="flex items-center justify-between">
+                              <span className="text-sm font-medium text-gray-700">Last Successful Run</span>
+                              <div className="flex items-center text-gray-900">
+                                <BarChart3 className="w-5 h-5 mr-1 text-blue-600" />
+                                <span className="text-sm font-semibold">
+                                  {digestLogs.find(log => log.success)
+                                    ? new Date(digestLogs.find(log => log.success)!.run_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+                                    : 'Never'}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Test Button Section */}
+                    <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border border-blue-200 p-6">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <h3 className="text-lg font-semibold text-gray-900 mb-2">Send Test Digest Now</h3>
+                          <p className="text-sm text-gray-600 mb-4">
+                            Manually trigger the daily digest email to all admins. This will send an email containing all approved and active listings from the past 24 hours.
+                          </p>
+                          {!digestConfig?.enabled && (
+                            <div className="flex items-center text-amber-700 bg-amber-50 px-3 py-2 rounded-md text-sm mb-4">
+                              <AlertCircle className="w-4 h-4 mr-2" />
+                              <span>Note: The digest system is currently disabled in configuration.</span>
+                            </div>
+                          )}
+                        </div>
+                        <button
+                          onClick={sendTestDigest}
+                          disabled={sendingTestDigest}
+                          className="flex items-center px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium transition-colors ml-4"
+                        >
+                          {sendingTestDigest ? (
+                            <>
+                              <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+                              Sending...
+                            </>
+                          ) : (
+                            <>
+                              <Send className="w-5 h-5 mr-2" />
+                              Send Test Email
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Statistics Summary */}
+                    <div className="bg-white rounded-lg border border-gray-200 p-6">
+                      <h3 className="text-lg font-semibold text-gray-900 mb-4">Digest Statistics</h3>
+                      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                        <div className="bg-blue-50 rounded-lg p-4">
+                          <div className="text-sm text-blue-600 font-medium mb-1">Total Runs</div>
+                          <div className="text-2xl font-bold text-gray-900">{digestLogs.length}</div>
+                        </div>
+                        <div className="bg-green-50 rounded-lg p-4">
+                          <div className="text-sm text-green-600 font-medium mb-1">Successful</div>
+                          <div className="text-2xl font-bold text-gray-900">
+                            {digestLogs.filter(log => log.success).length}
+                          </div>
+                        </div>
+                        <div className="bg-red-50 rounded-lg p-4">
+                          <div className="text-sm text-red-600 font-medium mb-1">Failed</div>
+                          <div className="text-2xl font-bold text-gray-900">
+                            {digestLogs.filter(log => !log.success).length}
+                          </div>
+                        </div>
+                        <div className="bg-gray-50 rounded-lg p-4">
+                          <div className="text-sm text-gray-600 font-medium mb-1">Success Rate</div>
+                          <div className="text-2xl font-bold text-gray-900">
+                            {digestLogs.length > 0
+                              ? Math.round((digestLogs.filter(log => log.success).length / digestLogs.length) * 100)
+                              : 0}%
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Email Logs Table */}
+                    <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+                      <div className="px-6 py-4 border-b border-gray-200">
+                        <h3 className="text-lg font-semibold text-gray-900">Recent Digest Runs</h3>
+                        <p className="text-sm text-gray-600 mt-1">Last 10 digest email runs</p>
+                      </div>
+                      <div className="overflow-x-auto">
+                        {digestLogs.length === 0 ? (
+                          <div className="text-center py-12">
+                            <Mail className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                            <h3 className="text-lg font-medium text-gray-900 mb-2">No Email History</h3>
+                            <p className="text-gray-500">No digest emails have been sent yet.</p>
+                          </div>
+                        ) : (
+                          <table className="min-w-full divide-y divide-gray-200">
+                            <thead className="bg-gray-50">
+                              <tr>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                  Timestamp
+                                </th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                  Status
+                                </th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                  Listings Sent
+                                </th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                  Recipients
+                                </th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                  Details
+                                </th>
+                              </tr>
+                            </thead>
+                            <tbody className="bg-white divide-y divide-gray-200">
+                              {digestLogs.map((log) => (
+                                <tr key={log.id} className={log.success ? '' : 'bg-red-50'}>
+                                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                    {new Date(log.run_at).toLocaleString('en-US', {
+                                      month: 'short',
+                                      day: 'numeric',
+                                      year: 'numeric',
+                                      hour: 'numeric',
+                                      minute: '2-digit',
+                                      hour12: true
+                                    })}
+                                  </td>
+                                  <td className="px-6 py-4 whitespace-nowrap">
+                                    {log.success ? (
+                                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                        <CheckCircle className="w-3 h-3 mr-1" />
+                                        Success
+                                      </span>
+                                    ) : (
+                                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                                        <XCircle className="w-3 h-3 mr-1" />
+                                        Failed
+                                      </span>
+                                    )}
+                                  </td>
+                                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                    {log.listings_count || 0}
+                                  </td>
+                                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                    {log.recipients_count || 0}
+                                  </td>
+                                  <td className="px-6 py-4 text-sm text-gray-500">
+                                    {log.error_message ? (
+                                      <span className="text-red-600" title={log.error_message}>
+                                        {log.error_message.length > 50
+                                          ? log.error_message.substring(0, 50) + '...'
+                                          : log.error_message}
+                                      </span>
+                                    ) : (
+                                      <span className="text-gray-400">-</span>
+                                    )}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        )}
+                      </div>
+                    </div>
+                  </div>
                 )}
               </>
             )}
