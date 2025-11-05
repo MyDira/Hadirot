@@ -67,14 +67,14 @@ export function Home() {
 
       // Load 2 bedroom listings
       const twoBedroomResult = await listingsService.getListings(
-        { bedrooms: 2 },
+        { bedrooms: [2] },
         4,
         user?.id,
       );
 
       // Load 3 bedroom listings
       const threeBedroomResult = await listingsService.getListings(
-        { bedrooms: 3 },
+        { bedrooms: [3] },
         4,
         user?.id,
       );
@@ -96,7 +96,7 @@ export function Home() {
     try {
       const currentIds = twoBedroomListings.map((l) => l.id);
       const moreResult = await listingsService.getListings(
-        { bedrooms: 2 },
+        { bedrooms: [2] },
         8, // Load more to ensure we get 4 new ones after filtering
         user?.id,
         twoBedroomListings.length,
@@ -122,7 +122,7 @@ export function Home() {
     try {
       const currentIds = threeBedroomListings.map((l) => l.id);
       const moreResult = await listingsService.getListings(
-        { bedrooms: 3 },
+        { bedrooms: [3] },
         8, // Load more to ensure we get 4 new ones after filtering
         user?.id,
         threeBedroomListings.length,
