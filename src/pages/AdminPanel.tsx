@@ -1,20 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useSearchParams, useNavigate } from 'react-router-dom';
-import { Users, FileText, Eye, Trash2, Shield, TrendingUp, Home, Star, Power, ChevronDown, Search, ChevronRight, BarChart3, MessageSquare, UserCheck, ArrowRight, Mail, DollarSign } from 'lucide-react';
+import { Users, FileText, Eye, Trash2, Shield, TrendingUp, Home, Star, Power, ChevronDown, Search, ChevronRight, BarChart3, MessageSquare, UserCheck, ArrowRight, Mail } from 'lucide-react';
 import { listingsService } from '../services/listings';
 import { agenciesService } from '../services/agencies';
 import { useAuth } from '@/hooks/useAuth';
 import { useAdminSignInAsUser } from '@/hooks/useAdminSignInAsUser';
 import { supabase, Profile, Listing } from '../config/supabase';
 import { formatPhoneForDisplay } from '@/utils/phone';
-import { MonetizationPanel } from '../components/admin/MonetizationPanel';
 
 const ADMIN_TAB_KEYS = [
   'overview',
   'users',
   'listings',
   'pending',
-  'monetization',
 ] as const;
 
 type AdminTabKey = (typeof ADMIN_TAB_KEYS)[number];
@@ -27,7 +25,6 @@ const ADMIN_TABS: { id: AdminTabKey; label: string; icon: React.ElementType }[] 
   { id: 'users', label: 'Users', icon: Users },
   { id: 'listings', label: 'Listings', icon: Home },
   { id: 'pending', label: 'Pending', icon: Eye },
-  { id: 'monetization', label: 'Monetization', icon: DollarSign },
 ];
 
 interface AdminStats {
@@ -1860,11 +1857,6 @@ export function AdminPanel() {
               </div>
             </div>
       )}
-
-          {/* Monetization Tab */}
-          {activeTab === 'monetization' && (
-            <MonetizationPanel />
-          )}
         </>
       )}
 
