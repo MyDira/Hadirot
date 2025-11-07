@@ -35,11 +35,16 @@ async function sendViaZepto({ to, subject, html, from, fromName, replyTo, attach
   }
 
   const toList = Array.isArray(to) ? to : [to];
+
+  // Wrap plain text in minimal HTML to preserve formatting
+  const htmlFormatted = `<pre style="font-family: inherit; white-space: pre-wrap; word-wrap: break-word;">${html}</pre>`;
+
   const payload = {
     from: { address, name },
     to: toList.map((addr) => ({ email_address: { address: addr } })),
     subject,
-    htmlbody: html,
+    htmlbody: htmlFormatted,
+    textbody: html, // Also include as plain text
     reply_to: replyToAddress ? [{ address: replyToAddress }] : undefined,
     track_opens: false,
     track_clicks: false,
@@ -449,22 +454,16 @@ Deno.serve(async (req) => {
     };
 
     const getPropertyTypeDisplay = (propertyType: string) => {
-      const types: { [key: string]: string } = {
-        apartment: "Apartment",
-        full_house: "Full House",
-        duplex: "Duplex",
-      };
-      return types[propertyType] || propertyType;
+      // Only show property type if it's NOT an apartment
+      if (propertyType === "full_house") return "Full House";
+      if (propertyType === "duplex") return "Duplex";
+      return ""; // Don't show anything for apartments
     };
 
     const getLeaseDisplay = (leaseLength: string) => {
-      const leases: { [key: string]: string} = {
-        "12_months": "12 months",
-        "6_months": "6 months",
-        short_term: "Short Term",
-        flexible: "Flexible",
-      };
-      return leases[leaseLength] || leaseLength;
+      // Only show if it's short term
+      if (leaseLength === "short_term") return "Short Term";
+      return ""; // Don't show for standard leases
     };
 
     let listingsTextContent = "";
@@ -506,16 +505,23 @@ Deno.serve(async (req) => {
         specs += ` | ${hasParking}`;
       }
       specs += ` | ${listing.broker_fee ? "Broker Fee" : "No Fee"}`;
-      listingsTextContent += `${specs}\n`;
 
+      // Add property type and lease info on same line if they exist
+      const propertyType = getPropertyTypeDisplay(listing.property_type);
+      const leaseType = getLeaseDisplay(listing.lease_length);
+      if (propertyType || leaseType) {
+        const extras = [propertyType, leaseType].filter(x => x).join(", ");
+        specs += ` - ${extras}`;
+      }
+
+      listingsTextContent += `${specs}\n`;
       listingsTextContent += `${locationWithNeighborhood}\n`;
-      listingsTextContent += `${getPropertyTypeDisplay(listing.property_type)} | ${getLeaseDisplay(listing.lease_length)}\n`;
       listingsTextContent += `Posted by ${ownerDisplay}`;
       if (listing.is_featured) {
         listingsTextContent += " (FEATURED)";
       }
       listingsTextContent += `\n`;
-      listingsTextContent += `View listing: ${listingUrl}\n`;
+      listingsTextContent += `${listingUrl}\n`;
       listingsTextContent += `\n`;
     }
 
@@ -526,27 +532,21 @@ Deno.serve(async (req) => {
       day: "numeric",
     });
 
-    const bodyHtml = `
-      <p style=\"margin-bottom:16px;\">Here are the latest apartments posted on Hadirot:</p>
-      <p style=\"margin-bottom:20px;\">
-        To see all <strong>${roundedCount}+</strong> active apartments, <a href=\"${siteUrl}/browse\" style=\"color:#7CB342;text-decoration:none;font-weight:bold;\">click here: Hadirot.com/browse</a>
-      </p>
-      <hr style=\"border:none;border-top:1px solid #E5E7EB;margin:20px 0;\" />
-      <p style=\"margin-top:20px;margin-bottom:12px;font-weight:bold;color:#1E4A74;\">\ud83d\udccb ${newListings.length} New Listing${newListings.length !== 1 ? 's' : ''} (Past 24 Hours)</p>
-      <div style=\"background-color:#F7F9FC;padding:20px;border-radius:8px;margin:20px 0;\">
-        <pre style=\"margin:0;font-family:monospace;font-size:14px;line-height:1.6;color:#374151;white-space:pre-wrap;word-wrap:break-word;\">${listingsTextContent}</pre>
-      </div>
-      <hr style=\"border:none;border-top:1px solid #E5E7EB;margin:20px 0;\" />
-      <div style=\"margin-top:20px;padding:16px;background-color:#E8F5E9;border-radius:8px;text-align:center;\">
-        <p style=\"margin:0 0 8px 0;font-weight:bold;color:#2E7D32;font-size:16px;\">\ud83d\udcac Join the Hadirot WhatsApp Community</p>
-        <a href=\"https://chat.whatsapp.com/C3qmgo7DNOI63OE0RAZRgt\" style=\"color:#25D366;text-decoration:none;font-weight:bold;font-size:14px;\">Click here to join</a>
-      </div>
-    `;
+    // Create plain text email content (no HTML)
+    const emailPlainText = `Here are the latest apartments posted on Hadirot:
 
-    const emailHtml = renderBrandEmail({
-      title: `Daily Listing Digest - ${currentDate}`,
-      bodyHtml,
-    });
+To see all ${roundedCount}+ active apartments:
+${siteUrl}/browse
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+${listingsTextContent}━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Join the Hadirot WhatsApp Community:
+https://chat.whatsapp.com/C3qmgo7DNOI63OE0RAZRgt`;
+
+    // Use plain text as the HTML body (ZeptoMail will handle it)
+    const emailHtml = emailPlainText;
 
     console.log(`\ud83d\udce4 Sending email to ${adminEmails.length} admin(s)`);
 
