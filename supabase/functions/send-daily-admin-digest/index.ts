@@ -404,6 +404,21 @@ Deno.serve(async (req) => {
 
     const siteUrl = Deno.env.get("PUBLIC_SITE_URL") || "https://hadirot.com";
 
+    // Get total count of active listings for intro text
+    const { count: totalActiveCount, error: countError } = await supabaseAdmin
+      .from("listings")
+      .select("*", { count: 'exact', head: true })
+      .eq("approved", true)
+      .eq("is_active", true);
+
+    if (countError) {
+      console.error("Error getting total active listings count:", countError);
+    }
+
+    const totalActive = totalActiveCount || 0;
+    // Round down to nearest 10 (e.g., 83 becomes 80)
+    const roundedCount = Math.floor(totalActive / 10) * 10;
+
     const formatPrice = (listing: Listing) => {
       if (listing.call_for_price) return "Call for Price";
       if (listing.price != null) {
@@ -455,7 +470,27 @@ Deno.serve(async (req) => {
     let listingsTextContent = "";
 
     for (const listing of newListings) {
-      const listingUrl = `${siteUrl}/listing/${listing.id}`;
+      // Create short URL for cleaner appearance and click tracking
+      let listingUrl = `${siteUrl}/listing/${listing.id}`;
+
+      try {
+        const { data: shortCode } = await supabaseAdmin.rpc(
+          "create_short_url",
+          {
+            p_listing_id: listing.id,
+            p_original_url: listingUrl,
+            p_source: "digest_email",
+            p_expires_days: 90
+          }
+        );
+
+        if (shortCode) {
+          listingUrl = `${siteUrl}/l/${shortCode}`;
+        }
+      } catch (shortUrlError) {
+        console.error("Error creating short URL:", shortUrlError);
+        // Fall back to original URL if short URL creation fails
+      }
       const ownerDisplay = listing.owner?.role === "agent" && listing.owner?.agency
         ? listing.owner.agency
         : "Owner";
@@ -492,9 +527,19 @@ Deno.serve(async (req) => {
     });
 
     const bodyHtml = `
-      <p>You have ${newListings.length} new approved and active listing${newListings.length !== 1 ? 's' : ''} from the past 24 hours.</p>
+      <p style=\"margin-bottom:16px;\">Here are the latest apartments posted on Hadirot:</p>
+      <p style=\"margin-bottom:20px;\">
+        To see all <strong>${roundedCount}+</strong> active apartments, <a href=\"${siteUrl}/browse\" style=\"color:#7CB342;text-decoration:none;font-weight:bold;\">click here: Hadirot.com/browse</a>
+      </p>
+      <hr style=\"border:none;border-top:1px solid #E5E7EB;margin:20px 0;\" />
+      <p style=\"margin-top:20px;margin-bottom:12px;font-weight:bold;color:#1E4A74;\">\ud83d\udccb ${newListings.length} New Listing${newListings.length !== 1 ? 's' : ''} (Past 24 Hours)</p>
       <div style=\"background-color:#F7F9FC;padding:20px;border-radius:8px;margin:20px 0;\">
         <pre style=\"margin:0;font-family:monospace;font-size:14px;line-height:1.6;color:#374151;white-space:pre-wrap;word-wrap:break-word;\">${listingsTextContent}</pre>
+      </div>
+      <hr style=\"border:none;border-top:1px solid #E5E7EB;margin:20px 0;\" />
+      <div style=\"margin-top:20px;padding:16px;background-color:#E8F5E9;border-radius:8px;text-align:center;\">
+        <p style=\"margin:0 0 8px 0;font-weight:bold;color:#2E7D32;font-size:16px;\">\ud83d\udcac Join the Hadirot WhatsApp Community</p>
+        <a href=\"https://chat.whatsapp.com/C3qmgo7DNOI63OE0RAZRgt\" style=\"color:#25D366;text-decoration:none;font-weight:bold;font-size:14px;\">Click here to join</a>
       </div>
     `;
 

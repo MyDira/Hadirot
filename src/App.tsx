@@ -25,6 +25,7 @@ import { HelpCenter } from './pages/HelpCenter';
 import { HelpCategory } from './pages/HelpCategory';
 import { HelpArticle } from './pages/HelpArticle';
 import { ContentManagement } from './pages/ContentManagement';
+import { ShortUrlRedirect } from './pages/ShortUrlRedirect';
 import { useAuth } from '@/hooks/useAuth';
 import GASmokeTest from '@/dev/gaSmokeTest';
 
@@ -70,6 +71,7 @@ function App() {
                 <Route path="/post" element={<PostListing />} />
                 <Route path="/edit/:id" element={<EditListing />} />
                 <Route path="/listing/:id" element={<ListingDetail />} />
+                <Route path="/l/:code" element={<ShortUrlRedirect />} />
                 <Route path="/favorites" element={<Favorites />} />
                 <Route path="/admin" element={<AdminPanel />} />
                 <Route path="/admin/analytics" element={<InternalAnalytics />} />
