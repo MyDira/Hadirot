@@ -14,34 +14,69 @@ export function ShortUrlRedirect() {
       }
 
       try {
-        // Call the redirect Edge Function
-        const response = await fetch(
-          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/redirect-short-url/${code}`,
-          {
-            method: 'GET',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            redirect: 'manual', // Don't follow redirects automatically
-          }
-        );
+        // Look up the short URL in the database
+        const { data: shortUrl, error: lookupError } = await supabase
+          .from('short_urls')
+          .select('*')
+          .eq('short_code', code)
+          .maybeSingle();
 
-        // Get the redirect location from the response headers
-        const location = response.headers.get('Location');
+        if (lookupError) {
+          console.error('Error looking up short URL:', lookupError);
+          navigate('/404');
+          return;
+        }
 
-        if (location) {
-          // Navigate to the destination URL
-          window.location.href = location;
+        if (!shortUrl) {
+          console.error('Short URL not found:', code);
+          navigate('/404');
+          return;
+        }
+
+        // Check if expired
+        if (shortUrl.expires_at && new Date(shortUrl.expires_at) < new Date()) {
+          console.log('Short URL expired:', code);
+          navigate('/', { replace: true });
+          return;
+        }
+
+        // Increment click count in the background (don't wait for it)
+        supabase.rpc('increment_short_url_clicks', { p_short_code: code }).catch((error) => {
+          console.error('Error incrementing click count:', error);
+        });
+
+        // Track the click in analytics (in the background)
+        const userAgent = navigator.userAgent;
+        const referer = document.referrer;
+
+        supabase.from('analytics_events').insert({
+          session_id: crypto.randomUUID(),
+          anon_id: crypto.randomUUID(),
+          user_id: null,
+          event_name: 'digest_link_click',
+          event_props: {
+            short_code: code,
+            listing_id: shortUrl.listing_id,
+            source: shortUrl.source,
+            referer: referer || null,
+          },
+          occurred_at: new Date().toISOString(),
+          ua: userAgent,
+          ip_hash: null,
+        }).catch((error) => {
+          console.error('Error tracking click in analytics:', error);
+        });
+
+        // Extract the listing ID from the original URL to navigate within the app
+        // Expected format: https://hadirot.com/listing/{id}
+        const urlMatch = shortUrl.original_url.match(/\/listing\/([a-f0-9-]+)/i);
+
+        if (urlMatch && urlMatch[1]) {
+          // Navigate to the listing page using React Router (faster, no page reload)
+          navigate(`/listing/${urlMatch[1]}`, { replace: true });
         } else {
-          // If no redirect location, check response
-          if (response.status === 404) {
-            navigate('/404');
-          } else if (response.status === 410) {
-            // Expired link
-            navigate('/', { replace: true });
-          } else {
-            navigate('/404');
-          }
+          // Fallback: use the original URL if pattern doesn't match
+          window.location.href = shortUrl.original_url;
         }
       } catch (error) {
         console.error('Error handling short URL redirect:', error);

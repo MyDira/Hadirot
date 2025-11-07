@@ -80,6 +80,12 @@ export function renderBrandEmail({ title, intro, bodyHtml, ctaLabel, ctaHref }: 
           ${bodyHtml}
           ${button}
         </div>
+        <div style="background-color:#f0f9ff;padding:16px;margin:0;border-top:1px solid #E5E7EB;">
+          <p style="margin:0 0 8px 0;font-size:14px;font-weight:600;color:#333;text-align:center;">Join the Hadirot WhatsApp Community</p>
+          <p style="margin:0;text-align:center;">
+            <a href="https://chat.whatsapp.com/C3qmgo7DNOI63OE0RAZRgt" style="color:#25D366;text-decoration:none;font-weight:500;font-size:13px;">https://chat.whatsapp.com/C3qmgo7DNOI63OE0RAZRgt</a>
+          </p>
+        </div>
         <div style="background-color:#F7F9FC;color:#6B7280;text-align:center;font-size:12px;padding:16px;">
           © ${new Date().getFullYear()} Hadirot. All rights reserved.
         </div>
