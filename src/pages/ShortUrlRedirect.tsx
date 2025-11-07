@@ -50,7 +50,9 @@ export function ShortUrlRedirect() {
         }
 
         // Increment click count in the background (don't wait for it)
-        supabase.rpc('increment_short_url_clicks', { p_short_code: code }).catch((error) => {
+        supabase.rpc('increment_short_url_clicks', { p_short_code: code }).then(() => {
+          console.log('[ShortUrlRedirect] Click count incremented');
+        }).catch((error: any) => {
           console.error('[ShortUrlRedirect] Error incrementing click count:', error);
         });
 
@@ -85,7 +87,9 @@ export function ShortUrlRedirect() {
           occurred_at: new Date().toISOString(),
           ua: userAgent,
           ip_hash: null,
-        }).catch((error) => {
+        }).then(() => {
+          console.log('[ShortUrlRedirect] Analytics event tracked');
+        }).catch((error: any) => {
           console.error('[ShortUrlRedirect] Error tracking click in analytics:', error);
         });
 
