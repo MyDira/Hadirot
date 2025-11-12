@@ -5,7 +5,7 @@ export interface EmailRequest {
   subject: string;
   html: string;
   from?: string;
-  type?: "password_reset" | "general";
+  type?: "password_reset" | "general" | "admin_notification";
 }
 
 export interface EmailResponse {
@@ -461,15 +461,14 @@ export const emailService = {
       bodyHtml,
     });
 
-    const adminEmails = ["admin@hadirot.com"];
-
-    console.log("[Email Service] Sending email to:", adminEmails);
+    console.log("[Email Service] Sending admin notification email");
     console.log("[Email Service] Subject:", `[HaDirot Admin] Listing Reported as Rented: ${listingDetails.title}`);
 
     const result = await this.sendEmail({
-      to: adminEmails,
+      to: "admin@hadirot.com",
       subject: `[HaDirot Admin] Listing Reported as Rented: ${listingDetails.title}`,
       html,
+      type: "admin_notification",
     });
 
     console.log("[Email Service] Email send result:", result);

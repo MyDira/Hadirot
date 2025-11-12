@@ -7,7 +7,7 @@ interface EmailRequest {
   subject: string;
   html: string;
   from?: string;
-  type?: "password_reset" | "general";
+  type?: "password_reset" | "general" | "admin_notification";
 }
 
 Deno.serve(async (req) => {
@@ -68,10 +68,11 @@ Deno.serve(async (req) => {
     }
 
     const isPasswordReset = emailData.type === "password_reset";
+    const isAdminNotification = emailData.type === "admin_notification";
 
-    // For non-password-reset emails, require authentication
-    if (!isPasswordReset && !authHeader) {
-      console.log("❌ Missing authorization for non-password-reset email");
+    // For non-password-reset and non-admin-notification emails, require authentication
+    if (!isPasswordReset && !isAdminNotification && !authHeader) {
+      console.log("❌ Missing authorization for email");
       return new Response(
         JSON.stringify({ error: "Missing authorization header" }),
         {
@@ -214,8 +215,91 @@ Deno.serve(async (req) => {
           },
         );
       }
+    } else if (isAdminNotification) {
+      console.log("📧 Processing admin notification email");
+
+      try {
+        const { data: adminProfiles, error: adminError } = await supabaseAdmin
+          .from("profiles")
+          .select("id")
+          .eq("is_admin", true);
+
+        if (adminError) {
+          console.error("❌ Error fetching admin profiles:", adminError);
+          return new Response(
+            JSON.stringify({ error: "Failed to fetch admin users" }),
+            {
+              status: 500,
+              headers: { ...corsHeaders, "Content-Type": "application/json" },
+            },
+          );
+        }
+
+        if (!adminProfiles || adminProfiles.length === 0) {
+          console.warn("⚠️ No admin users found in database");
+          return new Response(
+            JSON.stringify({ error: "No admin users found" }),
+            {
+              status: 404,
+              headers: { ...corsHeaders, "Content-Type": "application/json" },
+            },
+          );
+        }
+
+        console.log(`👥 Found ${adminProfiles.length} admin user(s)`);
+
+        const { data: { users }, error: usersError } = await supabaseAdmin.auth.admin.listUsers();
+
+        if (usersError) {
+          console.error("❌ Error fetching user emails:", usersError);
+          return new Response(
+            JSON.stringify({ error: "Failed to fetch admin email addresses" }),
+            {
+              status: 500,
+              headers: { ...corsHeaders, "Content-Type": "application/json" },
+            },
+          );
+        }
+
+        const adminIds = new Set(adminProfiles.map(p => p.id));
+        const adminEmails = users
+          ?.filter(u => adminIds.has(u.id))
+          .map(u => u.email)
+          .filter((email): email is string => !!email) || [];
+
+        if (adminEmails.length === 0) {
+          console.warn("⚠️ No admin email addresses found");
+          return new Response(
+            JSON.stringify({ error: "No admin email addresses found" }),
+            {
+              status: 404,
+              headers: { ...corsHeaders, "Content-Type": "application/json" },
+            },
+          );
+        }
+
+        console.log(`✅ Found ${adminEmails.length} admin email(s)`);
+
+        emailData = {
+          ...emailData,
+          to: adminEmails,
+        };
+      } catch (error) {
+        console.error("❌ Error in admin notification flow:", {
+          error: error,
+          message: error.message,
+          stack: error.stack,
+        });
+        return new Response(
+          JSON.stringify({ error: "Failed to process admin notification" }),
+          {
+            status: 500,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          },
+        );
+      }
     } else if (authHeader) {
-      // For non-password-reset emails, verify the session
+      // For non-password-reset and non-admin-notification emails, verify the session
       try {
         const supabaseClient = createClient(
           Deno.env.get("SUPABASE_URL") ?? "",
@@ -271,11 +355,11 @@ Deno.serve(async (req) => {
 
     // For non-password-reset emails, require HTML content
     if (!isPasswordReset && !emailData.html) {
-      console.error("❌ Missing HTML content for non-password-reset email");
+      console.error("❌ Missing HTML content for email");
       return new Response(
         JSON.stringify({
           error:
-            "Missing required field: html content is required for non-password-reset emails",
+            "Missing required field: html content is required",
         }),
         {
           status: 400,
@@ -306,7 +390,7 @@ Deno.serve(async (req) => {
         messageId: zeptoData?.data?.message_id,
         to: toAddresses,
         subject: emailData.subject,
-        type: isPasswordReset ? "password_reset" : "general",
+        type: emailData.type || "general",
       });
 
       return new Response(
