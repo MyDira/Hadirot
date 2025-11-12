@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ZoomIn } from 'lucide-react';
 import { getStockImageForListing } from '../../utils/stockImage';
 import { PropertyType, LeaseLength } from '../../config/supabase';
 
@@ -14,6 +14,8 @@ interface ImageCarouselProps {
   };
   propertyType?: PropertyType;
   leaseLength?: LeaseLength | null;
+  onImageClick?: (index: number) => void;
+  enableZoom?: boolean;
 }
 
 export default function ImageCarousel({
@@ -21,7 +23,9 @@ export default function ImageCarousel({
   className = '',
   listingSeed,
   propertyType,
-  leaseLength
+  leaseLength,
+  onImageClick,
+  enableZoom = false
 }: ImageCarouselProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const touchStartX = useRef(0);
@@ -83,21 +87,38 @@ export default function ImageCarousel({
   };
 
   const isShowingStock = !hasRealImages;
+  const canZoom = enableZoom && hasRealImages && onImageClick;
+
+  const handleImageClick = () => {
+    if (canZoom) {
+      onImageClick(currentIndex);
+    }
+  };
 
   return (
     <div className={`relative w-full ${className}`}>
       {/* Main image */}
       <div
-        className="relative w-full h-96 overflow-hidden rounded-lg bg-gray-100"
+        className={`relative w-full h-96 overflow-hidden rounded-lg bg-gray-100 ${canZoom ? 'cursor-zoom-in' : ''}`}
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
+        onClick={handleImageClick}
       >
         <img
           src={displayImages[currentIndex].url}
           alt={displayImages[currentIndex].alt}
           className="w-full h-full object-contain select-none"
         />
+
+        {/* Zoom indicator on hover - desktop only */}
+        {canZoom && (
+          <div className="absolute inset-0 bg-black bg-opacity-0 hover:bg-opacity-10 transition-all duration-200 flex items-center justify-center opacity-0 hover:opacity-100 pointer-events-none">
+            <div className="bg-white bg-opacity-90 rounded-full p-3">
+              <ZoomIn className="w-6 h-6 text-gray-800" />
+            </div>
+          </div>
+        )}
 
         {/* Property type and lease length badges - bottom right */}
         <div className="absolute bottom-4 right-4 flex flex-col gap-2">

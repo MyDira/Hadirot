@@ -35,6 +35,8 @@ import NumericText from "@/components/common/NumericText";
 import { ShareButton } from "../components/shared/ShareButton";
 import { agenciesService } from "../services/agencies";
 import { agencyNameToSlug } from "../utils/agency";
+import { ReportRentedButton } from "../components/listing/ReportRentedButton";
+import { ImageZoomModal } from "../components/listing/ImageZoomModal";
 
 const SCROLL_THRESHOLDS = [25, 50, 75, 100] as const;
 
@@ -56,6 +58,8 @@ export function ListingDetail() {
   const [error, setError] = useState<string | null>(null);
   const hasViewedRef = React.useRef(false);
   const [agencyPageExists, setAgencyPageExists] = useState<boolean>(false);
+  const [zoomModalOpen, setZoomModalOpen] = useState(false);
+  const [zoomInitialIndex, setZoomInitialIndex] = useState(0);
 
   const getOrdinalSuffixText = (num: number): string => {
     const j = num % 10;
@@ -363,6 +367,13 @@ export function ListingDetail() {
       return a.sort_order - b.sort_order;
     }) || [];
 
+  const hasRealImages = images && images.length > 0;
+
+  const handleImageZoom = (index: number) => {
+    setZoomInitialIndex(index);
+    setZoomModalOpen(true);
+    gaListing("listing_image_zoom", listing.id, { image_index: index });
+  };
 
   const handleBackToBrowse = () => {
     // Mark that we're returning to browse so filters can be restored
@@ -400,6 +411,8 @@ export function ListingDetail() {
               }}
               propertyType={listing.property_type}
               leaseLength={listing.lease_length}
+              enableZoom={hasRealImages}
+              onImageClick={handleImageZoom}
             />
             <button
               onClick={handleFavoriteToggle}
@@ -443,6 +456,8 @@ export function ListingDetail() {
                 }}
                 propertyType={listing.property_type}
                 leaseLength={listing.lease_length}
+                enableZoom={hasRealImages}
+                onImageClick={handleImageZoom}
               />
               <button
                 onClick={handleFavoriteToggle}
@@ -843,6 +858,17 @@ export function ListingDetail() {
                   </div>
                 </div>
               )}
+
+              {/* Report as Rented - Desktop only, inconspicuous placement */}
+              {user && (
+                <div className="mt-6 pt-4 border-t border-gray-200 hidden lg:block">
+                  <ReportRentedButton
+                    listing={listing}
+                    userFullName={user.user_metadata?.full_name || user.email || "User"}
+                    userEmail={user.email || ""}
+                  />
+                </div>
+              )}
             </div>
           </section>
           {/* Mobile Description - Eighth on mobile (last) */}
@@ -856,12 +882,32 @@ export function ListingDetail() {
               </p>
             </section>
           )}
+
+          {/* Report as Rented - Mobile only, after description */}
+          {user && (
+            <section className="lg:hidden order-9 pt-4 border-t border-gray-200">
+              <ReportRentedButton
+                listing={listing}
+                userFullName={user.user_metadata?.full_name || user.email || "User"}
+                userEmail={user.email || ""}
+              />
+            </section>
+          )}
         </div>
 
       </div>
 
       {/* Similar Listings */}
       <SimilarListings listing={listing} />
+
+      {/* Image Zoom Modal */}
+      {zoomModalOpen && hasRealImages && (
+        <ImageZoomModal
+          images={images.map((img) => ({ url: img.image_url, alt: listing.title }))}
+          initialIndex={zoomInitialIndex}
+          onClose={() => setZoomModalOpen(false)}
+        />
+      )}
     </div>
   );
 }

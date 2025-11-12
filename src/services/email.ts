@@ -340,6 +340,129 @@ export const emailService = {
   ): Promise<EmailResponse> {
     return this.sendListingUpdateEmail(userEmail, userName, listingTitle);
   },
+
+  async sendListingRentedReport(
+    listingDetails: {
+      id: string;
+      title: string;
+      location: string;
+      neighborhood: string;
+      price: number | null;
+      call_for_price?: boolean;
+      bedrooms: number;
+      bathrooms: number;
+      property_type: string;
+      contact_name: string;
+      contact_phone: string;
+      created_at: string;
+    },
+    reporterInfo: {
+      name: string;
+      email: string;
+      notes?: string;
+    },
+  ): Promise<EmailResponse> {
+    const origin = typeof window !== "undefined" ? window.location.origin : "";
+    const listingUrl = `${origin}/listing/${listingDetails.id}`;
+    const adminPanelUrl = `${origin}/admin`;
+
+    const priceText = listingDetails.call_for_price
+      ? "Call for Price"
+      : listingDetails.price
+        ? `$${listingDetails.price.toLocaleString()}/month`
+        : "Not specified";
+
+    const propertyTypeLabels: Record<string, string> = {
+      apartment_building: "Apartment in Building",
+      apartment_house: "Apartment in House",
+      duplex: "Duplex",
+      full_house: "Full House",
+    };
+    const propertyTypeText = propertyTypeLabels[listingDetails.property_type] || listingDetails.property_type;
+
+    const notesSection = reporterInfo.notes
+      ? `<div style="margin:16px 0;padding:12px;background-color:#FEF3C7;border-left:4px solid #F59E0B;border-radius:4px;">
+          <strong>Reporter Notes:</strong>
+          <p style="margin:8px 0 0 0;">${reporterInfo.notes.replace(/\n/g, "<br>")}</p>
+        </div>`
+      : "";
+
+    const bodyHtml = `
+      <p style="margin-top:0;">A user has reported that the following listing is no longer available (already rented):</p>
+
+      <div style="margin:20px 0;padding:16px;background-color:#F3F4F6;border-radius:8px;">
+        <h3 style="margin:0 0 12px 0;color:#1E4A74;">${listingDetails.title}</h3>
+
+        <table style="width:100%;border-collapse:collapse;">
+          <tr>
+            <td style="padding:6px 0;color:#6B7280;width:40%;"><strong>Location:</strong></td>
+            <td style="padding:6px 0;">${listingDetails.location}, ${listingDetails.neighborhood}</td>
+          </tr>
+          <tr>
+            <td style="padding:6px 0;color:#6B7280;"><strong>Price:</strong></td>
+            <td style="padding:6px 0;">${priceText}</td>
+          </tr>
+          <tr>
+            <td style="padding:6px 0;color:#6B7280;"><strong>Bedrooms:</strong></td>
+            <td style="padding:6px 0;">${listingDetails.bedrooms === 0 ? "Studio" : listingDetails.bedrooms}</td>
+          </tr>
+          <tr>
+            <td style="padding:6px 0;color:#6B7280;"><strong>Bathrooms:</strong></td>
+            <td style="padding:6px 0;">${listingDetails.bathrooms}</td>
+          </tr>
+          <tr>
+            <td style="padding:6px 0;color:#6B7280;"><strong>Property Type:</strong></td>
+            <td style="padding:6px 0;">${propertyTypeText}</td>
+          </tr>
+          <tr>
+            <td style="padding:6px 0;color:#6B7280;"><strong>Contact Name:</strong></td>
+            <td style="padding:6px 0;">${listingDetails.contact_name}</td>
+          </tr>
+          <tr>
+            <td style="padding:6px 0;color:#6B7280;"><strong>Contact Phone:</strong></td>
+            <td style="padding:6px 0;">${listingDetails.contact_phone}</td>
+          </tr>
+          <tr>
+            <td style="padding:6px 0;color:#6B7280;"><strong>Posted Date:</strong></td>
+            <td style="padding:6px 0;">${new Date(listingDetails.created_at).toLocaleDateString()}</td>
+          </tr>
+          <tr>
+            <td style="padding:6px 0;color:#6B7280;"><strong>Listing ID:</strong></td>
+            <td style="padding:6px 0;font-family:monospace;font-size:12px;">${listingDetails.id}</td>
+          </tr>
+        </table>
+      </div>
+
+      ${notesSection}
+
+      <div style="margin:20px 0;padding:16px;background-color:#EEF2FF;border-radius:8px;">
+        <strong>Reported by:</strong>
+        <p style="margin:8px 0 0 0;">${reporterInfo.name}<br>${reporterInfo.email}</p>
+      </div>
+
+      <p style="margin-top:20px;">
+        <a href="${listingUrl}" style="color:#1E4A74;text-decoration:underline;">View Listing</a> |
+        <a href="${adminPanelUrl}" style="color:#1E4A74;text-decoration:underline;">Go to Admin Panel</a>
+      </p>
+
+      <p style="margin-top:20px;font-size:14px;color:#6B7280;">
+        You can find this listing in the admin panel using the listing ID or by searching for the title/contact name.
+      </p>
+    `;
+
+    const html = renderBrandEmail({
+      title: "Listing Reported as Rented",
+      bodyHtml,
+    });
+
+    const adminEmails = ["admin@hadirot.com"];
+
+    return this.sendEmail({
+      to: adminEmails,
+      subject: `[HaDirot Admin] Listing Reported as Rented: ${listingDetails.title}`,
+      html,
+    });
+  },
 };
 
 export async function requestPasswordReset(
