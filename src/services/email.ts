@@ -362,6 +362,12 @@ export const emailService = {
       notes?: string;
     },
   ): Promise<EmailResponse> {
+    console.log("[Email Service] Preparing to send listing rented report", {
+      listingId: listingDetails.id,
+      listingTitle: listingDetails.title,
+      reporterName: reporterInfo.name,
+      reporterEmail: reporterInfo.email,
+    });
     const origin = typeof window !== "undefined" ? window.location.origin : "";
     const listingUrl = `${origin}/listing/${listingDetails.id}`;
     const adminPanelUrl = `${origin}/admin`;
@@ -457,11 +463,17 @@ export const emailService = {
 
     const adminEmails = ["admin@hadirot.com"];
 
-    return this.sendEmail({
+    console.log("[Email Service] Sending email to:", adminEmails);
+    console.log("[Email Service] Subject:", `[HaDirot Admin] Listing Reported as Rented: ${listingDetails.title}`);
+
+    const result = await this.sendEmail({
       to: adminEmails,
       subject: `[HaDirot Admin] Listing Reported as Rented: ${listingDetails.title}`,
       html,
     });
+
+    console.log("[Email Service] Email send result:", result);
+    return result;
   },
 };
 

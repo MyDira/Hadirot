@@ -118,7 +118,6 @@ export function ImageZoomModal({ images, initialIndex, onClose }: ImageZoomModal
 
       <div
         className="relative max-w-7xl max-h-[90vh] w-full h-full flex items-center justify-center p-4"
-        onClick={(e) => e.stopPropagation()}
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
@@ -128,6 +127,7 @@ export function ImageZoomModal({ images, initialIndex, onClose }: ImageZoomModal
           alt={images[currentIndex].alt}
           className="max-w-full max-h-full object-contain select-none"
           draggable={false}
+          onClick={(e) => e.stopPropagation()}
         />
       </div>
     </div>

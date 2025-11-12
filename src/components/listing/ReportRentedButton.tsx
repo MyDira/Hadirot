@@ -1,19 +1,19 @@
 import React, { useState } from "react";
-import { Flag, X } from "lucide-react";
+import { Flag } from "lucide-react";
 import { Listing } from "../../config/supabase";
 import { emailService } from "../../services/email";
 import { gaEvent } from "../../lib/ga";
+import { Toast } from "../shared/Toast";
 
 interface ReportRentedButtonProps {
   listing: Listing;
-  userFullName: string;
-  userEmail: string;
+  userFullName?: string;
+  userEmail?: string;
 }
 
 export function ReportRentedButton({ listing, userFullName, userEmail }: ReportRentedButtonProps) {
-  const [showModal, setShowModal] = useState(false);
-  const [notes, setNotes] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showToast, setShowToast] = useState(false);
   const [hasReported, setHasReported] = useState(() => {
     try {
       const reported = localStorage.getItem(`reported_rented_${listing.id}`);
@@ -23,30 +23,15 @@ export function ReportRentedButton({ listing, userFullName, userEmail }: ReportR
     }
   });
 
-  const handleOpenModal = () => {
-    if (hasReported) {
-      return;
-    }
-    setShowModal(true);
-    gaEvent("listing_report_modal_opened", {
-      listing_id: listing.id,
-    });
-  };
-
-  const handleCloseModal = () => {
-    setShowModal(false);
-    setNotes("");
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    if (isSubmitting || hasReported) return;
+  const handleReport = async () => {
+    if (hasReported || isSubmitting) return;
 
     setIsSubmitting(true);
 
     try {
-      await emailService.sendListingRentedReport(
+      console.log("Sending report for listing:", listing.id);
+
+      const response = await emailService.sendListingRentedReport(
         {
           id: listing.id,
           title: listing.title,
@@ -62,11 +47,16 @@ export function ReportRentedButton({ listing, userFullName, userEmail }: ReportR
           created_at: listing.created_at,
         },
         {
-          name: userFullName,
-          email: userEmail,
-          notes: notes.trim() || undefined,
+          name: userFullName || "Anonymous User",
+          email: userEmail || "anonymous@hadirot.com",
         }
       );
+
+      console.log("Email service response:", response);
+
+      if (!response.success) {
+        throw new Error(response.error || "Failed to send report");
+      }
 
       try {
         localStorage.setItem(`reported_rented_${listing.id}`, "true");
@@ -75,15 +65,12 @@ export function ReportRentedButton({ listing, userFullName, userEmail }: ReportR
       }
 
       setHasReported(true);
-      setShowModal(false);
-      setNotes("");
+      setShowToast(true);
 
       gaEvent("listing_reported_as_rented", {
         listing_id: listing.id,
-        has_notes: !!notes.trim(),
+        user_authenticated: !!userEmail,
       });
-
-      alert("Thank you for reporting this listing. An admin has been notified.");
     } catch (error) {
       console.error("Error submitting report:", error);
       alert("Failed to submit report. Please try again.");
@@ -108,83 +95,20 @@ export function ReportRentedButton({ listing, userFullName, userEmail }: ReportR
   return (
     <>
       <button
-        onClick={handleOpenModal}
-        className="text-xs text-gray-500 hover:text-gray-700 transition-colors inline-flex items-center gap-1"
+        onClick={handleReport}
+        className="text-xs text-gray-500 hover:text-gray-700 transition-colors inline-flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
         type="button"
+        disabled={isSubmitting}
       >
         <Flag className="w-3 h-3" />
-        Report as rented
+        {isSubmitting ? "Reporting..." : "Report as rented"}
       </button>
 
-      {showModal && (
-        <div
-          className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4"
-          onClick={handleCloseModal}
-        >
-          <div
-            className="bg-white rounded-lg shadow-xl max-w-md w-full p-6 relative"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <button
-              onClick={handleCloseModal}
-              className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition-colors"
-              type="button"
-              aria-label="Close modal"
-            >
-              <X className="w-5 h-5" />
-            </button>
-
-            <div className="mb-4">
-              <div className="flex items-center gap-2 mb-2">
-                <Flag className="w-5 h-5 text-gray-600" />
-                <h3 className="text-lg font-semibold text-gray-900">
-                  Report Listing as Rented
-                </h3>
-              </div>
-              <p className="text-sm text-gray-600">
-                If this property has already been rented, let us know so we can keep our listings up to date.
-              </p>
-            </div>
-
-            <form onSubmit={handleSubmit}>
-              <div className="mb-4">
-                <label
-                  htmlFor="report-notes"
-                  className="block text-sm font-medium text-gray-700 mb-2"
-                >
-                  Additional notes (optional)
-                </label>
-                <textarea
-                  id="report-notes"
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#1E4A74] focus:border-transparent resize-none"
-                  rows={3}
-                  placeholder="Any additional information about this listing..."
-                  disabled={isSubmitting}
-                />
-              </div>
-
-              <div className="flex gap-3">
-                <button
-                  type="button"
-                  onClick={handleCloseModal}
-                  className="flex-1 px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 transition-colors font-medium"
-                  disabled={isSubmitting}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="flex-1 px-4 py-2 bg-[#273140] text-white rounded-md hover:bg-[#1e252f] transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-                  disabled={isSubmitting}
-                >
-                  {isSubmitting ? "Submitting..." : "Submit Report"}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
+      {showToast && (
+        <Toast
+          message="Thank you for reporting. An admin has been notified."
+          onClose={() => setShowToast(false)}
+        />
       )}
     </>
   );

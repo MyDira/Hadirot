@@ -860,15 +860,13 @@ export function ListingDetail() {
               )}
 
               {/* Report as Rented - Desktop only, inconspicuous placement */}
-              {user && (
-                <div className="mt-6 pt-4 border-t border-gray-200 hidden lg:block">
-                  <ReportRentedButton
-                    listing={listing}
-                    userFullName={user.user_metadata?.full_name || user.email || "User"}
-                    userEmail={user.email || ""}
-                  />
-                </div>
-              )}
+              <div className="mt-6 pt-4 border-t border-gray-200 hidden lg:block">
+                <ReportRentedButton
+                  listing={listing}
+                  userFullName={user?.user_metadata?.full_name || user?.email}
+                  userEmail={user?.email}
+                />
+              </div>
             </div>
           </section>
           {/* Mobile Description - Eighth on mobile (last) */}
@@ -884,15 +882,13 @@ export function ListingDetail() {
           )}
 
           {/* Report as Rented - Mobile only, after description */}
-          {user && (
-            <section className="lg:hidden order-9 pt-4 border-t border-gray-200">
-              <ReportRentedButton
-                listing={listing}
-                userFullName={user.user_metadata?.full_name || user.email || "User"}
-                userEmail={user.email || ""}
-              />
-            </section>
-          )}
+          <section className="lg:hidden order-9 pt-4 border-t border-gray-200">
+            <ReportRentedButton
+              listing={listing}
+              userFullName={user?.user_metadata?.full_name || user?.email}
+              userEmail={user?.email}
+            />
+          </section>
         </div>
 
       </div>
