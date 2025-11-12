@@ -4,11 +4,12 @@ import { Upload, X, Star } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { listingsService } from "../services/listings";
 import { emailService, renderBrandEmail } from "../services/email";
-import { draftListingsService, DraftData } from "../services/draftListings";
+import { draftListingsService, DraftData, TempVideoData } from "../services/draftListings";
 import { agenciesService } from "../services/agencies";
 import { Modal } from "../components/shared/Modal";
 import { AuthForm } from "../components/auth/AuthForm";
 import { compressImage } from "../utils/imageUtils";
+import { MediaUploader, MediaFile } from "../components/shared/MediaUploader";
 import { gaEvent } from "@/lib/ga";
 import {
   ensurePostAttempt,
@@ -59,12 +60,8 @@ export function PostListing() {
   const location = useLocation();
   const userRole = profile?.role;
   const [loading, setLoading] = useState(false);
-  const [tempImages, setTempImages] = useState<TempListingImage[]>([]);
-  const [uploadingImages, setUploadingImages] = useState<{
-    [key: string]: boolean;
-  }>({});
-  const [uploadingVideo, setUploadingVideo] = useState(false);
-  const [videoFile, setVideoFile] = useState<{ file: File; url: string; thumbnail?: string } | null>(null);
+  const [mediaFiles, setMediaFiles] = useState<MediaFile[]>([]);
+  const [uploadingMedia, setUploadingMedia] = useState(false);
   const [savingDraft, setSavingDraft] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [neighborhoodSelectValue, setNeighborhoodSelectValue] = useState<string>("");
@@ -127,7 +124,7 @@ export function PostListing() {
     }, 2000); // Save after 2 seconds of inactivity
 
     return () => clearTimeout(timeoutId);
-  }, [formData, tempImages, user?.id]);
+  }, [formData, mediaFiles, user?.id]);
 
   // Track post start after first user interaction when no draft exists
   useEffect(() => {
@@ -197,6 +194,7 @@ export function PostListing() {
             draftData,
             user.id,
             draftData.tempImages,
+            draftData.tempVideo
           );
           await draftListingsService.deleteDraft("anonymous");
         }
@@ -230,10 +228,31 @@ export function PostListing() {
           additional_rooms: (draftData as any).additional_rooms || 0,
         });
 
-        // Restore temp images if they exist
+        // Restore media files (images and video) if they exist
+        const restoredMedia: MediaFile[] = [];
         if (draftData.tempImages && draftData.tempImages.length > 0) {
-          setTempImages(draftData.tempImages);
+          draftData.tempImages.forEach((img, index) => {
+            restoredMedia.push({
+              id: `img-${index}`,
+              type: 'image',
+              url: img.publicUrl,
+              filePath: img.filePath,
+              publicUrl: img.publicUrl,
+              is_featured: img.is_featured,
+              originalName: img.originalName
+            });
+          });
         }
+        if (draftData.tempVideo) {
+          restoredMedia.push({
+            id: `video-0`,
+            type: 'video',
+            url: draftData.tempVideo.url,
+            is_featured: false,
+            originalName: draftData.tempVideo.fileName
+          });
+        }
+        setMediaFiles(restoredMedia);
 
         // Check if using custom neighborhood
         const standardNeighborhoods = [
@@ -271,7 +290,24 @@ export function PostListing() {
     try {
       const draftData: DraftData = { ...formData, broker_fee: false };
 
-      await draftListingsService.saveDraft(draftData, identifier, tempImages);
+      // Extract temp images from media files
+      const tempImages = mediaFiles
+        .filter(m => m.type === 'image' && m.filePath)
+        .map(m => ({
+          filePath: m.filePath!,
+          publicUrl: m.publicUrl || m.url,
+          is_featured: m.is_featured,
+          originalName: m.originalName || ''
+        }));
+
+      // Extract temp video from media files
+      const videoMedia = mediaFiles.find(m => m.type === 'video');
+      const tempVideo: TempVideoData | undefined = videoMedia ? {
+        url: videoMedia.url,
+        fileName: videoMedia.originalName || 'video.mp4'
+      } : undefined;
+
+      await draftListingsService.saveDraft(draftData, identifier, tempImages, tempVideo);
       console.log("✅ Draft saved automatically for:", identifier);
     } catch (error) {
       console.error("❌ Error saving draft for", identifier, ":", error);
@@ -366,158 +402,148 @@ export function PostListing() {
     });
   };
 
-  const processFiles = async (files: File[]) => {
+  const handleMediaAdd = async (files: File[]) => {
     handleFirstInteraction();
 
     if (!user) {
-      alert("Please sign in to upload images");
+      alert("Please sign in to upload media");
       return;
     }
 
-    if (tempImages.length + files.length > 10) {
-      alert("Maximum 10 images allowed");
+    if (mediaFiles.length + files.length > 11) {
+      alert("Maximum 11 files allowed (images + videos)");
       return;
     }
-    let hasFeatured = tempImages.some((img) => img.is_featured);
 
-    for (const file of files) {
-      if (!file.type.startsWith("image/")) {
-        alert(`${file.name} is not an image file`);
-        continue;
-      }
+    const imageCount = mediaFiles.filter(m => m.type === 'image').length;
+    const videoCount = mediaFiles.filter(m => m.type === 'video').length;
 
-      let fileToUpload: File = file;
-      if (file.size > 8 * 1024 * 1024) {
-        try {
-          const compressed = await compressImage(file, {
-            quality: 0.8,
-            maxWidth: 1920,
-          });
-          if (compressed.size > 8 * 1024 * 1024) {
-            alert(`${file.name} is too large even after compression (8MB limit)`);
-            continue;
-          }
-          fileToUpload = new File([compressed],
-            file.name.replace(/\.[^.]+$/, ".jpg"),
-            { type: "image/jpeg" });
-        } catch (err) {
-          console.error("Error compressing image:", err);
-          alert(`Failed to process ${file.name}`);
+    setUploadingMedia(true);
+
+    try {
+      let hasFeatured = mediaFiles.some((m) => m.is_featured);
+      const newMedia: MediaFile[] = [];
+
+      for (const file of files) {
+        const isImage = file.type.startsWith("image/");
+        const isVideo = file.type.startsWith("video/");
+
+        if (!isImage && !isVideo) {
+          alert(`${file.name} is not a supported file type`);
           continue;
         }
-      }
 
-      const tempId = `temp-${Date.now()}-${Math.random()}`;
-      setUploadingImages((prev) => ({ ...prev, [tempId]: true }));
+        if (isVideo) {
+          if (videoCount + newMedia.filter(m => m.type === 'video').length >= 1) {
+            alert("Maximum 1 video allowed");
+            continue;
+          }
 
-      try {
-        const { filePath, publicUrl } =
-          await listingsService.uploadTempListingImage(fileToUpload, user.id);
+          if (file.size > 100 * 1024 * 1024) {
+            alert(`${file.name} is too large. Maximum video size is 100MB`);
+            continue;
+          }
 
-        const is_featured = !hasFeatured;
-        if (!hasFeatured) {
-          hasFeatured = true;
+          const videoUrl = URL.createObjectURL(file);
+          newMedia.push({
+            id: `video-${Date.now()}-${Math.random()}`,
+            type: 'video',
+            file,
+            url: videoUrl,
+            is_featured: false,
+            originalName: file.name
+          });
+        } else if (isImage) {
+          let fileToUpload: File = file;
+          if (file.size > 8 * 1024 * 1024) {
+            try {
+              const compressed = await compressImage(file, {
+                quality: 0.8,
+                maxWidth: 1920,
+              });
+              if (compressed.size > 8 * 1024 * 1024) {
+                alert(`${file.name} is too large even after compression (8MB limit)`);
+                continue;
+              }
+              fileToUpload = new File([compressed],
+                file.name.replace(/\.[^.]+$/, ".jpg"),
+                { type: "image/jpeg" });
+            } catch (err) {
+              console.error("Error compressing image:", err);
+              alert(`Failed to process ${file.name}`);
+              continue;
+            }
+          }
+
+          try {
+            const { filePath, publicUrl } =
+              await listingsService.uploadTempListingImage(fileToUpload, user.id);
+
+            const is_featured = !hasFeatured;
+            if (!hasFeatured) {
+              hasFeatured = true;
+            }
+
+            newMedia.push({
+              id: `img-${Date.now()}-${Math.random()}`,
+              type: 'image',
+              url: publicUrl,
+              filePath,
+              publicUrl,
+              is_featured,
+              originalName: file.name
+            });
+          } catch (error) {
+            console.error("Error uploading temp image:", error);
+            alert(`Failed to upload ${file.name}. Please try again.`);
+          }
         }
+      }
 
-        const tempImage: TempListingImage = {
-          filePath,
-          publicUrl,
-          is_featured,
-          originalName: file.name,
-        };
-
-        setTempImages((prev) => {
-          const updated = is_featured
-            ? prev.map((img) => ({ ...img, is_featured: false }))
+      if (newMedia.length > 0) {
+        setMediaFiles((prev) => {
+          const updated = hasFeatured
+            ? prev.map((m) => ({ ...m, is_featured: false }))
             : [...prev];
-          updated.push(tempImage);
-          return updated;
-        });
-      } catch (error) {
-        console.error("Error uploading temp image:", error);
-        alert("Failed to upload image. Please try again.");
-      } finally {
-        setUploadingImages((prev) => {
-          const newState = { ...prev };
-          delete newState[tempId];
-          return newState;
+          return [...updated, ...newMedia];
         });
       }
+    } finally {
+      setUploadingMedia(false);
     }
   };
 
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || []);
-    await processFiles(files);
-  };
-
-  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    e.stopPropagation();
-  };
-
-  const handleDrop = async (e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    e.stopPropagation();
-
-    const files = Array.from(e.dataTransfer.files);
-    await processFiles(files);
-  };
-
-  const removeImage = (index: number) => {
+  const handleMediaRemove = (id: string) => {
     handleFirstInteraction();
-    setTempImages((prev) => {
-      const newImages = prev.filter((_, i) => i !== index);
-      // If we removed the featured image, make the first one featured
-      if (prev[index]?.is_featured && newImages.length > 0) {
-        newImages[0].is_featured = true;
+    setMediaFiles((prev) => {
+      const mediaToRemove = prev.find(m => m.id === id);
+      if (mediaToRemove?.type === 'video' && mediaToRemove.url.startsWith('blob:')) {
+        URL.revokeObjectURL(mediaToRemove.url);
       }
-      return newImages;
+
+      const newMedia = prev.filter(m => m.id !== id);
+      // If we removed the featured image, make the first image featured
+      if (mediaToRemove?.is_featured && newMedia.length > 0) {
+        const firstImage = newMedia.find(m => m.type === 'image');
+        if (firstImage) {
+          return newMedia.map(m => ({
+            ...m,
+            is_featured: m.id === firstImage.id
+          }));
+        }
+      }
+      return newMedia;
     });
   };
 
-  const setFeaturedImage = (index: number) => {
+  const handleSetFeatured = (id: string) => {
     handleFirstInteraction();
-    setTempImages((prev) =>
-      prev.map((img, i) => ({
-        ...img,
-        is_featured: i === index,
+    setMediaFiles((prev) =>
+      prev.map((m) => ({
+        ...m,
+        is_featured: m.id === id && m.type === 'image',
       })),
     );
-  };
-
-  const handleVideoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    handleFirstInteraction();
-
-    if (!user) {
-      alert("Please sign in to upload videos");
-      return;
-    }
-
-    if (!file.type.startsWith("video/")) {
-      alert("Please select a valid video file");
-      return;
-    }
-
-    const maxSize = 100 * 1024 * 1024;
-    if (file.size > maxSize) {
-      alert("Video file is too large. Maximum size is 100MB");
-      return;
-    }
-
-    const videoUrl = URL.createObjectURL(file);
-    setVideoFile({ file, url: videoUrl });
-  };
-
-  const removeVideo = () => {
-    handleFirstInteraction();
-    if (videoFile?.url) {
-      URL.revokeObjectURL(videoFile.url);
-    }
-    setVideoFile(null);
   };
 
   const submitListingContent = async () => {
@@ -583,8 +609,18 @@ export function PostListing() {
       // Track successful submission
       trackPostSuccess(listing.id);
 
-      // Process images: upload local base64 images to draft bucket first, then finalize all images
-      if (tempImages.length > 0) {
+      // Process media files (images and videos)
+      const imageMedia = mediaFiles.filter(m => m.type === 'image');
+      const videoMedia = mediaFiles.find(m => m.type === 'video');
+
+      // Process images: upload temp images to listing
+      if (imageMedia.length > 0) {
+        const tempImages = imageMedia.map(m => ({
+          filePath: m.filePath!,
+          publicUrl: m.publicUrl || m.url,
+          is_featured: m.is_featured,
+          originalName: m.originalName || ''
+        }));
         await listingsService.finalizeTempListingImages(
           listing.id,
           user.id,
@@ -593,17 +629,16 @@ export function PostListing() {
       }
 
       // Process video if uploaded
-      if (videoFile) {
+      if (videoMedia && videoMedia.file) {
         try {
-          setUploadingVideo(true);
+          setUploadingMedia(true);
           const videoUrl = await listingsService.uploadListingVideo(
-            videoFile.file,
+            videoMedia.file,
             listing.id
           );
 
           // Update listing with video URL
-          await listingsService.updateListing({
-            id: listing.id,
+          await listingsService.updateListing(listing.id, {
             video_url: videoUrl,
           });
 
@@ -612,7 +647,7 @@ export function PostListing() {
           console.error("⚠️ Failed to upload video:", videoError);
           // Don't block the flow if video upload fails
         } finally {
-          setUploadingVideo(false);
+          setUploadingMedia(false);
         }
       }
 
@@ -1168,79 +1203,22 @@ export function PostListing() {
           </div>
         </div>
 
-        {/* Images */}
+        {/* Media Upload (Images & Videos) */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
           <h2 className="text-xl font-semibold text-[#273140] mb-4">
-            Images (Up to 10)
+            Media (Images & Video)
           </h2>
 
-          <div className="mb-4">
-            <label className="block w-full">
-              <div
-                className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-[#273140] transition-colors cursor-pointer"
-                onDragOver={handleDragOver}
-                onDrop={handleDrop}
-              >
-                {Object.keys(uploadingImages).length > 0 ? (
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#273140] mx-auto mb-2"></div>
-                ) : (
-                  <Upload className="w-8 h-8 mx-auto mb-2 text-gray-400" />
-                )}
-                <span className="text-sm text-gray-600">
-                  {Object.keys(uploadingImages).length > 0
-                    ? "Uploading..."
-                    : "Click to upload images or drag and drop"}
-                </span>
-                <span className="text-xs text-gray-500 block mt-1">
-                  PNG, JPG up to 8MB each
-                </span>
-              </div>
-              <input
-                type="file"
-                multiple
-                accept="image/*"
-                onChange={handleImageUpload}
-                className="hidden"
-                disabled={
-                  tempImages.length >= 10 ||
-                  Object.keys(uploadingImages).length > 0 ||
-                  !user
-                }
-              />
-            </label>
-          </div>
-
-          {tempImages.length > 0 && (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-              {tempImages.map((image, index) => (
-                <div key={index} className="relative group">
-                  <img
-                    src={image.publicUrl}
-                    alt={`Upload ${index + 1}`}
-                    className="w-full h-32 object-cover rounded-lg"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => removeImage(index)}
-                    className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setFeaturedImage(index)}
-                    className={`absolute bottom-2 left-2 px-2 py-1 rounded text-xs font-medium transition-colors ${
-                      image.is_featured
-                        ? "bg-accent-500 text-white"
-                        : "bg-black bg-opacity-50 text-white hover:bg-accent-600"
-                    }`}
-                  >
-                    {image.is_featured ? "Featured" : "Set Featured"}
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
+          <MediaUploader
+            mediaFiles={mediaFiles}
+            onMediaAdd={handleMediaAdd}
+            onMediaRemove={handleMediaRemove}
+            onSetFeatured={handleSetFeatured}
+            maxFiles={11}
+            disabled={!user}
+            uploading={uploadingMedia}
+            showAuthWarning={!user}
+          />
 
           {/* Auto-save indicator */}
           {savingDraft && (
@@ -1249,86 +1227,6 @@ export function PostListing() {
               Saving draft...
             </div>
           )}
-
-          {!user && (
-            <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
-              <p className="text-sm text-yellow-800">
-                Please sign in to upload images. Your form data will be saved
-                automatically.
-              </p>
-            </div>
-          )}
-
-          <p className="mt-2 text-xs text-gray-500">
-            If you don't upload photos, a tasteful stock photo will be shown on your public listing.
-          </p>
-        </div>
-
-        {/* Video */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-          <h2 className="text-xl font-semibold text-[#273140] mb-4">
-            Video (Optional)
-          </h2>
-
-          <div className="mb-4">
-            <label className="block w-full">
-              <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-[#273140] transition-colors cursor-pointer">
-                {uploadingVideo ? (
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#273140] mx-auto mb-2"></div>
-                ) : (
-                  <Upload className="w-8 h-8 mx-auto mb-2 text-gray-400" />
-                )}
-                <span className="text-sm text-gray-600">
-                  {uploadingVideo
-                    ? "Uploading..."
-                    : videoFile
-                    ? "Click to replace video"
-                    : "Click to upload video"}
-                </span>
-                <span className="text-xs text-gray-500 block mt-1">
-                  MP4, WebM, MOV up to 100MB
-                </span>
-              </div>
-              <input
-                type="file"
-                accept="video/mp4,video/webm,video/quicktime"
-                onChange={handleVideoUpload}
-                className="hidden"
-                disabled={uploadingVideo || !user}
-              />
-            </label>
-          </div>
-
-          {videoFile && (
-            <div className="relative">
-              <video
-                src={videoFile.url}
-                controls
-                className="w-full max-h-64 rounded-lg bg-black"
-              >
-                Your browser does not support the video tag.
-              </video>
-              <button
-                type="button"
-                onClick={removeVideo}
-                className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-2 hover:bg-red-600 transition-colors"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-          )}
-
-          {!user && (
-            <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
-              <p className="text-sm text-yellow-800">
-                Please sign in to upload videos.
-              </p>
-            </div>
-          )}
-
-          <p className="mt-2 text-xs text-gray-500">
-            Add a video walkthrough to showcase your property. Video will be displayed on the listing detail page.
-          </p>
         </div>
 
         {/* Contact Information */}

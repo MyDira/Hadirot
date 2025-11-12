@@ -4,6 +4,7 @@ import { Upload, X, Star, ArrowLeft, Save } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { listingsService } from "../services/listings";
 import { emailService } from "../services/email";
+import { MediaUploader, MediaFile } from "../components/shared/MediaUploader";
 import {
   PropertyType,
   ParkingType,
@@ -59,9 +60,9 @@ export function EditListing() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [listing, setListing] = useState<Listing | null>(null);
-  const [existingImages, setExistingImages] = useState<ListingImage[]>([]);
-  const [imagesToDelete, setImagesToDelete] = useState<string[]>([]);
-  const [newImages, setNewImages] = useState<TempListingImage[]>([]);
+  const [mediaFiles, setMediaFiles] = useState<MediaFile[]>([]);
+  const [mediaToDelete, setMediaToDelete] = useState<string[]>([]);
+  const [uploadingMedia, setUploadingMedia] = useState(false);
   const [neighborhoodSelectValue, setNeighborhoodSelectValue] = useState<string>("");
   const [showCustomNeighborhood, setShowCustomNeighborhood] = useState(false);
   const [customNeighborhoodInput, setCustomNeighborhoodInput] = useState("");
@@ -117,7 +118,35 @@ export function EditListing() {
       }
 
       setListing(data);
-      setExistingImages(data.listing_images || []);
+
+      // Load existing media (images and video)
+      const loadedMedia: MediaFile[] = [];
+
+      // Load existing images
+      if (data.listing_images && data.listing_images.length > 0) {
+        data.listing_images.forEach((img) => {
+          loadedMedia.push({
+            id: img.id,
+            type: 'image',
+            url: img.image_url,
+            is_featured: img.is_featured,
+            isExisting: true
+          });
+        });
+      }
+
+      // Load existing video if present
+      if (data.video_url) {
+        loadedMedia.push({
+          id: 'existing-video',
+          type: 'video',
+          url: data.video_url,
+          is_featured: false,
+          isExisting: true
+        });
+      }
+
+      setMediaFiles(loadedMedia);
 
       // Pre-fill form data
       setFormData({
@@ -257,164 +286,152 @@ export function EditListing() {
     });
   };
 
-  const processFiles = async (files: File[]) => {
+  const handleMediaAdd = async (files: File[]) => {
     if (!user) {
-      alert("Please sign in to upload images");
+      alert("Please sign in to upload media");
       return;
     }
 
-    if (existingImages.length + newImages.length + files.length > 10) {
-      alert("Maximum 10 images allowed");
+    if (mediaFiles.length + files.length > 11) {
+      alert("Maximum 11 files allowed (images + videos)");
       return;
     }
 
-    let hasFeatured =
-      existingImages.some((img) => img.is_featured) ||
-      newImages.some((img) => img.is_featured);
+    const imageCount = mediaFiles.filter(m => m.type === 'image').length;
+    const videoCount = mediaFiles.filter(m => m.type === 'video').length;
 
-    for (const file of files) {
-      if (!file.type.startsWith("image/")) {
-        alert(`${file.name} is not an image file`);
-        continue;
-      }
+    setUploadingMedia(true);
 
-      let fileToUpload: File = file;
-      if (file.size > 8 * 1024 * 1024) {
-        try {
-          const compressed = await compressImage(file, {
-            quality: 0.8,
-            maxWidth: 1920,
-          });
-          if (compressed.size > 8 * 1024 * 1024) {
-            alert(`${file.name} is too large even after compression (8MB limit)`);
-            continue;
-          }
-          fileToUpload = new File(
-            [compressed],
-            file.name.replace(/\.[^.]+$/, ".jpg"),
-            { type: "image/jpeg" },
-          );
-        } catch (err) {
-          console.error("Error compressing image:", err);
-          alert(`Failed to process ${file.name}`);
+    try {
+      let hasFeatured = mediaFiles.some((m) => m.is_featured);
+      const newMedia: MediaFile[] = [];
+
+      for (const file of files) {
+        const isImage = file.type.startsWith("image/");
+        const isVideo = file.type.startsWith("video/");
+
+        if (!isImage && !isVideo) {
+          alert(`${file.name} is not a supported file type`);
           continue;
         }
-      }
 
-      try {
-        const { filePath, publicUrl } =
-          await listingsService.uploadTempListingImage(fileToUpload, user.id);
+        if (isVideo) {
+          if (videoCount + newMedia.filter(m => m.type === 'video').length >= 1) {
+            alert("Maximum 1 video allowed");
+            continue;
+          }
 
-        const is_featured = !hasFeatured;
-        if (!hasFeatured) {
-          hasFeatured = true;
+          if (file.size > 100 * 1024 * 1024) {
+            alert(`${file.name} is too large. Maximum video size is 100MB`);
+            continue;
+          }
+
+          const videoUrl = URL.createObjectURL(file);
+          newMedia.push({
+            id: `video-${Date.now()}-${Math.random()}`,
+            type: 'video',
+            file,
+            url: videoUrl,
+            is_featured: false,
+            originalName: file.name
+          });
+        } else if (isImage) {
+          let fileToUpload: File = file;
+          if (file.size > 8 * 1024 * 1024) {
+            try {
+              const compressed = await compressImage(file, {
+                quality: 0.8,
+                maxWidth: 1920,
+              });
+              if (compressed.size > 8 * 1024 * 1024) {
+                alert(`${file.name} is too large even after compression (8MB limit)`);
+                continue;
+              }
+              fileToUpload = new File([compressed],
+                file.name.replace(/\.[^.]+$/, ".jpg"),
+                { type: "image/jpeg" });
+            } catch (err) {
+              console.error("Error compressing image:", err);
+              alert(`Failed to process ${file.name}`);
+              continue;
+            }
+          }
+
+          try {
+            const { filePath, publicUrl } =
+              await listingsService.uploadTempListingImage(fileToUpload, user.id);
+
+            const is_featured = !hasFeatured;
+            if (!hasFeatured) {
+              hasFeatured = true;
+            }
+
+            newMedia.push({
+              id: `img-${Date.now()}-${Math.random()}`,
+              type: 'image',
+              url: publicUrl,
+              filePath,
+              publicUrl,
+              is_featured,
+              originalName: file.name
+            });
+          } catch (error) {
+            console.error("Error uploading temp image:", error);
+            alert(`Failed to upload ${file.name}. Please try again.`);
+          }
         }
-
-        const tempImage: TempListingImage = {
-          filePath,
-          publicUrl,
-          is_featured,
-          originalName: file.name,
-        };
-
-        setNewImages((prev) => {
-          const updated = is_featured
-            ? prev.map((img) => ({ ...img, is_featured: false }))
-            : [...prev];
-          updated.push(tempImage);
-          return updated;
-        });
-      } catch (error) {
-        console.error("Error uploading temp image:", error);
-        alert("Failed to upload image. Please try again.");
       }
+
+      if (newMedia.length > 0) {
+        setMediaFiles((prev) => {
+          const updated = hasFeatured
+            ? prev.map((m) => ({ ...m, is_featured: false }))
+            : [...prev];
+          return [...updated, ...newMedia];
+        });
+      }
+    } finally {
+      setUploadingMedia(false);
     }
   };
 
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || []);
-    await processFiles(files);
-  };
+  const handleMediaRemove = (id: string) => {
+    const mediaToRemove = mediaFiles.find(m => m.id === id);
 
-  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    e.stopPropagation();
-  };
-
-  const handleDrop = async (e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    e.stopPropagation();
-
-    const files = Array.from(e.dataTransfer.files);
-    await processFiles(files);
-  };
-
-  const removeNewImage = (index: number) => {
-    setNewImages((prev) => {
-      const newImages = prev.filter((_, i) => i !== index);
-      // If we removed the featured image, make the first one featured
-      if (
-        prev[index]?.is_featured &&
-        newImages.length > 0 &&
-        existingImages.length === 0
-      ) {
-        newImages[0].is_featured = true;
+    if (mediaToRemove) {
+      // If it's an existing media item, mark it for deletion
+      if (mediaToRemove.isExisting) {
+        setMediaToDelete((prev) => [...prev, id]);
       }
-      return newImages;
+
+      // If it's a video with a blob URL, revoke it
+      if (mediaToRemove.type === 'video' && mediaToRemove.url.startsWith('blob:')) {
+        URL.revokeObjectURL(mediaToRemove.url);
+      }
+    }
+
+    setMediaFiles((prev) => {
+      const newMedia = prev.filter(m => m.id !== id);
+      // If we removed the featured image, make the first image featured
+      if (mediaToRemove?.is_featured && newMedia.length > 0) {
+        const firstImage = newMedia.find(m => m.type === 'image');
+        if (firstImage) {
+          return newMedia.map(m => ({
+            ...m,
+            is_featured: m.id === firstImage.id
+          }));
+        }
+      }
+      return newMedia;
     });
   };
 
-  const removeExistingImage = async (imageId: string, imageUrl: string) => {
-    // Mark image for deletion instead of deleting immediately
-    setImagesToDelete((prev) => [...prev, imageId]);
-
-    // If we're removing the featured image, make the first remaining image featured
-    const removedImage = existingImages.find((img) => img.id === imageId);
-    if (removedImage?.is_featured) {
-      const remainingImages = existingImages.filter(
-        (img) => img.id !== imageId && !imagesToDelete.includes(img.id),
-      );
-      if (remainingImages.length > 0) {
-        setExistingImages((prev) =>
-          prev.map((img) => ({
-            ...img,
-            is_featured: img.id === remainingImages[0].id,
-          })),
-        );
-      } else if (newImages.length > 0) {
-        // Make first new image featured if no existing images remain
-        setNewImages((prev) =>
-          prev.map((img, i) => ({ ...img, is_featured: i === 0 })),
-        );
-      }
-    }
-  };
-
-  const setFeaturedExistingImage = async (imageId: string) => {
-    // Update local state immediately
-    setExistingImages((prev) =>
-      prev.map((img) => ({
-        ...img,
-        is_featured: img.id === imageId,
+  const handleSetFeatured = (id: string) => {
+    setMediaFiles((prev) =>
+      prev.map((m) => ({
+        ...m,
+        is_featured: m.id === id && m.type === 'image',
       })),
-    );
-
-    // Make sure no new images are featured
-    setNewImages((prev) => prev.map((img) => ({ ...img, is_featured: false })));
-  };
-
-  const setFeaturedNewImage = (index: number) => {
-    // Update new images
-    setNewImages((prev) =>
-      prev.map((img, i) => ({
-        ...img,
-        is_featured: i === index,
-      })),
-    );
-
-    // Make sure no existing images are featured
-    setExistingImages((prev) =>
-      prev.map((img) => ({ ...img, is_featured: false })),
     );
   };
 
@@ -459,29 +476,35 @@ export function EditListing() {
         return;
       }
 
-      // Delete marked images first
-      for (const imageId of imagesToDelete) {
-        const imageToDelete = existingImages.find((img) => img.id === imageId);
-        if (imageToDelete) {
-          await listingsService.deleteListingImage(
-            imageId,
-            imageToDelete.image_url,
-          );
+      // Process media deletions
+      const existingImageIds = listing?.listing_images?.map(img => img.id) || [];
+      for (const mediaId of mediaToDelete) {
+        if (existingImageIds.includes(mediaId)) {
+          // Delete existing image
+          const imageToDelete = listing?.listing_images?.find(img => img.id === mediaId);
+          if (imageToDelete) {
+            await listingsService.deleteListingImage(mediaId, imageToDelete.image_url);
+          }
+        } else if (mediaId === 'existing-video') {
+          // Clear video URL
+          await listingsService.updateListing(id, { video_url: null });
         }
       }
 
-      // Update featured status for remaining existing images
-      const remainingImages = existingImages.filter(
-        (img) => !imagesToDelete.includes(img.id),
-      );
-      for (const image of remainingImages) {
-        await listingsService.updateListingImage(image.id, {
-          is_featured: image.is_featured,
+      // Process media updates
+      const existingImages = mediaFiles.filter(m => m.type === 'image' && m.isExisting);
+      const newImageMedia = mediaFiles.filter(m => m.type === 'image' && !m.isExisting);
+      const videoMedia = mediaFiles.find(m => m.type === 'video' && !m.isExisting);
+
+      // Update featured status for existing images
+      for (const media of existingImages) {
+        await listingsService.updateListingImage(media.id, {
+          is_featured: media.is_featured,
         });
       }
 
-      // Update the listing
-      await listingsService.updateListing(id, {
+      // Prepare update payload
+      const updatePayload: any = {
         ...formData,
         broker_fee: false,
         neighborhood,
@@ -491,11 +514,43 @@ export function EditListing() {
         ac_type: formData.ac_type || null,
         apartment_conditions: formData.apartment_conditions.length > 0 ? formData.apartment_conditions : null,
         additional_rooms: formData.additional_rooms > 0 ? formData.additional_rooms : null,
-      } as any);
+      };
+
+      // Update the listing
+      await listingsService.updateListing(id, updatePayload);
 
       // Upload new images
-      if (newImages.length > 0) {
-        await listingsService.finalizeTempListingImages(id, user.id, newImages);
+      if (newImageMedia.length > 0) {
+        const tempImages = newImageMedia.map(m => ({
+          filePath: m.filePath!,
+          publicUrl: m.publicUrl || m.url,
+          is_featured: m.is_featured,
+          originalName: m.originalName || ''
+        }));
+        await listingsService.finalizeTempListingImages(id, user.id, tempImages);
+      }
+
+      // Upload new video
+      if (videoMedia && videoMedia.file) {
+        try {
+          setUploadingMedia(true);
+          const videoUrl = await listingsService.uploadListingVideo(
+            videoMedia.file,
+            id
+          );
+
+          // Update listing with video URL
+          await listingsService.updateListing(id, {
+            video_url: videoUrl,
+          });
+
+          console.log("✅ Video uploaded successfully");
+        } catch (videoError) {
+          console.error("⚠️ Failed to upload video:", videoError);
+          // Don't block the flow if video upload fails
+        } finally {
+          setUploadingMedia(false);
+        }
       }
 
       navigate(`/listing/${id}`);
@@ -980,137 +1035,22 @@ export function EditListing() {
           </div>
         </div>
 
-        {/* Images */}
+        {/* Media Upload (Images & Videos) */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
           <h2 className="text-xl font-semibold text-[#273140] mb-4">
-            Images (Up to 10)
+            Media (Images & Video)
           </h2>
 
-          {/* Existing Images */}
-          {existingImages.filter((img) => !imagesToDelete.includes(img.id))
-            .length > 0 && (
-            <div className="mb-6">
-              <h3 className="text-lg font-medium text-gray-900 mb-3">
-                Current Images
-              </h3>
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                {existingImages
-                  .filter((img) => !imagesToDelete.includes(img.id))
-                  .map((image) => (
-                    <div key={image.id} className="relative group">
-                      <img
-                        src={image.image_url}
-                        alt={listing?.title}
-                        className="w-full h-32 object-cover rounded-lg"
-                      />
-                      <button
-                        type="button"
-                        onClick={() =>
-                          removeExistingImage(image.id, image.image_url)
-                        }
-                        className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setFeaturedExistingImage(image.id)}
-                        className={`absolute bottom-2 left-2 px-2 py-1 rounded text-xs font-medium transition-colors ${
-                          image.is_featured
-                            ? "bg-accent-500 text-white"
-                            : "bg-black bg-opacity-50 text-white hover:bg-accent-600"
-                        }`}
-                      >
-                        {image.is_featured ? "Featured" : "Set Featured"}
-                      </button>
-                    </div>
-                  ))}
-              </div>
-            </div>
-          )}
-
-          {/* New Images */}
-          {newImages.length > 0 && (
-            <div className="mb-6">
-              <h3 className="text-lg font-medium text-gray-900 mb-3">
-                New Images
-              </h3>
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                {newImages.map((image, index) => (
-                  <div key={`new-${index}`} className="relative group">
-                    <img
-                      src={image.publicUrl}
-                      alt={`New upload ${index + 1}`}
-                      className="w-full h-32 object-cover rounded-lg"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => removeNewImage(index)}
-                      className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setFeaturedNewImage(index)}
-                      className={`absolute bottom-2 left-2 px-2 py-1 rounded text-xs font-medium transition-colors ${
-                        image.is_featured
-                          ? "bg-accent-500 text-white"
-                          : "bg-black bg-opacity-50 text-white hover:bg-accent-600"
-                      }`}
-                    >
-                      {image.is_featured ? "Featured" : "Set Featured"}
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Upload New Images */}
-          <div className="mb-4">
-            <label className="block w-full">
-              <div
-                className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-[#273140] transition-colors cursor-pointer"
-                onDragOver={handleDragOver}
-                onDrop={handleDrop}
-              >
-                <Upload className="w-8 h-8 mx-auto mb-2 text-gray-400" />
-                <span className="text-sm text-gray-600">
-                  Click to upload new images or drag and drop
-                </span>
-                <span className="text-xs text-gray-500 block mt-1">
-                  PNG, JPG up to 8MB each
-                </span>
-              </div>
-              <input
-                type="file"
-                multiple
-                accept="image/*"
-                onChange={handleImageUpload}
-                className="hidden"
-                disabled={
-                  existingImages.filter(
-                    (img) => !imagesToDelete.includes(img.id),
-                  ).length +
-                    newImages.length >=
-                    10 || !user
-                }
-              />
-            </label>
-
-            {!user && (
-              <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
-                <p className="text-sm text-yellow-800">
-                  Please sign in to upload images.
-                </p>
-              </div>
-            )}
-
-            <p className="mt-2 text-xs text-gray-500">
-              If you don't upload photos, a tasteful stock photo will be shown on your public listing.
-            </p>
-          </div>
+          <MediaUploader
+            mediaFiles={mediaFiles.filter(m => !mediaToDelete.includes(m.id))}
+            onMediaAdd={handleMediaAdd}
+            onMediaRemove={handleMediaRemove}
+            onSetFeatured={handleSetFeatured}
+            maxFiles={11}
+            disabled={!user}
+            uploading={uploadingMedia}
+            showAuthWarning={!user}
+          />
         </div>
 
         {/* Contact Information */}

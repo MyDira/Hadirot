@@ -1,5 +1,10 @@
 import { supabase, TempListingImage } from '../config/supabase';
 
+export interface TempVideoData {
+  url: string;
+  fileName: string;
+}
+
 export interface DraftData {
   // Form data only - no images
   title: string;
@@ -26,15 +31,17 @@ export interface DraftData {
   apartment_conditions?: string[];
   additional_rooms?: number;
   tempImages?: TempListingImage[];
+  tempVideo?: TempVideoData;
 }
 
 export const draftListingsService = {
-  async saveDraft(draftData: DraftData, authIdentifier: string, tempImages?: TempListingImage[]): Promise<void> {
+  async saveDraft(draftData: DraftData, authIdentifier: string, tempImages?: TempListingImage[], tempVideo?: TempVideoData): Promise<void> {
     try {
       const draftKey = `listing_draft_${authIdentifier}`;
       const fullDraftData = {
         ...draftData,
-        tempImages: tempImages || []
+        tempImages: tempImages || [],
+        tempVideo: tempVideo || undefined
       };
       localStorage.setItem(draftKey, JSON.stringify(fullDraftData));
       console.log('✅ Draft saved to local storage successfully for:', authIdentifier);
