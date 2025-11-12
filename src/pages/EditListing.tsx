@@ -4,6 +4,7 @@ import { Upload, X, Star, ArrowLeft, Save } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { listingsService } from "../services/listings";
 import { emailService } from "../services/email";
+import { generateVideoThumbnail } from "../utils/videoUtils";
 import { MediaUploader, MediaFile } from "../components/shared/MediaUploader";
 import {
   PropertyType,
@@ -545,6 +546,39 @@ export function EditListing() {
           });
 
           console.log("✅ Video uploaded successfully");
+
+          // If no images exist after processing, generate and upload video thumbnail
+          const hasImages = mediaFiles.filter(m => m.type === 'image' && !mediaToDelete.includes(m.id)).length > 0;
+          if (!hasImages) {
+            try {
+              console.log("📸 Generating video thumbnail...");
+              const thumbnailBlob = await generateVideoThumbnail(videoMedia.file);
+              const thumbnailFile = new File(
+                [thumbnailBlob],
+                `thumbnail_${id}.jpg`,
+                { type: 'image/jpeg' }
+              );
+
+              // Upload thumbnail as listing image
+              const publicUrl = await listingsService.uploadListingImage(
+                thumbnailFile,
+                id
+              );
+
+              // Add thumbnail to listing_images table
+              await listingsService.addListingImage(
+                id,
+                publicUrl,
+                true, // Set as featured
+                0 // Sort order
+              );
+
+              console.log("✅ Video thumbnail uploaded successfully");
+            } catch (thumbnailError) {
+              console.error("⚠️ Failed to generate/upload video thumbnail:", thumbnailError);
+              // Don't block the flow if thumbnail generation fails
+            }
+          }
         } catch (videoError) {
           console.error("⚠️ Failed to upload video:", videoError);
           // Don't block the flow if video upload fails

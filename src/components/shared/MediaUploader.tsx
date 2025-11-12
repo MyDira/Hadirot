@@ -105,7 +105,7 @@ export function MediaUploader({
               Images: PNG, JPG up to 8MB | Videos: MP4, WebM, MOV up to 100MB
             </span>
             <span className="text-xs text-gray-500 block mt-1">
-              Maximum {maxFiles} files total (at least 1 must be an image)
+              Maximum {maxFiles} files total
             </span>
           </div>
           <input
@@ -188,8 +188,9 @@ export function MediaUploader({
       )}
 
       <p className="text-xs text-gray-500">
-        {mediaFiles.length === 0 && "If you don't upload photos, a tasteful stock photo will be shown on your public listing."}
+        {mediaFiles.length === 0 && "If you don't upload media, a tasteful stock photo will be shown on your public listing."}
         {mediaFiles.length > 0 && `${mediaFiles.length} of ${maxFiles} files uploaded. ${mediaFiles.filter(m => m.type === 'image').length} image(s), ${mediaFiles.filter(m => m.type === 'video').length} video(s).`}
+        {mediaFiles.length > 0 && mediaFiles.filter(m => m.type === 'image').length === 0 && " Video thumbnail will be used for listing cards."}
       </p>
     </div>
   );

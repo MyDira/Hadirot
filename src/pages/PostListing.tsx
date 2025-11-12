@@ -9,6 +9,7 @@ import { agenciesService } from "../services/agencies";
 import { Modal } from "../components/shared/Modal";
 import { AuthForm } from "../components/auth/AuthForm";
 import { compressImage } from "../utils/imageUtils";
+import { generateVideoThumbnail } from "../utils/videoUtils";
 import { MediaUploader, MediaFile } from "../components/shared/MediaUploader";
 import { gaEvent } from "@/lib/ga";
 import {
@@ -643,6 +644,38 @@ export function PostListing() {
           });
 
           console.log("✅ Video uploaded successfully");
+
+          // If no images were uploaded, generate and upload video thumbnail
+          if (imageMedia.length === 0) {
+            try {
+              console.log("📸 Generating video thumbnail...");
+              const thumbnailBlob = await generateVideoThumbnail(videoMedia.file);
+              const thumbnailFile = new File(
+                [thumbnailBlob],
+                `thumbnail_${listing.id}.jpg`,
+                { type: 'image/jpeg' }
+              );
+
+              // Upload thumbnail as listing image
+              const publicUrl = await listingsService.uploadListingImage(
+                thumbnailFile,
+                listing.id
+              );
+
+              // Add thumbnail to listing_images table
+              await listingsService.addListingImage(
+                listing.id,
+                publicUrl,
+                true, // Set as featured
+                0 // Sort order
+              );
+
+              console.log("✅ Video thumbnail uploaded successfully");
+            } catch (thumbnailError) {
+              console.error("⚠️ Failed to generate/upload video thumbnail:", thumbnailError);
+              // Don't block the flow if thumbnail generation fails
+            }
+          }
         } catch (videoError) {
           console.error("⚠️ Failed to upload video:", videoError);
           // Don't block the flow if video upload fails
