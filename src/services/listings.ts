@@ -840,6 +840,66 @@ export const listingsService = {
     return data;
   },
 
+  async uploadListingVideo(file: File, listingId: string): Promise<string> {
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${listingId}/video_${Date.now()}.${fileExt}`;
+
+    console.log('📤 Uploading video:', {
+      fileName,
+      fileSize: file.size,
+      fileType: file.type,
+      listingId
+    });
+
+    const { data, error } = await supabase.storage
+      .from('listing-videos')
+      .upload(fileName, file);
+
+    if (error) {
+      console.error('❌ Video upload failed:', error);
+      throw error;
+    }
+
+    console.log('✅ Video uploaded successfully:', data);
+
+    const { data: { publicUrl } } = supabase.storage
+      .from('listing-videos')
+      .getPublicUrl(fileName);
+
+    console.log('🔗 Generated video public URL:', publicUrl);
+    return publicUrl;
+  },
+
+  async uploadVideoThumbnail(file: File, listingId: string): Promise<string> {
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${listingId}/video_thumb_${Date.now()}.${fileExt}`;
+
+    console.log('📤 Uploading video thumbnail:', {
+      fileName,
+      fileSize: file.size,
+      fileType: file.type,
+      listingId
+    });
+
+    const { data, error } = await supabase.storage
+      .from('listing-images')
+      .upload(fileName, file);
+
+    if (error) {
+      console.error('❌ Video thumbnail upload failed:', error);
+      throw error;
+    }
+
+    console.log('✅ Video thumbnail uploaded successfully:', data);
+
+    const { data: { publicUrl } } = supabase.storage
+      .from('listing-images')
+      .getPublicUrl(fileName);
+
+    console.log('🔗 Generated thumbnail public URL:', publicUrl);
+    return publicUrl;
+  },
+
   async getUserListings(userId: string) {
     const { data, error } = await supabase
       .from('listings')

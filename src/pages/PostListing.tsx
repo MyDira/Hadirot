@@ -63,6 +63,8 @@ export function PostListing() {
   const [uploadingImages, setUploadingImages] = useState<{
     [key: string]: boolean;
   }>({});
+  const [uploadingVideo, setUploadingVideo] = useState(false);
+  const [videoFile, setVideoFile] = useState<{ file: File; url: string; thumbnail?: string } | null>(null);
   const [savingDraft, setSavingDraft] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [neighborhoodSelectValue, setNeighborhoodSelectValue] = useState<string>("");
@@ -484,6 +486,40 @@ export function PostListing() {
     );
   };
 
+  const handleVideoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    handleFirstInteraction();
+
+    if (!user) {
+      alert("Please sign in to upload videos");
+      return;
+    }
+
+    if (!file.type.startsWith("video/")) {
+      alert("Please select a valid video file");
+      return;
+    }
+
+    const maxSize = 100 * 1024 * 1024;
+    if (file.size > maxSize) {
+      alert("Video file is too large. Maximum size is 100MB");
+      return;
+    }
+
+    const videoUrl = URL.createObjectURL(file);
+    setVideoFile({ file, url: videoUrl });
+  };
+
+  const removeVideo = () => {
+    handleFirstInteraction();
+    if (videoFile?.url) {
+      URL.revokeObjectURL(videoFile.url);
+    }
+    setVideoFile(null);
+  };
+
   const submitListingContent = async () => {
     if (!user) {
       console.error(
@@ -554,6 +590,30 @@ export function PostListing() {
           user.id,
           tempImages,
         );
+      }
+
+      // Process video if uploaded
+      if (videoFile) {
+        try {
+          setUploadingVideo(true);
+          const videoUrl = await listingsService.uploadListingVideo(
+            videoFile.file,
+            listing.id
+          );
+
+          // Update listing with video URL
+          await listingsService.updateListing({
+            id: listing.id,
+            video_url: videoUrl,
+          });
+
+          console.log("✅ Video uploaded successfully");
+        } catch (videoError) {
+          console.error("⚠️ Failed to upload video:", videoError);
+          // Don't block the flow if video upload fails
+        } finally {
+          setUploadingVideo(false);
+        }
       }
 
       // Delete the draft since we've successfully created the listing
@@ -764,6 +824,7 @@ export function PostListing() {
                   Apartment in a building
                 </option>
                 <option value="apartment_house">Apartment in a house</option>
+                <option value="basement">Basement</option>
                 <option value="duplex">Duplex</option>
                 <option value="full_house">Full house</option>
               </select>
@@ -1200,6 +1261,73 @@ export function PostListing() {
 
           <p className="mt-2 text-xs text-gray-500">
             If you don't upload photos, a tasteful stock photo will be shown on your public listing.
+          </p>
+        </div>
+
+        {/* Video */}
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <h2 className="text-xl font-semibold text-[#273140] mb-4">
+            Video (Optional)
+          </h2>
+
+          <div className="mb-4">
+            <label className="block w-full">
+              <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-[#273140] transition-colors cursor-pointer">
+                {uploadingVideo ? (
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#273140] mx-auto mb-2"></div>
+                ) : (
+                  <Upload className="w-8 h-8 mx-auto mb-2 text-gray-400" />
+                )}
+                <span className="text-sm text-gray-600">
+                  {uploadingVideo
+                    ? "Uploading..."
+                    : videoFile
+                    ? "Click to replace video"
+                    : "Click to upload video"}
+                </span>
+                <span className="text-xs text-gray-500 block mt-1">
+                  MP4, WebM, MOV up to 100MB
+                </span>
+              </div>
+              <input
+                type="file"
+                accept="video/mp4,video/webm,video/quicktime"
+                onChange={handleVideoUpload}
+                className="hidden"
+                disabled={uploadingVideo || !user}
+              />
+            </label>
+          </div>
+
+          {videoFile && (
+            <div className="relative">
+              <video
+                src={videoFile.url}
+                controls
+                className="w-full max-h-64 rounded-lg bg-black"
+              >
+                Your browser does not support the video tag.
+              </video>
+              <button
+                type="button"
+                onClick={removeVideo}
+                className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-2 hover:bg-red-600 transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          )}
+
+          {!user && (
+            <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
+              <p className="text-sm text-yellow-800">
+                Please sign in to upload videos.
+              </p>
+            </div>
+          )}
+
+          <p className="mt-2 text-xs text-gray-500">
+            Add a video walkthrough to showcase your property. Video will be displayed on the listing detail page.
           </p>
         </div>
 

@@ -343,6 +343,8 @@ export function ListingDetail() {
         return "Apartment in Building";
       case "apartment_house":
         return "Apartment in House";
+      case "basement":
+        return "Basement";
       case "duplex":
         return "Duplex";
       case "full_house":
@@ -428,8 +430,24 @@ export function ListingDetail() {
             </button>
           </div>
 
+          {listing.video_url && (
+            <section id="ld-video" className="mt-6">
+              <h2 className="text-2xl font-bold text-[#273140] mb-4">
+                Video Tour
+              </h2>
+              <video
+                src={listing.video_url}
+                controls
+                className="w-full rounded-lg bg-black"
+                poster={listing.video_thumbnail_url || undefined}
+              >
+                Your browser does not support the video tag.
+              </video>
+            </section>
+          )}
+
           {listing.description && (
-            <section id="ld-description" className="mt-0 pt-0">
+            <section id="ld-description" className="mt-6 pt-0">
               <h2 className="text-2xl font-bold text-[#273140] mb-4">
                 Description
               </h2>
@@ -869,9 +887,26 @@ export function ListingDetail() {
               </div>
             </div>
           </section>
-          {/* Mobile Description - Eighth on mobile (last) */}
+          {/* Mobile Video - Eighth on mobile */}
+          {listing.video_url && (
+            <section id="ld-video-mobile" className="lg:hidden order-8">
+              <h2 className="text-2xl font-bold text-[#273140] mb-4">
+                Video Tour
+              </h2>
+              <video
+                src={listing.video_url}
+                controls
+                className="w-full rounded-lg bg-black"
+                poster={listing.video_thumbnail_url || undefined}
+              >
+                Your browser does not support the video tag.
+              </video>
+            </section>
+          )}
+
+          {/* Mobile Description - Ninth on mobile (last) */}
           {listing.description && (
-            <section id="ld-description-mobile" className="lg:hidden order-8">
+            <section id="ld-description-mobile" className="lg:hidden order-9">
               <h2 className="text-2xl font-bold text-[#273140] mb-4">
                 Description
               </h2>
@@ -882,7 +917,7 @@ export function ListingDetail() {
           )}
 
           {/* Report as Rented - Mobile only, after description */}
-          <section className="lg:hidden order-9 pt-4 border-t border-gray-200">
+          <section className="lg:hidden order-10 pt-4 border-t border-gray-200">
             <ReportRentedButton
               listing={listing}
               userFullName={user?.user_metadata?.full_name || user?.email}

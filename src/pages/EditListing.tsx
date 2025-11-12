@@ -667,6 +667,7 @@ export function EditListing() {
                   Apartment in a building
                 </option>
                 <option value="apartment_house">Apartment in a house</option>
+                <option value="basement">Basement</option>
                 <option value="duplex">Duplex</option>
                 <option value="full_house">Full house</option>
               </select>

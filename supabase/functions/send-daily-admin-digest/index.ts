@@ -455,6 +455,7 @@ Deno.serve(async (req) => {
 
     const getPropertyTypeDisplay = (propertyType: string) => {
       // Only show property type if it's NOT an apartment
+      if (propertyType === "basement") return "Basement";
       if (propertyType === "full_house") return "Full House";
       if (propertyType === "duplex") return "Duplex";
       return ""; // Don't show anything for apartments

@@ -46,16 +46,20 @@ export function getStockImageForListing(seed: {
 
 export function computePrimaryListingImage(
   images: Array<{ image_url: string }> | undefined | null,
-  seed: { 
-    id?: string | null; 
-    addressLine?: string | null; 
-    city?: string | null; 
+  seed: {
+    id?: string | null;
+    addressLine?: string | null;
+    city?: string | null;
     price?: number | null;
-  }
+  },
+  videoThumbnailUrl?: string | null
 ): { url: string; isStock: boolean } {
   const hasReal = Array.isArray(images) && images.length > 0;
   if (hasReal) {
     return { url: images[0].image_url, isStock: false };
+  }
+  if (videoThumbnailUrl) {
+    return { url: videoThumbnailUrl, isStock: false };
   }
   return { url: getStockImageForListing(seed), isStock: true };
 }

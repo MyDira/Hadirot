@@ -45,7 +45,8 @@ export function ListingCard({
       addressLine: listing.location,
       city: listing.neighborhood,
       price: listing.price,
-    }
+    },
+    listing.video_thumbnail_url
   );
 
   const handleFavoriteToggle = async (e: React.MouseEvent) => {
@@ -127,6 +128,11 @@ export function ListingCard({
 
         {/* Property type and lease length badges - bottom right */}
         <div className="absolute bottom-3 right-3 flex flex-col gap-2">
+          {listing.property_type === "basement" && (
+            <div className="rounded-full bg-black/35 px-3 py-1 text-xs font-medium text-white backdrop-blur-sm">
+              Basement
+            </div>
+          )}
           {listing.property_type === "full_house" && (
             <div className="rounded-full bg-black/35 px-3 py-1 text-xs font-medium text-white backdrop-blur-sm">
               Full House
