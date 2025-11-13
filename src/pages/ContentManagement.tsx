@@ -1,15 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { FileText, Star, MessageSquare, Save, Trash2, Plus, Eye, EyeOff, Edit2, X, Settings, Search, ChevronLeft, Monitor, Smartphone, BarChart3, Users, Power, Mail, Send, Clock, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
+import { FileText, Star, MessageSquare, Save, Trash2, Plus, Eye, EyeOff, Edit2, X, Settings, Search, ChevronLeft, Monitor, Smartphone, BarChart3, Users, Power, Mail, Send, Clock, CheckCircle, XCircle, AlertCircle, Image } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { staticPagesService, StaticPage } from '../services/staticPages';
 import { modalsService, ModalPopup, CreateModalInput } from '../services/modals';
-import { supabase, Profile } from '../config/supabase';
+import { bannersService, CreateBannerInput } from '../services/banners';
+import { supabase, Profile, HeroBanner, BannerButton } from '../config/supabase';
 import { ModalPreview } from '../components/admin/ModalPreview';
 import { ModalManagement } from '../components/admin/ModalManagement';
 import { ModalEditor } from '../components/admin/ModalEditor';
+import { BannerManagement } from '../components/admin/BannerManagement';
+import { BannerEditor } from '../components/admin/BannerEditor';
 
-const CONTENT_TAB_KEYS = ['static-pages', 'featured', 'modals', 'email-tools'] as const;
+const CONTENT_TAB_KEYS = ['static-pages', 'featured', 'modals', 'hero-banners', 'email-tools'] as const;
 type ContentTabKey = (typeof CONTENT_TAB_KEYS)[number];
 
 const isValidContentTab = (value: string | null): value is ContentTabKey =>
@@ -19,6 +22,7 @@ const CONTENT_TABS: { id: ContentTabKey; label: string; icon: React.ElementType 
   { id: 'static-pages', label: 'Static Pages', icon: FileText },
   { id: 'featured', label: 'Featured Settings', icon: Star },
   { id: 'modals', label: 'Modal Popups', icon: MessageSquare },
+  { id: 'hero-banners', label: 'Hero Banners', icon: Image },
   { id: 'email-tools', label: 'Email Tools', icon: Mail },
 ];
 
@@ -79,6 +83,12 @@ export function ContentManagement() {
   const [updatingConfig, setUpdatingConfig] = useState(false);
   const [editingDeliveryTime, setEditingDeliveryTime] = useState(false);
   const [tempDeliveryTime, setTempDeliveryTime] = useState('');
+
+  // Hero Banners state
+  const [banners, setBanners] = useState<HeroBanner[]>([]);
+  const [editingBannerId, setEditingBannerId] = useState<string | null>(null);
+  const [showCreateBanner, setShowCreateBanner] = useState(false);
+  const [selectedBanner, setSelectedBanner] = useState<HeroBanner | null>(null);
 
   const [toast, setToast] = useState<{ message: string; tone: 'success' | 'error' } | null>(null);
 
@@ -166,6 +176,9 @@ export function ContentManagement() {
           }
         }
         setModalStats(stats);
+      } else if (activeTab === 'hero-banners') {
+        const allBanners = await bannersService.getAllBanners();
+        setBanners(allBanners);
       } else if (activeTab === 'email-tools') {
         await loadEmailTools();
       }
@@ -536,6 +549,92 @@ export function ContentManagement() {
     }
   };
 
+  const handleToggleBannerActive = async (bannerId: string, currentActive: boolean) => {
+    try {
+      await bannersService.updateBanner(bannerId, { is_active: !currentActive });
+      setToast({ message: `Banner ${!currentActive ? 'activated' : 'deactivated'}`, tone: 'success' });
+      loadData();
+    } catch (error) {
+      console.error('Error toggling banner:', error);
+      setToast({ message: 'Failed to toggle banner status', tone: 'error' });
+    }
+  };
+
+  const handleDeleteBanner = async (bannerId: string) => {
+    if (!confirm('Are you sure you want to delete this banner?')) return;
+
+    try {
+      await bannersService.deleteBanner(bannerId);
+      setToast({ message: 'Banner deleted successfully', tone: 'success' });
+      loadData();
+    } catch (error) {
+      console.error('Error deleting banner:', error);
+      setToast({ message: 'Failed to delete banner', tone: 'error' });
+    }
+  };
+
+  const handleCreateBanner = () => {
+    setShowCreateBanner(true);
+    setEditingBannerId(null);
+    setSelectedBanner(null);
+  };
+
+  const handleEditBanner = (banner: HeroBanner) => {
+    setSelectedBanner(banner);
+    setEditingBannerId(banner.id);
+    setShowCreateBanner(false);
+  };
+
+  const handleSaveBanner = async (bannerData: any, buttons: any[]) => {
+    try {
+      if (editingBannerId) {
+        await bannersService.updateBanner(editingBannerId, bannerData);
+        await bannersService.deleteButtonsByBannerId(editingBannerId);
+        for (const button of buttons) {
+          await bannersService.createButton({ ...button, banner_id: editingBannerId });
+        }
+        setToast({ message: 'Banner updated successfully', tone: 'success' });
+      } else {
+        const newBanner = await bannersService.createBanner(bannerData);
+        for (const button of buttons) {
+          await bannersService.createButton({ ...button, banner_id: newBanner.id });
+        }
+        setToast({ message: 'Banner created successfully', tone: 'success' });
+      }
+      setEditingBannerId(null);
+      setSelectedBanner(null);
+      setShowCreateBanner(false);
+      loadData();
+    } catch (error) {
+      console.error('Error saving banner:', error);
+      setToast({ message: 'Failed to save banner', tone: 'error' });
+    }
+  };
+
+  const handleCancelBannerEdit = () => {
+    setEditingBannerId(null);
+    setSelectedBanner(null);
+    setShowCreateBanner(false);
+  };
+
+  const handleReorderBanner = async (bannerId: string, direction: 'up' | 'down') => {
+    const currentIndex = banners.findIndex(b => b.id === bannerId);
+    if (currentIndex === -1) return;
+
+    const targetIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
+    if (targetIndex < 0 || targetIndex >= banners.length) return;
+
+    try {
+      await bannersService.updateBanner(banners[currentIndex].id, { display_order: targetIndex });
+      await bannersService.updateBanner(banners[targetIndex].id, { display_order: currentIndex });
+      setToast({ message: 'Banner order updated', tone: 'success' });
+      loadData();
+    } catch (error) {
+      console.error('Error reordering banner:', error);
+      setToast({ message: 'Failed to reorder banner', tone: 'error' });
+    }
+  };
+
   if (!profile?.is_admin) {
     return null;
   }
@@ -894,6 +993,28 @@ export function ContentManagement() {
                           });
                         }}
                         onEdit={handleEditModal}
+                      />
+                    )}
+                  </>
+                )}
+
+                {activeTab === 'hero-banners' && (
+                  <>
+                    {editingBannerId || showCreateBanner ? (
+                      <BannerEditor
+                        banner={selectedBanner}
+                        isEditing={!!editingBannerId}
+                        onSave={handleSaveBanner}
+                        onCancel={handleCancelBannerEdit}
+                      />
+                    ) : (
+                      <BannerManagement
+                        banners={banners}
+                        onToggleActive={handleToggleBannerActive}
+                        onDelete={handleDeleteBanner}
+                        onCreate={handleCreateBanner}
+                        onEdit={handleEditBanner}
+                        onReorder={handleReorderBanner}
                       />
                     )}
                   </>

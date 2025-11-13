@@ -174,3 +174,32 @@ export interface ModalUserInteraction {
   session_id: string;
   page_path: string;
 }
+
+export type BannerButtonStyle = 'primary' | 'secondary' | 'outline';
+export type BannerTextColor = 'light' | 'dark';
+
+export interface HeroBanner {
+  id: string;
+  name: string;
+  heading: string;
+  subheading?: string;
+  background_color: string;
+  text_color: BannerTextColor;
+  is_active: boolean;
+  display_order: number;
+  is_default: boolean;
+  created_at: string;
+  updated_at: string;
+  buttons?: BannerButton[];
+}
+
+export interface BannerButton {
+  id: string;
+  banner_id: string;
+  button_text: string;
+  button_url: string;
+  button_style: BannerButtonStyle;
+  icon_name?: string;
+  display_order: number;
+  created_at: string;
+}

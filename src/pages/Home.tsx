@@ -9,10 +9,12 @@ import {
   Plus,
 } from "lucide-react";
 import { ListingCard } from "../components/listings/ListingCard";
-import { Listing } from "../config/supabase";
+import { Listing, HeroBanner } from "../config/supabase";
 import { listingsService } from "../services/listings";
+import { bannersService } from "../services/banners";
 import { useAuth } from "@/hooks/useAuth";
 import { useListingImpressions } from "../hooks/useListingImpressions";
+import { BannerCarousel } from "../components/shared/BannerCarousel";
 
 export function Home() {
   const [recentListings, setRecentListings] = useState<Listing[]>([]);
@@ -21,6 +23,7 @@ export function Home() {
     [],
   );
   const [userFavorites, setUserFavorites] = useState<string[]>([]);
+  const [banners, setBanners] = useState<HeroBanner[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore2BR, setLoadingMore2BR] = useState(false);
   const [loadingMore3BR, setLoadingMore3BR] = useState(false);
@@ -58,7 +61,17 @@ export function Home() {
 
   useEffect(() => {
     loadListings();
+    loadBanners();
   }, []);
+
+  const loadBanners = async () => {
+    try {
+      const activeBanners = await bannersService.getActiveBanners();
+      setBanners(activeBanners);
+    } catch (error) {
+      console.error("Error loading banners:", error);
+    }
+  };
 
   const loadListings = async () => {
     try {
@@ -152,32 +165,7 @@ export function Home() {
     <div className="min-h-screen">
       {/* Hero Section */}
       <div>
-        <section className="bg-brand-700 text-center py-20 text-white">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <h1 className="text-3xl md:text-5xl font-semibold font-brand text-white mb-6">
-              The Heart of Local Rentals
-            </h1>
-            <p className="text-2xl md:text-3xl text-white/90 mb-8 max-w-2xl mx-auto">
-              Where your family finds their next home
-            </p>
-            <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Link
-                to="/browse"
-                className="inline-flex items-center justify-center bg-accent-500 text-white px-8 py-4 rounded-lg text-lg font-medium hover:bg-accent-600 focus:outline-none focus:ring-2 focus:ring-accent-400 transition-colors"
-              >
-                <Search className="w-6 h-6 mr-2" />
-                Find Yours
-              </Link>
-              <Link
-                to="/post"
-                className="inline-flex items-center justify-center border border-accent-500 text-accent-600 px-8 py-4 rounded-lg text-lg font-medium hover:bg-accent-500 hover:text-white focus:outline-none focus:ring-2 focus:ring-accent-400 transition-colors"
-              >
-                <Plus className="w-6 h-6 mr-2" />
-                List a Property
-              </Link>
-            </div>
-          </div>
-        </section>
+        <BannerCarousel banners={banners} autoPlayInterval={5000} />
       </div>
 
       {/* Recently Added Listings */}
