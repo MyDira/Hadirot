@@ -535,24 +535,23 @@ export function EditListing() {
       if (videoMedia && videoMedia.file) {
         try {
           setUploadingMedia(true);
+          console.log("🎥 Starting video upload process...");
+
           const videoUrl = await listingsService.uploadListingVideo(
             videoMedia.file,
             id
           );
 
-          // Update listing with video URL
-          await listingsService.updateListing(id, {
-            video_url: videoUrl,
-          });
-
-          console.log("✅ Video uploaded successfully");
+          console.log("✅ Video uploaded successfully:", videoUrl);
 
           // If no images exist after processing, generate and upload video thumbnail
           const hasImages = mediaFiles.filter(m => m.type === 'image' && !mediaToDelete.includes(m.id)).length > 0;
           if (!hasImages) {
+            console.log("📸 No images detected, generating video thumbnail...");
             try {
-              console.log("📸 Generating video thumbnail...");
               const thumbnailBlob = await generateVideoThumbnail(videoMedia.file);
+              console.log("✅ Thumbnail blob generated, size:", thumbnailBlob.size);
+
               const thumbnailFile = new File(
                 [thumbnailBlob],
                 `thumbnail_${id}.jpg`,
@@ -560,27 +559,63 @@ export function EditListing() {
               );
 
               // Upload thumbnail as listing image
-              const publicUrl = await listingsService.uploadListingImage(
+              console.log("📤 Uploading thumbnail to storage...");
+              const thumbnailUrl = await listingsService.uploadListingImage(
                 thumbnailFile,
                 id
               );
+              console.log("✅ Thumbnail uploaded to storage:", thumbnailUrl);
 
               // Add thumbnail to listing_images table
+              console.log("💾 Adding thumbnail to listing_images table...");
               await listingsService.addListingImage(
                 id,
-                publicUrl,
+                thumbnailUrl,
                 true, // Set as featured
                 0 // Sort order
               );
+              console.log("✅ Thumbnail added to listing_images table");
 
-              console.log("✅ Video thumbnail uploaded successfully");
+              // Update listing with both video_url and video_thumbnail_url
+              console.log("💾 Updating listing with video URLs...");
+              await listingsService.updateListing(id, {
+                video_url: videoUrl,
+                video_thumbnail_url: thumbnailUrl,
+              });
+              console.log("✅ Listing updated with video and thumbnail URLs");
+
             } catch (thumbnailError) {
-              console.error("⚠️ Failed to generate/upload video thumbnail:", thumbnailError);
-              // Don't block the flow if thumbnail generation fails
+              console.error("❌ Failed to generate/upload video thumbnail:", thumbnailError);
+              if (thumbnailError instanceof Error) {
+                console.error("❌ Error details:", {
+                  message: thumbnailError.message,
+                  stack: thumbnailError.stack
+                });
+              }
+
+              // Still update listing with video URL even if thumbnail fails
+              await listingsService.updateListing(id, {
+                video_url: videoUrl,
+              });
+
+              alert("Video uploaded successfully, but thumbnail generation failed. A stock photo will be used on listing cards.");
             }
+          } else {
+            // Images exist, just update video URL
+            await listingsService.updateListing(id, {
+              video_url: videoUrl,
+            });
+            console.log("✅ Listing updated with video URL (images already exist)");
           }
         } catch (videoError) {
-          console.error("⚠️ Failed to upload video:", videoError);
+          console.error("❌ Failed to upload video:", videoError);
+          if (videoError instanceof Error) {
+            console.error("❌ Error details:", {
+              message: videoError.message,
+              stack: videoError.stack
+            });
+          }
+          alert("Failed to upload video. Please try again or contact support if the issue persists.");
           // Don't block the flow if video upload fails
         } finally {
           setUploadingMedia(false);
