@@ -587,17 +587,42 @@ export function ContentManagement() {
 
   const handleSaveBanner = async (bannerData: any, buttons: any[]) => {
     try {
+      // Filter out buttons with empty text or URL
+      const validButtons = buttons.filter(
+        button => button.button_text && button.button_text.trim() &&
+                  button.button_url && button.button_url.trim()
+      );
+
+      if (validButtons.length === 0) {
+        setToast({ message: 'At least one button is required', tone: 'error' });
+        return;
+      }
+
       if (editingBannerId) {
         await bannersService.updateBanner(editingBannerId, bannerData);
         await bannersService.deleteButtonsByBannerId(editingBannerId);
-        for (const button of buttons) {
-          await bannersService.createButton({ ...button, banner_id: editingBannerId });
+        for (const button of validButtons) {
+          await bannersService.createButton({
+            banner_id: editingBannerId,
+            button_text: button.button_text,
+            button_url: button.button_url,
+            button_style: button.button_style || 'primary',
+            icon_name: button.icon_name || undefined,
+            display_order: button.display_order || 0
+          });
         }
         setToast({ message: 'Banner updated successfully', tone: 'success' });
       } else {
         const newBanner = await bannersService.createBanner(bannerData);
-        for (const button of buttons) {
-          await bannersService.createButton({ ...button, banner_id: newBanner.id });
+        for (const button of validButtons) {
+          await bannersService.createButton({
+            banner_id: newBanner.id,
+            button_text: button.button_text,
+            button_url: button.button_url,
+            button_style: button.button_style || 'primary',
+            icon_name: button.icon_name || undefined,
+            display_order: button.display_order || 0
+          });
         }
         setToast({ message: 'Banner created successfully', tone: 'success' });
       }
@@ -605,9 +630,10 @@ export function ContentManagement() {
       setSelectedBanner(null);
       setShowCreateBanner(false);
       loadData();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error saving banner:', error);
-      setToast({ message: 'Failed to save banner', tone: 'error' });
+      const errorMessage = error?.message || 'Failed to save banner';
+      setToast({ message: errorMessage, tone: 'error' });
     }
   };
 

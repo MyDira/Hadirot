@@ -68,10 +68,16 @@ export function BannerEditor({ banner, isEditing, onSave, onCancel }: BannerEdit
       display_order: displayOrder,
     };
 
-    onSave(bannerData, buttons.map((btn, index) => ({
-      ...btn,
+    // Clean up buttons data
+    const cleanedButtons = buttons.map((btn, index) => ({
+      button_text: btn.button_text || '',
+      button_url: btn.button_url || '',
+      button_style: btn.button_style || 'primary',
+      icon_name: btn.icon_name && btn.icon_name.trim() ? btn.icon_name : undefined,
       display_order: index,
-    })));
+    }));
+
+    onSave(bannerData, cleanedButtons);
   };
 
   const getIcon = (iconName?: string) => {

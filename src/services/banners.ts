@@ -153,13 +153,22 @@ class BannersService {
   }
 
   async createButton(input: CreateButtonInput): Promise<BannerButton> {
+    const buttonData: any = {
+      banner_id: input.banner_id,
+      button_text: input.button_text,
+      button_url: input.button_url,
+      button_style: input.button_style || 'primary',
+      display_order: input.display_order || 0,
+    };
+
+    // Only add icon_name if it's not empty
+    if (input.icon_name && input.icon_name.trim()) {
+      buttonData.icon_name = input.icon_name;
+    }
+
     const { data, error } = await supabase
       .from('banner_buttons')
-      .insert({
-        ...input,
-        button_style: input.button_style || 'primary',
-        display_order: input.display_order || 0,
-      })
+      .insert(buttonData)
       .select()
       .single();
 
