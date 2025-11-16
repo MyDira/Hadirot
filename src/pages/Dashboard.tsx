@@ -384,29 +384,29 @@ export default function Dashboard() {
           </div>
         ) : (
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-            <div className="overflow-x-auto min-w-full">
-              <table className="min-w-full divide-y divide-gray-200">
+            <div className="overflow-x-auto">
+              <table className="w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-0 w-1/4">
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" style={{ minWidth: '200px', maxWidth: '300px', width: '25%' }}>
                       Property
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-24">
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap" style={{ width: '120px' }}>
                       Price
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-24">
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap" style={{ width: '110px' }}>
                       Impressions
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-24">
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap" style={{ width: '120px' }}>
                       Direct Views
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-32">
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap" style={{ width: '140px' }}>
                       Status
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-40">
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap" style={{ width: '140px' }}>
                       Created
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-48">
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap" style={{ width: '180px' }}>
                       Actions
                     </th>
                   </tr>
@@ -419,19 +419,20 @@ export default function Dashboard() {
 
                     return (
                       <tr key={listing.id} className="hover:bg-gray-50">
-                        <td className="px-6 py-4">
-                          <div className="flex items-center">
+                        <td className="px-6 py-4" style={{ maxWidth: '300px' }}>
+                          <div className="flex items-center min-w-0">
                             {featuredImage && (
                               <img
                                 src={featuredImage.image_url}
                                 alt={listing.title}
-                                className="w-12 h-12 object-cover rounded-lg mr-4"
+                                className="w-12 h-12 object-cover rounded-lg mr-4 flex-shrink-0"
                               />
                             )}
                             <div className="min-w-0 flex-1">
                               <Link
                                 to={`/listing/${listing.id}`}
                                 className="font-medium text-gray-900 hover:text-[#4E4B43] transition-colors block truncate"
+                                title={listing.title}
                               >
                                 {listing.title}
                               </Link>
@@ -466,10 +467,10 @@ export default function Dashboard() {
                             </span>
                           </div>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="flex items-center space-x-2">
+                        <td className="px-6 py-4">
+                          <div className="flex flex-wrap items-center gap-1.5">
                             <span
-                              className={`px-2 py-1 text-xs rounded-full ${
+                              className={`px-2 py-1 text-xs rounded-full whitespace-nowrap ${
                                 listing.is_active
                                   ? "bg-green-100 text-green-800"
                                   : "bg-red-100 text-red-800"
@@ -478,12 +479,12 @@ export default function Dashboard() {
                               {listing.is_active ? "Active" : "Inactive"}
                             </span>
                             {!listing.approved && (
-                              <span className="px-2 py-1 text-xs bg-yellow-100 text-yellow-800 rounded-full">
+                              <span className="px-2 py-1 text-xs bg-yellow-100 text-yellow-800 rounded-full whitespace-nowrap">
                                 Pending Approval
                               </span>
                             )}
                             {isListingCurrentlyFeatured(listing) && (
-                              <span className="px-2 py-1 text-xs bg-accent-500 text-white rounded-full flex items-center">
+                              <span className="px-2 py-1 text-xs bg-accent-500 text-white rounded-full flex items-center whitespace-nowrap">
                                 <Star className="w-3 h-3 mr-1" />
                                 Featured
                               </span>
@@ -508,8 +509,8 @@ export default function Dashboard() {
                             )}
                           </div>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                          <div className="flex items-center space-x-3">
+                        <td className="px-6 py-4 text-sm font-medium">
+                          <div className="flex items-center gap-2 flex-wrap">
                             <Link
                               to={`/listing/${listing.id}`}
                               title="View Listing"
@@ -520,11 +521,11 @@ export default function Dashboard() {
 
                             <Link
                               to={`/edit/${listing.id}`}
-                              className="flex items-center space-x-1 px-2 py-1 text-blue-600 hover:text-blue-800 transition-colors flex-shrink-0"
+                              className="flex items-center gap-1 px-2 py-1 text-blue-600 hover:text-blue-800 transition-colors flex-shrink-0"
                               title="Edit Listing"
                             >
                               <Edit className="w-4 h-4" />
-                              <span className="text-sm hidden sm:inline">
+                              <span className="text-sm hidden lg:inline">
                                 Edit
                               </span>
                             </Link>
