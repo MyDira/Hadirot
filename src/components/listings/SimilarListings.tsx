@@ -266,9 +266,9 @@ export function SimilarListings({ listing }: SimilarListingsProps) {
         <div className="overflow-hidden" ref={carouselRef}>
           {isMobile ? (
             /* Mobile: Show one listing at a time */
-            <div 
+            <div
               className="flex transition-transform duration-300 ease-in-out"
-              style={{ 
+              style={{
                 transform: `translateX(-${currentMobileIndex * 100}%)`
               }}
             >
@@ -301,10 +301,10 @@ export function SimilarListings({ listing }: SimilarListingsProps) {
             </div>
           ) : (
             /* Desktop: Show slides of 4 listings */
-            <div 
+            <div
               className="flex gap-6 transition-transform duration-300 ease-in-out"
-              style={{ 
-                transform: `translateX(-${currentSlideIndex * (100 / Math.max(slides.length, 1))}%)`
+              style={{
+                transform: `translateX(-${currentSlideIndex * 100}%)`
               }}
             >
               {/* Render each slide */}
@@ -405,12 +405,12 @@ export function SimilarListings({ listing }: SimilarListingsProps) {
           {isMobile ? (
             <>
               Showing {currentMobileIndex + 1} of {similarListings.length}
-              {hasMore && ' (loading more...)'}
+              {hasMore && ' (more available)'}
             </>
           ) : (
             <>
-              Showing {Math.min(similarListings.length, (currentSlideIndex + 1) * CARDS_PER_SLIDE)} of {similarListings.length}
-              {hasMore && ' (loading more...)'}
+              Showing slide {currentSlideIndex + 1} of {slides.length}
+              {hasMore && ' (more available)'}
             </>
           )}
         </div>

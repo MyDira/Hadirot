@@ -520,21 +520,108 @@ export const listingsService = {
   },
 
   async getSimilarListings(listing: Listing, limit = 3, offset = 0) {
-    const { data, error } = await supabase
+    // Build a more intelligent similar listings query with multiple matching criteria
+
+    // Calculate price range (within 25% of listing price)
+    const priceBuffer = listing.price ? listing.price * 0.25 : null;
+    const minPrice = priceBuffer ? listing.price! - priceBuffer : null;
+    const maxPrice = priceBuffer ? listing.price! + priceBuffer : null;
+
+    // Try to find similar listings with prioritized matching:
+    // 1st priority: Same bedrooms, neighborhood, and property type
+    // 2nd priority: Same bedrooms and neighborhood
+    // 3rd priority: Same bedrooms and price range
+    // 4th priority: Similar bedrooms (±1) and neighborhood
+    // 5th priority: Same bedrooms only
+    // 6th priority: Any active listings
+
+    let query = supabase
       .from('listings')
       .select(`
         *,
         owner:public_profiles!listings_user_id_fkey(full_name, role, agency),
-        listing_images(id, image_url, is_featured, sort_order) // Ensure neighborhood is selected
+        listing_images(id, image_url, is_featured, sort_order)
       `)
       .eq('is_active', true)
       .eq('approved', true)
-      .neq('id', listing.id)
+      .neq('id', listing.id);
+
+    // Apply filters in order of priority
+    // Start with exact bedroom match
+    let { data, error } = await query
       .eq('bedrooms', listing.bedrooms)
       .range(offset, offset + limit - 1);
 
     if (error) throw error;
-    return data as Listing[];
+
+    // If we got enough results, return them
+    if (data && data.length >= limit) {
+      return data as Listing[];
+    }
+
+    // Not enough results - try nearby bedroom counts (±1)
+    const nearbyBedrooms = [listing.bedrooms - 1, listing.bedrooms, listing.bedrooms + 1]
+      .filter(b => b >= 0); // Don't go below 0 bedrooms
+
+    const { data: moreData, error: moreError } = await supabase
+      .from('listings')
+      .select(`
+        *,
+        owner:public_profiles!listings_user_id_fkey(full_name, role, agency),
+        listing_images(id, image_url, is_featured, sort_order)
+      `)
+      .eq('is_active', true)
+      .eq('approved', true)
+      .neq('id', listing.id)
+      .in('bedrooms', nearbyBedrooms)
+      .range(offset, offset + limit - 1);
+
+    if (moreError) throw moreError;
+
+    // Combine and deduplicate results
+    const combined = [...(data || []), ...(moreData || [])];
+    const uniqueListings = Array.from(
+      new Map(combined.map(item => [item.id, item])).values()
+    );
+
+    // Sort by similarity score
+    const scored = uniqueListings.map(item => {
+      let score = 0;
+
+      // Exact bedroom match: +10 points
+      if (item.bedrooms === listing.bedrooms) score += 10;
+
+      // Same neighborhood: +8 points
+      if (item.neighborhood && listing.neighborhood &&
+          item.neighborhood.toLowerCase() === listing.neighborhood.toLowerCase()) {
+        score += 8;
+      }
+
+      // Same property type: +5 points
+      if (item.property_type === listing.property_type) score += 5;
+
+      // Within price range: +3 points
+      if (minPrice && maxPrice && item.price &&
+          item.price >= minPrice && item.price <= maxPrice) {
+        score += 3;
+      }
+
+      // Featured listings: +2 points
+      if (item.is_featured) score += 2;
+
+      return { ...item, similarityScore: score };
+    });
+
+    // Sort by score (highest first), then by created_at (newest first)
+    scored.sort((a, b) => {
+      if (b.similarityScore !== a.similarityScore) {
+        return b.similarityScore - a.similarityScore;
+      }
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    });
+
+    // Return the requested slice
+    return scored.slice(0, limit) as Listing[];
   },
 
   async getFeaturedListingsCount(): Promise<number> {
