@@ -1,7 +1,11 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { ChevronLeft, ChevronRight, ZoomIn } from 'lucide-react';
 import { getStockImageForListing } from '../../utils/stockImage';
 import { PropertyType, LeaseLength } from '../../config/supabase';
+
+type MediaItem =
+  | { type: 'image'; url: string; alt: string }
+  | { type: 'video'; url: string; thumbnail?: string | null };
 
 interface ImageCarouselProps {
   images: Array<{ url: string; alt: string }>;
@@ -16,6 +20,8 @@ interface ImageCarouselProps {
   leaseLength?: LeaseLength | null;
   onImageClick?: (index: number) => void;
   enableZoom?: boolean;
+  videoUrl?: string | null;
+  videoThumbnail?: string | null;
 }
 
 export default function ImageCarousel({
@@ -25,24 +31,47 @@ export default function ImageCarousel({
   propertyType,
   leaseLength,
   onImageClick,
-  enableZoom = false
+  enableZoom = false,
+  videoUrl,
+  videoThumbnail
 }: ImageCarouselProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const touchStartX = useRef(0);
   const touchEndX = useRef(0);
+  const videoRef = useRef<HTMLVideoElement>(null);
 
-  // If no real images, show stock image
+  // Build media array: images first, then video (if exists)
   const hasRealImages = images && images.length > 0;
-  const displayImages = hasRealImages 
-    ? images 
-    : listingSeed 
-      ? [{ 
-          url: getStockImageForListing(listingSeed), 
-          alt: "Stock photo placeholder" 
-        }]
+  const hasVideo = !!videoUrl;
+
+  const mediaItems: MediaItem[] = [];
+
+  // Add images first
+  if (hasRealImages) {
+    mediaItems.push(...images.map(img => ({ type: 'image' as const, url: img.url, alt: img.alt })));
+  }
+
+  // Add video last (after all images)
+  if (hasVideo) {
+    mediaItems.push({ type: 'video' as const, url: videoUrl, thumbnail: videoThumbnail });
+  }
+
+  // If no media at all, show stock image
+  const displayMedia: MediaItem[] = mediaItems.length > 0
+    ? mediaItems
+    : listingSeed
+      ? [{ type: 'image' as const, url: getStockImageForListing(listingSeed), alt: "Stock photo placeholder" }]
       : [];
 
-  if (displayImages.length === 0) {
+  // Auto-pause video when navigating away from it
+  useEffect(() => {
+    const currentMedia = displayMedia[currentIndex];
+    if (videoRef.current && currentMedia?.type !== 'video') {
+      videoRef.current.pause();
+    }
+  }, [currentIndex, displayMedia]);
+
+  if (displayMedia.length === 0) {
     return (
       <div className={`relative w-full bg-gray-100 flex items-center justify-center ${className}`}>
         <div className="text-gray-500 text-center p-8">
@@ -53,11 +82,11 @@ export default function ImageCarousel({
   }
 
   const nextImage = () => {
-    setCurrentIndex((prev) => (prev + 1) % displayImages.length);
+    setCurrentIndex((prev) => (prev + 1) % displayMedia.length);
   };
 
   const prevImage = () => {
-    setCurrentIndex((prev) => (prev - 1 + displayImages.length) % displayImages.length);
+    setCurrentIndex((prev) => (prev - 1 + displayMedia.length) % displayMedia.length);
   };
 
   const handleTouchStart = (e: React.TouchEvent) => {
@@ -69,7 +98,7 @@ export default function ImageCarousel({
   };
 
   const handleTouchEnd = () => {
-    if (displayImages.length <= 1) return;
+    if (displayMedia.length <= 1) return;
 
     const swipeDistance = touchStartX.current - touchEndX.current;
     const minSwipeDistance = 50;
@@ -86,8 +115,9 @@ export default function ImageCarousel({
     touchEndX.current = 0;
   };
 
-  const isShowingStock = !hasRealImages;
-  const canZoom = enableZoom && hasRealImages && onImageClick;
+  const currentMedia = displayMedia[currentIndex];
+  const isShowingStock = !hasRealImages && !hasVideo;
+  const canZoom = enableZoom && currentMedia?.type === 'image' && hasRealImages && onImageClick;
 
   const handleImageClick = () => {
     if (canZoom) {
@@ -97,19 +127,31 @@ export default function ImageCarousel({
 
   return (
     <div className={`relative w-full ${className}`}>
-      {/* Main image */}
+      {/* Main media container */}
       <div
         className={`relative w-full h-96 overflow-hidden rounded-lg bg-gray-100 ${canZoom ? 'cursor-zoom-in' : ''}`}
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
-        onClick={handleImageClick}
+        onClick={currentMedia?.type === 'image' ? handleImageClick : undefined}
       >
-        <img
-          src={displayImages[currentIndex].url}
-          alt={displayImages[currentIndex].alt}
-          className="w-full h-full object-contain select-none"
-        />
+        {currentMedia?.type === 'image' ? (
+          <img
+            src={currentMedia.url}
+            alt={currentMedia.alt}
+            className="w-full h-full object-contain select-none"
+          />
+        ) : currentMedia?.type === 'video' ? (
+          <video
+            ref={videoRef}
+            src={currentMedia.url}
+            controls
+            className="w-full h-full object-contain bg-black"
+            poster={currentMedia.thumbnail || undefined}
+          >
+            Your browser does not support the video tag.
+          </video>
+        ) : null}
 
         {/* Zoom indicator on hover - desktop only */}
         {canZoom && (
@@ -142,7 +184,7 @@ export default function ImageCarousel({
       </div>
 
       {/* Navigation arrows - hidden on mobile, visible on desktop */}
-      {displayImages.length > 1 && (
+      {displayMedia.length > 1 && (
         <>
           <button
             onClick={prevImage}
@@ -161,17 +203,17 @@ export default function ImageCarousel({
         </>
       )}
 
-      {/* Dots indicator - only show if more than 1 image */}
-      {displayImages.length > 1 && (
+      {/* Dots indicator - only show if more than 1 media item */}
+      {displayMedia.length > 1 && (
         <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex space-x-2">
-          {displayImages.map((_, index) => (
+          {displayMedia.map((_, index) => (
             <button
               key={index}
               onClick={() => setCurrentIndex(index)}
               className={`w-3 h-3 rounded-full transition-all ${
                 index === currentIndex ? 'bg-white' : 'bg-white bg-opacity-50'
               }`}
-              aria-label={`Go to image ${index + 1}`}
+              aria-label={`Go to media ${index + 1}`}
             />
           ))}
         </div>

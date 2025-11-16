@@ -415,6 +415,8 @@ export function ListingDetail() {
               leaseLength={listing.lease_length}
               enableZoom={hasRealImages}
               onImageClick={handleImageZoom}
+              videoUrl={listing.video_url}
+              videoThumbnail={listing.video_thumbnail_url}
             />
             <button
               onClick={handleFavoriteToggle}
@@ -429,22 +431,6 @@ export function ListingDetail() {
               />
             </button>
           </div>
-
-          {listing.video_url && (
-            <section id="ld-video" className="mt-6">
-              <h2 className="text-2xl font-bold text-[#273140] mb-4">
-                Video Tour
-              </h2>
-              <video
-                src={listing.video_url}
-                controls
-                className="w-full rounded-lg bg-black"
-                poster={listing.video_thumbnail_url || undefined}
-              >
-                Your browser does not support the video tag.
-              </video>
-            </section>
-          )}
 
           {listing.description && (
             <section id="ld-description" className="mt-6 pt-0">
@@ -476,6 +462,8 @@ export function ListingDetail() {
                 leaseLength={listing.lease_length}
                 enableZoom={hasRealImages}
                 onImageClick={handleImageZoom}
+                videoUrl={listing.video_url}
+                videoThumbnail={listing.video_thumbnail_url}
               />
               <button
                 onClick={handleFavoriteToggle}
@@ -538,19 +526,22 @@ export function ListingDetail() {
                   Send Message
                 </a>
 
-                {/*
-                  RELOCATED: Share button moved to contact card (Mobile)
-                  - Less intrusive than title position
-                  - Logically grouped with communication actions
-                  - Still accessible but not prominently placed
-                */}
-                <div className="w-full">
-                  <ShareButton
-                    listingId={listing.id}
-                    listingTitle={listing.title}
-                    variant="detail"
-                    className="w-full justify-center"
-                  />
+                <div className="flex gap-2">
+                  <div className="flex-1">
+                    <ReportRentedButton
+                      listing={listing}
+                      userFullName={user?.user_metadata?.full_name || user?.email}
+                      userEmail={user?.email}
+                    />
+                  </div>
+                  <div className="flex-1">
+                    <ShareButton
+                      listingId={listing.id}
+                      listingTitle={listing.title}
+                      variant="detail"
+                      className="w-full justify-center"
+                    />
+                  </div>
                 </div>
               </div>
 
@@ -739,20 +730,22 @@ export function ListingDetail() {
                   Send Message
                 </a>
 
-                {/*
-                  RELOCATED: Share button moved to contact card (Desktop)
-                  - Less intrusive than prominent title position
-                  - Natural grouping with other communication/action buttons
-                  - Still easily discoverable within contact context
-                  - Improves visual hierarchy and reduces clutter
-                */}
-                <div className="w-full">
-                  <ShareButton
-                    listingId={listing.id}
-                    listingTitle={listing.title}
-                    variant="detail"
-                    className="w-full justify-center"
-                  />
+                <div className="flex gap-2">
+                  <div className="flex-1">
+                    <ReportRentedButton
+                      listing={listing}
+                      userFullName={user?.user_metadata?.full_name || user?.email}
+                      userEmail={user?.email}
+                    />
+                  </div>
+                  <div className="flex-1">
+                    <ShareButton
+                      listingId={listing.id}
+                      listingTitle={listing.title}
+                      variant="detail"
+                      className="w-full justify-center"
+                    />
+                  </div>
                 </div>
               </div>
 
@@ -877,36 +870,11 @@ export function ListingDetail() {
                 </div>
               )}
 
-              {/* Report as Rented - Desktop only, inconspicuous placement */}
-              <div className="mt-6 pt-4 border-t border-gray-200 hidden lg:block">
-                <ReportRentedButton
-                  listing={listing}
-                  userFullName={user?.user_metadata?.full_name || user?.email}
-                  userEmail={user?.email}
-                />
-              </div>
             </div>
           </section>
-          {/* Mobile Video - Eighth on mobile */}
-          {listing.video_url && (
-            <section id="ld-video-mobile" className="lg:hidden order-8">
-              <h2 className="text-2xl font-bold text-[#273140] mb-4">
-                Video Tour
-              </h2>
-              <video
-                src={listing.video_url}
-                controls
-                className="w-full rounded-lg bg-black"
-                poster={listing.video_thumbnail_url || undefined}
-              >
-                Your browser does not support the video tag.
-              </video>
-            </section>
-          )}
-
-          {/* Mobile Description - Ninth on mobile (last) */}
+          {/* Mobile Description - Eighth on mobile (after features) */}
           {listing.description && (
-            <section id="ld-description-mobile" className="lg:hidden order-9">
+            <section id="ld-description-mobile" className="lg:hidden order-8">
               <h2 className="text-2xl font-bold text-[#273140] mb-4">
                 Description
               </h2>
@@ -916,14 +884,6 @@ export function ListingDetail() {
             </section>
           )}
 
-          {/* Report as Rented - Mobile only, after description */}
-          <section className="lg:hidden order-10 pt-4 border-t border-gray-200">
-            <ReportRentedButton
-              listing={listing}
-              userFullName={user?.user_metadata?.full_name || user?.email}
-              userEmail={user?.email}
-            />
-          </section>
         </div>
 
       </div>
