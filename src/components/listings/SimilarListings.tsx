@@ -409,7 +409,7 @@ export function SimilarListings({ listing }: SimilarListingsProps) {
             </>
           ) : (
             <>
-              Showing slide {currentSlideIndex + 1} of {slides.length}
+              Showing {currentSlideIndex * CARDS_PER_SLIDE + 1}-{Math.min((currentSlideIndex + 1) * CARDS_PER_SLIDE, similarListings.length)} of {similarListings.length}
               {hasMore && ' (more available)'}
             </>
           )}
