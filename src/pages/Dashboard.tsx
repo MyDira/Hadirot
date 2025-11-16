@@ -510,24 +510,21 @@ export default function Dashboard() {
                           </div>
                         </td>
                         <td className="px-6 py-4 text-sm font-medium">
-                          <div className="flex items-center gap-2 flex-wrap">
+                          <div className="flex items-center gap-3">
                             <Link
                               to={`/listing/${listing.id}`}
                               title="View Listing"
-                              className="text-[#273140] hover:text-[#1e252f] transition-colors flex-shrink-0"
+                              className="text-gray-500 hover:text-[#273140] transition-colors"
                             >
-                              <Eye className="w-5 h-5" />
+                              <Eye className="w-4.5 h-4.5" />
                             </Link>
 
                             <Link
                               to={`/edit/${listing.id}`}
-                              className="flex items-center gap-1 px-2 py-1 text-blue-600 hover:text-blue-800 transition-colors flex-shrink-0"
+                              className="text-gray-500 hover:text-blue-600 transition-colors"
                               title="Edit Listing"
                             >
-                              <Edit className="w-4 h-4" />
-                              <span className="text-sm hidden lg:inline">
-                                Edit
-                              </span>
+                              <Edit className="w-4.5 h-4.5" />
                             </Link>
 
                             <button
@@ -543,12 +540,12 @@ export default function Dashboard() {
                                 (!isListingCurrentlyFeatured(listing) &&
                                   (!canFeatureMore || globalLimitReached))
                               }
-                              className={`transition-colors flex-shrink-0 ${
+                              className={`transition-colors ${
                                 isListingCurrentlyFeatured(listing)
-                                  ? "text-accent-600 hover:text-accent-600"
+                                  ? "text-accent-500 hover:text-accent-600"
                                   : !canFeatureMore || globalLimitReached
                                     ? "text-gray-300 cursor-not-allowed"
-                                    : "text-gray-400 hover:text-accent-600"
+                                    : "text-gray-400 hover:text-accent-500"
                               }`}
                               title={
                                 isListingCurrentlyFeatured(listing)
@@ -561,7 +558,7 @@ export default function Dashboard() {
                               }
                             >
                               <Star
-                                className={`w-5 h-5 ${isListingCurrentlyFeatured(listing) ? "fill-current" : ""}`}
+                                className={`w-4.5 h-4.5 ${isListingCurrentlyFeatured(listing) ? "fill-current" : ""}`}
                               />
                             </button>
 
@@ -575,10 +572,10 @@ export default function Dashboard() {
                                   actionLoading === listing.id ||
                                   !listing.approved
                                 }
-                                className="text-orange-600 hover:text-orange-800 transition-colors flex-shrink-0"
+                                className="text-gray-500 hover:text-orange-600 transition-colors"
                                 title="Unpublish Listing"
                               >
-                                <EyeOff className="w-5 h-5" />
+                                <EyeOff className="w-4.5 h-4.5" />
                               </button>
                             ) : (
                               <button
@@ -588,20 +585,20 @@ export default function Dashboard() {
                                   actionLoading === listing.id ||
                                   !listing.approved
                                 }
-                                className="text-blue-600 hover:text-blue-800 transition-colors flex-shrink-0"
+                                className="text-gray-500 hover:text-blue-600 transition-colors"
                                 title="Republish Listing"
                               >
-                                <RefreshCw className="w-5 h-5" />
+                                <RefreshCw className="w-4.5 h-4.5" />
                               </button>
                             )}
                             <button
                               type="button"
                               onClick={() => handleDeleteListing(listing.id)}
                               disabled={actionLoading === listing.id}
-                              className="text-red-600 hover:text-red-800 transition-colors flex-shrink-0"
+                              className="text-gray-500 hover:text-red-600 transition-colors"
                               title="Delete Listing"
                             >
-                              <Trash2 className="w-5 h-5" />
+                              <Trash2 className="w-4.5 h-4.5" />
                             </button>
                           </div>
                         </td>
