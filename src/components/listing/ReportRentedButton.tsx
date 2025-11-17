@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Flag } from "lucide-react";
 import { Listing } from "../../config/supabase";
 import { emailService } from "../../services/email";
@@ -22,6 +22,15 @@ export function ReportRentedButton({ listing, userFullName, userEmail }: ReportR
       return false;
     }
   });
+
+  useEffect(() => {
+    try {
+      const reported = localStorage.getItem(`reported_rented_${listing.id}`);
+      setHasReported(reported === "true");
+    } catch {
+      setHasReported(false);
+    }
+  }, [listing.id]);
 
   const handleReport = async () => {
     if (hasReported || isSubmitting) return;
