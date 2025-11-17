@@ -1,546 +1,22 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
-import type { SupabaseClient } from "npm:@supabase/supabase-js@2";
-
-// ============================================================================
-// TYPE DEFINITIONS
-// ============================================================================
-
-type DigestTemplateType =
-  | 'unsent_only'
-  | 'recent_by_category'
-  | 'filter_links'
-  | 'custom_query'
-  | 'mixed_layout'
-  | 'all_active';
-
-type DigestSortOption =
-  | 'newest_first'
-  | 'price_asc'
-  | 'price_desc'
-  | 'featured_first';
-
-interface FilterConfig {
-  bedrooms?: number[];
-  price_min?: number;
-  price_max?: number;
-  locations?: string[];
-  property_types?: string[];
-  broker_fee?: boolean;
-  date_range_days?: number;
-  parking?: string;
-  lease_length?: string;
-}
-
-interface CategoryLimits {
-  studio?: number;
-  '1bed'?: number;
-  '2bed'?: number;
-  '3bed'?: number;
-  '4plus'?: number;
-  [key: string]: number | undefined;
-}
-
-interface DigestTemplate {
-  id: string;
-  name: string;
-  description?: string;
-  template_type: DigestTemplateType;
-  filter_config: FilterConfig;
-  category_limits: CategoryLimits;
-  sort_preference: DigestSortOption;
-  allow_resend: boolean;
-  resend_after_days: number;
-  ignore_send_history: boolean;
-  subject_template: string;
-  include_filter_links: boolean;
-  filter_preset_ids: string[];
-  created_by?: string;
-  is_default: boolean;
-  usage_count: number;
-  last_used_at?: string;
-  created_at: string;
-  updated_at: string;
-}
-
-interface FilterPreset {
-  id: string;
-  name: string;
-  description?: string;
-  category: string;
-  filter_params: Record<string, any>;
-  display_label: string;
-  display_order: number;
-  short_code?: string;
-  usage_count: number;
-  last_used_at?: string;
-  created_by?: string;
-  is_active: boolean;
-  created_at: string;
-  updated_at: string;
-}
-
-interface Listing {
-  id: string;
-  title: string;
-  price: number | null;
-  call_for_price: boolean;
-  bedrooms: number;
-  bathrooms: number;
-  parking: string;
-  broker_fee: boolean;
-  location: string;
-  neighborhood: string | null;
-  property_type: string;
-  lease_length: string;
-  is_featured: boolean;
-  additional_rooms: number | null;
-  created_at: string;
-  updated_at: string;
-  owner: {
-    full_name: string;
-    role: string;
-    agency: string | null;
-  };
-}
-
-interface FilterLinkWithCount {
-  preset_id: string;
-  label: string;
-  count: number;
-  url: string;
-  short_url?: string;
-}
-
-interface DigestRequestBody {
-  template_id?: string;
-  template_config?: Partial<DigestTemplate>;
-  dry_run?: boolean;
-  force?: boolean;
-  recipient_emails?: string[];
-}
-
-interface DigestResponse {
-  success: boolean;
-  dry_run?: boolean;
-  listingCount: number;
-  adminCount: number;
-  template_name?: string;
-  template_type?: DigestTemplateType;
-  listings_by_category?: Record<string, number>;
-  filter_links?: FilterLinkWithCount[];
-  digest_send_id?: string;
-  message?: string;
-}
-
-interface CategoryGroup {
-  label: string;
-  key: string;
-  listings: Listing[];
-  limit?: number;
-}
-
-// ============================================================================
-// QUERY BUILDER
-// ============================================================================
-
-async function buildListingsQuery(
-  supabase: SupabaseClient,
-  filterConfig: FilterConfig,
-  sortPreference: DigestSortOption = 'newest_first'
-): Promise<Listing[]> {
-  let query = supabase
-    .from('listings')
-    .select(`
-      id,
-      title,
-      price,
-      call_for_price,
-      bedrooms,
-      bathrooms,
-      parking,
-      broker_fee,
-      location,
-      neighborhood,
-      property_type,
-      lease_length,
-      is_featured,
-      additional_rooms,
-      created_at,
-      updated_at,
-      owner:profiles!listings_user_id_fkey(full_name, role, agency)
-    `)
-    .eq('approved', true)
-    .eq('is_active', true);
-
-  if (filterConfig.date_range_days) {
-    const dateThreshold = new Date();
-    dateThreshold.setDate(dateThreshold.getDate() - filterConfig.date_range_days);
-    query = query.gte('updated_at', dateThreshold.toISOString());
-  }
-
-  if (filterConfig.bedrooms && filterConfig.bedrooms.length > 0) {
-    query = query.in('bedrooms', filterConfig.bedrooms);
-  }
-
-  if (filterConfig.price_min !== undefined) {
-    query = query.gte('price', filterConfig.price_min);
-  }
-  if (filterConfig.price_max !== undefined) {
-    query = query.lte('price', filterConfig.price_max);
-  }
-
-  if (filterConfig.locations && filterConfig.locations.length > 0) {
-    query = query.in('location', filterConfig.locations);
-  }
-
-  if (filterConfig.property_types && filterConfig.property_types.length > 0) {
-    query = query.in('property_type', filterConfig.property_types);
-  }
-
-  if (filterConfig.broker_fee !== undefined) {
-    query = query.eq('broker_fee', filterConfig.broker_fee);
-  }
-
-  if (filterConfig.parking) {
-    query = query.eq('parking', filterConfig.parking);
-  }
-
-  if (filterConfig.lease_length) {
-    query = query.eq('lease_length', filterConfig.lease_length);
-  }
-
-  switch (sortPreference) {
-    case 'newest_first':
-      query = query.order('created_at', { ascending: false });
-      break;
-    case 'price_asc':
-      query = query.order('price', { ascending: true, nullsFirst: false });
-      break;
-    case 'price_desc':
-      query = query.order('price', { ascending: false, nullsFirst: false });
-      break;
-    case 'featured_first':
-      query = query.order('is_featured', { ascending: false })
-                   .order('created_at', { ascending: false });
-      break;
-  }
-
-  const { data, error } = await query;
-
-  if (error) {
-    throw new Error(`Failed to fetch listings: ${error.message}`);
-  }
-
-  return (data || []) as Listing[];
-}
-
-async function getListingCount(
-  supabase: SupabaseClient,
-  filterParams: Record<string, any>
-): Promise<number> {
-  let query = supabase
-    .from('listings')
-    .select('*', { count: 'exact', head: true })
-    .eq('approved', true)
-    .eq('is_active', true);
-
-  if (filterParams.bedrooms !== undefined) {
-    query = query.eq('bedrooms', filterParams.bedrooms);
-  }
-
-  if (filterParams.price_min !== undefined) {
-    query = query.gte('price', filterParams.price_min);
-  }
-
-  if (filterParams.price_max !== undefined) {
-    query = query.lte('price', filterParams.price_max);
-  }
-
-  if (filterParams.location) {
-    query = query.eq('location', filterParams.location);
-  }
-
-  if (filterParams.neighborhood) {
-    query = query.eq('neighborhood', filterParams.neighborhood);
-  }
-
-  if (filterParams.property_type) {
-    query = query.eq('property_type', filterParams.property_type);
-  }
-
-  if (filterParams.broker_fee !== undefined) {
-    query = query.eq('broker_fee', filterParams.broker_fee);
-  }
-
-  if (filterParams.parking) {
-    query = query.eq('parking', filterParams.parking);
-  }
-
-  if (filterParams.lease_length) {
-    query = query.eq('lease_length', filterParams.lease_length);
-  }
-
-  const { count, error } = await query;
-
-  if (error) {
-    console.error('Error counting listings:', error);
-    return 0;
-  }
-
-  return count || 0;
-}
-
-function buildFilterUrl(filterParams: Record<string, any>): string {
-  const params = new URLSearchParams();
-
-  if (filterParams.bedrooms !== undefined) {
-    params.set('bedrooms', filterParams.bedrooms.toString());
-  }
-
-  if (filterParams.price_min !== undefined) {
-    params.set('minPrice', filterParams.price_min.toString());
-  }
-
-  if (filterParams.price_max !== undefined) {
-    params.set('maxPrice', filterParams.price_max.toString());
-  }
-
-  if (filterParams.location) {
-    params.set('location', filterParams.location);
-  }
-
-  if (filterParams.neighborhood) {
-    params.set('neighborhood', filterParams.neighborhood);
-  }
-
-  if (filterParams.property_type) {
-    params.set('propertyType', filterParams.property_type);
-  }
-
-  if (filterParams.broker_fee !== undefined) {
-    params.set('brokerFee', filterParams.broker_fee.toString());
-  }
-
-  if (filterParams.parking) {
-    params.set('parking', filterParams.parking);
-  }
-
-  if (filterParams.lease_length) {
-    params.set('leaseLength', filterParams.lease_length);
-  }
-
-  return `/browse?${params.toString()}`;
-}
-
-// ============================================================================
-// CATEGORIZER
-// ============================================================================
-
-function categorizeByBedrooms(
-  listings: Listing[],
-  limits: CategoryLimits = {}
-): CategoryGroup[] {
-  const categories: CategoryGroup[] = [
-    { label: 'Studio Apartments', key: 'studio', listings: [], limit: limits.studio },
-    { label: '1 Bedroom', key: '1bed', listings: [], limit: limits['1bed'] },
-    { label: '2 Bedrooms', key: '2bed', listings: [], limit: limits['2bed'] },
-    { label: '3 Bedrooms', key: '3bed', listings: [], limit: limits['3bed'] },
-    { label: '4+ Bedrooms', key: '4plus', listings: [], limit: limits['4plus'] },
-  ];
-
-  for (const listing of listings) {
-    if (listing.bedrooms === 0) {
-      categories[0].listings.push(listing);
-    } else if (listing.bedrooms === 1) {
-      categories[1].listings.push(listing);
-    } else if (listing.bedrooms === 2) {
-      categories[2].listings.push(listing);
-    } else if (listing.bedrooms === 3) {
-      categories[3].listings.push(listing);
-    } else if (listing.bedrooms >= 4) {
-      categories[4].listings.push(listing);
-    }
-  }
-
-  for (const category of categories) {
-    if (category.limit && category.limit > 0) {
-      category.listings = category.listings.slice(0, category.limit);
-    }
-  }
-
-  return categories.filter(cat => cat.listings.length > 0);
-}
-
-// ============================================================================
-// EMAIL TEMPLATES
-// ============================================================================
-
-function formatPrice(listing: Listing): string {
-  if (listing.call_for_price) return "Call for Price";
-  if (listing.price != null) {
-    return new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: "USD",
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(listing.price);
-  }
-  return "Price Not Available";
-}
-
-function getBedroomDisplay(listing: Listing): string {
-  if (listing.bedrooms === 0) return "Studio";
-  if (listing.additional_rooms && listing.additional_rooms > 0) {
-    return `${listing.bedrooms}+${listing.additional_rooms} bed`;
-  }
-  return `${listing.bedrooms} bed`;
-}
-
-function getBathroomDisplay(bathrooms: number): string {
-  return `${bathrooms} bath`;
-}
-
-function getParkingDisplay(parking: string): string {
-  return parking === "yes" || parking === "included" ? "Parking" : "";
-}
-
-function getPropertyTypeDisplay(propertyType: string): string {
-  if (propertyType === "basement") return "Basement";
-  if (propertyType === "full_house") return "Full House";
-  if (propertyType === "duplex") return "Duplex";
-  return "";
-}
-
-function getLeaseDisplay(leaseLength: string): string {
-  if (leaseLength === "short_term") return "Short Term";
-  return "";
-}
-
-function renderListingCard(listing: Listing, listingUrl: string): string {
-  const hasParking = getParkingDisplay(listing.parking);
-  const locationWithNeighborhood = listing.neighborhood
-    ? `${listing.neighborhood}, ${listing.location}`
-    : listing.location;
-
-  const ownerDisplay =
-    listing.owner?.role === "agent" && listing.owner?.agency
-      ? listing.owner.agency
-      : "Owner";
-
-  let specs = `${getBedroomDisplay(listing)} | ${getBathroomDisplay(listing.bathrooms)}`;
-  if (hasParking) {
-    specs += ` | ${hasParking}`;
-  }
-  specs += ` | ${listing.broker_fee ? "Broker Fee" : "No Fee"}`;
-
-  const propertyType = getPropertyTypeDisplay(listing.property_type);
-  const leaseType = getLeaseDisplay(listing.lease_length);
-  if (propertyType || leaseType) {
-    const extras = [propertyType, leaseType].filter((x) => x).join(", ");
-    specs += ` - ${extras}`;
-  }
-
-  const featuredBadge = listing.is_featured ? " (FEATURED)" : "";
-
-  return `${formatPrice(listing)}
-${specs}
-${locationWithNeighborhood}
-Posted by ${ownerDisplay}${featuredBadge}
-${listingUrl}
-`;
-}
-
-async function renderCategorySection(
-  category: CategoryGroup,
-  siteUrl: string,
-  createShortUrl: (listingId: string, originalUrl: string) => Promise<string>
-): Promise<string> {
-  let section = `━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-${category.label.toUpperCase()} (${category.listings.length})
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-`;
-
-  for (const listing of category.listings) {
-    const listingUrl = await createShortUrl(
-      listing.id,
-      `${siteUrl}/listing/${listing.id}`
-    );
-    section += renderListingCard(listing, listingUrl) + "\n";
-  }
-
-  return section;
-}
-
-function renderFilterLink(link: FilterLinkWithCount, siteUrl: string): string {
-  const url = link.short_url || `${siteUrl}${link.url}`;
-  return `${link.label} (${link.count} available)
-${url}
-`;
-}
-
-async function renderPlainTextEmail(
-  categories: CategoryGroup[],
-  filterLinks: FilterLinkWithCount[],
-  siteUrl: string,
-  totalActive: number,
-  createShortUrl: (listingId: string, originalUrl: string) => Promise<string>
-): Promise<string> {
-  const roundedCount = Math.floor(totalActive / 10) * 10;
-
-  let email = `Here are the latest apartments posted on Hadirot:
-
-To see all ${roundedCount}+ active apartments:
-${siteUrl}/browse
-
-`;
-
-  if (filterLinks.length > 0) {
-    email += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-BROWSE BY CATEGORY
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-`;
-    for (const link of filterLinks) {
-      email += renderFilterLink(link, siteUrl) + "\n";
-    }
-    email += "\n";
-  }
-
-  for (const category of categories) {
-    const section = await renderCategorySection(category, siteUrl, createShortUrl);
-    email += section;
-  }
-
-  email += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-Join the Hadirot WhatsApp Community:
-https://chat.whatsapp.com/C3qmgo7DNOI63OE0RAZRgt`;
-
-  return email;
-}
-
-function generateEmailSubject(
-  templateName: string,
-  subjectTemplate: string,
-  listingCount: number
-): string {
-  const currentDate = new Date().toLocaleDateString("en-US", {
-    weekday: "long",
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  });
-
-  return subjectTemplate
-    .replace("{{date}}", currentDate)
-    .replace("{{count}}", listingCount.toString())
-    .replace("{{template}}", templateName);
-}
-
-// ============================================================================
-// ZEPTO EMAIL SERVICE
-// ============================================================================
+import type {
+  DigestTemplate,
+  FilterPreset,
+  Listing,
+  DigestRequestBody,
+  DigestResponse,
+  CategoryGroup,
+  FilterLinkWithCount,
+} from "./types.ts";
+import { buildListingsQuery, getListingCount, buildFilterUrl } from "./query-builder.ts";
+import { categorizeByBedrooms, getBedroomCategory } from "./categorizer.ts";
+import { renderPlainTextEmail, generateEmailSubject } from "./email-templates.ts";
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+};
 
 const ZEPTO_API_URL = "https://api.zeptomail.com/v1.1/email";
 
@@ -590,16 +66,6 @@ async function sendViaZepto({ to, subject, html, fromName }: ZeptoParams) {
   return await res.json();
 }
 
-// ============================================================================
-// MAIN HANDLER
-// ============================================================================
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-};
-
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -610,6 +76,7 @@ Deno.serve(async (req) => {
   try {
     console.log("📧 Starting enhanced digest email job");
 
+    // Authentication check
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
       return new Response(
@@ -634,6 +101,7 @@ Deno.serve(async (req) => {
       );
     }
 
+    // Verify admin access
     const { data: profile } = await supabaseAdmin
       .from("profiles")
       .select("is_admin")
@@ -647,11 +115,13 @@ Deno.serve(async (req) => {
       );
     }
 
+    // Parse request body
     const body: DigestRequestBody = await req.json();
     const { template_id, template_config, dry_run = false, recipient_emails } = body;
 
     console.log(`📋 Request: template_id=${template_id}, dry_run=${dry_run}`);
 
+    // Load template or use inline config
     let template: DigestTemplate;
     if (template_id) {
       const { data, error } = await supabaseAdmin
@@ -668,6 +138,7 @@ Deno.serve(async (req) => {
       }
       template = data as DigestTemplate;
     } else if (template_config) {
+      // Use inline template config
       template = {
         id: "inline",
         name: template_config.name || "Ad-hoc Digest",
@@ -687,6 +158,7 @@ Deno.serve(async (req) => {
         updated_at: new Date().toISOString(),
       } as DigestTemplate;
     } else {
+      // Use default unsent_only template
       const { data } = await supabaseAdmin
         .from("digest_templates")
         .select("*")
@@ -705,6 +177,7 @@ Deno.serve(async (req) => {
 
     console.log(`✅ Using template: ${template.name} (${template.template_type})`);
 
+    // Get admin email addresses
     const { data: adminProfiles } = await supabaseAdmin
       .from("profiles")
       .select("id")
@@ -733,6 +206,7 @@ Deno.serve(async (req) => {
 
     console.log(`👥 Found ${adminEmails.length} recipient(s)`);
 
+    // Fetch listings based on template type and config
     let allListings = await buildListingsQuery(
       supabaseAdmin,
       template.filter_config,
@@ -741,12 +215,15 @@ Deno.serve(async (req) => {
 
     console.log(`📦 Found ${allListings.length} listings matching filters`);
 
+    // Apply deduplication logic
     let listingsToSend: Listing[] = [];
 
     if (template.ignore_send_history) {
+      // No deduplication
       listingsToSend = allListings;
       console.log(`📝 Ignore send history: sending all ${listingsToSend.length} listings`);
     } else if (template.template_type === "unsent_only") {
+      // Only send listings never sent before
       const { data: sentListings } = await supabaseAdmin
         .from("digest_sent_listings")
         .select("listing_id");
@@ -755,6 +232,7 @@ Deno.serve(async (req) => {
       listingsToSend = allListings.filter(l => !sentIds.has(l.id));
       console.log(`📝 Unsent only: ${listingsToSend.length} of ${allListings.length} listings are new`);
     } else if (template.allow_resend) {
+      // Allow resend after N days
       const thresholdDate = new Date();
       thresholdDate.setDate(thresholdDate.getDate() - template.resend_after_days);
 
@@ -767,9 +245,11 @@ Deno.serve(async (req) => {
       listingsToSend = allListings.filter(l => !recentIds.has(l.id));
       console.log(`📝 Allow resend: ${listingsToSend.length} of ${allListings.length} listings eligible`);
     } else {
+      // Default: send all matching listings
       listingsToSend = allListings;
     }
 
+    // Handle different digest types
     let categories: CategoryGroup[] = [];
     let filterLinks: FilterLinkWithCount[] = [];
 
@@ -777,6 +257,7 @@ Deno.serve(async (req) => {
       categories = categorizeByBedrooms(listingsToSend, template.category_limits);
       console.log(`📊 Categorized into ${categories.length} bedroom groups`);
     } else if (template.template_type === "filter_links") {
+      // Fetch filter presets and generate links with counts
       const { data: presets } = await supabaseAdmin
         .from("filter_presets")
         .select("*")
@@ -800,6 +281,7 @@ Deno.serve(async (req) => {
 
       console.log(`🔗 Generated ${filterLinks.length} filter links`);
     } else if (template.template_type === "mixed_layout") {
+      // Include both listings and filter links
       categories = categorizeByBedrooms(listingsToSend, template.category_limits);
 
       if (template.include_filter_links && template.filter_preset_ids.length > 0) {
@@ -824,11 +306,13 @@ Deno.serve(async (req) => {
         }
       }
     } else {
+      // Default: show all listings as one group
       categories = [{ label: "New Listings", key: "all", listings: listingsToSend }];
     }
 
     const totalListings = categories.reduce((sum, cat) => sum + cat.listings.length, 0);
 
+    // If dry run, return preview data
     if (dry_run) {
       const listingsByCategory: Record<string, number> = {};
       for (const cat of categories) {
@@ -855,14 +339,17 @@ Deno.serve(async (req) => {
       );
     }
 
+    // Generate email content
     const siteUrl = Deno.env.get("PUBLIC_SITE_URL") || "https://hadirot.com";
 
+    // Get total active listings count
     const { count: totalActive } = await supabaseAdmin
       .from("listings")
       .select("*", { count: 'exact', head: true })
       .eq("approved", true)
       .eq("is_active", true);
 
+    // Create short URL helper
     const createShortUrl = async (listingId: string, originalUrl: string): Promise<string> => {
       try {
         const { data: shortCode } = await supabaseAdmin.rpc(
@@ -898,6 +385,7 @@ Deno.serve(async (req) => {
       totalListings
     );
 
+    // Send email
     console.log(`📤 Sending email to ${adminEmails.length} admin(s)`);
 
     await sendViaZepto({
@@ -909,6 +397,7 @@ Deno.serve(async (req) => {
 
     console.log("✅ Email sent successfully");
 
+    // Record the send
     const digestSendRecord = {
       template_id: template_id || null,
       template_name: template.name,
@@ -937,6 +426,7 @@ Deno.serve(async (req) => {
       console.error("⚠️ Failed to log digest send:", sendError);
     }
 
+    // Record sent listings
     if (digestSend && totalListings > 0) {
       const sentListingRecords = [];
       for (const category of categories) {
@@ -963,6 +453,7 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Update template usage
     if (template_id) {
       await supabaseAdmin
         .from("digest_templates")

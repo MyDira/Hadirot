@@ -5,6 +5,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { staticPagesService, StaticPage } from '../services/staticPages';
 import { modalsService, ModalPopup, CreateModalInput } from '../services/modals';
 import { bannersService, CreateBannerInput } from '../services/banners';
+import { digestService, DigestTemplate } from '../services/digest';
 import { supabase, Profile, HeroBanner, BannerButton } from '../config/supabase';
 import { ModalPreview } from '../components/admin/ModalPreview';
 import { ModalManagement } from '../components/admin/ModalManagement';
@@ -83,6 +84,10 @@ export function ContentManagement() {
   const [updatingConfig, setUpdatingConfig] = useState(false);
   const [editingDeliveryTime, setEditingDeliveryTime] = useState(false);
   const [tempDeliveryTime, setTempDeliveryTime] = useState('');
+  const [digestTemplates, setDigestTemplates] = useState<DigestTemplate[]>([]);
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>('');
+  const [showDigestPreview, setShowDigestPreview] = useState(false);
+  const [digestPreview, setDigestPreview] = useState<any>(null);
 
   // Hero Banners state
   const [banners, setBanners] = useState<HeroBanner[]>([]);
@@ -218,6 +223,19 @@ export function ContentManagement() {
       } else {
         setDigestLogs(logsData || []);
       }
+
+      // Load digest templates
+      try {
+        const templates = await digestService.getTemplates();
+        setDigestTemplates(templates);
+        // Set default template as selected
+        const defaultTemplate = templates.find(t => t.is_default);
+        if (defaultTemplate) {
+          setSelectedTemplateId(defaultTemplate.id);
+        }
+      } catch (error) {
+        console.error('Error loading digest templates:', error);
+      }
     } catch (error) {
       console.error('Error loading email tools data:', error);
       setToast({ message: 'Failed to load email tools data', tone: 'error' });
@@ -226,82 +244,55 @@ export function ContentManagement() {
     }
   };
 
+  const previewDigest = async () => {
+    try {
+      const result = await digestService.sendDigest({
+        template_id: selectedTemplateId || undefined,
+        dry_run: true,
+      });
+
+      setDigestPreview(result);
+      setShowDigestPreview(true);
+      setToast({ message: 'Preview loaded successfully', tone: 'success' });
+    } catch (error) {
+      console.error('Error previewing digest:', error);
+      setToast({ message: error instanceof Error ? error.message : 'Failed to preview digest', tone: 'error' });
+    }
+  };
+
   const sendTestDigest = async () => {
-    if (!confirm('Send a test digest email now? This will send an email to all admins with listings from the past 24 hours.')) {
+    const selectedTemplate = digestTemplates.find(t => t.id === selectedTemplateId);
+    const confirmMessage = selectedTemplate
+      ? `Send digest using "${selectedTemplate.name}" template? This will send an email to all admins.`
+      : 'Send digest email now? This will send an email to all admins.';
+
+    if (!confirm(confirmMessage)) {
       return;
     }
 
     setSendingTestDigest(true);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-
-      if (!session) {
-        setToast({ message: 'Authentication error. Please refresh and try again.', tone: 'error' });
-        return;
-      }
-
-      const { data, error } = await supabase.functions.invoke('send-daily-admin-digest', {
-        headers: {
-          Authorization: `Bearer ${session.access_token}`,
-        },
-        body: {
-          force: true
-        }
+      const result = await digestService.sendDigest({
+        template_id: selectedTemplateId || undefined,
+        dry_run: false,
       });
 
-      if (error) {
-        console.error('Error sending test digest:', error);
-        console.error('Error details:', JSON.stringify(error, null, 2));
-
-        let errorMessage = 'Failed to send test digest';
-
-        if (error.message) {
-          if (error.message.includes('ZEPTO_TOKEN') || error.message.includes('Email service not configured')) {
-            errorMessage = 'Email service not configured. Please set ZEPTO_TOKEN in Supabase Edge Functions settings.';
-          } else if (error.message.includes('Unauthorized') || error.message.includes('Authentication')) {
-            errorMessage = 'Authentication failed. Please refresh the page and try again.';
-          } else if (error.message.includes('Forbidden') || error.message.includes('Admin')) {
-            errorMessage = 'Admin access required. Please ensure you have admin privileges.';
-          } else if (error.message.includes('non-2xx')) {
-            errorMessage = 'Server error occurred. Check Supabase Edge Function logs for details.';
-          } else {
-            errorMessage = `Failed to send test digest: ${error.message}`;
-          }
-        }
-
-        setToast({ message: errorMessage, tone: 'error' });
-        return;
-      }
-
-      if (data?.listingCount === 0) {
-        setToast({ message: 'No new listings to send in the digest.', tone: 'success' });
-      } else if (data?.listingCount) {
+      if (result.listingCount === 0) {
+        setToast({ message: 'No listings to send in the digest.', tone: 'success' });
+      } else {
         setToast({
-          message: `Digest sent successfully! ${data.listingCount} listing(s) sent to ${data.adminCount} admin(s).`,
+          message: `Digest sent successfully! ${result.listingCount} listing(s) sent to ${result.adminCount} admin(s).`,
           tone: 'success'
         });
-      } else {
-        setToast({ message: 'Digest process completed.', tone: 'success' });
       }
 
-      // Reload logs to show the new entry
       await loadEmailTools();
     } catch (error) {
-      console.error('Unexpected error sending test digest:', error);
-
-      let errorMessage = 'Failed to send test digest. Please try again.';
-
-      if (error instanceof Error) {
-        if (error.message.includes('ZEPTO_TOKEN') || error.message.includes('Email service not configured')) {
-          errorMessage = 'Email service not configured. Please set ZEPTO_TOKEN in Supabase Edge Functions settings.';
-        } else if (error.message.includes('non-2xx')) {
-          errorMessage = 'Server error occurred. Check Supabase Edge Function logs in the Dashboard for details.';
-        } else if (error.message) {
-          errorMessage = `Failed to send test digest: ${error.message}`;
-        }
-      }
-
-      setToast({ message: errorMessage, tone: 'error' });
+      console.error('Error sending digest:', error);
+      setToast({
+        message: error instanceof Error ? error.message : 'Failed to send digest',
+        tone: 'error'
+      });
     } finally {
       setSendingTestDigest(false);
     }
@@ -1191,22 +1182,51 @@ export function ContentManagement() {
                       )}
                     </div>
 
-                    {/* Test Button Section */}
+                    {/* Send Digest Section */}
                     <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border border-blue-200 p-6">
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                          <h3 className="text-lg font-semibold text-gray-900 mb-2">Manual Trigger</h3>
-                          <p className="text-sm text-gray-600 mb-2">
-                            Instantly send a digest email to all admins with approved and active listings from the past 24 hours.
+                      <h3 className="text-lg font-semibold text-gray-900 mb-4">Send Digest Email</h3>
+
+                      {/* Template Selector */}
+                      <div className="mb-4">
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Select Digest Template
+                        </label>
+                        <select
+                          value={selectedTemplateId}
+                          onChange={(e) => setSelectedTemplateId(e.target.value)}
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        >
+                          {digestTemplates.length === 0 ? (
+                            <option value="">No templates available</option>
+                          ) : (
+                            digestTemplates.map((template) => (
+                              <option key={template.id} value={template.id}>
+                                {template.name} {template.is_default ? '(Default)' : ''}
+                              </option>
+                            ))
+                          )}
+                        </select>
+                        {selectedTemplateId && digestTemplates.find(t => t.id === selectedTemplateId) && (
+                          <p className="mt-2 text-sm text-gray-600">
+                            {digestTemplates.find(t => t.id === selectedTemplateId)?.description || 'No description available'}
                           </p>
-                          <p className="text-xs text-gray-500">
-                            This works independently of the automated schedule. You can test the digest at any time.
-                          </p>
-                        </div>
+                        )}
+                      </div>
+
+                      {/* Action Buttons */}
+                      <div className="flex gap-3">
+                        <button
+                          onClick={previewDigest}
+                          disabled={!selectedTemplateId || sendingTestDigest}
+                          className="flex items-center px-4 py-2 bg-white text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed font-medium transition-colors"
+                        >
+                          <Eye className="w-4 h-4 mr-2" />
+                          Preview
+                        </button>
                         <button
                           onClick={sendTestDigest}
-                          disabled={sendingTestDigest}
-                          className="flex items-center px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium transition-colors ml-4 shadow-md"
+                          disabled={!selectedTemplateId || sendingTestDigest}
+                          className="flex items-center px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium transition-colors shadow-md"
                         >
                           {sendingTestDigest ? (
                             <>
@@ -1221,7 +1241,91 @@ export function ContentManagement() {
                           )}
                         </button>
                       </div>
+
+                      <p className="mt-4 text-xs text-gray-500">
+                        This will send an email to all admins based on the selected template configuration.
+                      </p>
                     </div>
+
+                    {/* Preview Modal */}
+                    {showDigestPreview && digestPreview && (
+                      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                        <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+                          <div className="p-6">
+                            <div className="flex justify-between items-start mb-4">
+                              <h3 className="text-xl font-semibold text-gray-900">Digest Preview</h3>
+                              <button
+                                onClick={() => setShowDigestPreview(false)}
+                                className="text-gray-400 hover:text-gray-600"
+                              >
+                                <X className="w-6 h-6" />
+                              </button>
+                            </div>
+
+                            <div className="space-y-4">
+                              <div className="bg-blue-50 rounded-lg p-4">
+                                <div className="grid grid-cols-2 gap-4">
+                                  <div>
+                                    <div className="text-sm text-blue-600 font-medium">Total Listings</div>
+                                    <div className="text-2xl font-bold text-gray-900">{digestPreview.listingCount}</div>
+                                  </div>
+                                  <div>
+                                    <div className="text-sm text-blue-600 font-medium">Recipients</div>
+                                    <div className="text-2xl font-bold text-gray-900">{digestPreview.adminCount}</div>
+                                  </div>
+                                </div>
+                              </div>
+
+                              {digestPreview.listings_by_category && (
+                                <div>
+                                  <h4 className="font-medium text-gray-900 mb-2">Listings by Category</h4>
+                                  <div className="bg-gray-50 rounded-lg p-4 space-y-2">
+                                    {Object.entries(digestPreview.listings_by_category).map(([category, count]) => (
+                                      <div key={category} className="flex justify-between text-sm">
+                                        <span className="text-gray-600 capitalize">{category.replace('_', ' ')}</span>
+                                        <span className="font-medium text-gray-900">{count as number} listings</span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+
+                              {digestPreview.filter_links && digestPreview.filter_links.length > 0 && (
+                                <div>
+                                  <h4 className="font-medium text-gray-900 mb-2">Filter Links Included</h4>
+                                  <div className="bg-gray-50 rounded-lg p-4 space-y-2">
+                                    {digestPreview.filter_links.map((link: any, index: number) => (
+                                      <div key={index} className="flex justify-between text-sm">
+                                        <span className="text-gray-600">{link.label}</span>
+                                        <span className="font-medium text-gray-900">{link.count} available</span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+
+                            <div className="mt-6 flex justify-end gap-3">
+                              <button
+                                onClick={() => setShowDigestPreview(false)}
+                                className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                              >
+                                Close
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setShowDigestPreview(false);
+                                  sendTestDigest();
+                                }}
+                                className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                              >
+                                Send This Digest
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
 
                     {/* Statistics Summary */}
                     <div className="bg-white rounded-lg border border-gray-200 p-6">
