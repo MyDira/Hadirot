@@ -45,6 +45,11 @@ export function DigestManager() {
   const [previewCollections, setPreviewCollections] = useState<CollectionLink[]>([]);
   const [copySuccess, setCopySuccess] = useState(false);
 
+  // Send modal state
+  const [showSendModal, setShowSendModal] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [sendResult, setSendResult] = useState<any>(null);
+
   // Toast
   const [toast, setToast] = useState<{ message: string; tone: 'success' | 'error' } | null>(null);
 
@@ -249,6 +254,43 @@ export function DigestManager() {
     } catch (error) {
       console.error('Error copying to clipboard:', error);
       setToast({ message: 'Failed to copy to clipboard', tone: 'error' });
+    }
+  };
+
+  const handleSendDigest = async (dryRun: boolean = false) => {
+    if (!selectedTemplateId && !currentTemplate.name) {
+      setToast({ message: 'Please save the template before sending', tone: 'error' });
+      return;
+    }
+
+    setSending(true);
+    setSendResult(null);
+
+    try {
+      const result = await digestService.sendDigest({
+        template_id: selectedTemplateId || undefined,
+        template_config: selectedTemplateId ? undefined : currentTemplate,
+        dry_run: dryRun
+      });
+
+      setSendResult(result);
+
+      if (result.success) {
+        setToast({
+          message: dryRun ? 'Dry run completed successfully' : 'Digest sent successfully!',
+          tone: 'success'
+        });
+        if (!dryRun) {
+          setShowSendModal(false);
+        }
+      } else {
+        setToast({ message: result.message || 'Failed to send digest', tone: 'error' });
+      }
+    } catch (error) {
+      console.error('Error sending digest:', error);
+      setToast({ message: 'Failed to send digest', tone: 'error' });
+    } finally {
+      setSending(false);
     }
   };
 
@@ -684,14 +726,78 @@ export function DigestManager() {
 
               {previewText ? (
                 <div className="space-y-4">
-                  <div className="bg-gray-50 rounded-lg p-4 border border-gray-200 max-h-96 overflow-y-auto">
-                    <pre className="text-sm whitespace-pre-wrap font-sans text-gray-900">
-                      {previewText}
-                    </pre>
+                  {/* Stats Summary */}
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="bg-blue-50 rounded p-2 border border-blue-200">
+                      <p className="text-xs text-blue-600 font-medium">Collections</p>
+                      <p className="text-lg font-bold text-blue-900">{previewCollections.length}</p>
+                    </div>
+                    <div className="bg-green-50 rounded p-2 border border-green-200">
+                      <p className="text-xs text-green-600 font-medium">Listings</p>
+                      <p className="text-lg font-bold text-green-900">{previewListings.length}</p>
+                    </div>
                   </div>
 
-                  <div className="flex items-center justify-between text-sm text-gray-600">
-                    <span>{stats.characters} characters</span>
+                  {/* Collections Preview */}
+                  {previewCollections.length > 0 && (
+                    <div className="border border-gray-200 rounded-lg p-3">
+                      <h3 className="text-sm font-semibold text-gray-900 mb-2">Collections</h3>
+                      <div className="space-y-2">
+                        {previewCollections.map((collection, idx) => (
+                          <div key={idx} className="bg-gray-50 rounded p-2 text-xs">
+                            <div className="flex items-center justify-between">
+                              <span className="font-medium text-gray-900">{collection.label}</span>
+                              <span className="text-blue-600 font-semibold">{collection.count}</span>
+                            </div>
+                            <a
+                              href={collection.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-blue-500 hover:underline truncate block mt-1"
+                            >
+                              {collection.url}
+                            </a>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Listings Preview */}
+                  {previewListings.length > 0 && (
+                    <div className="border border-gray-200 rounded-lg p-3">
+                      <h3 className="text-sm font-semibold text-gray-900 mb-2">
+                        Listings ({previewListings.length})
+                      </h3>
+                      <div className="space-y-2 max-h-48 overflow-y-auto">
+                        {previewListings.slice(0, 5).map((listing, idx) => (
+                          <div key={idx} className="bg-gray-50 rounded p-2 text-xs">
+                            <div className="font-semibold text-gray-900">{listing.price}</div>
+                            <div className="text-gray-600">{listing.specs}</div>
+                            <div className="text-gray-500 truncate">{listing.location}</div>
+                          </div>
+                        ))}
+                        {previewListings.length > 5 && (
+                          <div className="text-center text-xs text-gray-500 py-2">
+                            +{previewListings.length - 5} more listings
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* WhatsApp Text Preview */}
+                  <div>
+                    <h3 className="text-sm font-semibold text-gray-900 mb-2">WhatsApp Format</h3>
+                    <div className="bg-gray-50 rounded-lg p-4 border border-gray-200 max-h-64 overflow-y-auto">
+                      <pre className="text-xs whitespace-pre-wrap font-sans text-gray-900">
+                        {previewText}
+                      </pre>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between text-xs text-gray-600 pt-2 border-t border-gray-200">
+                    <span>{stats.characters} chars</span>
                     <span>{stats.lines} lines</span>
                   </div>
 
@@ -759,7 +865,140 @@ export function DigestManager() {
               </>
             )}
           </button>
+
+          <button
+            onClick={() => setShowSendModal(true)}
+            disabled={!previewText || previewListings.length === 0 && previewCollections.length === 0}
+            className="flex items-center px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            <Send className="w-5 h-5 mr-2" />
+            Send Digest
+          </button>
         </div>
+
+        {/* Send Confirmation Modal */}
+        {showSendModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-lg shadow-xl max-w-lg w-full">
+              <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+                <h2 className="text-xl font-bold text-gray-900">Send WhatsApp Digest</h2>
+                <button
+                  onClick={() => setShowSendModal(false)}
+                  className="text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  <span className="text-2xl">&times;</span>
+                </button>
+              </div>
+
+              <div className="p-6 space-y-4">
+                {sendResult ? (
+                  <div className="space-y-4">
+                    <div className={`p-4 rounded-lg ${
+                      sendResult.success ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'
+                    }`}>
+                      <h3 className={`font-semibold mb-2 ${
+                        sendResult.success ? 'text-green-800' : 'text-red-800'
+                      }`}>
+                        {sendResult.success ? 'Send Successful!' : 'Send Failed'}
+                      </h3>
+                      {sendResult.message && (
+                        <p className={sendResult.success ? 'text-green-700' : 'text-red-700'}>
+                          {sendResult.message}
+                        </p>
+                      )}
+                    </div>
+
+                    {sendResult.success && (
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
+                          <p className="text-sm text-blue-600 font-medium">Recipients</p>
+                          <p className="text-2xl font-bold text-blue-900">{sendResult.adminCount || 0}</p>
+                        </div>
+                        <div className="bg-green-50 rounded-lg p-4 border border-green-200">
+                          <p className="text-sm text-green-600 font-medium">Listings</p>
+                          <p className="text-2xl font-bold text-green-900">{sendResult.listingCount || 0}</p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <>
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                      <p className="text-sm text-blue-800">
+                        This will send the WhatsApp digest to all admin users. You can do a dry run first to test without actually sending.
+                      </p>
+                    </div>
+
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between py-2 border-b border-gray-200">
+                        <span className="text-gray-700">Collections:</span>
+                        <span className="font-semibold text-gray-900">{previewCollections.length}</span>
+                      </div>
+                      <div className="flex items-center justify-between py-2 border-b border-gray-200">
+                        <span className="text-gray-700">Listings:</span>
+                        <span className="font-semibold text-gray-900">{previewListings.length}</span>
+                      </div>
+                      <div className="flex items-center justify-between py-2">
+                        <span className="text-gray-700">Characters:</span>
+                        <span className="font-semibold text-gray-900">{stats.characters}</span>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+
+              <div className="flex items-center justify-between gap-3 px-6 py-4 border-t border-gray-200 bg-gray-50">
+                <button
+                  onClick={() => {
+                    setShowSendModal(false);
+                    setSendResult(null);
+                  }}
+                  className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  {sendResult ? 'Close' : 'Cancel'}
+                </button>
+                {!sendResult && (
+                  <div className="flex gap-3">
+                    <button
+                      onClick={() => handleSendDigest(true)}
+                      disabled={sending}
+                      className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    >
+                      {sending ? (
+                        <>
+                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+                          Testing...
+                        </>
+                      ) : (
+                        <>
+                          <Eye className="w-4 h-4 mr-2" />
+                          Dry Run
+                        </>
+                      )}
+                    </button>
+                    <button
+                      onClick={() => handleSendDigest(false)}
+                      disabled={sending}
+                      className="flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    >
+                      {sending ? (
+                        <>
+                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+                          Sending...
+                        </>
+                      ) : (
+                        <>
+                          <Send className="w-4 h-4 mr-2" />
+                          Send Now
+                        </>
+                      )}
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

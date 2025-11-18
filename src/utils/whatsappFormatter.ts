@@ -68,7 +68,7 @@ export class WhatsAppFormatter {
     return collections
       .map(collection => {
         const count = this.formatCount(collection.count);
-        return `*${count} ${collection.label}*\n${collection.url}`;
+        return `*Click here to see ${count} ${collection.label}*\n${collection.url}`;
       })
       .join('\n\n');
   }
