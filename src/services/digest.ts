@@ -15,6 +15,14 @@ export interface DigestTemplate {
   subject_template: string;
   include_filter_links: boolean;
   filter_preset_ids: string[];
+  whatsapp_intro_text?: string;
+  whatsapp_outro_text?: string;
+  include_collections?: boolean;
+  collection_configs?: any[];
+  listings_time_filter?: string;
+  listings_filter_config?: Record<string, any>;
+  section_by_filter?: 'bedrooms' | 'property_type' | null;
+  output_format?: 'whatsapp' | 'email';
   created_by?: string;
   is_default: boolean;
   usage_count: number;

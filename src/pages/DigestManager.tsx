@@ -183,6 +183,34 @@ export function DigestManager() {
     setExpandedSections(prev => ({ ...prev, [section]: !prev[section] }));
   };
 
+  const createShortUrlForCollection = async (fullUrl: string): Promise<string> => {
+    try {
+      const urlObj = new URL(fullUrl);
+      const shortCode = Math.random().toString(36).substring(2, 8);
+
+      const { data, error } = await supabase
+        .from('short_urls')
+        .insert({
+          short_code: shortCode,
+          original_url: fullUrl,
+          source: 'digest_collection',
+          listing_id: null
+        })
+        .select('short_code')
+        .single();
+
+      if (error) {
+        console.warn('Failed to create short URL:', error);
+        return fullUrl;
+      }
+
+      return `https://hadirot.com/l/${data.short_code}`;
+    } catch (error) {
+      console.warn('Error creating short URL:', error);
+      return fullUrl;
+    }
+  };
+
   const handleGeneratePreview = async () => {
     setGenerating(true);
     try {
@@ -194,34 +222,41 @@ export function DigestManager() {
             .filter(c => c.enabled)
             .map(async (config) => {
               const count = await getListingCount(config.filters);
+              const fullUrl = generateBrowseUrl(config.filters);
+              const shortUrl = await createShortUrlForCollection(fullUrl);
               return {
                 label: config.label,
                 count,
-                url: generateBrowseUrl(config.filters),
+                url: shortUrl,
                 enabled: true
               };
             })
         );
       }
 
-      // Fetch listings if filter is configured
+      // Fetch listings - always fetch but apply filters
       let listings: FormattedListing[] = [];
-      const hasListingFilters =
-        currentTemplate.listings_time_filter !== 'all' ||
-        Object.keys(currentTemplate.listings_filter_config || {}).length > 0;
+      const timeFilter = currentTemplate.listings_time_filter || 'all';
+      const filterConfig = currentTemplate.listings_filter_config || {};
 
-      if (hasListingFilters) {
-        const listingsData = await fetchListings(
-          currentTemplate.listings_time_filter || 'all',
-          currentTemplate.listings_filter_config || {}
-        );
+      // Only fetch if there's an actual time filter or other filters configured
+      const hasActiveFilters = timeFilter !== 'all' || Object.keys(filterConfig).some(
+        key => filterConfig[key] !== undefined && filterConfig[key] !== null && filterConfig[key] !== ''
+      );
 
-        listings = listingsData.map(listing =>
-          WhatsAppFormatter.formatListingData(
-            listing,
-            (listing as any).short_url_code,
-            currentTemplate.section_by_filter as any
-          )
+      if (hasActiveFilters) {
+        const listingsData = await fetchListings(timeFilter, filterConfig);
+
+        // Create short URLs for all listings
+        listings = await Promise.all(
+          listingsData.map(async (listing) => {
+            const shortCode = (listing as any).short_url?.[0]?.code;
+            return WhatsAppFormatter.formatListingData(
+              listing,
+              shortCode,
+              currentTemplate.section_by_filter as any
+            );
+          })
         );
       }
 
@@ -405,8 +440,24 @@ export function DigestManager() {
         query = query.eq('broker_fee', filterConfig.broker_fee);
       }
 
-      if (filterConfig.parking !== undefined) {
+      if (filterConfig.parking !== undefined && filterConfig.parking !== null && filterConfig.parking !== '') {
         query = query.eq('parking', filterConfig.parking);
+      }
+
+      if (filterConfig.location) {
+        if (Array.isArray(filterConfig.location)) {
+          query = query.in('location', filterConfig.location);
+        } else {
+          query = query.eq('location', filterConfig.location);
+        }
+      }
+
+      if (filterConfig.neighborhood) {
+        if (Array.isArray(filterConfig.neighborhood)) {
+          query = query.in('neighborhood', filterConfig.neighborhood);
+        } else {
+          query = query.eq('neighborhood', filterConfig.neighborhood);
+        }
       }
 
       query = query.order('created_at', { ascending: false });
