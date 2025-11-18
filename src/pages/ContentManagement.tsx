@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { FileText, Star, MessageSquare, Save, Trash2, Plus, Eye, EyeOff, Edit2, X, Settings, Search, ChevronLeft, Monitor, Smartphone, BarChart3, Users, Power, Mail, Send, Clock, CheckCircle, XCircle, AlertCircle, Image } from 'lucide-react';
+import { FileText, Star, MessageSquare, Save, Trash2, Plus, Eye, EyeOff, Edit2, X, Settings, Search, ChevronLeft, Monitor, Smartphone, BarChart3, Users, Power, Send, Clock, CheckCircle, XCircle, AlertCircle, Image } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { staticPagesService, StaticPage } from '../services/staticPages';
 import { modalsService, ModalPopup, CreateModalInput } from '../services/modals';
@@ -11,9 +11,8 @@ import { ModalManagement } from '../components/admin/ModalManagement';
 import { ModalEditor } from '../components/admin/ModalEditor';
 import { BannerManagement } from '../components/admin/BannerManagement';
 import { BannerEditor } from '../components/admin/BannerEditor';
-import { EmailToolsSection } from '../components/admin/EmailToolsSection';
 
-const CONTENT_TAB_KEYS = ['static-pages', 'featured', 'modals', 'hero-banners', 'email-tools'] as const;
+const CONTENT_TAB_KEYS = ['static-pages', 'featured', 'modals', 'hero-banners'] as const;
 type ContentTabKey = (typeof CONTENT_TAB_KEYS)[number];
 
 const isValidContentTab = (value: string | null): value is ContentTabKey =>
@@ -24,7 +23,6 @@ const CONTENT_TABS: { id: ContentTabKey; label: string; icon: React.ElementType 
   { id: 'featured', label: 'Featured Settings', icon: Star },
   { id: 'modals', label: 'Modal Popups', icon: MessageSquare },
   { id: 'hero-banners', label: 'Hero Banners', icon: Image },
-  { id: 'email-tools', label: 'Email Tools', icon: Mail },
 ];
 
 export function ContentManagement() {
@@ -75,8 +73,6 @@ export function ContentManagement() {
   // Static Pages state
   const [selectedPageId, setSelectedPageId] = useState<string | null>(null);
   const [showPageEditor, setShowPageEditor] = useState(false);
-
-  // Email Tools state - handled by EmailToolsSection component
 
   // Hero Banners state
   const [banners, setBanners] = useState<HeroBanner[]>([]);
@@ -173,8 +169,6 @@ export function ContentManagement() {
       } else if (activeTab === 'hero-banners') {
         const allBanners = await bannersService.getAllBanners();
         setBanners(allBanners);
-      } else if (activeTab === 'email-tools') {
-        // Email tools loads its own data via EmailToolsSection
       }
     } catch (error) {
       console.error('Error loading data:', error);
@@ -863,10 +857,6 @@ export function ContentManagement() {
                       />
                     )}
                   </>
-                )}
-
-                {activeTab === 'email-tools' && (
-                  <EmailToolsSection />
                 )}
 
               </>

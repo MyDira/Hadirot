@@ -25,6 +25,7 @@ import { HelpCenter } from './pages/HelpCenter';
 import { HelpCategory } from './pages/HelpCategory';
 import { HelpArticle } from './pages/HelpArticle';
 import { ContentManagement } from './pages/ContentManagement';
+import { DigestManager } from './pages/DigestManager';
 import { ShortUrlRedirect } from './pages/ShortUrlRedirect';
 import { useAuth } from '@/hooks/useAuth';
 import GASmokeTest from '@/dev/gaSmokeTest';
@@ -76,6 +77,7 @@ function App() {
                 <Route path="/admin" element={<AdminPanel />} />
                 <Route path="/admin/analytics" element={<InternalAnalytics />} />
                 <Route path="/admin/content-management" element={<ContentManagement />} />
+                <Route path="/admin/digest-manager" element={<DigestManager />} />
                 <Route path="/admin/static-pages" element={<Navigate to="/admin/content-management?tab=static-pages" replace />} />
                 <Route path="/admin/featured-settings" element={<Navigate to="/admin/content-management?tab=featured" replace />} />
                 <Route path="/dashboard" element={<Dashboard />} />
