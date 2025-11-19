@@ -352,8 +352,8 @@ export function DigestManager() {
   };
 
   const handleSendDigest = async (dryRun: boolean = false) => {
-    if (!selectedTemplateId && !currentTemplate.name) {
-      setToast({ message: 'Please save the template before sending', tone: 'error' });
+    if (!previewText) {
+      setToast({ message: 'Please generate a preview first', tone: 'error' });
       return;
     }
 
@@ -361,28 +361,70 @@ export function DigestManager() {
     setSendResult(null);
 
     try {
-      const result = await digestService.sendDigest({
-        template_id: selectedTemplateId || undefined,
-        template_config: selectedTemplateId ? undefined : currentTemplate,
-        dry_run: dryRun
+      console.log('Sending WhatsApp digest via email...');
+      console.log('Preview text length:', previewText.length);
+
+      if (dryRun) {
+        // For dry run, just show what would be sent
+        console.log('Dry run - would send:', previewText.substring(0, 200) + '...');
+        setSendResult({
+          success: true,
+          dry_run: true,
+          listingCount: previewListings.length,
+          adminCount: 0,
+          message: 'Dry run successful - no emails sent'
+        });
+        setToast({ message: 'Dry run completed successfully', tone: 'success' });
+        return;
+      }
+
+      // Send the WhatsApp text via email to admins
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        throw new Error('Not authenticated');
+      }
+
+      const response = await supabase.functions.invoke('send-email', {
+        body: {
+          to: 'admin', // Special value that sends to all admins
+          subject: `WhatsApp Digest - ${currentTemplate.name || 'Preview'}`,
+          text: `Here is your WhatsApp digest. Copy the text below and paste it into WhatsApp:\n\n${previewText}`,
+          html: `
+            <h2>WhatsApp Digest</h2>
+            <p>Copy the text below and paste it into WhatsApp:</p>
+            <pre style="background: #f5f5f5; padding: 15px; border-radius: 5px; white-space: pre-wrap; font-family: monospace;">${previewText}</pre>
+          `
+        },
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
       });
 
-      setSendResult(result);
-
-      if (result.success) {
-        setToast({
-          message: dryRun ? 'Dry run completed successfully' : 'Digest sent successfully!',
-          tone: 'success'
-        });
-        if (!dryRun) {
-          setShowSendModal(false);
-        }
-      } else {
-        setToast({ message: result.message || 'Failed to send digest', tone: 'error' });
+      if (response.error) {
+        throw new Error(response.error.message);
       }
+
+      console.log('Email sent successfully');
+      setSendResult({
+        success: true,
+        dry_run: false,
+        listingCount: previewListings.length,
+        adminCount: response.data?.recipientCount || 1,
+        message: 'WhatsApp digest sent to admin emails'
+      });
+      setToast({ message: 'Digest sent to admins successfully!', tone: 'success' });
+      setShowSendModal(false);
     } catch (error) {
       console.error('Error sending digest:', error);
-      setToast({ message: 'Failed to send digest', tone: 'error' });
+      console.error('Error details:', error instanceof Error ? error.message : 'Unknown error');
+      setSendResult({
+        success: false,
+        dry_run: dryRun,
+        listingCount: 0,
+        adminCount: 0,
+        message: error instanceof Error ? error.message : 'Unknown error'
+      });
+      setToast({ message: `Failed to send digest: ${error instanceof Error ? error.message : 'Unknown error'}`, tone: 'error' });
     } finally {
       setSending(false);
     }
@@ -1076,7 +1118,7 @@ export function DigestManager() {
                   <>
                     <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                       <p className="text-sm text-blue-800">
-                        This will send the WhatsApp digest to all admin users. You can do a dry run first to test without actually sending.
+                        This will email the WhatsApp digest text to all admin users so they can easily copy and paste it into WhatsApp. You can do a dry run first to test without actually sending emails.
                       </p>
                     </div>
 
