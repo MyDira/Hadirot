@@ -1,6 +1,23 @@
 import { supabase } from '../config/supabase';
 
 // Type definitions matching database schema
+export interface CollectionConfig {
+  id: string;
+  enabled: boolean;
+  label: string;
+  filters: Record<string, any>;
+  cta_format: string;
+  order: number;
+}
+
+export interface ListingGroup {
+  id: string;
+  enabled: boolean;
+  limit: number;
+  filters: Record<string, any>;
+  time_filter: string;
+}
+
 export interface DigestTemplate {
   id: string;
   name: string;
@@ -18,11 +35,16 @@ export interface DigestTemplate {
   whatsapp_intro_text?: string;
   whatsapp_outro_text?: string;
   include_collections?: boolean;
-  collection_configs?: any[];
+  collection_configs?: CollectionConfig[];
   listings_time_filter?: string;
   listings_filter_config?: Record<string, any>;
   section_by_filter?: 'bedrooms' | 'property_type' | null;
   output_format?: 'whatsapp' | 'email';
+  use_global_header?: boolean;
+  use_global_footer?: boolean;
+  custom_header_override?: string;
+  custom_footer_override?: string;
+  category?: 'marketing' | 'internal' | 'scheduled' | 'one_time';
   created_by?: string;
   is_default: boolean;
   usage_count: number;
@@ -386,5 +408,239 @@ export const digestService = {
     }
 
     return data || [];
+  },
+
+  // ============================================================================
+  // COLLECTION LINK HELPERS
+  // ============================================================================
+
+  async getCollectionCount(filters: Record<string, any>): Promise<number> {
+    try {
+      let query = supabase
+        .from('listings')
+        .select('*', { count: 'exact', head: true })
+        .eq('approved', true)
+        .eq('is_active', true);
+
+      // Apply filters
+      if (filters.bedrooms !== undefined) {
+        if (Array.isArray(filters.bedrooms)) {
+          query = query.in('bedrooms', filters.bedrooms);
+        } else {
+          query = query.eq('bedrooms', filters.bedrooms);
+        }
+      }
+
+      if (filters.property_type) {
+        if (Array.isArray(filters.property_type)) {
+          query = query.in('property_type', filters.property_type);
+        } else {
+          query = query.eq('property_type', filters.property_type);
+        }
+      }
+
+      if (filters.price_min !== undefined) {
+        query = query.gte('price', filters.price_min);
+      }
+
+      if (filters.price_max !== undefined) {
+        query = query.lte('price', filters.price_max);
+      }
+
+      if (filters.broker_fee !== undefined) {
+        query = query.eq('broker_fee', filters.broker_fee);
+      }
+
+      if (filters.parking !== undefined) {
+        query = query.eq('parking', filters.parking);
+      }
+
+      if (filters.location) {
+        if (Array.isArray(filters.location)) {
+          query = query.in('location', filters.location);
+        } else {
+          query = query.eq('location', filters.location);
+        }
+      }
+
+      if (filters.neighborhood) {
+        if (Array.isArray(filters.neighborhood)) {
+          query = query.in('neighborhood', filters.neighborhood);
+        } else {
+          query = query.eq('neighborhood', filters.neighborhood);
+        }
+      }
+
+      const { count } = await query;
+      return count || 0;
+    } catch (error) {
+      console.error('Error getting collection count:', error);
+      return 0;
+    }
+  },
+
+  formatCollectionCount(count: number): string {
+    if (count < 10) {
+      return count.toString();
+    }
+    const rounded = Math.round(count / 5) * 5;
+    return `${rounded}+`;
+  },
+
+  formatCollectionCTA(template: string, label: string, count: number): string {
+    const formattedCount = this.formatCollectionCount(count);
+    return template
+      .replace('{count}', formattedCount)
+      .replace('{label}', label);
+  },
+
+  // ============================================================================
+  // LISTING GROUP HELPERS
+  // ============================================================================
+
+  async fetchListingsByGroup(group: ListingGroup): Promise<any[]> {
+    try {
+      let query = supabase
+        .from('listings')
+        .select(`
+          *,
+          owner:profiles!listings_user_id_fkey(full_name, agency),
+          short_url:short_urls!short_urls_listing_id_fkey(code)
+        `)
+        .eq('approved', true)
+        .eq('is_active', true);
+
+      // Apply time filter
+      if (group.time_filter && group.time_filter !== 'all') {
+        const hours = {
+          '24h': 24,
+          '48h': 48,
+          '3d': 72,
+          '7d': 168,
+          '14d': 336,
+          '30d': 720
+        }[group.time_filter] || 0;
+
+        if (hours > 0) {
+          const cutoffDate = new Date();
+          cutoffDate.setHours(cutoffDate.getHours() - hours);
+          query = query.gte('created_at', cutoffDate.toISOString());
+        }
+      }
+
+      // Apply filters
+      const filters = group.filters;
+
+      if (filters.bedrooms !== undefined) {
+        if (Array.isArray(filters.bedrooms)) {
+          query = query.in('bedrooms', filters.bedrooms);
+        } else {
+          query = query.eq('bedrooms', filters.bedrooms);
+        }
+      }
+
+      if (filters.property_type) {
+        if (Array.isArray(filters.property_type)) {
+          query = query.in('property_type', filters.property_type);
+        } else {
+          query = query.eq('property_type', filters.property_type);
+        }
+      }
+
+      if (filters.price_min !== undefined) {
+        query = query.gte('price', filters.price_min);
+      }
+
+      if (filters.price_max !== undefined) {
+        query = query.lte('price', filters.price_max);
+      }
+
+      if (filters.broker_fee !== undefined) {
+        query = query.eq('broker_fee', filters.broker_fee);
+      }
+
+      if (filters.parking !== undefined && filters.parking !== null && filters.parking !== '') {
+        query = query.eq('parking', filters.parking);
+      }
+
+      if (filters.location) {
+        if (Array.isArray(filters.location)) {
+          query = query.in('location', filters.location);
+        } else {
+          query = query.eq('location', filters.location);
+        }
+      }
+
+      if (filters.neighborhood) {
+        if (Array.isArray(filters.neighborhood)) {
+          query = query.in('neighborhood', filters.neighborhood);
+        } else {
+          query = query.eq('neighborhood', filters.neighborhood);
+        }
+      }
+
+      // Order by newest first and limit
+      query = query.order('created_at', { ascending: false });
+      query = query.limit(group.limit || 20);
+
+      const { data, error } = await query;
+
+      if (error) throw error;
+
+      return data || [];
+    } catch (error) {
+      console.error('Error fetching listings by group:', error);
+      return [];
+    }
+  },
+
+  // ============================================================================
+  // VALIDATION HELPERS
+  // ============================================================================
+
+  validateCollectionConfigs(configs: CollectionConfig[]): { valid: boolean; errors: string[] } {
+    const errors: string[] = [];
+
+    if (configs.length > 20) {
+      errors.push('Maximum 20 collection links allowed');
+    }
+
+    configs.forEach((config, index) => {
+      if (!config.label || config.label.trim() === '') {
+        errors.push(`Collection ${index + 1}: Label is required`);
+      }
+      if (!config.cta_format || config.cta_format.trim() === '') {
+        errors.push(`Collection ${index + 1}: CTA format is required`);
+      }
+      if (!config.filters || Object.keys(config.filters).length === 0) {
+        errors.push(`Collection ${index + 1}: At least one filter is required`);
+      }
+    });
+
+    return {
+      valid: errors.length === 0,
+      errors
+    };
+  },
+
+  validateListingGroups(groups: ListingGroup[]): { valid: boolean; errors: string[] } {
+    const errors: string[] = [];
+
+    groups.forEach((group, index) => {
+      if (!group.limit || group.limit < 1) {
+        errors.push(`Group ${index + 1}: Limit must be at least 1`);
+      }
+      if (group.limit > 50) {
+        errors.push(`Group ${index + 1}: Limit cannot exceed 50`);
+      }
+      if (!group.filters || Object.keys(group.filters).length === 0) {
+        errors.push(`Group ${index + 1}: At least one filter is required`);
+      }
+    });
+
+    return {
+      valid: errors.length === 0,
+      errors
+    };
   },
 };

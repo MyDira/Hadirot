@@ -2,9 +2,11 @@ import React from 'react';
 import { Plus, Trash2, ChevronUp, ChevronDown } from 'lucide-react';
 
 export interface CollectionConfig {
+  id: string;
   enabled: boolean;
   label: string;
   filters: Record<string, any>;
+  cta_format: string;
   order: number;
 }
 
@@ -15,15 +17,17 @@ interface CollectionConfigEditorProps {
 
 export function CollectionConfigEditor({ collections, onChange }: CollectionConfigEditorProps) {
   const handleAddCollection = () => {
-    if (collections.length >= 3) {
-      alert('Maximum of 3 collections allowed');
+    if (collections.length >= 20) {
+      alert('Maximum of 20 collections allowed');
       return;
     }
 
     const newCollection: CollectionConfig = {
+      id: `collection-${Date.now()}`,
       enabled: true,
-      label: 'All Active Apartments',
+      label: '2 bedroom apartments',
       filters: {},
+      cta_format: 'Click here to see all {count}+ of our {label}',
       order: collections.length
     };
 
@@ -44,6 +48,12 @@ export function CollectionConfigEditor({ collections, onChange }: CollectionConf
   const handleUpdateLabel = (index: number, label: string) => {
     const updated = [...collections];
     updated[index] = { ...updated[index], label };
+    onChange(updated);
+  };
+
+  const handleUpdateCTAFormat = (index: number, cta_format: string) => {
+    const updated = [...collections];
+    updated[index] = { ...updated[index], cta_format };
     onChange(updated);
   };
 
@@ -132,15 +142,32 @@ export function CollectionConfigEditor({ collections, onChange }: CollectionConf
           <div className="space-y-3">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Collection Title
+                Collection Label
               </label>
               <input
                 type="text"
                 value={collection.label}
                 onChange={(e) => handleUpdateLabel(index, e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                placeholder="e.g., Two-Bedroom Apartments"
+                placeholder="e.g., 2 bedroom apartments"
               />
+              <p className="text-xs text-gray-500 mt-1">Used in the CTA as the {'{label}'} variable</p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Call-to-Action Format
+              </label>
+              <input
+                type="text"
+                value={collection.cta_format || 'Click here to see all {count}+ of our {label}'}
+                onChange={(e) => handleUpdateCTAFormat(index, e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                placeholder="Click here to see all {count}+ of our {label}"
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                Use {'{count}'} for listing count and {'{label}'} for the label above
+              </p>
             </div>
 
             <div className="grid grid-cols-2 gap-3">
@@ -240,16 +267,19 @@ export function CollectionConfigEditor({ collections, onChange }: CollectionConf
         </div>
       ))}
 
-      {collections.length < 3 && (
-        <button
-          type="button"
-          onClick={handleAddCollection}
-          className="w-full flex items-center justify-center px-4 py-3 border-2 border-dashed border-gray-300 rounded-lg text-gray-600 hover:border-blue-400 hover:text-blue-600 transition-colors"
-        >
-          <Plus className="w-5 h-5 mr-2" />
-          Add Collection ({collections.length}/3)
-        </button>
-      )}
+      <button
+        type="button"
+        onClick={handleAddCollection}
+        disabled={collections.length >= 20}
+        className={`w-full flex items-center justify-center px-4 py-3 border-2 border-dashed rounded-lg transition-colors ${
+          collections.length >= 20
+            ? 'border-gray-200 text-gray-400 cursor-not-allowed'
+            : 'border-gray-300 text-gray-600 hover:border-blue-400 hover:text-blue-600'
+        }`}
+      >
+        <Plus className="w-5 h-5 mr-2" />
+        Add Collection ({collections.length}/20)
+      </button>
     </div>
   );
 }

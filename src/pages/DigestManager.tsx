@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Mail, Save, Eye, Send, Copy, Plus, Edit2, Trash2, ChevronDown, ChevronUp, Check } from 'lucide-react';
+import { Mail, Save, Eye, Send, Copy, Plus, Edit2, Trash2, ChevronDown, ChevronUp, Check, Settings as SettingsIcon } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
-import { digestService, DigestTemplate } from '@/services/digest';
+import { digestService, DigestTemplate, CollectionConfig, ListingGroup } from '@/services/digest';
 import { WhatsAppFormatter, CollectionLink, FormattedListing } from '@/utils/whatsappFormatter';
 import { supabase, Listing } from '@/config/supabase';
-import { CollectionConfigEditor, CollectionConfig } from '@/components/admin/CollectionConfigEditor';
-import { ListingFilterConfig } from '@/components/admin/ListingFilterConfig';
+import { CollectionConfigEditor } from '@/components/admin/CollectionConfigEditor';
+import { ListingGroupsBuilder } from '@/components/admin/ListingGroupsBuilder';
+import { digestGlobalSettingsService } from '@/services/digestGlobalSettings';
 
 export function DigestManager() {
   const { profile } = useAuth();
@@ -18,15 +19,19 @@ export function DigestManager() {
   const [currentTemplate, setCurrentTemplate] = useState<Partial<DigestTemplate>>({
     name: 'New WhatsApp Digest',
     template_type: 'custom_query',
-    whatsapp_intro_text: 'Here are the latest apartments posted on Hadirot:',
-    whatsapp_outro_text: 'Join the Hadirot WhatsApp Community:\nhttps://chat.whatsapp.com/C3qmgo7DNOI63OE0RAZRgt',
+    use_global_header: true,
+    use_global_footer: true,
+    custom_header_override: '',
+    custom_footer_override: '',
     include_collections: false,
     collection_configs: [],
-    listings_time_filter: 'all',
-    listings_filter_config: {},
     section_by_filter: null,
-    output_format: 'whatsapp'
+    output_format: 'whatsapp',
+    category: 'marketing'
   });
+
+  // Listing groups state (replaces old listings_filter_config)
+  const [listingGroups, setListingGroups] = useState<ListingGroup[]>([]);
 
   // UI state
   const [loading, setLoading] = useState(true);
@@ -541,13 +546,24 @@ export function DigestManager() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 flex items-center">
-            <Mail className="w-8 h-8 mr-3 text-blue-600" />
-            WhatsApp Digest Manager
-          </h1>
-          <p className="mt-2 text-gray-600">
-            Create and manage WhatsApp-formatted digest messages for admins
-          </p>
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900 flex items-center">
+                <Mail className="w-8 h-8 mr-3 text-blue-600" />
+                WhatsApp Digest Manager
+              </h1>
+              <p className="mt-2 text-gray-600">
+                Create and manage WhatsApp-formatted digest messages for admins
+              </p>
+            </div>
+            <button
+              onClick={() => navigate('/admin/digest-settings')}
+              className="flex items-center px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+            >
+              <SettingsIcon className="w-4 h-4 mr-2" />
+              Global Settings
+            </button>
+          </div>
         </div>
 
         {/* Toast */}
