@@ -103,15 +103,17 @@ export function DigestManager() {
       setCurrentTemplate({
         name: 'New WhatsApp Digest',
         template_type: 'custom_query',
-        whatsapp_intro_text: 'Here are the latest apartments posted on Hadirot:',
-        whatsapp_outro_text: 'Join the Hadirot WhatsApp Community:\nhttps://chat.whatsapp.com/C3qmgo7DNOI63OE0RAZRgt',
+        use_global_header: true,
+        use_global_footer: true,
+        custom_header_override: '',
+        custom_footer_override: '',
         include_collections: false,
         collection_configs: [],
-        listings_time_filter: 'all',
-        listings_filter_config: {},
         section_by_filter: null,
-        output_format: 'whatsapp'
+        output_format: 'whatsapp',
+        category: 'marketing'
       });
+      setListingGroups([]);
       return;
     }
 
@@ -120,6 +122,14 @@ export function DigestManager() {
       if (template) {
         setSelectedTemplateId(templateId);
         setCurrentTemplate(template);
+
+        // Extract listing groups from listings_filter_config if it exists
+        if (template.listings_filter_config && typeof template.listings_filter_config === 'object') {
+          const groups = (template.listings_filter_config as any).groups || [];
+          setListingGroups(groups);
+        } else {
+          setListingGroups([]);
+        }
       }
     } catch (error) {
       console.error('Error loading template:', error);
@@ -135,13 +145,21 @@ export function DigestManager() {
 
     setSaving(true);
     try {
+      // Prepare template data with listing groups
+      const templateData = {
+        ...currentTemplate,
+        listings_filter_config: {
+          groups: listingGroups
+        }
+      };
+
       if (selectedTemplateId) {
         // Update existing
-        await digestService.updateTemplate(selectedTemplateId, currentTemplate);
+        await digestService.updateTemplate(selectedTemplateId, templateData);
         setToast({ message: 'Template updated successfully', tone: 'success' });
       } else {
         // Create new
-        const newTemplate = await digestService.createTemplate(currentTemplate);
+        const newTemplate = await digestService.createTemplate(templateData);
         setSelectedTemplateId(newTemplate.id);
         setToast({ message: 'Template created successfully', tone: 'success' });
       }
@@ -219,6 +237,18 @@ export function DigestManager() {
   const handleGeneratePreview = async () => {
     setGenerating(true);
     try {
+      // Get global settings for header/footer
+      const globalSettings = await digestGlobalSettingsService.getSettings();
+
+      // Determine header and footer text
+      const headerText = currentTemplate.use_global_header
+        ? globalSettings.default_header_text
+        : (currentTemplate.custom_header_override || '');
+
+      const footerText = currentTemplate.use_global_footer
+        ? globalSettings.default_footer_text
+        : (currentTemplate.custom_footer_override || '');
+
       // Fetch collections data if enabled
       let collections: CollectionLink[] = [];
       if (currentTemplate.include_collections && currentTemplate.collection_configs) {
@@ -226,11 +256,16 @@ export function DigestManager() {
           (currentTemplate.collection_configs as CollectionConfig[])
             .filter(c => c.enabled)
             .map(async (config) => {
-              const count = await getListingCount(config.filters);
+              const count = await digestService.getCollectionCount(config.filters);
               const fullUrl = generateBrowseUrl(config.filters);
               const shortUrl = await createShortUrlForCollection(fullUrl);
+              const ctaText = digestService.formatCollectionCTA(
+                config.cta_format || 'Click here to see all {count}+ of our {label}',
+                config.label,
+                count
+              );
               return {
-                label: config.label,
+                label: ctaText,
                 count,
                 url: shortUrl,
                 enabled: true
@@ -239,39 +274,37 @@ export function DigestManager() {
         );
       }
 
-      // Fetch listings - always fetch but apply filters
+      // Fetch listings using listing groups
       let listings: FormattedListing[] = [];
-      const timeFilter = currentTemplate.listings_time_filter || 'all';
-      const filterConfig = currentTemplate.listings_filter_config || {};
+      if (listingGroups.length > 0) {
+        const enabledGroups = listingGroups.filter(g => g.enabled);
 
-      // Only fetch if there's an actual time filter or other filters configured
-      const hasActiveFilters = timeFilter !== 'all' || Object.keys(filterConfig).some(
-        key => filterConfig[key] !== undefined && filterConfig[key] !== null && filterConfig[key] !== ''
-      );
+        for (const group of enabledGroups) {
+          const groupListings = await digestService.fetchListingsByGroup(group);
 
-      if (hasActiveFilters) {
-        const listingsData = await fetchListings(timeFilter, filterConfig);
+          // Format each listing
+          const formattedGroupListings = await Promise.all(
+            groupListings.map(async (listing) => {
+              const shortCode = (listing as any).short_url?.code;
+              return WhatsAppFormatter.formatListingData(
+                listing,
+                shortCode,
+                null
+              );
+            })
+          );
 
-        // Create short URLs for all listings
-        listings = await Promise.all(
-          listingsData.map(async (listing) => {
-            const shortCode = (listing as any).short_url?.[0]?.code;
-            return WhatsAppFormatter.formatListingData(
-              listing,
-              shortCode,
-              currentTemplate.section_by_filter as any
-            );
-          })
-        );
+          listings.push(...formattedGroupListings);
+        }
       }
 
       // Generate preview text
       const previewOutput = WhatsAppFormatter.formatDigest({
-        introText: currentTemplate.whatsapp_intro_text || '',
-        outroText: currentTemplate.whatsapp_outro_text || '',
+        introText: headerText,
+        outroText: footerText,
         collections: collections.length > 0 ? collections : undefined,
         listings: listings.length > 0 ? listings : undefined,
-        sectionByFilter: currentTemplate.section_by_filter as any
+        sectionByFilter: null
       });
 
       setPreviewText(previewOutput);
@@ -664,17 +697,34 @@ export function DigestManager() {
               </button>
 
               {expandedSections.intro && (
-                <div className="px-6 pb-6">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Introduction Text
-                  </label>
-                  <textarea
-                    value={currentTemplate.whatsapp_intro_text || ''}
-                    onChange={(e) => setCurrentTemplate(prev => ({ ...prev, whatsapp_intro_text: e.target.value }))}
-                    rows={2}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    placeholder="Here are the latest apartments posted on Hadirot:"
-                  />
+                <div className="px-6 pb-6 space-y-4">
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="checkbox"
+                      id="use-global-header"
+                      checked={currentTemplate.use_global_header ?? true}
+                      onChange={(e) => setCurrentTemplate(prev => ({ ...prev, use_global_header: e.target.checked }))}
+                      className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                    />
+                    <label htmlFor="use-global-header" className="text-sm font-medium text-gray-700">
+                      Use Global Header (can be changed in Global Settings)
+                    </label>
+                  </div>
+
+                  {!currentTemplate.use_global_header && (
+                    <>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Custom Header Text
+                      </label>
+                      <textarea
+                        value={currentTemplate.custom_header_override || ''}
+                        onChange={(e) => setCurrentTemplate(prev => ({ ...prev, custom_header_override: e.target.value }))}
+                        rows={2}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        placeholder="Here are the latest apartments posted on Hadirot:"
+                      />
+                    </>
+                  )}
                 </div>
               )}
             </div>
@@ -742,13 +792,9 @@ export function DigestManager() {
 
               {expandedSections.listings && (
                 <div className="px-6 pb-6">
-                  <ListingFilterConfig
-                    timeFilter={currentTemplate.listings_time_filter || 'all'}
-                    filterConfig={currentTemplate.listings_filter_config || {}}
-                    sectionBy={currentTemplate.section_by_filter || null}
-                    onTimeFilterChange={(filter) => setCurrentTemplate(prev => ({ ...prev, listings_time_filter: filter }))}
-                    onFilterConfigChange={(config) => setCurrentTemplate(prev => ({ ...prev, listings_filter_config: config }))}
-                    onSectionByChange={(sectionBy) => setCurrentTemplate(prev => ({ ...prev, section_by_filter: sectionBy }))}
+                  <ListingGroupsBuilder
+                    groups={listingGroups}
+                    onChange={setListingGroups}
                   />
                 </div>
               )}
@@ -770,17 +816,34 @@ export function DigestManager() {
               </button>
 
               {expandedSections.outro && (
-                <div className="px-6 pb-6">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Conclusion Text (WhatsApp Link)
-                  </label>
-                  <textarea
-                    value={currentTemplate.whatsapp_outro_text || ''}
-                    onChange={(e) => setCurrentTemplate(prev => ({ ...prev, whatsapp_outro_text: e.target.value }))}
-                    rows={3}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    placeholder="Join the Hadirot WhatsApp Community:&#10;https://chat.whatsapp.com/..."
-                  />
+                <div className="px-6 pb-6 space-y-4">
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="checkbox"
+                      id="use-global-footer"
+                      checked={currentTemplate.use_global_footer ?? true}
+                      onChange={(e) => setCurrentTemplate(prev => ({ ...prev, use_global_footer: e.target.checked }))}
+                      className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                    />
+                    <label htmlFor="use-global-footer" className="text-sm font-medium text-gray-700">
+                      Use Global Footer (can be changed in Global Settings)
+                    </label>
+                  </div>
+
+                  {!currentTemplate.use_global_footer && (
+                    <>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Custom Footer Text (WhatsApp Link)
+                      </label>
+                      <textarea
+                        value={currentTemplate.custom_footer_override || ''}
+                        onChange={(e) => setCurrentTemplate(prev => ({ ...prev, custom_footer_override: e.target.value }))}
+                        rows={3}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        placeholder="Join the Hadirot WhatsApp Community:&#10;https://chat.whatsapp.com/..."
+                      />
+                    </>
+                  )}
                 </div>
               )}
             </div>
