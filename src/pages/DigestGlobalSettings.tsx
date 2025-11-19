@@ -2,13 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Settings, Save, RotateCcw, AlertCircle } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
-import { digestGlobalSettingsService, DigestGlobalSettings } from '@/services/digestGlobalSettings';
+import { digestGlobalSettingsService, DigestGlobalSettings as DigestGlobalSettingsType } from '@/services/digestGlobalSettings';
 
 export function DigestGlobalSettings() {
   const { profile } = useAuth();
   const navigate = useNavigate();
 
-  const [settings, setSettings] = useState<DigestGlobalSettings | null>(null);
+  const [settings, setSettings] = useState<DigestGlobalSettingsType | null>(null);
   const [headerText, setHeaderText] = useState('');
   const [footerText, setFooterText] = useState('');
   const [characterLimit, setCharacterLimit] = useState(4000);
