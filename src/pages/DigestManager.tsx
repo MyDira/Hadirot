@@ -237,8 +237,12 @@ export function DigestManager() {
   const handleGeneratePreview = async () => {
     setGenerating(true);
     try {
+      console.log('Starting preview generation...');
+
       // Get global settings for header/footer
+      console.log('Fetching global settings...');
       const globalSettings = await digestGlobalSettingsService.getSettings();
+      console.log('Global settings:', globalSettings);
 
       // Determine header and footer text
       const headerText = currentTemplate.use_global_header
@@ -249,9 +253,13 @@ export function DigestManager() {
         ? globalSettings.default_footer_text
         : (currentTemplate.custom_footer_override || '');
 
+      console.log('Header text:', headerText);
+      console.log('Footer text:', footerText);
+
       // Fetch collections data if enabled
       let collections: CollectionLink[] = [];
       if (currentTemplate.include_collections && currentTemplate.collection_configs) {
+        console.log('Fetching collections...');
         collections = await Promise.all(
           (currentTemplate.collection_configs as CollectionConfig[])
             .filter(c => c.enabled)
@@ -272,20 +280,28 @@ export function DigestManager() {
               };
             })
         );
+        console.log('Collections:', collections);
       }
 
       // Fetch listings using listing groups
       let listings: FormattedListing[] = [];
       if (listingGroups.length > 0) {
+        console.log('Fetching listings from groups...');
         const enabledGroups = listingGroups.filter(g => g.enabled);
+        console.log('Enabled groups:', enabledGroups.length);
 
         for (const group of enabledGroups) {
+          console.log('Fetching group:', group);
           const groupListings = await digestService.fetchListingsByGroup(group);
+          console.log('Group listings fetched:', groupListings.length);
 
           // Format each listing
           const formattedGroupListings = await Promise.all(
             groupListings.map(async (listing) => {
-              const shortCode = (listing as any).short_url?.code;
+              // short_url is an array from the relationship
+              const shortCode = Array.isArray((listing as any).short_url)
+                ? (listing as any).short_url[0]?.code
+                : (listing as any).short_url?.code;
               return WhatsAppFormatter.formatListingData(
                 listing,
                 shortCode,
@@ -296,9 +312,11 @@ export function DigestManager() {
 
           listings.push(...formattedGroupListings);
         }
+        console.log('Total listings formatted:', listings.length);
       }
 
       // Generate preview text
+      console.log('Generating preview text...');
       const previewOutput = WhatsAppFormatter.formatDigest({
         introText: headerText,
         outroText: footerText,
@@ -306,6 +324,7 @@ export function DigestManager() {
         listings: listings.length > 0 ? listings : undefined,
         sectionByFilter: null
       });
+      console.log('Preview generated successfully');
 
       setPreviewText(previewOutput);
       setPreviewCollections(collections);
@@ -313,7 +332,9 @@ export function DigestManager() {
       setToast({ message: 'Preview generated successfully', tone: 'success' });
     } catch (error) {
       console.error('Error generating preview:', error);
-      setToast({ message: 'Failed to generate preview', tone: 'error' });
+      console.error('Error details:', error instanceof Error ? error.message : 'Unknown error');
+      console.error('Error stack:', error instanceof Error ? error.stack : 'No stack trace');
+      setToast({ message: `Failed to generate preview: ${error instanceof Error ? error.message : 'Unknown error'}`, tone: 'error' });
     } finally {
       setGenerating(false);
     }
