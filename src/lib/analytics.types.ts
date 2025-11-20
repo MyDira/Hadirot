@@ -12,7 +12,8 @@ export type AnalyticsEventName =
   | 'post_started'
   | 'post_submitted'
   | 'post_success'
-  | 'post_abandoned';
+  | 'post_abandoned'
+  | 'post_error';
 
 export interface AnalyticsEventPayload {
   session_id: string;

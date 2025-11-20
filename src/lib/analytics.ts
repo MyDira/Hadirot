@@ -490,6 +490,42 @@ export function trackPostAbandoned(): void {
   }
 }
 
+export function trackPostError(error: unknown, payload?: Record<string, any>): void {
+  const attemptId = safeSessionGet(POST_ATTEMPT_KEY);
+  if (!attemptId) {
+    return;
+  }
+
+  const props: Record<string, unknown> = { attempt_id: attemptId };
+
+  if (error instanceof Error) {
+    props.error_message = error.message;
+    if (error.name) props.error_name = error.name;
+  } else if (typeof error === 'string') {
+    props.error_message = error;
+  } else {
+    props.error_message = String(error);
+  }
+
+  if (payload) {
+    const sanitizedPayload: Record<string, unknown> = {};
+    if (payload.bedrooms !== undefined) sanitizedPayload.bedrooms = payload.bedrooms;
+    if (payload.bathrooms !== undefined) sanitizedPayload.bathrooms = payload.bathrooms;
+    if (payload.property_type) sanitizedPayload.property_type = payload.property_type;
+    if (payload.neighborhood) sanitizedPayload.neighborhood = payload.neighborhood;
+    if (payload.parking) sanitizedPayload.parking = payload.parking;
+    if (payload.lease_length !== undefined) sanitizedPayload.lease_length = payload.lease_length;
+    if (payload.is_featured !== undefined) sanitizedPayload.is_featured = payload.is_featured;
+    if (payload.call_for_price !== undefined) sanitizedPayload.call_for_price = payload.call_for_price;
+    if (payload.price !== undefined && payload.price !== null) sanitizedPayload.has_price = true;
+    if (Object.keys(sanitizedPayload).length > 0) {
+      props.payload = sanitizedPayload;
+    }
+  }
+
+  track('post_error', props);
+}
+
 export function resetPostingState(): void {
   safeSessionRemove(POST_ATTEMPT_KEY);
   safeSessionRemove(POST_ATTEMPT_SESSION_KEY);
@@ -546,6 +582,7 @@ export default {
   trackPostSubmit,
   trackPostSuccess,
   trackPostAbandoned,
+  trackPostError,
   resetPostingState,
   shutdownAnalytics,
 };

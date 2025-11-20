@@ -18,6 +18,7 @@ import {
   trackPostSubmit,
   trackPostSuccess,
   trackPostAbandoned,
+  trackPostError,
   resetPostingState,
 } from "../lib/analytics";
 import {
@@ -762,6 +763,19 @@ export function PostListing() {
       }
     } catch (error) {
       console.error("Error creating listing:", error);
+
+      // Track the error with sanitized payload data
+      trackPostError(error, {
+        bedrooms: formData.bedrooms,
+        bathrooms: formData.bathrooms,
+        property_type: formData.property_type,
+        neighborhood: formData.neighborhood || neighborhoodSelectValue,
+        parking: formData.parking,
+        lease_length: formData.lease_length,
+        is_featured: formData.is_featured,
+        call_for_price: formData.call_for_price,
+        price: formData.price,
+      });
 
       // Show specific error messages based on the error
       let errorMessage = "Failed to create listing. Please try again.";
