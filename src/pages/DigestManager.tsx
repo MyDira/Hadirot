@@ -386,9 +386,8 @@ export function DigestManager() {
 
       const response = await supabase.functions.invoke('send-email', {
         body: {
-          to: 'admin', // Special value that sends to all admins
+          type: 'admin_notification',
           subject: `WhatsApp Digest - ${currentTemplate.name || 'Preview'}`,
-          text: `Here is your WhatsApp digest. Copy the text below and paste it into WhatsApp:\n\n${previewText}`,
           html: `
             <h2>WhatsApp Digest</h2>
             <p>Copy the text below and paste it into WhatsApp:</p>
@@ -404,7 +403,7 @@ export function DigestManager() {
 
       if (response.error) {
         console.error('Email error:', response.error);
-        throw new Error(response.error.message);
+        throw new Error(response.error.message || 'Failed to send email');
       }
 
       // Check if the response data indicates success
@@ -415,11 +414,20 @@ export function DigestManager() {
       }
 
       console.log('Email sent successfully:', data);
+
+      // Calculate recipient count from the response
+      let recipientCount = 1;
+      if (data.to && Array.isArray(data.to)) {
+        recipientCount = data.to.length;
+      } else if (typeof data.recipientCount === 'number') {
+        recipientCount = data.recipientCount;
+      }
+
       setSendResult({
         success: true,
         dry_run: false,
         listingCount: previewListings.length,
-        adminCount: data?.recipientCount || data?.recipients?.length || 1,
+        adminCount: recipientCount,
         message: 'WhatsApp digest sent to admin emails'
       });
       setToast({ message: 'Digest sent to admins successfully!', tone: 'success' });
