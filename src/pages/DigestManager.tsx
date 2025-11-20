@@ -400,16 +400,26 @@ export function DigestManager() {
         },
       });
 
+      console.log('Email response:', response);
+
       if (response.error) {
+        console.error('Email error:', response.error);
         throw new Error(response.error.message);
       }
 
-      console.log('Email sent successfully');
+      // Check if the response data indicates success
+      const data = response.data;
+      if (!data || (data.error && !data.success)) {
+        console.error('Email failed:', data);
+        throw new Error(data?.error || data?.message || 'Failed to send email');
+      }
+
+      console.log('Email sent successfully:', data);
       setSendResult({
         success: true,
         dry_run: false,
         listingCount: previewListings.length,
-        adminCount: response.data?.recipientCount || 1,
+        adminCount: data?.recipientCount || data?.recipients?.length || 1,
         message: 'WhatsApp digest sent to admin emails'
       });
       setToast({ message: 'Digest sent to admins successfully!', tone: 'success' });

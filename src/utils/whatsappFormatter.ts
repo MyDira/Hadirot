@@ -63,12 +63,13 @@ export class WhatsAppFormatter {
 
   /**
    * Format collection links with counts
+   * Note: collection.label should already be the full CTA text with {count} and {label} replaced
    */
   private static formatCollections(collections: CollectionLink[]): string {
     return collections
       .map(collection => {
-        const count = this.formatCount(collection.count);
-        return `*Click here to see ${count} ${collection.label}*\n${collection.url}`;
+        // The label is already the formatted CTA text, just use it as-is
+        return `*${collection.label}*\n${collection.url}`;
       })
       .join('\n\n');
   }
