@@ -340,9 +340,9 @@ export function ListingDetail() {
   const getPropertyTypeLabel = () => {
     switch (listing.property_type) {
       case "apartment_building":
-        return "Apartment in Building";
+        return "Apartment";
       case "apartment_house":
-        return "Apartment in House";
+        return "Apartment";
       case "basement":
         return "Basement";
       case "duplex":
