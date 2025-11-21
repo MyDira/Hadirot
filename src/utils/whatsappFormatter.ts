@@ -234,12 +234,13 @@ export class WhatsAppFormatter {
   }
 
   /**
-   * Format property type for display
+   * Format property type for display in WhatsApp digest
    */
   private static formatPropertyType(type: string): string {
     const typeMap: Record<string, string> = {
-      'apartment': 'Apartment',
-      'house': 'Full House',
+      'apartment_building': 'Apartment',
+      'apartment_house': 'Apartment',
+      'full_house': 'Full House',
       'duplex': 'Duplex',
       'basement': 'Basement',
       'townhouse': 'Townhouse',
