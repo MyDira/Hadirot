@@ -27,7 +27,7 @@ export function CollectionConfigEditor({ collections, onChange }: CollectionConf
       enabled: true,
       label: '2 bedroom apartments',
       filters: {},
-      cta_format: 'Click here to see all {count}+ of our {label}',
+      cta_format: 'Click here to see all {count} of our {label}',
       order: collections.length
     };
 
@@ -160,10 +160,10 @@ export function CollectionConfigEditor({ collections, onChange }: CollectionConf
               </label>
               <input
                 type="text"
-                value={collection.cta_format || 'Click here to see all {count}+ of our {label}'}
+                value={collection.cta_format || 'Click here to see all {count} of our {label}'}
                 onChange={(e) => handleUpdateCTAFormat(index, e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                placeholder="Click here to see all {count}+ of our {label}"
+                placeholder="Click here to see all {count} of our {label}"
               />
               <p className="text-xs text-gray-500 mt-1">
                 Use {'{count}'} for listing count and {'{label}'} for the label above

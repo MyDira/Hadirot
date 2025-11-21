@@ -119,20 +119,27 @@ export function DigestManager() {
 
     try {
       const template = await digestService.getTemplate(templateId);
+      console.log('📋 Loaded template:', template);
+
       if (template) {
         setSelectedTemplateId(templateId);
         setCurrentTemplate(template);
 
         // Extract listing groups from listings_filter_config if it exists
+        console.log('📦 listings_filter_config:', template.listings_filter_config);
+
         if (template.listings_filter_config && typeof template.listings_filter_config === 'object') {
           const groups = (template.listings_filter_config as any).groups || [];
+          console.log('✅ Extracted listing groups:', groups.length, 'groups');
+          console.log('📊 Groups detail:', groups);
           setListingGroups(groups);
         } else {
+          console.log('⚠️ No listing groups found in template');
           setListingGroups([]);
         }
       }
     } catch (error) {
-      console.error('Error loading template:', error);
+      console.error('❌ Error loading template:', error);
       setToast({ message: 'Failed to load template', tone: 'error' });
     }
   };
@@ -208,8 +215,10 @@ export function DigestManager() {
 
   const createShortUrlForCollection = async (fullUrl: string): Promise<string> => {
     try {
+      console.log('🔗 Creating short URL for:', fullUrl);
       const urlObj = new URL(fullUrl);
       const shortCode = Math.random().toString(36).substring(2, 8);
+      console.log('🎲 Generated short code:', shortCode);
 
       const { data, error } = await supabase
         .from('short_urls')
@@ -223,13 +232,17 @@ export function DigestManager() {
         .single();
 
       if (error) {
-        console.warn('Failed to create short URL:', error);
+        console.error('❌ Failed to create short URL:', error);
+        console.warn('⚠️ Falling back to full URL');
         return fullUrl;
       }
 
-      return `https://hadirot.com/l/${data.short_code}`;
+      const shortUrl = `https://hadirot.com/l/${data.short_code}`;
+      console.log('✅ Short URL created successfully:', shortUrl);
+      return shortUrl;
     } catch (error) {
-      console.warn('Error creating short URL:', error);
+      console.error('❌ Error creating short URL:', error);
+      console.warn('⚠️ Falling back to full URL');
       return fullUrl;
     }
   };
@@ -259,19 +272,29 @@ export function DigestManager() {
       // Fetch collections data if enabled
       let collections: CollectionLink[] = [];
       if (currentTemplate.include_collections && currentTemplate.collection_configs) {
-        console.log('Fetching collections...');
+        console.log('📦 Fetching collections...');
+        const enabledCollections = (currentTemplate.collection_configs as CollectionConfig[]).filter(c => c.enabled);
+        console.log(`📊 ${enabledCollections.length} enabled collections found`);
+
         collections = await Promise.all(
-          (currentTemplate.collection_configs as CollectionConfig[])
-            .filter(c => c.enabled)
-            .map(async (config) => {
+          enabledCollections.map(async (config, idx) => {
+              console.log(`\n🔗 Processing collection ${idx + 1}:`, config.label);
               const count = await digestService.getCollectionCount(config.filters);
+              console.log(`📊 Collection count: ${count}`);
+
               const fullUrl = generateBrowseUrl(config.filters);
+              console.log(`🔗 Full URL: ${fullUrl}`);
+
               const shortUrl = await createShortUrlForCollection(fullUrl);
+              console.log(`✂️ Short URL: ${shortUrl}`);
+
               const ctaText = digestService.formatCollectionCTA(
-                config.cta_format || 'Click here to see all {count}+ of our {label}',
+                config.cta_format || 'Click here to see all {count} of our {label}',
                 config.label,
                 count
               );
+              console.log(`📝 CTA text: ${ctaText}`);
+
               return {
                 label: ctaText,
                 count,
@@ -280,20 +303,33 @@ export function DigestManager() {
               };
             })
         );
-        console.log('Collections:', collections);
+        console.log('✅ Collections processed:', collections.length);
       }
 
       // Fetch listings using listing groups
       let listings: FormattedListing[] = [];
-      if (listingGroups.length > 0) {
-        console.log('Fetching listings from groups...');
-        const enabledGroups = listingGroups.filter(g => g.enabled);
-        console.log('Enabled groups:', enabledGroups.length);
+      console.log('📋 Current listing groups state:', listingGroups);
+      console.log('📊 Number of listing groups:', listingGroups.length);
 
-        for (const group of enabledGroups) {
-          console.log('Fetching group:', group);
+      if (listingGroups.length > 0) {
+        console.log('✅ Fetching listings from groups...');
+        const enabledGroups = listingGroups.filter(g => g.enabled);
+        console.log('✅ Enabled groups:', enabledGroups.length);
+        console.log('📝 Enabled groups details:', enabledGroups);
+
+        for (const [index, group] of enabledGroups.entries()) {
+          console.log(`\n🔍 Processing group ${index + 1}/${enabledGroups.length}:`, {
+            limit: group.limit,
+            time_filter: group.time_filter,
+            filters: group.filters
+          });
+
           const groupListings = await digestService.fetchListingsByGroup(group);
-          console.log('Group listings fetched:', groupListings.length);
+          console.log(`✅ Group ${index + 1} fetched ${groupListings.length} listings`);
+
+          if (groupListings.length > 0) {
+            console.log('📄 Sample listing:', groupListings[0]);
+          }
 
           // Format each listing
           const formattedGroupListings = await Promise.all(
@@ -310,9 +346,12 @@ export function DigestManager() {
             })
           );
 
+          console.log(`✅ Group ${index + 1} formatted ${formattedGroupListings.length} listings`);
           listings.push(...formattedGroupListings);
         }
-        console.log('Total listings formatted:', listings.length);
+        console.log('🎉 Total listings formatted:', listings.length);
+      } else {
+        console.warn('⚠️ No listing groups configured or all groups are disabled');
       }
 
       // Generate preview text
