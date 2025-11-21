@@ -408,6 +408,7 @@ function getPropertyTypeDisplay(propertyType: string): string {
   if (propertyType === "basement") return "Basement";
   if (propertyType === "full_house") return "Full House";
   if (propertyType === "duplex") return "Duplex";
+  if (propertyType === "apartment_in_building" || propertyType === "apartment_in_house") return "Apartment";
   return "";
 }
 
