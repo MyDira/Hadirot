@@ -336,8 +336,8 @@ export function DigestManager() {
             groupListings.map(async (listing) => {
               // short_url is an array from the relationship
               const shortCode = Array.isArray((listing as any).short_url)
-                ? (listing as any).short_url[0]?.code
-                : (listing as any).short_url?.code;
+                ? (listing as any).short_url[0]?.short_code
+                : (listing as any).short_url?.short_code;
               return WhatsAppFormatter.formatListingData(
                 listing,
                 shortCode,
@@ -546,7 +546,7 @@ export function DigestManager() {
         .select(`
           *,
           owner:profiles!listings_user_id_fkey(full_name, agency),
-          short_url:short_urls!short_urls_listing_id_fkey(code)
+          short_url:short_urls!short_urls_listing_id_fkey(short_code)
         `)
         .eq('approved', true)
         .eq('is_active', true);
@@ -628,7 +628,7 @@ export function DigestManager() {
       // Map short_url to short_url_code
       return (data || []).map(listing => ({
         ...listing,
-        short_url_code: (listing as any).short_url?.[0]?.code
+        short_url_code: (listing as any).short_url?.[0]?.short_code
       }));
     } catch (error) {
       console.error('Error fetching listings:', error);

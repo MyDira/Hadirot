@@ -505,7 +505,7 @@ export const digestService = {
         .select(`
           *,
           owner:profiles!listings_user_id_fkey(full_name, agency),
-          short_url:short_urls!short_urls_listing_id_fkey(code)
+          short_url:short_urls!short_urls_listing_id_fkey(short_code)
         `)
         .eq('approved', true)
         .eq('is_active', true);
