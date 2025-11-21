@@ -208,13 +208,15 @@ export function ListingFilterConfig({
             Parking
           </label>
           <select
-            value={filterConfig.parking === undefined ? '' : filterConfig.parking.toString()}
-            onChange={(e) => handleFilterChange('parking', e.target.value === '' ? undefined : e.target.value === 'true')}
+            value={filterConfig.parking || ''}
+            onChange={(e) => handleFilterChange('parking', e.target.value || undefined)}
             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
           >
             <option value="">Any</option>
-            <option value="true">With Parking</option>
-            <option value="false">No Parking</option>
+            <option value="yes">Yes (Separate)</option>
+            <option value="included">Included</option>
+            <option value="optional">Optional</option>
+            <option value="no">No Parking</option>
           </select>
         </div>
       </div>

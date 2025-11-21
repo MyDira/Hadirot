@@ -261,13 +261,15 @@ export function ListingGroupsBuilder({ groups, onChange }: ListingGroupsBuilderP
                     Parking
                   </label>
                   <select
-                    value={group.filters.parking === undefined ? '' : group.filters.parking.toString()}
-                    onChange={(e) => handleUpdateFilter(index, 'parking', e.target.value === '' ? undefined : e.target.value === 'true')}
+                    value={group.filters.parking || ''}
+                    onChange={(e) => handleUpdateFilter(index, 'parking', e.target.value || undefined)}
                     className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   >
                     <option value="">Any</option>
-                    <option value="true">With Parking</option>
-                    <option value="false">No Parking</option>
+                    <option value="yes">Yes (Separate)</option>
+                    <option value="included">Included</option>
+                    <option value="optional">Optional</option>
+                    <option value="no">No Parking</option>
                   </select>
                 </div>
               </div>
