@@ -595,6 +595,65 @@ export const digestService = {
   },
 
   // ============================================================================
+  // SHORT URL HELPERS
+  // ============================================================================
+
+  async createShortUrlForListing(listingId: string, source: string = 'whatsapp_digest'): Promise<string | null> {
+    try {
+      const siteUrl = typeof window !== 'undefined' ? window.location.origin : 'https://hadirot.com';
+      const originalUrl = `${siteUrl}/listing/${listingId}`;
+
+      const { data: shortCode, error } = await supabase.rpc('create_short_url', {
+        p_listing_id: listingId,
+        p_original_url: originalUrl,
+        p_source: source,
+        p_expires_days: 90
+      });
+
+      if (error) {
+        console.error('Error creating short URL:', error);
+        return null;
+      }
+
+      return shortCode as string;
+    } catch (error) {
+      console.error('Exception creating short URL:', error);
+      return null;
+    }
+  },
+
+  async ensureListingsHaveShortUrls(listings: any[], source: string = 'whatsapp_digest'): Promise<any[]> {
+    const listingsWithShortUrls = await Promise.all(
+      listings.map(async (listing) => {
+        // Check if listing already has a short_url
+        let shortCode = null;
+
+        if (listing.short_url) {
+          // short_url might be an array or object from the relationship
+          if (Array.isArray(listing.short_url) && listing.short_url.length > 0) {
+            shortCode = listing.short_url[0]?.short_code;
+          } else if (typeof listing.short_url === 'object') {
+            shortCode = listing.short_url.short_code;
+          }
+        }
+
+        // If no short URL exists, create one
+        if (!shortCode) {
+          shortCode = await this.createShortUrlForListing(listing.id, source);
+        }
+
+        // Return listing with short_code attached
+        return {
+          ...listing,
+          short_code: shortCode
+        };
+      })
+    );
+
+    return listingsWithShortUrls;
+  },
+
+  // ============================================================================
   // VALIDATION HELPERS
   // ============================================================================
 

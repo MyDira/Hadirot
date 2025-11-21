@@ -331,20 +331,21 @@ export function DigestManager() {
             console.log('📄 Sample listing:', groupListings[0]);
           }
 
-          // Format each listing
-          const formattedGroupListings = await Promise.all(
-            groupListings.map(async (listing) => {
-              // short_url is an array from the relationship
-              const shortCode = Array.isArray((listing as any).short_url)
-                ? (listing as any).short_url[0]?.short_code
-                : (listing as any).short_url?.short_code;
-              return WhatsAppFormatter.formatListingData(
-                listing,
-                shortCode,
-                null
-              );
-            })
+          // Ensure all listings have short URLs
+          const listingsWithShortUrls = await digestService.ensureListingsHaveShortUrls(
+            groupListings,
+            'whatsapp_digest'
           );
+          console.log(`✅ Group ${index + 1} ensured short URLs for ${listingsWithShortUrls.length} listings`);
+
+          // Format each listing
+          const formattedGroupListings = listingsWithShortUrls.map((listing) => {
+            return WhatsAppFormatter.formatListingData(
+              listing,
+              listing.short_code,
+              null
+            );
+          });
 
           console.log(`✅ Group ${index + 1} formatted ${formattedGroupListings.length} listings`);
           listings.push(...formattedGroupListings);
