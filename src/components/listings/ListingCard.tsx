@@ -128,11 +128,6 @@ export function ListingCard({
 
         {/* Property type and lease length badges - bottom right */}
         <div className="absolute bottom-3 right-3 flex flex-col gap-2">
-          {(listing.property_type === "apartment_building" || listing.property_type === "apartment_house") && (
-            <div className="rounded-full bg-black/35 px-3 py-1 text-xs font-medium text-white backdrop-blur-sm">
-              Apartment
-            </div>
-          )}
           {listing.property_type === "basement" && (
             <div className="rounded-full bg-black/35 px-3 py-1 text-xs font-medium text-white backdrop-blur-sm">
               Basement

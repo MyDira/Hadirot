@@ -379,9 +379,8 @@ export const emailService = {
         : "Not specified";
 
     const propertyTypeLabels: Record<string, string> = {
-      apartment_building: "Apartment",
-      apartment_house: "Apartment",
-      basement: "Basement",
+      apartment_building: "Apartment in Building",
+      apartment_house: "Apartment in House",
       duplex: "Duplex",
       full_house: "Full House",
     };

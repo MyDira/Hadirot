@@ -164,24 +164,9 @@ export default function ImageCarousel({
 
         {/* Property type and lease length badges - bottom right */}
         <div className="absolute bottom-4 right-4 flex flex-col gap-2">
-          {(propertyType === "apartment_building" || propertyType === "apartment_house") && (
-            <div className="rounded-full bg-black/35 px-3 py-1 text-sm font-medium text-white backdrop-blur-sm">
-              Apartment
-            </div>
-          )}
-          {propertyType === "basement" && (
-            <div className="rounded-full bg-black/35 px-3 py-1 text-sm font-medium text-white backdrop-blur-sm">
-              Basement
-            </div>
-          )}
           {propertyType === "full_house" && (
             <div className="rounded-full bg-black/35 px-3 py-1 text-sm font-medium text-white backdrop-blur-sm">
               Full House
-            </div>
-          )}
-          {propertyType === "duplex" && (
-            <div className="rounded-full bg-black/35 px-3 py-1 text-sm font-medium text-white backdrop-blur-sm">
-              Duplex
             </div>
           )}
           {leaseLength === "short_term" && (
