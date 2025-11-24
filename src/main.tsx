@@ -14,9 +14,6 @@ Sentry.init({
   enableLogs: true
 });
 
-const container = document.getElementById("app");
-const root = createRoot(container);
-root.render(<App />);
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
