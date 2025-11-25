@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { Upload, X, Star, ArrowLeft, Save } from "lucide-react";
+import * as Sentry from "@sentry/react";
 import { useAuth } from "@/hooks/useAuth";
 import { listingsService } from "../services/listings";
 import { emailService } from "../services/email";
@@ -641,6 +642,43 @@ export function EditListing() {
     } catch (error) {
       console.error("Error updating listing:", error);
 
+      // Capture error in Sentry with full context
+      Sentry.captureException(error, {
+        tags: {
+          error_source: 'listing_update',
+          error_type: error instanceof Error && error.message.includes('constraint') ? 'database_constraint' : 'listing_update_failed',
+          has_constraint_violation: error instanceof Error && error.message.includes('check constraint') ? 'true' : 'false',
+          listing_id: id,
+        },
+        contexts: {
+          form_data: {
+            bedrooms: formData.bedrooms,
+            additional_rooms: formData.additional_rooms,
+            bathrooms: formData.bathrooms,
+            property_type: formData.property_type,
+            neighborhood: formData.neighborhood,
+            parking: formData.parking,
+            lease_length: formData.lease_length,
+            is_featured: formData.is_featured,
+            call_for_price: formData.call_for_price,
+            has_price: formData.price !== null,
+            ac_type: formData.ac_type,
+            has_apartment_conditions: formData.apartment_conditions.length > 0,
+          },
+          user_context: {
+            user_role: userRole,
+            is_owner: listing?.user_id === user?.id,
+          },
+        },
+        extra: {
+          error_details: error instanceof Error ? {
+            message: error.message,
+            name: error.name,
+          } : { raw_error: String(error) },
+          listing_id: id,
+        },
+      });
+
       // Show specific error messages based on the error
       let errorMessage = "Failed to update listing. Please try again.";
       if (error instanceof Error) {
@@ -651,6 +689,8 @@ export function EditListing() {
           errorMessage = error.message;
         } else if (error.message.includes("You can only feature")) {
           errorMessage = error.message;
+        } else if (error.message.includes("check constraint") || error.message.includes("constraint")) {
+          errorMessage = "There was an issue with the listing data. Please check all fields and try again.";
         }
       }
 

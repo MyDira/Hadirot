@@ -1,6 +1,7 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, useLocation, Navigate } from 'react-router-dom';
 import { Layout } from './components/shared/Layout';
+import { ErrorBoundary } from './components/shared/ErrorBoundary';
 import { Home } from './pages/Home';
 import { BrowseListings } from './pages/BrowseListings';
 import { AuthForm } from './components/auth/AuthForm';
@@ -57,12 +58,13 @@ function ShouldMountSmoke() {
 
 function App() {
   const { user } = useAuth();
-  
+
   return (
-    <Router>
-      <ShouldMountSmoke />
-      <ScrollToTop />
-      <Routes>
+    <ErrorBoundary>
+      <Router>
+        <ShouldMountSmoke />
+        <ScrollToTop />
+        <Routes>
         <Route
           path="/*"
           element={
@@ -114,6 +116,7 @@ function App() {
         />
       </Routes>
     </Router>
+    </ErrorBoundary>
   );
 }
 

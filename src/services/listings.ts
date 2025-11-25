@@ -1,3 +1,4 @@
+import * as Sentry from '@sentry/react';
 import { supabase, Listing } from '../config/supabase';
 import { capitalizeName } from '../utils/formatters';
 
@@ -362,7 +363,24 @@ export const listingsService = {
       .select()
       .single();
 
-    if (error) throw error;
+    if (error) {
+      // Capture database errors in Sentry
+      Sentry.captureException(error, {
+        tags: {
+          service: 'listings',
+          operation: 'create',
+          error_type: 'database_error',
+        },
+        extra: {
+          listing_data: {
+            bedrooms: data.bedrooms,
+            property_type: data.property_type,
+            is_featured: data.is_featured,
+          },
+        },
+      });
+      throw error;
+    }
     return result;
   },
 
@@ -467,7 +485,26 @@ export const listingsService = {
       .select()
       .single();
 
-    if (error) throw error;
+    if (error) {
+      // Capture database errors in Sentry
+      Sentry.captureException(error, {
+        tags: {
+          service: 'listings',
+          operation: 'update',
+          error_type: 'database_error',
+          listing_id: id,
+        },
+        extra: {
+          listing_id: id,
+          update_data: {
+            bedrooms: data.bedrooms,
+            property_type: data.property_type,
+            is_featured: data.is_featured,
+          },
+        },
+      });
+      throw error;
+    }
 
     console.log('[WEB] approval flip check', { wasApproved: currentListing?.approved, nowApproved: payload?.approved });
     const justApproved =

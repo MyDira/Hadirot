@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Upload, X, Star } from "lucide-react";
+import * as Sentry from "@sentry/react";
 import { useAuth } from "@/hooks/useAuth";
 import { listingsService } from "../services/listings";
 import { emailService, renderBrandEmail } from "../services/email";
@@ -764,6 +765,41 @@ export function PostListing() {
     } catch (error) {
       console.error("Error creating listing:", error);
 
+      // Capture error in Sentry with full context
+      Sentry.captureException(error, {
+        tags: {
+          error_source: 'listing_creation',
+          error_type: error instanceof Error && error.message.includes('constraint') ? 'database_constraint' : 'listing_creation_failed',
+          has_constraint_violation: error instanceof Error && error.message.includes('check constraint') ? 'true' : 'false',
+        },
+        contexts: {
+          form_data: {
+            bedrooms: formData.bedrooms,
+            additional_rooms: formData.additional_rooms,
+            bathrooms: formData.bathrooms,
+            property_type: formData.property_type,
+            neighborhood: formData.neighborhood || neighborhoodSelectValue,
+            parking: formData.parking,
+            lease_length: formData.lease_length,
+            is_featured: formData.is_featured,
+            call_for_price: formData.call_for_price,
+            has_price: formData.price !== null,
+            ac_type: formData.ac_type,
+            has_apartment_conditions: formData.apartment_conditions.length > 0,
+          },
+          user_context: {
+            user_role: userRole,
+            has_agency: !!ownedAgencyId,
+          },
+        },
+        extra: {
+          error_details: error instanceof Error ? {
+            message: error.message,
+            name: error.name,
+          } : { raw_error: String(error) },
+        },
+      });
+
       // Track the error with sanitized payload data
       trackPostError(error, {
         bedrooms: formData.bedrooms,
@@ -787,6 +823,8 @@ export function PostListing() {
           errorMessage = error.message;
         } else if (error.message.includes("You can only feature")) {
           errorMessage = error.message;
+        } else if (error.message.includes("check constraint") || error.message.includes("constraint")) {
+          errorMessage = "There was an issue with the listing data. Please check all fields and try again.";
         }
       }
 
