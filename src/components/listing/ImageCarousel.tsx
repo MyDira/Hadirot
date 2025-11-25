@@ -65,7 +65,8 @@ export default function ImageCarousel({
 
   // Auto-pause video when navigating away from it
   useEffect(() => {
-    const currentMedia = displayMedia[currentIndex];
+    const safeIndex = Math.max(0, Math.min(currentIndex, displayMedia.length - 1));
+    const currentMedia = displayMedia[safeIndex];
     if (videoRef.current && currentMedia?.type !== 'video') {
       videoRef.current.pause();
     }
@@ -115,7 +116,9 @@ export default function ImageCarousel({
     touchEndX.current = 0;
   };
 
-  const currentMedia = displayMedia[currentIndex];
+  // Clamp currentIndex to valid range
+  const safeIndex = Math.max(0, Math.min(currentIndex, displayMedia.length - 1));
+  const currentMedia = displayMedia[safeIndex];
   const isShowingStock = !hasRealImages && !hasVideo;
   const canZoom = enableZoom && currentMedia?.type === 'image' && hasRealImages && onImageClick;
 
@@ -135,13 +138,13 @@ export default function ImageCarousel({
         onTouchEnd={handleTouchEnd}
         onClick={currentMedia?.type === 'image' ? handleImageClick : undefined}
       >
-        {currentMedia?.type === 'image' ? (
+        {currentMedia?.type === 'image' && currentMedia.url ? (
           <img
             src={currentMedia.url}
-            alt={currentMedia.alt}
+            alt={currentMedia.alt || 'Listing image'}
             className="w-full h-full object-contain select-none"
           />
-        ) : currentMedia?.type === 'video' ? (
+        ) : currentMedia?.type === 'video' && currentMedia.url ? (
           <video
             ref={videoRef}
             src={currentMedia.url}

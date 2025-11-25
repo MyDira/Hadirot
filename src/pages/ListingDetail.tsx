@@ -363,11 +363,13 @@ export function ListingDetail() {
   };
 
   const images =
-    listing.listing_images?.sort((a, b) => {
-      if (a.is_featured && !b.is_featured) return -1;
-      if (!a.is_featured && b.is_featured) return 1;
-      return a.sort_order - b.sort_order;
-    }) || [];
+    listing.listing_images
+      ?.filter((img) => img && img.image_url) // Filter out invalid entries
+      .sort((a, b) => {
+        if (a.is_featured && !b.is_featured) return -1;
+        if (!a.is_featured && b.is_featured) return 1;
+        return a.sort_order - b.sort_order;
+      }) || [];
 
   const hasRealImages = images && images.length > 0;
 

@@ -8,7 +8,9 @@ interface ImageZoomModalProps {
 }
 
 export function ImageZoomModal({ images, initialIndex, onClose }: ImageZoomModalProps) {
-  const [currentIndex, setCurrentIndex] = useState(initialIndex);
+  // Clamp initial index to valid range
+  const safeInitialIndex = Math.max(0, Math.min(initialIndex, images.length - 1));
+  const [currentIndex, setCurrentIndex] = useState(safeInitialIndex);
   const touchStartX = useRef(0);
   const touchEndX = useRef(0);
 
@@ -122,13 +124,15 @@ export function ImageZoomModal({ images, initialIndex, onClose }: ImageZoomModal
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
       >
-        <img
-          src={images[currentIndex].url}
-          alt={images[currentIndex].alt}
-          className="max-w-full max-h-full object-contain select-none"
-          draggable={false}
-          onClick={(e) => e.stopPropagation()}
-        />
+        {images[currentIndex] && (
+          <img
+            src={images[currentIndex].url}
+            alt={images[currentIndex].alt || 'Listing image'}
+            className="max-w-full max-h-full object-contain select-none"
+            draggable={false}
+            onClick={(e) => e.stopPropagation()}
+          />
+        )}
       </div>
     </div>
   );
