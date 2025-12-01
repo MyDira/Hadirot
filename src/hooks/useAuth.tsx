@@ -86,8 +86,40 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (error) {
         console.error("❌ Error fetching profile:", error);
         applyProfileUpdate(null);
+      } else if (!data) {
+        const fullName = session.user.user_metadata?.full_name ||
+                       session.user.user_metadata?.name ||
+                       session.user.email?.split('@')[0] ||
+                       'User';
+
+        const { data: newProfile, error: insertError } = await supabase
+          .from('profiles')
+          .insert({
+            id: session.user.id,
+            email: session.user.email || '',
+            full_name: fullName,
+            role: 'tenant',
+          })
+          .select()
+          .single();
+
+        if (insertError) {
+          console.error("❌ Error creating profile:", insertError);
+          applyProfileUpdate(null);
+        } else {
+          applyProfileUpdate(newProfile);
+
+          try {
+            await emailService.sendWelcomeEmail({
+              to: session.user.email || '',
+              fullName: fullName,
+            });
+          } catch (err) {
+            console.warn('Failed to send welcome email', err);
+          }
+        }
       } else {
-        applyProfileUpdate(data ?? null);
+        applyProfileUpdate(data);
       }
     } catch (err) {
       console.error("⚠️ refreshProfile error:", err);
@@ -148,41 +180,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event, session) => {
+    } = supabase.auth.onAuthStateChange((event, session) => {
       if (isMounted) {
         setSession(session);
         setUser(session?.user ?? null);
         if (!session?.user) {
           applyProfileUpdate(null);
-        } else if (event === 'SIGNED_IN' && session?.user) {
-          const { data: existingProfile } = await supabase
-            .from('profiles')
-            .select('id')
-            .eq('id', session.user.id)
-            .maybeSingle();
-
-          if (!existingProfile) {
-            const fullName = session.user.user_metadata?.full_name ||
-                           session.user.user_metadata?.name ||
-                           session.user.email?.split('@')[0] ||
-                           'User';
-
-            await supabase.from('profiles').insert({
-              id: session.user.id,
-              email: session.user.email || '',
-              full_name: fullName,
-              role: 'tenant',
-            });
-
-            try {
-              await emailService.sendWelcomeEmail({
-                to: session.user.email || '',
-                fullName: fullName,
-              });
-            } catch (err) {
-              console.warn('Failed to send welcome email', err);
-            }
-          }
         }
       }
     });
