@@ -24,6 +24,7 @@ interface AuthContextValue {
     },
   ) => Promise<any>;
   signIn: (email: string, password: string) => Promise<any>;
+  signInWithGoogle: () => Promise<void>;
   signOut: () => Promise<void>;
   authContextId: string;
 }
@@ -147,12 +148,41 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (isMounted) {
         setSession(session);
         setUser(session?.user ?? null);
         if (!session?.user) {
           applyProfileUpdate(null);
+        } else if (event === 'SIGNED_IN' && session?.user) {
+          const { data: existingProfile } = await supabase
+            .from('profiles')
+            .select('id')
+            .eq('id', session.user.id)
+            .maybeSingle();
+
+          if (!existingProfile) {
+            const fullName = session.user.user_metadata?.full_name ||
+                           session.user.user_metadata?.name ||
+                           session.user.email?.split('@')[0] ||
+                           'User';
+
+            await supabase.from('profiles').insert({
+              id: session.user.id,
+              email: session.user.email || '',
+              full_name: fullName,
+              role: 'tenant',
+            });
+
+            try {
+              await emailService.sendWelcomeEmail({
+                to: session.user.email || '',
+                fullName: fullName,
+              });
+            } catch (err) {
+              console.warn('Failed to send welcome email', err);
+            }
+          }
         }
       }
     });
@@ -221,6 +251,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return data;
   };
 
+  const signInWithGoogle = async () => {
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: `${window.location.origin}/auth`,
+        queryParams: {
+          access_type: 'offline',
+          prompt: 'consent',
+        },
+      },
+    });
+
+    if (error) throw error;
+  };
+
   const signOut = async () => {
     const { error } = await supabase.auth.signOut();
     if (error) throw error;
@@ -235,6 +280,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setProfile: applyProfileUpdate,
     signUp,
     signIn,
+    signInWithGoogle,
     signOut,
     authContextId: AUTH_CONTEXT_ID,
   };
