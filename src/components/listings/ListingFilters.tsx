@@ -270,7 +270,7 @@ export function ListingFilters({
             Neighborhoods
           </label>
           {neighborhoodOptions.length > 0 ? (
-            <div className="relative">
+            <div className="relative dropdown-container">
               <div
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus-within:ring-[#273140] focus-within:border-[#273140] h-10 cursor-pointer bg-white flex items-center justify-between"
                 onClick={() =>
