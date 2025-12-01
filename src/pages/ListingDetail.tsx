@@ -37,6 +37,7 @@ import { agenciesService } from "../services/agencies";
 import { agencyNameToSlug } from "../utils/agency";
 import { ReportRentedButton } from "../components/listing/ReportRentedButton";
 import { ImageZoomModal } from "../components/listing/ImageZoomModal";
+import { ListingContactForm } from "../components/listing/ListingContactForm";
 
 const SCROLL_THRESHOLDS = [25, 50, 75, 100] as const;
 
@@ -489,45 +490,33 @@ export function ListingDetail() {
                 Contact Information
               </h3>
 
-              <div className="space-y-4">
-                <div className="flex items-center">
-                  <User className="w-5 h-5 text-[#273140] mr-3" />
-                  <div>
-                    <div className="font-semibold">{listing.contact_name}</div>
-                    <div className="text-sm text-gray-500">{getRoleLabel()}</div>
+              <div className="space-y-4 mb-6">
+                <div className="flex items-start justify-between">
+                  <div className="flex items-center">
+                    <User className="w-5 h-5 text-[#273140] mr-3 flex-shrink-0" />
+                    <div>
+                      <div className="font-semibold">
+                        {listing.contact_name}
+                        <span className="mx-2 text-gray-400">•</span>
+                        <a
+                          href={`tel:${listing.contact_phone}`}
+                          className="text-[#273140] hover:text-[#1e252f] font-medium transition-colors hover:underline"
+                          onClick={handleCallClick}
+                        >
+                          {formatPhoneNumber(listing.contact_phone)}
+                        </a>
+                      </div>
+                      <div className="text-sm text-gray-500">{getRoleLabel()}</div>
+                    </div>
                   </div>
-                </div>
-
-                <div className="flex items-center">
-                  <Phone className="w-5 h-5 text-[#273140] mr-3" />
-                  <a
-                    href={`tel:${listing.contact_phone}`}
-                    className="text-[#273140] hover:text-[#1e252f] font-medium transition-colors"
-                    onClick={handleCallClick}
-                  >
-                    {formatPhoneNumber(listing.contact_phone)}
-                  </a>
                 </div>
               </div>
 
-              <div className="mt-6 space-y-3">
-                <a
-                  href={`tel:${listing.contact_phone}`}
-                  className="w-full bg-[#273140] text-white py-3 px-4 rounded-md font-semibold hover:bg-[#1e252f] transition-colors flex items-center justify-center"
-                  onClick={handleCallClick}
-                >
-                  <Phone className="w-5 h-5 mr-2" />
-                  Call Now
-                </a>
+              <div className="mb-6">
+                <ListingContactForm listingId={listing.id} />
+              </div>
 
-                <a
-                  href={`sms:${listing.contact_phone.replace(/\D/g, "")}?body=Hi, I'm interested in your listing: ${listing.title}`}
-                  className="w-full bg-accent-500 text-white py-3 px-4 rounded-md font-semibold hover:bg-accent-600 transition-colors flex items-center justify-center"
-                  onClick={handleMessageClick}
-                >
-                  Send Message
-                </a>
-
+              <div className="space-y-3">
                 <div className="flex gap-2">
                   <div className="flex-1">
                     <ReportRentedButton
@@ -693,45 +682,29 @@ export function ListingDetail() {
                 Contact Information
               </h3>
 
-              <div className="space-y-4">
-                <div className="flex items-center">
-                  <User className="w-5 h-5 text-[#273140] mr-3" />
-                  <div>
-                    <div className="font-semibold">{listing.contact_name}</div>
-                    <div className="text-sm text-gray-500">{getRoleLabel()}</div>
+              <div className="space-y-4 mb-6">
+                <div className="flex items-start justify-between">
+                  <div className="flex items-center">
+                    <User className="w-5 h-5 text-[#273140] mr-3 flex-shrink-0" />
+                    <div>
+                      <div className="font-semibold">
+                        {listing.contact_name}
+                        <span className="mx-2 text-gray-400">•</span>
+                        <span className="text-[#273140] font-medium">
+                          {formatPhoneNumber(listing.contact_phone)}
+                        </span>
+                      </div>
+                      <div className="text-sm text-gray-500">{getRoleLabel()}</div>
+                    </div>
                   </div>
-                </div>
-
-                <div className="flex items-center">
-                  <Phone className="w-5 h-5 text-[#273140] mr-3" />
-                  <a
-                    href={`tel:${listing.contact_phone}`}
-                    className="text-[#273140] hover:text-[#1e252f] font-medium transition-colors"
-                    onClick={handleCallClick}
-                  >
-                    {formatPhoneNumber(listing.contact_phone)}
-                  </a>
                 </div>
               </div>
 
-              <div className="mt-6 space-y-3">
-                <a
-                  href={`tel:${listing.contact_phone}`}
-                  className="w-full bg-[#273140] text-white py-3 px-4 rounded-md font-semibold hover:bg-[#1e252f] transition-colors flex items-center justify-center"
-                  onClick={handleCallClick}
-                >
-                  <Phone className="w-5 h-5 mr-2" />
-                  Call Now
-                </a>
+              <div className="mb-6">
+                <ListingContactForm listingId={listing.id} />
+              </div>
 
-                <a
-                  href={`sms:${listing.contact_phone.replace(/\D/g, "")}?body=Hi, I'm interested in your listing: ${listing.title}`}
-                  className="w-full bg-accent-500 text-white py-3 px-4 rounded-md font-semibold hover:bg-accent-600 transition-colors flex items-center justify-center"
-                  onClick={handleMessageClick}
-                >
-                  Send Message
-                </a>
-
+              <div className="space-y-3">
                 <div className="flex gap-2">
                   <div className="flex-1">
                     <ReportRentedButton

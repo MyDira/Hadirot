@@ -8,6 +8,8 @@ import {
   Clock,
   FileText,
   Filter,
+  MessageSquare,
+  Phone as PhoneIcon,
 } from 'lucide-react';
 import { useAuth, AUTH_CONTEXT_ID } from '@/hooks/useAuth';
 import { supabase } from '../config/supabase';
@@ -46,6 +48,29 @@ interface TopFilter {
   filter_key: string;
   filter_value: string;
   uses: number;
+}
+
+interface ContactSubmission {
+  submission_id: string;
+  submission_date: string;
+  user_name: string;
+  user_phone: string;
+  consent_to_followup: boolean;
+  listing_id: string;
+  listing_title: string;
+  listing_location: string;
+  listing_neighborhood: string;
+  bedrooms: number;
+  price: number;
+  contact_name: string;
+  contact_phone: string;
+}
+
+interface ContactSummary {
+  total_submissions: number;
+  submissions_with_consent: number;
+  unique_listings: number;
+  consent_rate: number;
 }
 
 // Simple SVG sparkline component
@@ -98,6 +123,9 @@ export function InternalAnalytics() {
   const [topListings, setTopListings] = useState<TopListing[]>([]);
   const [detailedTopListings, setDetailedTopListings] = useState<DetailedTopListing[]>([]);
   const [topFilters, setTopFilters] = useState<TopFilter[]>([]);
+  const [contactSubmissions, setContactSubmissions] = useState<ContactSubmission[]>([]);
+  const [contactSummary, setContactSummary] = useState<ContactSummary | null>(null);
+  const [activeTab, setActiveTab] = useState<'overview' | 'contacts'>('overview');
   const [dataLoading, setDataLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -141,13 +169,15 @@ export function InternalAnalytics() {
       setError(null);
 
       // Load all analytics data in parallel
-      const [kpisResult, summaryResult, listingsResult, detailedListingsResult, filtersResult, agencyResult] = await Promise.all([
+      const [kpisResult, summaryResult, listingsResult, detailedListingsResult, filtersResult, agencyResult, contactsResult, contactSummaryResult] = await Promise.all([
         supabase.rpc('analytics_kpis_with_sparkline', { tz: 'America/New_York' }),
         supabase.rpc('analytics_summary', { days_back: 0, tz: 'America/New_York' }),
         supabase.rpc('analytics_top_listings', { days_back: 0, limit_count: 10, tz: 'America/New_York' }),
         supabase.rpc('analytics_top_listings_detailed', { days_back: 0, limit_count: 10, tz: 'America/New_York' }),
         supabase.rpc('analytics_top_filters', { days_back: 0, limit_count: 10, tz: 'America/New_York' }),
-        supabase.rpc('analytics_agency_metrics', { days_back: 0, tz: 'America/New_York' })
+        supabase.rpc('analytics_agency_metrics', { days_back: 0, tz: 'America/New_York' }),
+        supabase.rpc('analytics_contact_submissions', { days_back: 0, limit_count: 100, tz: 'America/New_York' }),
+        supabase.rpc('analytics_contact_submissions_summary', { days_back: 0, tz: 'America/New_York' })
       ]);
 
       // Handle KPIs
@@ -217,6 +247,20 @@ export function InternalAnalytics() {
         setTopFilters(filtersResult.data || []);
       }
 
+      // Handle contact submissions
+      if (contactsResult.error) {
+        console.error('Error loading contact submissions:', contactsResult.error);
+      } else {
+        setContactSubmissions(contactsResult.data || []);
+      }
+
+      // Handle contact summary
+      if (contactSummaryResult.error) {
+        console.error('Error loading contact summary:', contactSummaryResult.error);
+      } else {
+        setContactSummary(contactSummaryResult.data?.[0] || null);
+      }
+
       // Set current date for display
       setDateStr(
         new Date().toLocaleDateString('en-US', { timeZone: 'America/New_York' })
@@ -284,10 +328,43 @@ export function InternalAnalytics() {
         <p className="text-gray-600 mt-2">
           Today • {dateStr}
         </p>
+
+        {/* Tab Navigation */}
+        <div className="flex gap-4 mt-6 border-b border-gray-200">
+          <button
+            onClick={() => setActiveTab('overview')}
+            className={`pb-3 px-4 font-medium transition-colors border-b-2 ${
+              activeTab === 'overview'
+                ? 'border-[#273140] text-[#273140]'
+                : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            Overview
+          </button>
+          <button
+            onClick={() => setActiveTab('contacts')}
+            className={`pb-3 px-4 font-medium transition-colors border-b-2 flex items-center ${
+              activeTab === 'contacts'
+                ? 'border-[#273140] text-[#273140]'
+                : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            <MessageSquare className="w-4 h-4 mr-2" />
+            Contact Submissions
+            {contactSummary && contactSummary.total_submissions > 0 && (
+              <span className="ml-2 bg-accent-500 text-white text-xs px-2 py-0.5 rounded-full">
+                {contactSummary.total_submissions}
+              </span>
+            )}
+          </button>
+        </div>
       </div>
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+      {/* Overview Tab */}
+      {activeTab === 'overview' && (
+        <>
+          {/* KPI Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
         {/* Daily Active Users */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
           <div className="flex items-center justify-between mb-2">
@@ -517,6 +594,127 @@ export function InternalAnalytics() {
           </div>
         </div>
       </div>
+        </>
+      )}
+
+      {/* Contact Submissions Tab */}
+      {activeTab === 'contacts' && (
+        <>
+          {/* Summary Cards */}
+          {contactSummary && (
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                <div className="flex items-center mb-2">
+                  <MessageSquare className="w-5 h-5 text-blue-600 mr-2" />
+                  <h3 className="text-sm font-medium text-gray-700">Total Today</h3>
+                </div>
+                <div className="text-2xl font-bold text-gray-900">{contactSummary.total_submissions || 0}</div>
+                <div className="text-sm text-gray-500">submissions</div>
+              </div>
+
+              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                <div className="flex items-center mb-2">
+                  <PhoneIcon className="w-5 h-5 text-green-600 mr-2" />
+                  <h3 className="text-sm font-medium text-gray-700">With Consent</h3>
+                </div>
+                <div className="text-2xl font-bold text-gray-900">{contactSummary.submissions_with_consent || 0}</div>
+                <div className="text-sm text-gray-500">opted in</div>
+              </div>
+
+              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                <div className="flex items-center mb-2">
+                  <FileText className="w-5 h-5 text-purple-600 mr-2" />
+                  <h3 className="text-sm font-medium text-gray-700">Unique Listings</h3>
+                </div>
+                <div className="text-2xl font-bold text-gray-900">{contactSummary.unique_listings || 0}</div>
+                <div className="text-sm text-gray-500">listings contacted</div>
+              </div>
+
+              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                <div className="flex items-center mb-2">
+                  <TrendingUp className="w-5 h-5 text-orange-600 mr-2" />
+                  <h3 className="text-sm font-medium text-gray-700">Consent Rate</h3>
+                </div>
+                <div className="text-2xl font-bold text-gray-900">{contactSummary.consent_rate || 0}%</div>
+                <div className="text-sm text-gray-500">WhatsApp opt-in</div>
+              </div>
+            </div>
+          )}
+
+          {/* Contact Submissions Table */}
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <h2 className="text-xl font-semibold text-[#273140] mb-6 flex items-center">
+              <MessageSquare className="w-6 h-6 mr-2" />
+              Recent Contact Submissions
+            </h2>
+
+            {contactSubmissions.length === 0 ? (
+              <div className="text-center py-12">
+                <MessageSquare className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                <p className="text-gray-500">No contact submissions yet today</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="min-w-full">
+                  <thead className="bg-gray-50">
+                    <tr className="border-b border-gray-200">
+                      <th className="text-left py-3 px-4 text-sm font-medium text-gray-700">Date/Time</th>
+                      <th className="text-left py-3 px-4 text-sm font-medium text-gray-700">Contact</th>
+                      <th className="text-left py-3 px-4 text-sm font-medium text-gray-700">Phone</th>
+                      <th className="text-left py-3 px-4 text-sm font-medium text-gray-700">Listing</th>
+                      <th className="text-center py-3 px-4 text-sm font-medium text-gray-700">Consent</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {contactSubmissions.map((submission) => (
+                      <tr
+                        key={submission.submission_id}
+                        className="border-b border-gray-100 hover:bg-gray-50 cursor-pointer"
+                        onClick={() => navigate(`/listing/${submission.listing_id}`)}
+                      >
+                        <td className="py-3 px-4 text-sm text-gray-900">
+                          {new Date(submission.submission_date).toLocaleString('en-US', {
+                            month: 'short',
+                            day: 'numeric',
+                            hour: 'numeric',
+                            minute: '2-digit',
+                            hour12: true,
+                          })}
+                        </td>
+                        <td className="py-3 px-4 text-sm text-gray-900 font-medium">
+                          {submission.user_name}
+                        </td>
+                        <td className="py-3 px-4 text-sm text-gray-900">
+                          {submission.user_phone}
+                        </td>
+                        <td className="py-3 px-4 text-sm">
+                          <div className="text-gray-900 font-medium">
+                            {submission.bedrooms === 0 ? 'Studio' : `${submission.bedrooms} BR`} - {submission.listing_location}
+                          </div>
+                          <div className="text-gray-500 text-xs mt-1">
+                            ${submission.price?.toLocaleString() || 'N/A'}/mo
+                          </div>
+                        </td>
+                        <td className="py-3 px-4 text-center">
+                          {submission.consent_to_followup ? (
+                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                              Yes
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                              No
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </>
+      )}
     </div>
   );
 }
