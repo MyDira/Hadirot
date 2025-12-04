@@ -21,6 +21,8 @@ export type HeatType = 'included' | 'tenant_pays';
 export type LeaseLength = 'short_term' | '1_year' | '18_months' | '2_years';
 export type ACType = 'central' | 'split_unit' | 'window';
 export type ApartmentCondition = 'modern' | 'renovated' | 'large_rooms' | 'high_ceilings' | 'large_closets';
+export type ListingType = 'rental' | 'sale';
+export type PermissionRequestStatus = 'pending' | 'approved' | 'denied';
 
 export interface Profile {
   id: string;
@@ -33,6 +35,7 @@ export interface Profile {
   is_banned?: boolean;
   can_feature_listings?: boolean;
   can_manage_agency?: boolean;
+  can_post_sales?: boolean;
   max_featured_listings_per_user?: number;
   created_at: string;
   updated_at: string;
@@ -42,6 +45,7 @@ export interface Listing {
   id: string;
   user_id: string;
   agency_id?: string | null;
+  listing_type: ListingType;
   title: string;
   description?: string;
   location: string;
@@ -51,6 +55,11 @@ export interface Listing {
   floor?: number;
   price: number | null;
   call_for_price?: boolean;
+  asking_price?: number | null;
+  property_age?: number | null;
+  hoa_fees?: number | null;
+  property_taxes?: number | null;
+  lot_size_sqft?: number | null;
   square_footage?: number;
   parking: ParkingType;
   washer_dryer_hookup: boolean;
@@ -202,4 +211,29 @@ export interface BannerButton {
   icon_name?: string;
   display_order: number;
   created_at: string;
+}
+
+export interface SalesPermissionRequest {
+  id: string;
+  user_id: string;
+  request_message: string;
+  status: PermissionRequestStatus;
+  requested_at: string;
+  responded_at?: string;
+  responded_by_admin_id?: string;
+  admin_notes?: string;
+  created_at: string;
+  updated_at: string;
+  user?: Profile;
+  admin?: Profile;
+}
+
+export interface AdminSettings {
+  id: string;
+  max_featured_listings: number;
+  featured_duration_days: number;
+  sales_feature_enabled: boolean;
+  sales_universal_access: boolean;
+  max_featured_sales: number;
+  updated_at: string;
 }
