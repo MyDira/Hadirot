@@ -203,9 +203,13 @@ export function SimilarListings({ listing }: SimilarListingsProps) {
     carousel.addEventListener('touchend', handleTouchEnd, { passive: true });
     
     return () => {
-      carousel.removeEventListener('touchstart', handleTouchStart);
-      carousel.removeEventListener('touchmove', handleTouchMove);
-      carousel.removeEventListener('touchend', handleTouchEnd);
+      try {
+        carousel.removeEventListener('touchstart', handleTouchStart);
+        carousel.removeEventListener('touchmove', handleTouchMove);
+        carousel.removeEventListener('touchend', handleTouchEnd);
+      } catch {
+        // iOS WebKit: detach during unmount can throw DOMException 8
+      }
     };
   }, [isMobile, canGoNextMobile, canGoPrevMobile]);
 

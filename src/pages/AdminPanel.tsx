@@ -1163,7 +1163,7 @@ export function AdminPanel() {
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200 text-sm">
-                      {paginatedUsers.map((user) => (
+                      {paginatedUsers.filter(user => user != null).map((user) => (
                         <tr key={user.id} className={user.is_banned ? 'bg-red-50' : ''}>
                           <td className="px-4 py-3 align-top">
                             <div className="space-y-1">
