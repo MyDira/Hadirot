@@ -4,6 +4,7 @@ import { Layout } from './components/shared/Layout';
 import { ErrorBoundary } from './components/shared/ErrorBoundary';
 import { Home } from './pages/Home';
 import { BrowseListings } from './pages/BrowseListings';
+import { BrowseSales } from './pages/BrowseSales';
 import { AuthForm } from './components/auth/AuthForm';
 import PasswordRecoveryGate from './components/auth/PasswordRecoveryGate';
 import { PostListing } from './pages/PostListing';
@@ -72,6 +73,7 @@ function App() {
               <Routes>
                 <Route path="/" element={<Home />} />
                 <Route path="/browse" element={<BrowseListings />} />
+                <Route path="/browse-sales" element={<BrowseSales />} />
                 <Route path="/post" element={<PostListing />} />
                 <Route path="/edit/:id" element={<EditListing />} />
                 <Route path="/listing/:id" element={<ListingDetail />} />

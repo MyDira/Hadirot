@@ -1286,4 +1286,117 @@ async getUniqueNeighborhoods(): Promise<string[]> {
       .map(([bedrooms, count]) => ({ bedrooms, count }))
       .sort((a, b) => a.bedrooms - b.bedrooms);
   },
+
+  async getSaleListings(
+    filters: GetListingsFilters = {},
+    limit?: number,
+    userId?: string,
+    offset = 0,
+  ): Promise<Listing[]> {
+    const posterType = filters?.poster_type as 'owner' | 'agent' | undefined;
+    const agencyName = (filters as any)?.agency_name || undefined;
+
+    const ownerSelect =
+      posterType === 'owner' || posterType === 'agent' || !!agencyName
+        ? 'owner:profiles!inner(id,full_name,role,agency)'
+        : 'owner:profiles(id,full_name,role,agency)';
+
+    const selectStr = `*,${ownerSelect},listing_images(*)`;
+
+    let query = supabase
+      .from('listings')
+      .select(selectStr, { count: 'exact' })
+      .eq('is_active', true)
+      .eq('approved', true)
+      .eq('listing_type', 'sale');
+
+    if (filters.bedrooms !== undefined && filters.bedrooms.length > 0) {
+      query = query.in('bedrooms', filters.bedrooms);
+    }
+    if (filters.property_type) {
+      query = query.eq('property_type', filters.property_type);
+    }
+    if (filters.min_price) {
+      query = query.gte('asking_price', filters.min_price);
+    }
+    if (filters.max_price) {
+      query = query.lte('asking_price', filters.max_price);
+    }
+    if (filters.parking_included) {
+      query = query.in('parking', ['yes', 'included']);
+    }
+    if (filters.neighborhoods && filters.neighborhoods.length > 0) {
+      query = query.in('neighborhood', filters.neighborhoods);
+    }
+
+    if (filters.is_featured_only) {
+      query = query
+        .eq('is_featured', true)
+        .gt('featured_expires_at', new Date().toISOString());
+    }
+
+    if (posterType === 'owner') {
+      query = query.or('role.eq.landlord,role.eq.tenant', { foreignTable: 'owner' });
+    } else if (posterType === 'agent') {
+      query = query.or('role.eq.agent', { foreignTable: 'owner' });
+      if (agencyName) {
+        query = query.eq('owner.agency', agencyName);
+      }
+    }
+
+    switch (filters.sort) {
+      case 'oldest':
+        query = query.order('created_at', { ascending: true });
+        break;
+      case 'price_asc':
+        query = query.order('asking_price', { ascending: true, nullsFirst: false }).order('created_at', { ascending: false });
+        break;
+      case 'price_desc':
+        query = query.order('asking_price', { ascending: false, nullsFirst: false }).order('created_at', { ascending: false });
+        break;
+      case 'bedrooms_asc':
+        query = query.order('bedrooms', { ascending: true }).order('created_at', { ascending: false });
+        break;
+      case 'bedrooms_desc':
+        query = query.order('bedrooms', { ascending: false }).order('created_at', { ascending: false });
+        break;
+      case 'bathrooms_asc':
+        query = query.order('bathrooms', { ascending: true }).order('created_at', { ascending: false });
+        break;
+      case 'bathrooms_desc':
+        query = query.order('bathrooms', { ascending: false }).order('created_at', { ascending: false });
+        break;
+      case 'newest':
+      default:
+        query = query.order('created_at', { ascending: false });
+    }
+
+    if (limit) {
+      query = query.range(offset, offset + limit - 1);
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      console.error('Error fetching sale listings:', error);
+      Sentry.captureException(error);
+      throw error;
+    }
+
+    if (userId) {
+      const { data: favorites } = await supabase
+        .from('favorites')
+        .select('listing_id')
+        .eq('user_id', userId);
+
+      const favoriteIds = new Set(favorites?.map(f => f.listing_id) || []);
+
+      return (data || []).map(listing => ({
+        ...listing,
+        is_favorited: favoriteIds.has(listing.id),
+      }));
+    }
+
+    return data || [];
+  },
 };

@@ -7,6 +7,7 @@ import { listingsService } from "../services/listings";
 import { emailService, renderBrandEmail } from "../services/email";
 import { draftListingsService, DraftData, TempVideoData } from "../services/draftListings";
 import { agenciesService } from "../services/agencies";
+import { salesService } from "../services/sales";
 import { Modal } from "../components/shared/Modal";
 import { AuthForm } from "../components/auth/AuthForm";
 import { compressImage } from "../utils/imageUtils";
@@ -29,9 +30,11 @@ import {
   LeaseLength,
   TempListingImage,
   ACType,
+  ListingType,
 } from "../config/supabase";
 
 interface ListingFormData {
+  listing_type: ListingType;
   title: string;
   description: string;
   location: string;
@@ -41,6 +44,11 @@ interface ListingFormData {
   floor?: number;
   price: number | null;
   call_for_price: boolean;
+  asking_price?: number | null;
+  property_age?: number | null;
+  hoa_fees?: number | null;
+  property_taxes?: number | null;
+  lot_size_sqft?: number | null;
   square_footage?: number;
   parking: ParkingType;
   washer_dryer_hookup: boolean;
@@ -71,7 +79,10 @@ export function PostListing() {
   const [showCustomNeighborhood, setShowCustomNeighborhood] = useState(false);
   const [customNeighborhoodInput, setCustomNeighborhoodInput] = useState("");
   const [ownedAgencyId, setOwnedAgencyId] = useState<string | null>(null);
+  const [salesFeatureEnabled, setSalesFeatureEnabled] = useState(false);
+  const [canPostSales, setCanPostSales] = useState(false);
   const [formData, setFormData] = useState<ListingFormData>({
+    listing_type: "rental",
     title: "",
     description: "",
     location: "",
@@ -81,6 +92,11 @@ export function PostListing() {
     floor: undefined,
     price: null,
     call_for_price: false,
+    asking_price: null,
+    property_age: undefined,
+    hoa_fees: undefined,
+    property_taxes: undefined,
+    lot_size_sqft: undefined,
     square_footage: undefined,
     parking: "no",
     washer_dryer_hookup: false,
