@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
 import { CustomModal } from './CustomModal';
 import { modalsService, type ModalPopup } from '../../services/modals';
@@ -37,6 +37,9 @@ export function ModalManager({ userId }: ModalManagerProps) {
   const [sessionId, setSessionId] = useState<string>('');
   const [displayTimer, setDisplayTimer] = useState<NodeJS.Timeout | null>(null);
 
+  const isEvaluatingRef = useRef(false);
+  const shownModalsRef = useRef<Set<string>>(new Set());
+
   useEffect(() => {
     const fingerprint = generateFingerprint();
     const session = getSessionId();
@@ -58,66 +61,82 @@ export function ModalManager({ userId }: ModalManagerProps) {
   }, []);
 
   const evaluateAndDisplayModal = useCallback(async () => {
+    if (isEvaluatingRef.current) {
+      return;
+    }
+
     if (!userFingerprint || !sessionId || activeModals.length === 0) {
       return;
     }
 
-    const currentPath = location.pathname;
+    isEvaluatingRef.current = true;
 
-    const eligibleModals = activeModals.filter((modal) => {
-      const matchesPage =
-        modal.trigger_pages.length === 0 ||
-        modal.trigger_pages.includes('*') ||
-        modal.trigger_pages.includes(currentPath) ||
-        modal.trigger_pages.some((page) => {
-          if (page.endsWith('*')) {
-            const prefix = page.slice(0, -1);
-            return currentPath.startsWith(prefix);
-          }
+    try {
+      const currentPath = location.pathname;
+
+      const eligibleModals = activeModals.filter((modal) => {
+        if (shownModalsRef.current.has(modal.id)) {
           return false;
-        });
-
-      return matchesPage;
-    });
-
-    if (eligibleModals.length === 0) {
-      return;
-    }
-
-    for (const modal of eligibleModals) {
-      const shouldDisplay = await modalsService.shouldDisplayModal(
-        modal,
-        userFingerprint,
-        sessionId,
-        userId
-      );
-
-      if (shouldDisplay) {
-        if (displayTimer) {
-          clearTimeout(displayTimer);
         }
 
-        const timer = setTimeout(() => {
-          setCurrentModal(modal);
-          setIsModalOpen(true);
+        const matchesPage =
+          modal.trigger_pages.length === 0 ||
+          modal.trigger_pages.includes('*') ||
+          modal.trigger_pages.includes(currentPath) ||
+          modal.trigger_pages.some((page) => {
+            if (page.endsWith('*')) {
+              const prefix = page.slice(0, -1);
+              return currentPath.startsWith(prefix);
+            }
+            return false;
+          });
 
-          modalsService.recordModalInteraction(
-            modal.id,
-            userFingerprint,
-            'shown',
-            sessionId,
-            currentPath,
-            userId
-          );
-        }, modal.delay_seconds * 1000);
+        return matchesPage;
+      });
 
-        setDisplayTimer(timer);
-        break;
+      if (eligibleModals.length === 0) {
+        return;
       }
+
+      for (const modal of eligibleModals) {
+        const shouldDisplay = await modalsService.shouldDisplayModal(
+          modal,
+          userFingerprint,
+          sessionId,
+          userId
+        );
+
+        if (shouldDisplay) {
+          if (displayTimer) {
+            clearTimeout(displayTimer);
+          }
+
+          const timer = setTimeout(async () => {
+            setCurrentModal(modal);
+            setIsModalOpen(true);
+            shownModalsRef.current.add(modal.id);
+
+            await modalsService.recordModalInteraction(
+              modal.id,
+              userFingerprint,
+              'shown',
+              sessionId,
+              currentPath,
+              userId
+            );
+          }, modal.delay_seconds * 1000);
+
+          setDisplayTimer(timer);
+          break;
+        }
+      }
+    } finally {
+      isEvaluatingRef.current = false;
     }
-  }, [activeModals, userFingerprint, sessionId, userId, location.pathname, displayTimer]);
+  }, [activeModals, userFingerprint, sessionId, userId, location.pathname]);
 
   useEffect(() => {
+    shownModalsRef.current.clear();
     evaluateAndDisplayModal();
 
     return () => {
@@ -125,11 +144,11 @@ export function ModalManager({ userId }: ModalManagerProps) {
         clearTimeout(displayTimer);
       }
     };
-  }, [location.pathname, activeModals, userFingerprint, sessionId]);
+  }, [location.pathname, activeModals, userFingerprint, sessionId, evaluateAndDisplayModal]);
 
-  const handleClose = () => {
+  const handleClose = async () => {
     if (currentModal) {
-      modalsService.recordModalInteraction(
+      await modalsService.recordModalInteraction(
         currentModal.id,
         userFingerprint,
         'dismissed',
@@ -142,9 +161,9 @@ export function ModalManager({ userId }: ModalManagerProps) {
     setCurrentModal(null);
   };
 
-  const handleButtonClick = () => {
+  const handleButtonClick = async () => {
     if (currentModal) {
-      modalsService.recordModalInteraction(
+      await modalsService.recordModalInteraction(
         currentModal.id,
         userFingerprint,
         'clicked',

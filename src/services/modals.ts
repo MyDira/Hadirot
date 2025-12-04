@@ -170,19 +170,24 @@ export const modalsService = {
     pagePath: string,
     userId?: string
   ): Promise<void> {
-    const { error } = await supabase
-      .from('modal_user_interactions')
-      .insert({
-        modal_id: modalId,
-        user_fingerprint: userFingerprint,
-        user_id: userId || null,
-        interaction_type: interactionType,
-        session_id: sessionId,
-        page_path: pagePath,
-      });
+    try {
+      const { error } = await supabase
+        .from('modal_user_interactions')
+        .insert({
+          modal_id: modalId,
+          user_fingerprint: userFingerprint,
+          user_id: userId || null,
+          interaction_type: interactionType,
+          session_id: sessionId,
+          page_path: pagePath,
+        });
 
-    if (error) {
-      console.error('Error recording modal interaction:', error);
+      if (error) {
+        console.error('Error recording modal interaction:', error);
+        throw error;
+      }
+    } catch (error) {
+      console.error('Failed to record modal interaction:', error);
     }
   },
 
@@ -250,7 +255,7 @@ export const modalsService = {
       }
 
       case 'until_clicked': {
-        return false;
+        return true;
       }
 
       case 'custom_interval': {
