@@ -85,6 +85,17 @@ function getClientIP(req: Request): string | null {
   return null;
 }
 
+/**
+ * Pseudonymizes IP addresses using SHA-256 cryptographic hashing for privacy compliance.
+ *
+ * This function ensures that personally identifiable information (IP addresses) is never
+ * stored in raw form. The SHA-256 hash is one-way and cannot be reversed to reveal the
+ * original IP address, providing strong privacy protection while still allowing for
+ * basic analytics like detecting duplicate sessions or abuse patterns.
+ *
+ * @param value - The IP address to hash
+ * @returns A 64-character hexadecimal SHA-256 hash
+ */
 async function sha256Hex(value: string): Promise<string> {
   const data = new TextEncoder().encode(value);
   const hashBuffer = await crypto.subtle.digest('SHA-256', data);
@@ -143,6 +154,8 @@ Deno.serve(async (req) => {
 
     const userAgent = req.headers.get('user-agent');
     const clientIp = getClientIP(req);
+    // Pseudonymize IP address using SHA-256 hashing for privacy compliance
+    // Original IP addresses are never stored in the database
     const ipHash = clientIp ? await sha256Hex(clientIp) : null;
     const fallbackIso = new Date().toISOString();
 

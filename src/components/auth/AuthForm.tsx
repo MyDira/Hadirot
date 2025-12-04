@@ -369,6 +369,20 @@ export function AuthForm({ onAuthSuccess }: AuthFormProps = {}) {
                 </div>
               </div>
 
+              {isSignUp && (
+                <div className="text-center text-xs text-gray-600">
+                  By signing up, you agree to our{" "}
+                  <a
+                    href="/privacy"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-[#273140] underline hover:text-[#1e252f] transition-colors"
+                  >
+                    Privacy Policy
+                  </a>
+                </div>
+              )}
+
               <div>
                 <button
                   type={isSignUp ? "submit" : "button"}

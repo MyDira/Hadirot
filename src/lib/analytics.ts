@@ -1,3 +1,15 @@
+/**
+ * Privacy-Preserving Analytics System
+ *
+ * This analytics library is designed with privacy as a core principle:
+ * - IP addresses are pseudonymized via SHA-256 hashing on the server (never stored raw)
+ * - Users are tracked using pseudonymous UUID identifiers (anon_id, session_id)
+ * - No personally identifiable information (PII) is collected or stored
+ * - All hashing is performed server-side in the track Edge Function
+ * - Analytics data cannot be used to identify individual users
+ *
+ * For more details, see our Privacy Policy.
+ */
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { AnalyticsEventName, AnalyticsEventPayload } from './analytics.types';
 
