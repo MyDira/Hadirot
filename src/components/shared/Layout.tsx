@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
-import { Home, Search, Plus, User, Heart, LogOut, Settings, LayoutDashboard, Menu, X, Building2, Paintbrush, DollarSign } from "lucide-react";
+import { Home, Search, Plus, User, Heart, LogOut, Settings, LayoutDashboard, Menu, X, Building2, Paintbrush } from "lucide-react";
 import { useAuth, AUTH_CONTEXT_ID } from "@/hooks/useAuth";
 import { useAnalyticsInit } from "@/hooks/useAnalyticsInit";
 import { Footer } from "./Footer";
@@ -275,7 +275,7 @@ export function Layout({ children }: LayoutProps) {
                       location.pathname === "/browse-sales" ? "opacity-90" : ""
                     }`}
                   >
-                    <DollarSign className="w-4 h-4 mr-2" />
+                    <Search className="w-4 h-4 mr-2" />
                     Sales
                   </Link>
                 </>
@@ -482,7 +482,7 @@ export function Layout({ children }: LayoutProps) {
                             : "text-gray-600 hover:text-brand-700 hover:bg-gray-50"
                         }`}
                       >
-                        <DollarSign className="w-5 h-5 mr-3" />
+                        <Search className="w-5 h-5 mr-3" />
                         Browse Sales
                       </Link>
                     </>

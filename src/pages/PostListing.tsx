@@ -193,6 +193,21 @@ export function PostListing() {
     }
   }, [user?.id, profile?.can_manage_agency, profile?.is_admin]);
 
+  // Load sales feature status on component mount
+  useEffect(() => {
+    salesService.isSalesFeatureEnabled().then(setSalesFeatureEnabled);
+  }, []);
+
+  // Check if user can post sales listings when user changes
+  useEffect(() => {
+    if (!user?.id) {
+      setCanPostSales(false);
+      return;
+    }
+
+    salesService.checkUserPermission(user.id).then(setCanPostSales);
+  }, [user?.id]);
+
 
   const loadDraftData = async (): Promise<boolean> => {
     try {

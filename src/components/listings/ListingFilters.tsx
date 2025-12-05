@@ -19,18 +19,24 @@ interface FilterState {
 
 interface ListingFiltersProps {
   filters: FilterState;
-  onFiltersChange: (filters: FilterState) => void;
+  onFiltersChange?: (filters: FilterState) => void;
+  onFilterChange?: (key: string, value: any) => void;
+  onReset?: () => void;
   agencies?: string[];
   allNeighborhoods?: string[];
   isMobile?: boolean;
+  listingType?: 'rental' | 'sale';
 }
 
 export function ListingFilters({
   filters,
   onFiltersChange,
+  onFilterChange,
+  onReset,
   agencies = [],
   allNeighborhoods = [],
   isMobile = false,
+  listingType = 'rental',
 }: ListingFiltersProps) {
   const [showNeighborhoodDropdown, setShowNeighborhoodDropdown] =
     React.useState(false);
@@ -106,31 +112,47 @@ export function ListingFilters({
   }, [showNeighborhoodDropdown, showBedroomDropdown]);
 
   const handleFilterChange = (key: keyof FilterState, value: any) => {
-    const newFilters = {
-      ...filters,
-      [key]: value,
-    };
-    
-    onFiltersChange(newFilters);
+    // Support both callback patterns
+    if (onFilterChange) {
+      // New pattern: individual filter changes
+      onFilterChange(key, value);
+    } else if (onFiltersChange) {
+      // Old pattern: full filter object
+      const newFilters = {
+        ...filters,
+        [key]: value,
+      };
+      onFiltersChange(newFilters);
+    }
   };
 
   const clearFilters = () => {
-    onFiltersChange({});
+    // Support both callback patterns
+    if (onReset) {
+      onReset();
+    } else if (onFiltersChange) {
+      onFiltersChange({});
+    }
   };
 
   const onWhoChange = (value: string) => {
+    let newFilters: Partial<FilterState>;
     if (value === 'owner') {
-      onFiltersChange({ ...filters, poster_type: 'owner', agency_name: undefined });
+      newFilters = { ...filters, poster_type: 'owner', agency_name: undefined };
     } else if (value === 'agent:any') {
-      onFiltersChange({ ...filters, poster_type: 'agent', agency_name: undefined });
+      newFilters = { ...filters, poster_type: 'agent', agency_name: undefined };
     } else if (value.startsWith('agent:')) {
-      onFiltersChange({
+      newFilters = {
         ...filters,
         poster_type: 'agent',
         agency_name: value.slice('agent:'.length),
-      });
+      };
     } else {
-      onFiltersChange({ ...filters, poster_type: undefined, agency_name: undefined });
+      newFilters = { ...filters, poster_type: undefined, agency_name: undefined };
+    }
+
+    if (onFiltersChange) {
+      onFiltersChange(newFilters);
     }
   };
 
@@ -452,20 +474,22 @@ export function ListingFilters({
             </span>
           </label>
 
-          <label className="flex items-start gap-2">
-            <input
-              type="checkbox"
-              id="no_fee_only"
-              checked={filters.no_fee_only || false}
-              onChange={(e) =>
-                handleFilterChange("no_fee_only", e.target.checked)
-              }
-              className="h-4 w-4 text-[#273140] focus:ring-[#273140] border-gray-300 rounded"
-            />
-            <span className="text-sm font-medium text-gray-700">
-              No Broker Fee only
-            </span>
-          </label>
+          {listingType === 'rental' && (
+            <label className="flex items-start gap-2">
+              <input
+                type="checkbox"
+                id="no_fee_only"
+                checked={filters.no_fee_only || false}
+                onChange={(e) =>
+                  handleFilterChange("no_fee_only", e.target.checked)
+                }
+                className="h-4 w-4 text-[#273140] focus:ring-[#273140] border-gray-300 rounded"
+              />
+              <span className="text-sm font-medium text-gray-700">
+                No Broker Fee only
+              </span>
+            </label>
+          )}
         </div>
       </div>
 
