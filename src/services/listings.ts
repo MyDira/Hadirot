@@ -80,7 +80,8 @@ export const listingsService = {
       .from('listings')
       .select(selectStr, { count: 'exact' })
       .eq('is_active', true)
-      .eq('approved', true);
+      .eq('approved', true)
+      .or('listing_type.eq.rental,listing_type.is.null');
 
     if (filters.bedrooms !== undefined && filters.bedrooms.length > 0) {
       query = query.in('bedrooms', filters.bedrooms);
@@ -1292,7 +1293,9 @@ async getUniqueNeighborhoods(): Promise<string[]> {
     limit?: number,
     userId?: string,
     offset = 0,
-  ): Promise<Listing[]> {
+    applyPagination: boolean = true,
+    is_featured_only?: boolean,
+  ) {
     const posterType = filters?.poster_type as 'owner' | 'agent' | undefined;
     const agencyName = (filters as any)?.agency_name || undefined;
 
@@ -1329,7 +1332,7 @@ async getUniqueNeighborhoods(): Promise<string[]> {
       query = query.in('neighborhood', filters.neighborhoods);
     }
 
-    if (filters.is_featured_only) {
+    if (filters.is_featured_only || is_featured_only) {
       query = query
         .eq('is_featured', true)
         .gt('featured_expires_at', new Date().toISOString());
@@ -1371,32 +1374,47 @@ async getUniqueNeighborhoods(): Promise<string[]> {
         query = query.order('created_at', { ascending: false });
     }
 
-    if (limit) {
-      query = query.range(offset, offset + limit - 1);
+    if (applyPagination) {
+      if (limit !== undefined) {
+        query = query.range(offset, offset + (limit || 20) - 1);
+      }
     }
 
-    const { data, error } = await query;
+    const { data, error, count } = await query;
 
     if (error) {
       console.error('Error fetching sale listings:', error);
       Sentry.captureException(error);
-      throw error;
+      return { data: [], totalCount: 0 };
     }
 
-    if (userId) {
-      const { data: favorites } = await supabase
-        .from('favorites')
-        .select('listing_id')
-        .eq('user_id', userId);
+    return { data: data || [], totalCount: count || 0 };
+  },
 
-      const favoriteIds = new Set(favorites?.map(f => f.listing_id) || []);
-
-      return (data || []).map(listing => ({
-        ...listing,
-        is_favorited: favoriteIds.has(listing.id),
-      }));
+  calculateLotSize(length?: number | null, width?: number | null): number | null {
+    if (!length || !width || length <= 0 || width <= 0) {
+      return null;
     }
+    return Math.round(length * width);
+  },
 
-    return data || [];
+  calculateBuildingSize(length?: number | null, width?: number | null): number | null {
+    if (!length || !width || length <= 0 || width <= 0) {
+      return null;
+    }
+    return Math.round(length * width);
+  },
+
+  validateYearBuilt(year?: number | null): boolean {
+    if (!year) return true;
+    const currentYear = new Date().getFullYear();
+    return year >= 1800 && year <= currentYear + 5;
+  },
+
+  validateDimensions(length?: number | null, width?: number | null): boolean {
+    if (!length && !width) return true;
+    if (length && (length <= 0 || length > 10000)) return false;
+    if (width && (width <= 0 || width > 10000)) return false;
+    return true;
   },
 };

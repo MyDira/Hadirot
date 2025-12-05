@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
-import { Home, Search, Plus, User, Heart, LogOut, Settings, LayoutDashboard, Menu, X, Building2, Paintbrush } from "lucide-react";
+import { Home, Search, Plus, User, Heart, LogOut, Settings, LayoutDashboard, Menu, X, Building2, Paintbrush, DollarSign } from "lucide-react";
 import { useAuth, AUTH_CONTEXT_ID } from "@/hooks/useAuth";
 import { useAnalyticsInit } from "@/hooks/useAnalyticsInit";
 import { Footer } from "./Footer";
@@ -8,6 +8,7 @@ import { ModalManager } from "./ModalManager";
 import { capitalizeName } from "../../utils/formatters";
 import { supabase, type Agency } from "@/config/supabase";
 import { agenciesService } from "@/services/agencies";
+import { salesService } from "@/services/sales";
 import {
   queryClient,
   queryKeys,
@@ -30,9 +31,24 @@ export function Layout({ children }: LayoutProps) {
   const [showSignOutMessage, setShowSignOutMessage] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [ownedAgency, setOwnedAgency] = useState<Agency | null>(null);
+  const [salesFeatureEnabled, setSalesFeatureEnabled] = useState(false);
   const userMenuRef = React.useRef<HTMLDivElement>(null);
   const prevUserRef = React.useRef<typeof user>(null);
   const prevPathnameRef = React.useRef<string>(location.pathname);
+
+  // Load sales feature status
+  useEffect(() => {
+    const loadSalesFeatureStatus = async () => {
+      try {
+        const enabled = await salesService.isSalesFeatureEnabled();
+        setSalesFeatureEnabled(enabled);
+      } catch (error) {
+        console.error('Error loading sales feature status:', error);
+        setSalesFeatureEnabled(false);
+      }
+    };
+    loadSalesFeatureStatus();
+  }, []);
 
   // Close dropdown menu when user logs in
   useEffect(() => {
@@ -242,15 +258,38 @@ export function Layout({ children }: LayoutProps) {
           {/* Right side navigation */}
           <div className="flex-1 flex justify-end">
             <nav className="hidden md:flex items-center space-x-4">
-              <Link
-                to="/browse"
-                className={`flex items-center px-3 py-2 text-sm font-medium rounded-md transition-opacity text-white hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-white/40 ${
-                  location.pathname === "/browse" ? "opacity-90" : ""
-                }`}
-              >
-                <Search className="w-4 h-4 mr-2" />
-                Browse
-              </Link>
+              {salesFeatureEnabled ? (
+                <>
+                  <Link
+                    to="/browse"
+                    className={`flex items-center px-3 py-2 text-sm font-medium rounded-md transition-opacity text-white hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-white/40 ${
+                      location.pathname === "/browse" ? "opacity-90" : ""
+                    }`}
+                  >
+                    <Search className="w-4 h-4 mr-2" />
+                    Rentals
+                  </Link>
+                  <Link
+                    to="/browse-sales"
+                    className={`flex items-center px-3 py-2 text-sm font-medium rounded-md transition-opacity text-white hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-white/40 ${
+                      location.pathname === "/browse-sales" ? "opacity-90" : ""
+                    }`}
+                  >
+                    <DollarSign className="w-4 h-4 mr-2" />
+                    Sales
+                  </Link>
+                </>
+              ) : (
+                <Link
+                  to="/browse"
+                  className={`flex items-center px-3 py-2 text-sm font-medium rounded-md transition-opacity text-white hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-white/40 ${
+                    location.pathname === "/browse" ? "opacity-90" : ""
+                  }`}
+                >
+                  <Search className="w-4 h-4 mr-2" />
+                  Browse
+                </Link>
+              )}
               <Link
                 to="/post"
                 className={`flex items-center px-3 py-2 text-sm font-medium rounded-md transition-opacity text-white hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-white/40 ${
@@ -420,18 +459,47 @@ export function Layout({ children }: LayoutProps) {
                     <Home className="w-5 h-5 mr-3" />
                     Home
                   </Link>
-                  <Link
-                    to="/browse"
-                    onClick={() => setIsMobileMenuOpen(false)}
-                    className={`flex items-center px-4 py-3 text-base font-medium rounded-md transition-colors ${
-                      location.pathname === "/browse"
-                        ? "text-brand-700 bg-gray-100"
-                        : "text-gray-600 hover:text-brand-700 hover:bg-gray-50"
-                    }`}
-                  >
-                    <Search className="w-5 h-5 mr-3" />
-                    Browse Listings
-                  </Link>
+                  {salesFeatureEnabled ? (
+                    <>
+                      <Link
+                        to="/browse"
+                        onClick={() => setIsMobileMenuOpen(false)}
+                        className={`flex items-center px-4 py-3 text-base font-medium rounded-md transition-colors ${
+                          location.pathname === "/browse"
+                            ? "text-brand-700 bg-gray-100"
+                            : "text-gray-600 hover:text-brand-700 hover:bg-gray-50"
+                        }`}
+                      >
+                        <Search className="w-5 h-5 mr-3" />
+                        Browse Rentals
+                      </Link>
+                      <Link
+                        to="/browse-sales"
+                        onClick={() => setIsMobileMenuOpen(false)}
+                        className={`flex items-center px-4 py-3 text-base font-medium rounded-md transition-colors ${
+                          location.pathname === "/browse-sales"
+                            ? "text-brand-700 bg-gray-100"
+                            : "text-gray-600 hover:text-brand-700 hover:bg-gray-50"
+                        }`}
+                      >
+                        <DollarSign className="w-5 h-5 mr-3" />
+                        Browse Sales
+                      </Link>
+                    </>
+                  ) : (
+                    <Link
+                      to="/browse"
+                      onClick={() => setIsMobileMenuOpen(false)}
+                      className={`flex items-center px-4 py-3 text-base font-medium rounded-md transition-colors ${
+                        location.pathname === "/browse"
+                          ? "text-brand-700 bg-gray-100"
+                          : "text-gray-600 hover:text-brand-700 hover:bg-gray-50"
+                      }`}
+                    >
+                      <Search className="w-5 h-5 mr-3" />
+                      Browse Listings
+                    </Link>
+                  )}
                   <Link
                     to="/post"
                     onClick={() => setIsMobileMenuOpen(false)}

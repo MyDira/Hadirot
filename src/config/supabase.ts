@@ -15,7 +15,7 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
 });
 
 export type UserRole = 'tenant' | 'landlord' | 'agent';
-export type PropertyType = 'apartment_building' | 'apartment_house' | 'full_house' | 'duplex' | 'basement';
+export type PropertyType = 'apartment_building' | 'apartment_house' | 'full_house' | 'duplex' | 'basement' | 'detached_house' | 'semi_attached_house' | 'fully_attached_townhouse' | 'condo' | 'co_op';
 export type ParkingType = 'yes' | 'included' | 'optional' | 'no';
 export type HeatType = 'included' | 'tenant_pays';
 export type LeaseLength = 'short_term' | '1_year' | '18_months' | '2_years';
@@ -23,6 +23,9 @@ export type ACType = 'central' | 'split_unit' | 'window';
 export type ApartmentCondition = 'modern' | 'renovated' | 'large_rooms' | 'high_ceilings' | 'large_closets';
 export type ListingType = 'rental' | 'sale';
 export type PermissionRequestStatus = 'pending' | 'approved' | 'denied';
+export type DrivewayStatus = 'private' | 'easement' | 'shared' | 'carport' | 'none';
+export type HeatingType = 'forced_air' | 'radiator' | 'baseboard' | 'heat_pump' | 'other';
+export type CoolingType = 'central_ac' | 'split_units' | 'window_units' | 'none';
 
 export interface Profile {
   id: string;
@@ -49,6 +52,7 @@ export interface Listing {
   title: string;
   description?: string;
   location: string;
+  cross_streets?: string | null;
   neighborhood: string;
   bedrooms: number;
   bathrooms: number;
@@ -57,11 +61,24 @@ export interface Listing {
   call_for_price?: boolean;
   asking_price?: number | null;
   property_age?: number | null;
+  year_built?: number | null;
   hoa_fees?: number | null;
   property_taxes?: number | null;
   lot_size_sqft?: number | null;
+  property_length_ft?: number | null;
+  property_width_ft?: number | null;
+  building_size_sqft?: number | null;
+  building_length_ft?: number | null;
+  building_width_ft?: number | null;
   square_footage?: number;
   parking: ParkingType;
+  driveway_status?: DrivewayStatus | null;
+  multi_family?: boolean;
+  unit_count?: number | null;
+  number_of_floors?: number | null;
+  heating_type?: HeatingType | null;
+  cooling_type?: CoolingType | null;
+  appliances?: string[] | null;
   washer_dryer_hookup: boolean;
   dishwasher: boolean;
   broker_fee: boolean;
