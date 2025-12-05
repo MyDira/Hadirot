@@ -1,19 +1,30 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { DollarSign, Home, Filter } from 'lucide-react';
+import { DollarSign, Home, Filter, ChevronLeft, ChevronRight } from 'lucide-react';
 import { listingsService } from '../services/listings';
 import { Listing } from '../config/supabase';
 import { ListingCard } from '../components/listings/ListingCard';
 import { ListingFilters } from '../components/listings/ListingFilters';
 import { useBrowseFilters } from '../hooks/useBrowseFilters';
 import { gaEvent } from '@/lib/ga';
+import { useAuth } from '@/hooks/useAuth';
+import { useListingImpressions } from '../hooks/useListingImpressions';
 
 export function BrowseSales() {
+  const { user } = useAuth();
   const [listings, setListings] = useState<Listing[]>([]);
   const [loading, setLoading] = useState(true);
-  const [searchParams] = useSearchParams();
+  const [totalCount, setTotalCount] = useState(0);
+  const [currentPage, setCurrentPage] = useState(1);
   const [showMobileFilters, setShowMobileFilters] = useState(false);
   const { filters, setFilter, resetFilters, filtersActive } = useBrowseFilters('sales');
+
+  const ITEMS_PER_PAGE = 20;
+  const totalPages = Math.ceil(totalCount / ITEMS_PER_PAGE);
+
+  const { observeElement, unobserveElement } = useListingImpressions({
+    listingIds: listings.map(l => l.id),
+  });
 
   useEffect(() => {
     gaEvent('page_view', {
@@ -24,19 +35,41 @@ export function BrowseSales() {
   }, []);
 
   useEffect(() => {
-    loadListings();
+    setCurrentPage(1);
   }, [filters]);
+
+  useEffect(() => {
+    loadListings();
+  }, [filters, currentPage, user]);
 
   const loadListings = async () => {
     try {
       setLoading(true);
-      const data = await listingsService.getSaleListings(filters);
-      setListings(data);
+      const offset = (currentPage - 1) * ITEMS_PER_PAGE;
+      const { no_fee_only, ...restFilters } = filters;
+      const serviceFilters = { ...restFilters, noFeeOnly: no_fee_only };
+
+      const result = await listingsService.getSaleListings(
+        serviceFilters,
+        ITEMS_PER_PAGE,
+        user?.id,
+        offset,
+        true,
+        false
+      );
+
+      setListings(result.data || []);
+      setTotalCount(result.totalCount || 0);
     } catch (error) {
       console.error('Error loading sale listings:', error);
     } finally {
       setLoading(false);
     }
+  };
+
+  const handlePageChange = (newPage: number) => {
+    setCurrentPage(newPage);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   return (
@@ -92,13 +125,67 @@ export function BrowseSales() {
           ) : listings.length > 0 ? (
             <>
               <div className="mb-4 text-sm text-gray-600">
-                {listings.length} {listings.length === 1 ? 'property' : 'properties'} found
+                {totalCount} {totalCount === 1 ? 'property' : 'properties'} found
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
                 {listings.map((listing) => (
-                  <ListingCard key={listing.id} listing={listing} />
+                  <ListingCard
+                    key={listing.id}
+                    listing={listing}
+                    isFavorited={false}
+                  />
                 ))}
               </div>
+
+              {/* Pagination Controls */}
+              {totalPages > 1 && (
+                <div className="mt-8 flex items-center justify-center gap-2">
+                  <button
+                    onClick={() => handlePageChange(currentPage - 1)}
+                    disabled={currentPage === 1}
+                    className="p-2 rounded-lg border border-gray-300 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    <ChevronLeft className="w-5 h-5" />
+                  </button>
+
+                  <div className="flex items-center gap-1">
+                    {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                      let pageNum;
+                      if (totalPages <= 5) {
+                        pageNum = i + 1;
+                      } else if (currentPage <= 3) {
+                        pageNum = i + 1;
+                      } else if (currentPage >= totalPages - 2) {
+                        pageNum = totalPages - 4 + i;
+                      } else {
+                        pageNum = currentPage - 2 + i;
+                      }
+
+                      return (
+                        <button
+                          key={pageNum}
+                          onClick={() => handlePageChange(pageNum)}
+                          className={`min-w-[40px] px-3 py-2 rounded-lg border transition-colors ${
+                            currentPage === pageNum
+                              ? 'bg-brand-700 text-white border-brand-700'
+                              : 'border-gray-300 hover:bg-gray-50'
+                          }`}
+                        >
+                          {pageNum}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  <button
+                    onClick={() => handlePageChange(currentPage + 1)}
+                    disabled={currentPage === totalPages}
+                    className="p-2 rounded-lg border border-gray-300 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    <ChevronRight className="w-5 h-5" />
+                  </button>
+                </div>
+              )}
             </>
           ) : (
             <div className="text-center py-12 bg-white rounded-lg shadow-sm border border-gray-200">

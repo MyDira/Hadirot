@@ -900,6 +900,53 @@ export function PostListing() {
         onChange={handleFirstInteraction}
         className="space-y-8"
       >
+        {/* Listing Type Selector */}
+        {salesFeatureEnabled && (
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <h2 className="text-xl font-semibold text-[#273140] mb-4">
+              Listing Type
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <button
+                type="button"
+                onClick={() => setFormData({ ...formData, listing_type: 'rental' })}
+                className={`p-4 border-2 rounded-lg transition-all ${
+                  formData.listing_type === 'rental'
+                    ? 'border-brand-700 bg-brand-50'
+                    : 'border-gray-300 hover:border-gray-400'
+                }`}
+              >
+                <div className="text-lg font-semibold">Rental Listing</div>
+                <div className="text-sm text-gray-600 mt-1">Post a property for rent</div>
+              </button>
+              {canPostSales && (
+                <button
+                  type="button"
+                  onClick={() => setFormData({ ...formData, listing_type: 'sale' })}
+                  className={`p-4 border-2 rounded-lg transition-all ${
+                    formData.listing_type === 'sale'
+                      ? 'border-brand-700 bg-brand-50'
+                      : 'border-gray-300 hover:border-gray-400'
+                  }`}
+                >
+                  <div className="text-lg font-semibold">Sale Listing</div>
+                  <div className="text-sm text-gray-600 mt-1">Post a property for sale</div>
+                </button>
+              )}
+            </div>
+            {salesFeatureEnabled && !canPostSales && (
+              <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                <p className="text-sm text-yellow-800">
+                  You don't have permission to post sale listings yet.{' '}
+                  <a href="/account-settings" className="underline font-medium">
+                    Request permission
+                  </a>
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Basic Information */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
           <h2 className="text-xl font-semibold text-[#273140] mb-4">
@@ -991,13 +1038,23 @@ export function PostListing() {
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
               >
                 <option value="">Select Property Type</option>
-                <option value="apartment_building">
-                  Apartment in a building
-                </option>
-                <option value="apartment_house">Apartment in a house</option>
-                <option value="basement">Basement</option>
-                <option value="duplex">Duplex</option>
-                <option value="full_house">Full house</option>
+                {formData.listing_type === 'sale' ? (
+                  <>
+                    <option value="detached_house">Detached House</option>
+                    <option value="semi_attached_house">Semi-Detached House</option>
+                    <option value="fully_attached_townhouse">Townhouse</option>
+                    <option value="condo">Condo</option>
+                    <option value="co_op">Co-op</option>
+                  </>
+                ) : (
+                  <>
+                    <option value="apartment_building">Apartment in a building</option>
+                    <option value="apartment_house">Apartment in a house</option>
+                    <option value="basement">Basement</option>
+                    <option value="duplex">Duplex</option>
+                    <option value="full_house">Full house</option>
+                  </>
+                )}
               </select>
             </div>
           </div>
@@ -1086,23 +1143,26 @@ export function PostListing() {
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Monthly Rent ($) *
+                {formData.listing_type === 'sale' ? 'Asking Price ($) *' : 'Monthly Rent ($) *'}
               </label>
               <input
                 type="number"
                 min={1}
                 step={1}
-                value={formData.price ?? ''}
+                value={formData.listing_type === 'sale' ? (formData.asking_price ?? '') : (formData.price ?? '')}
                 onChange={(e) =>
                   setFormData((f) => ({
                     ...f,
-                    price: e.target.value ? Number(e.target.value) : null,
+                    ...(formData.listing_type === 'sale'
+                      ? { asking_price: e.target.value ? Number(e.target.value) : null }
+                      : { price: e.target.value ? Number(e.target.value) : null }
+                    ),
                   }))
                 }
                 disabled={formData.call_for_price}
                 required={!formData.call_for_price}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
-                placeholder="2500"
+                placeholder={formData.listing_type === 'sale' ? '450000' : '2500'}
               />
               <label className="flex items-center gap-2 mt-2">
                 <input
@@ -1112,7 +1172,10 @@ export function PostListing() {
                     setFormData((f) => ({
                       ...f,
                       call_for_price: e.target.checked,
-                      price: e.target.checked ? null : f.price,
+                      ...(formData.listing_type === 'sale'
+                        ? { asking_price: e.target.checked ? null : f.asking_price }
+                        : { price: e.target.checked ? null : f.price }
+                      ),
                     }))
                   }
                 />
@@ -1135,23 +1198,25 @@ export function PostListing() {
               />
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Lease Length
-              </label>
-              <select
-                name="lease_length"
-                value={formData.lease_length || ""}
-                onChange={handleInputChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
-              >
-                <option value="">Select lease length (optional)</option>
-                <option value="short_term">Short Term</option>
-                <option value="1_year">1 Year</option>
-                <option value="18_months">18 Months</option>
-                <option value="2_years">2 Years</option>
-              </select>
-            </div>
+            {formData.listing_type === 'rental' && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Lease Length
+                </label>
+                <select
+                  name="lease_length"
+                  value={formData.lease_length || ""}
+                  onChange={handleInputChange}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
+                >
+                  <option value="">Select lease length (optional)</option>
+                  <option value="short_term">Short Term</option>
+                  <option value="1_year">1 Year</option>
+                  <option value="18_months">18 Months</option>
+                  <option value="2_years">2 Years</option>
+                </select>
+              </div>
+            )}
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">

@@ -103,6 +103,24 @@ export function ListingCard({
   const hasParking =
     listing.parking === "yes" || listing.parking === "included";
 
+  const isSaleListing = listing.listing_type === "sale";
+
+  const getPropertyTypeLabel = (type: string): string => {
+    const labels: Record<string, string> = {
+      apartment_building: "Apartment",
+      apartment_house: "Apartment",
+      full_house: "Full House",
+      duplex: "Duplex",
+      basement: "Basement",
+      detached_house: "Detached House",
+      semi_attached_house: "Semi-Detached",
+      fully_attached_townhouse: "Townhouse",
+      condo: "Condo",
+      co_op: "Co-op",
+    };
+    return labels[type] || type;
+  };
+
   const handleCardClick = (e: React.MouseEvent) => {
     if (onNavigateToDetail) {
       onNavigateToDetail();
@@ -128,25 +146,37 @@ export function ListingCard({
 
         {/* Property type and lease length badges - bottom right */}
         <div className="absolute bottom-3 right-3 flex flex-col gap-2">
-          {listing.property_type === "basement" && (
-            <div className="rounded-full bg-black/35 px-3 py-1 text-xs font-medium text-white backdrop-blur-sm">
-              Basement
-            </div>
-          )}
-          {listing.property_type === "full_house" && (
-            <div className="rounded-full bg-black/35 px-3 py-1 text-xs font-medium text-white backdrop-blur-sm">
-              Full House
-            </div>
-          )}
-          {listing.property_type === "duplex" && (
-            <div className="rounded-full bg-black/35 px-3 py-1 text-xs font-medium text-white backdrop-blur-sm">
-              Duplex
-            </div>
-          )}
-          {listing.lease_length === "short_term" && (
-            <div className="rounded-full bg-black/35 px-3 py-1 text-xs font-medium text-white backdrop-blur-sm">
-              Short Term
-            </div>
+          {isSaleListing ? (
+            <>
+              {["detached_house", "semi_attached_house", "fully_attached_townhouse", "condo", "co_op"].includes(listing.property_type) && (
+                <div className="rounded-full bg-black/35 px-3 py-1 text-xs font-medium text-white backdrop-blur-sm">
+                  {getPropertyTypeLabel(listing.property_type)}
+                </div>
+              )}
+            </>
+          ) : (
+            <>
+              {listing.property_type === "basement" && (
+                <div className="rounded-full bg-black/35 px-3 py-1 text-xs font-medium text-white backdrop-blur-sm">
+                  Basement
+                </div>
+              )}
+              {listing.property_type === "full_house" && (
+                <div className="rounded-full bg-black/35 px-3 py-1 text-xs font-medium text-white backdrop-blur-sm">
+                  Full House
+                </div>
+              )}
+              {listing.property_type === "duplex" && (
+                <div className="rounded-full bg-black/35 px-3 py-1 text-xs font-medium text-white backdrop-blur-sm">
+                  Duplex
+                </div>
+              )}
+              {listing.lease_length === "short_term" && (
+                <div className="rounded-full bg-black/35 px-3 py-1 text-xs font-medium text-white backdrop-blur-sm">
+                  Short Term
+                </div>
+              )}
+            </>
           )}
         </div>
 
@@ -187,6 +217,12 @@ export function ListingCard({
             <strong className="text-2xl leading-tight font-bold text-brand-900">
               Call for Price
             </strong>
+          ) : isSaleListing ? (
+            listing.asking_price != null && (
+              <span className="text-2xl leading-tight font-bold text-brand-900">
+                <span className="num-font">{formatPrice(listing.asking_price)}</span>
+              </span>
+            )
           ) : (
             listing.price != null && (
               <span className="text-2xl leading-tight font-bold text-brand-900">
@@ -196,7 +232,7 @@ export function ListingCard({
           )}
         </div>
 
-        {/* Property specs - bedrooms, bathrooms, parking, broker fee */}
+        {/* Property specs - bedrooms, bathrooms, parking/driveway, broker fee */}
         <div className="inline-flex items-center gap-3 text-gray-600 leading-none mb-2">
           <Bed className="w-4 h-4 align-middle" />
           {listing.bedrooms === 0 ? (
@@ -208,18 +244,32 @@ export function ListingCard({
           )}
           <Bath className="w-4 h-4 align-middle" />
           <span className="text-sm num-font">{listing.bathrooms}</span>
-          {hasParking && <span className="text-sm">Parking</span>}
-          <span className="px-2 py-0.5 text-xs rounded bg-muted">
-            {listing.broker_fee ? "Broker Fee" : "No Fee"}
-          </span>
+          {isSaleListing ? (
+            <>
+              {listing.driveway_status && listing.driveway_status !== "none" && (
+                <span className="text-sm capitalize">{listing.driveway_status.replace(/_/g, " ")}</span>
+              )}
+            </>
+          ) : (
+            <>
+              {hasParking && <span className="text-sm">Parking</span>}
+              <span className="px-2 py-0.5 text-xs rounded bg-muted">
+                {listing.broker_fee ? "Broker Fee" : "No Fee"}
+              </span>
+            </>
+          )}
         </div>
 
-        {/* Location - cross streets */}
+        {/* Location - cross streets for rentals, full address for sales */}
         <div className="flex items-center text-gray-600 mt-2 mb-2">
           <MapPin className="w-4 h-4 mr-2 flex-shrink-0" />
           <NumericText
             className="text-sm leading-tight truncate flex-1 min-w-0"
-            text={(listing.cross_streets ?? listing.location) || ""}
+            text={
+              isSaleListing
+                ? listing.location || ""
+                : (listing.cross_streets ?? listing.location) || ""
+            }
           />
         </div>
 
