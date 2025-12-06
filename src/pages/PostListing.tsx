@@ -205,7 +205,7 @@ export function PostListing() {
       return;
     }
 
-    salesService.checkUserPermission(user.id).then(setCanPostSales);
+    salesService.canUserPostSales(user.id).then(setCanPostSales);
   }, [user?.id]);
 
 
