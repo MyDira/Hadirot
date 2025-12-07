@@ -237,24 +237,28 @@ Deno.serve(async (req) => {
 
         console.log(`👥 Found ${adminProfiles.length} admin user(s)`);
 
-        const { data: { users }, error: usersError } = await supabaseAdmin.auth.admin.listUsers();
+        const adminEmails: string[] = [];
 
-        if (usersError) {
-          console.error("❌ Error fetching user emails:", usersError);
-          return new Response(
-            JSON.stringify({ error: "Failed to fetch admin email addresses" }),
-            {
-              status: 500,
-              headers: { ...corsHeaders, "Content-Type": "application/json" },
-            },
-          );
+        for (const profile of adminProfiles) {
+          try {
+            const { data: userData, error: userError } = await supabaseAdmin.auth.admin.getUserById(profile.id);
+
+            if (userError) {
+              console.warn(`⚠️ Error fetching user ${profile.id}:`, userError);
+              continue;
+            }
+
+            if (userData?.user?.email) {
+              adminEmails.push(userData.user.email);
+              console.log(`✅ Found admin email: ${userData.user.email}`);
+            } else {
+              console.warn(`⚠️ No email found for admin user ${profile.id}`);
+            }
+          } catch (error) {
+            console.warn(`⚠️ Exception fetching user ${profile.id}:`, error);
+            continue;
+          }
         }
-
-        const adminIds = new Set(adminProfiles.map(p => p.id));
-        const adminEmails = users
-          ?.filter(u => adminIds.has(u.id))
-          .map(u => u.email)
-          .filter((email): email is string => !!email) || [];
 
         if (adminEmails.length === 0) {
           console.warn("⚠️ No admin email addresses found");
@@ -267,7 +271,7 @@ Deno.serve(async (req) => {
           );
         }
 
-        console.log(`✅ Found ${adminEmails.length} admin email(s)`);
+        console.log(`✅ Found ${adminEmails.length} admin email(s):`, adminEmails);
 
         emailData = {
           ...emailData,

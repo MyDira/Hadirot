@@ -36,7 +36,6 @@ async function sendViaZepto({ to, subject, html, from, fromName, replyTo, attach
 
   const toList = Array.isArray(to) ? to : [to];
 
-  // Wrap plain text in minimal HTML to preserve formatting
   const htmlFormatted = `<pre style="font-family: inherit; white-space: pre-wrap; word-wrap: break-word;">${html}</pre>`;
 
   const payload = {
@@ -44,7 +43,7 @@ async function sendViaZepto({ to, subject, html, from, fromName, replyTo, attach
     to: toList.map((addr) => ({ email_address: { address: addr } })),
     subject,
     htmlbody: htmlFormatted,
-    textbody: html, // Also include as plain text
+    textbody: html,
     reply_to: replyToAddress ? [{ address: replyToAddress }] : undefined,
     track_opens: false,
     track_clicks: false,
@@ -130,11 +129,11 @@ Deno.serve(async (req) => {
   }
 
   try {
-    console.log("\ud83d\udce7 Starting daily admin digest email job");
+    console.log("📧 Starting daily admin digest email job");
 
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
-      console.error("\u274c No Authorization header provided");
+      console.error("❌ No Authorization header provided");
       return new Response(
         JSON.stringify({ error: "Unauthorized", message: "Authentication required" }),
         {
@@ -149,9 +148,9 @@ Deno.serve(async (req) => {
       try {
         const body = await req.json();
         force = body.force === true;
-        console.log(`\ud83d\udd27 Force parameter: ${force}`);
+        console.log(`🔧 Force parameter: ${force}`);
       } catch (e) {
-        console.warn("\u26a0\ufe0f Could not parse request body:", e);
+        console.warn("⚠️ Could not parse request body:", e);
       }
     }
 
@@ -170,7 +169,7 @@ Deno.serve(async (req) => {
     const { data: { user }, error: userError } = await supabaseAdmin.auth.getUser(token);
 
     if (userError || !user) {
-      console.error("\u274c Invalid auth token:", userError);
+      console.error("❌ Invalid auth token:", userError);
       return new Response(
         JSON.stringify({ error: "Unauthorized", message: "Invalid authentication token" }),
         {
@@ -187,7 +186,7 @@ Deno.serve(async (req) => {
       .maybeSingle();
 
     if (profileError || !profile || !profile.is_admin) {
-      console.error("\u274c User is not an admin:", user.id);
+      console.error("❌ User is not an admin:", user.id);
       return new Response(
         JSON.stringify({ error: "Forbidden", message: "Admin access required" }),
         {
@@ -197,7 +196,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    console.log(`\u2705 Authorized admin user: ${user.id}`);
+    console.log(`✅ Authorized admin user: ${user.id}`);
 
     const { data: config, error: configError } = await supabaseAdmin
       .from("daily_admin_digest_config")
@@ -206,7 +205,7 @@ Deno.serve(async (req) => {
       .maybeSingle();
 
     if (configError) {
-      console.error("\u274c Error fetching config:", configError);
+      console.error("❌ Error fetching config:", configError);
       return new Response(
         JSON.stringify({
           error: "Database error",
@@ -221,7 +220,7 @@ Deno.serve(async (req) => {
     }
 
     if (!force && (!config || !config.enabled)) {
-      console.log("\u23f8\ufe0f Daily digest is disabled");
+      console.log("⏸️ Daily digest is disabled");
       return new Response(
         JSON.stringify({ message: "Daily digest is disabled" }),
         {
@@ -232,7 +231,7 @@ Deno.serve(async (req) => {
     }
 
     if (force) {
-      console.log("\ud83d\udd27 Force parameter set - bypassing enabled check");
+      console.log("🔧 Force parameter set - bypassing enabled check");
     }
 
     const { data: adminProfiles, error: adminsError } = await supabaseAdmin
@@ -241,7 +240,7 @@ Deno.serve(async (req) => {
       .eq("is_admin", true);
 
     if (adminsError) {
-      console.error("\u274c Error fetching admins:", adminsError);
+      console.error("❌ Error fetching admins:", adminsError);
       return new Response(
         JSON.stringify({
           error: "Database error",
@@ -256,7 +255,7 @@ Deno.serve(async (req) => {
     }
 
     if (!adminProfiles || adminProfiles.length === 0) {
-      console.log("\u26a0\ufe0f No admin users found");
+      console.log("⚠️ No admin users found");
       return new Response(
         JSON.stringify({ message: "No admin users to send email to" }),
         {
@@ -266,31 +265,29 @@ Deno.serve(async (req) => {
       );
     }
 
-    const { data: { users }, error: usersError } = await supabaseAdmin.auth.admin.listUsers();
+    const adminEmails: string[] = [];
 
-    if (usersError) {
-      console.error("\u274c Error fetching user emails:", usersError);
-      return new Response(
-        JSON.stringify({
-          error: "Authentication error",
-          message: "Failed to fetch user email addresses",
-          details: usersError.message
-        }),
-        {
-          status: 500,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+    for (const profile of adminProfiles) {
+      try {
+        const { data: userData, error: userError } = await supabaseAdmin.auth.admin.getUserById(profile.id);
+
+        if (userError) {
+          console.warn(`⚠️ Error fetching user ${profile.id}:`, userError);
+          continue;
         }
-      );
+
+        if (userData?.user?.email) {
+          adminEmails.push(userData.user.email);
+          console.log(`✅ Found admin email: ${userData.user.email}`);
+        }
+      } catch (error) {
+        console.warn(`⚠️ Exception fetching user ${profile.id}:`, error);
+        continue;
+      }
     }
 
-    const adminIds = new Set(adminProfiles.map(p => p.id));
-    const adminEmails = users
-      ?.filter(u => adminIds.has(u.id))
-      .map(u => u.email)
-      .filter((email): email is string => !!email) || [];
-
     if (adminEmails.length === 0) {
-      console.log("\u26a0\ufe0f No admin email addresses found");
+      console.log("⚠️ No admin email addresses found");
       return new Response(
         JSON.stringify({ message: "No admin email addresses to send to" }),
         {
@@ -300,7 +297,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    console.log(`\ud83d\udc65 Found ${adminEmails.length} admin user(s)`);
+    console.log(`👥 Found ${adminEmails.length} admin user(s)`);
 
     const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
     const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
@@ -331,7 +328,7 @@ Deno.serve(async (req) => {
       .order("created_at", { ascending: false });
 
     if (listingsError) {
-      console.error("\u274c Error fetching listings:", listingsError);
+      console.error("❌ Error fetching listings:", listingsError);
       return new Response(
         JSON.stringify({
           error: "Database error",
@@ -346,7 +343,7 @@ Deno.serve(async (req) => {
     }
 
     if (!listings || listings.length === 0) {
-      console.log("\u2139\ufe0f No new approved listings in last 24 hours");
+      console.log("ℹ️ No new approved listings in last 24 hours");
 
       await supabaseAdmin.from("daily_admin_digest_logs").insert({
         run_at: new Date().toISOString(),
@@ -381,7 +378,7 @@ Deno.serve(async (req) => {
     );
 
     if (newListings.length === 0) {
-      console.log("\u2139\ufe0f All listings already sent within past 7 days");
+      console.log("ℹ️ All listings already sent within past 7 days");
 
       await supabaseAdmin.from("daily_admin_digest_logs").insert({
         run_at: new Date().toISOString(),
@@ -405,11 +402,10 @@ Deno.serve(async (req) => {
       );
     }
 
-    console.log(`\ud83d\udccb Found ${newListings.length} new listing(s) to send`);
+    console.log(`📋 Found ${newListings.length} new listing(s) to send`);
 
     const siteUrl = Deno.env.get("PUBLIC_SITE_URL") || "https://hadirot.com";
 
-    // Get total count of active listings for intro text
     const { count: totalActiveCount, error: countError } = await supabaseAdmin
       .from("listings")
       .select("*", { count: 'exact', head: true })
@@ -421,7 +417,6 @@ Deno.serve(async (req) => {
     }
 
     const totalActive = totalActiveCount || 0;
-    // Round down to nearest 10 (e.g., 83 becomes 80)
     const roundedCount = Math.floor(totalActive / 10) * 10;
 
     const formatPrice = (listing: Listing) => {
@@ -454,23 +449,20 @@ Deno.serve(async (req) => {
     };
 
     const getPropertyTypeDisplay = (propertyType: string) => {
-      // Only show property type if it's NOT an apartment
       if (propertyType === "basement") return "Basement";
       if (propertyType === "full_house") return "Full House";
       if (propertyType === "duplex") return "Duplex";
-      return ""; // Don't show anything for apartments
+      return "";
     };
 
     const getLeaseDisplay = (leaseLength: string) => {
-      // Only show if it's short term
       if (leaseLength === "short_term") return "Short Term";
-      return ""; // Don't show for standard leases
+      return "";
     };
 
     let listingsTextContent = "";
 
     for (const listing of newListings) {
-      // Create short URL for cleaner appearance and click tracking
       let listingUrl = `${siteUrl}/listing/${listing.id}`;
 
       try {
@@ -489,7 +481,6 @@ Deno.serve(async (req) => {
         }
       } catch (shortUrlError) {
         console.error("Error creating short URL:", shortUrlError);
-        // Fall back to original URL if short URL creation fails
       }
       const ownerDisplay = listing.owner?.role === "agent" && listing.owner?.agency
         ? listing.owner.agency
@@ -507,7 +498,6 @@ Deno.serve(async (req) => {
       }
       specs += ` | ${listing.broker_fee ? "Broker Fee" : "No Fee"}`;
 
-      // Add property type and lease info on same line if they exist
       const propertyType = getPropertyTypeDisplay(listing.property_type);
       const leaseType = getLeaseDisplay(listing.lease_length);
       if (propertyType || leaseType) {
@@ -533,30 +523,28 @@ Deno.serve(async (req) => {
       day: "numeric",
     });
 
-    // Create plain text email content (no HTML)
     const emailPlainText = `Here are the latest apartments posted on Hadirot:
 
 To see all ${roundedCount}+ active apartments:
 ${siteUrl}/browse
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+───────────────────────────────
 
-${listingsTextContent}━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${listingsTextContent}───────────────────────────────
 
 Join the Hadirot WhatsApp Community:
 https://chat.whatsapp.com/C3qmgo7DNOI63OE0RAZRgt`;
 
-    // Use plain text as the HTML body (ZeptoMail will handle it)
     const emailHtml = emailPlainText;
 
-    console.log(`\ud83d\udce4 Sending email to ${adminEmails.length} admin(s)`);
+    console.log(`📤 Sending email to ${adminEmails.length} admin(s)`);
 
     const zeptoToken = Deno.env.get("ZEPTO_TOKEN");
     const zeptoFromAddress = Deno.env.get("ZEPTO_FROM_ADDRESS");
     const zeptoFromName = Deno.env.get("ZEPTO_FROM_NAME");
 
     if (!zeptoToken) {
-      console.error("\u274c ZEPTO_TOKEN environment variable is not set");
+      console.error("❌ ZEPTO_TOKEN environment variable is not set");
       return new Response(
         JSON.stringify({
           error: "Configuration error",
@@ -570,10 +558,10 @@ https://chat.whatsapp.com/C3qmgo7DNOI63OE0RAZRgt`;
     }
 
     if (!zeptoFromAddress || !zeptoFromName) {
-      console.warn("\u26a0\ufe0f ZEPTO_FROM_ADDRESS or ZEPTO_FROM_NAME not set, using defaults");
+      console.warn("⚠️ ZEPTO_FROM_ADDRESS or ZEPTO_FROM_NAME not set, using defaults");
     }
 
-    console.log("\u2705 Email configuration verified");
+    console.log("✅ Email configuration verified");
 
     try {
       await sendViaZepto({
@@ -582,9 +570,9 @@ https://chat.whatsapp.com/C3qmgo7DNOI63OE0RAZRgt`;
         html: emailHtml,
         fromName: "HaDirot Admin",
       });
-      console.log("\u2705 Email sent successfully");
+      console.log("✅ Email sent successfully");
     } catch (emailError) {
-      console.error("\u274c Failed to send email:", emailError);
+      console.error("❌ Failed to send email:", emailError);
       return new Response(
         JSON.stringify({
           error: "Email service error",
@@ -609,9 +597,9 @@ https://chat.whatsapp.com/C3qmgo7DNOI63OE0RAZRgt`;
       .insert(sentRecords);
 
     if (insertError) {
-      console.error("\u274c Error recording sent listings:", insertError);
+      console.error("❌ Error recording sent listings:", insertError);
     } else {
-      console.log(`\u2705 Recorded ${listingIds.length} sent listing(s)`);
+      console.log(`✅ Recorded ${listingIds.length} sent listing(s)`);
     }
 
     await supabaseAdmin.from("daily_admin_digest_logs").insert({
@@ -634,8 +622,8 @@ https://chat.whatsapp.com/C3qmgo7DNOI63OE0RAZRgt`;
         }
     );
   } catch (error) {
-    console.error("\u274c Unexpected error in daily admin digest job:", error);
-    console.error("\u274c Error stack:", error instanceof Error ? error.stack : "No stack trace");
+    console.error("❌ Unexpected error in daily admin digest job:", error);
+    console.error("❌ Error stack:", error instanceof Error ? error.stack : "No stack trace");
 
     try {
       const supabaseAdmin = createClient(
@@ -657,7 +645,7 @@ https://chat.whatsapp.com/C3qmgo7DNOI63OE0RAZRgt`;
         error_message: error instanceof Error ? error.message : String(error),
       });
     } catch (logError) {
-      console.error("\u274c Failed to log error to database:", logError);
+      console.error("❌ Failed to log error to database:", logError);
     }
 
     const errorMessage = error instanceof Error ? error.message : String(error);

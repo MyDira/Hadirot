@@ -712,17 +712,22 @@ Deno.serve(async (req) => {
       .eq("is_admin", true);
 
     const adminIds = adminProfiles?.map(p => p.id) || [];
-    const { data: { users } } = await supabaseAdmin.auth.admin.listUsers();
 
     let adminEmails: string[];
     if (recipient_emails && recipient_emails.length > 0) {
       adminEmails = recipient_emails;
     } else {
-      const adminIdSet = new Set(adminIds);
-      adminEmails = users
-        ?.filter(u => adminIdSet.has(u.id))
-        .map(u => u.email)
-        .filter((email): email is string => !!email) || [];
+      adminEmails = [];
+      for (const adminId of adminIds) {
+        try {
+          const { data: userData, error: userError } = await supabaseAdmin.auth.admin.getUserById(adminId);
+          if (!userError && userData?.user?.email) {
+            adminEmails.push(userData.user.email);
+          }
+        } catch (error) {
+          console.warn(`Failed to fetch email for admin ${adminId}:`, error);
+        }
+      }
     }
 
     if (adminEmails.length === 0) {
