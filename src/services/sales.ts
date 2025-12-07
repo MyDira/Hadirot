@@ -1,4 +1,5 @@
 import { supabase, AdminSettings, SalesPermissionRequest, Profile } from '../config/supabase';
+import { emailService, renderBrandEmail } from './email';
 
 export const salesService = {
   async getSalesSettings(): Promise<AdminSettings | null> {
@@ -109,31 +110,56 @@ export const salesService = {
 
       const siteUrl = window.location.origin;
 
-      const result = await supabase.functions.invoke('send-email', {
-        body: {
-          to: [],
-          subject: `New Sales Permission Request from ${user.full_name}`,
-          type: 'admin_notification',
-          html: `
-            <h2>New Sales Listing Permission Request</h2>
-            <p>A user has requested permission to post sale listings.</p>
-            <h3>User Details:</h3>
-            <ul>
-              <li><strong>Name:</strong> ${user.full_name}</li>
-              <li><strong>Email:</strong> ${user.email || 'N/A'}</li>
-              <li><strong>Phone:</strong> ${user.phone || 'N/A'}</li>
-              <li><strong>Role:</strong> ${user.role}</li>
-            </ul>
-            <h3>Request Message:</h3>
-            <p>${request.request_message}</p>
-            <p><a href="${siteUrl}/admin?tab=sales">Review Request in Admin Panel</a></p>
-          `,
-        },
+      const bodyHtml = `
+        <p style="margin-top:0;">A user has requested permission to post sale listings on the platform.</p>
+
+        <div style="margin:20px 0;padding:16px;background-color:#EEF2FF;border-radius:8px;">
+          <h3 style="margin:0 0 12px 0;color:#1E4A74;">User Details</h3>
+          <table style="width:100%;border-collapse:collapse;">
+            <tr>
+              <td style="padding:6px 0;color:#6B7280;width:30%;"><strong>Name:</strong></td>
+              <td style="padding:6px 0;">${user.full_name}</td>
+            </tr>
+            <tr>
+              <td style="padding:6px 0;color:#6B7280;"><strong>Email:</strong></td>
+              <td style="padding:6px 0;">${user.email || 'N/A'}</td>
+            </tr>
+            <tr>
+              <td style="padding:6px 0;color:#6B7280;"><strong>Phone:</strong></td>
+              <td style="padding:6px 0;">${user.phone || 'N/A'}</td>
+            </tr>
+            <tr>
+              <td style="padding:6px 0;color:#6B7280;"><strong>Role:</strong></td>
+              <td style="padding:6px 0;">${user.role}</td>
+            </tr>
+          </table>
+        </div>
+
+        <div style="margin:20px 0;padding:16px;background-color:#FEF3C7;border-left:4px solid #F59E0B;border-radius:4px;">
+          <strong>Request Message:</strong>
+          <p style="margin:8px 0 0 0;">${request.request_message.replace(/\n/g, '<br>')}</p>
+        </div>
+
+        <p style="margin-top:20px;">
+          <a href="${siteUrl}/admin?tab=sales" style="color:#1E4A74;text-decoration:underline;">Review Request in Admin Panel</a>
+        </p>
+      `;
+
+      const html = renderBrandEmail({
+        title: 'Sales Permission Request',
+        bodyHtml,
       });
 
-      if (result.error) {
+      const result = await emailService.sendEmail({
+        to: 'admin@hadirot.com',
+        subject: `[HaDirot Admin] Sales Permission Request from ${user.full_name}`,
+        html,
+        type: 'admin_notification',
+      });
+
+      if (!result.success) {
         console.error('Error sending admin notification:', result.error);
-        throw result.error;
+        throw new Error(result.error || 'Failed to send admin notification');
       }
 
       console.log('✅ Admin notification email sent successfully');
@@ -258,7 +284,6 @@ export const salesService = {
 
   async notifyUserOfApproval(userId: string, adminNotes?: string): Promise<void> {
     try {
-      // Get the user's auth email
       const { data: authUser, error: authError } = await supabase.auth.admin.getUserById(userId);
 
       if (authError || !authUser?.user?.email) {
@@ -276,24 +301,36 @@ export const salesService = {
       const userEmail = authUser.user.email;
       const siteUrl = window.location.origin;
 
-      const result = await supabase.functions.invoke('send-email', {
-        body: {
-          to: [userEmail],
-          subject: 'Your Sales Listing Permission Request Has Been Approved',
-          html: `
-            <h2>Permission Approved!</h2>
-            <p>Hi ${userName},</p>
-            <p>Great news! Your request to post sale listings has been approved.</p>
-            <p>You can now create and publish sale listings on our platform.</p>
-            ${adminNotes ? `<p><strong>Note from admin:</strong> ${adminNotes}</p>` : ''}
-            <p><a href="${siteUrl}/post-listing">Post Your First Sale Listing</a></p>
-          `,
-        },
+      const adminNotesSection = adminNotes
+        ? `<div style="margin:16px 0;padding:12px;background-color:#EEF2FF;border-left:4px solid:#3B82F6;border-radius:4px;">
+            <strong>Note from admin:</strong>
+            <p style="margin:8px 0 0 0;">${adminNotes.replace(/\n/g, '<br>')}</p>
+          </div>`
+        : '';
+
+      const bodyHtml = `
+        <p style="margin-top:0;">Hi ${userName},</p>
+        <p>Great news! Your request to post sale listings has been approved.</p>
+        <p>You can now create and publish sale listings on our platform.</p>
+        ${adminNotesSection}
+      `;
+
+      const html = renderBrandEmail({
+        title: 'Permission Approved!',
+        bodyHtml,
+        ctaLabel: 'Post Your First Sale Listing',
+        ctaHref: `${siteUrl}/post-listing`,
       });
 
-      if (result.error) {
+      const result = await emailService.sendEmail({
+        to: userEmail,
+        subject: 'Your Sales Listing Permission Request Has Been Approved',
+        html,
+      });
+
+      if (!result.success) {
         console.error('Error sending approval notification:', result.error);
-        throw result.error;
+        throw new Error(result.error || 'Failed to send approval notification');
       }
 
       console.log('✅ Approval notification email sent successfully');
@@ -305,7 +342,6 @@ export const salesService = {
 
   async notifyUserOfDenial(userId: string, adminNotes?: string): Promise<void> {
     try {
-      // Get the user's auth email
       const { data: authUser, error: authError } = await supabase.auth.admin.getUserById(userId);
 
       if (authError || !authUser?.user?.email) {
@@ -322,24 +358,35 @@ export const salesService = {
       const userName = profile?.full_name || 'User';
       const userEmail = authUser.user.email;
 
-      const result = await supabase.functions.invoke('send-email', {
-        body: {
-          to: [userEmail],
-          subject: 'Update on Your Sales Listing Permission Request',
-          html: `
-            <h2>Permission Request Update</h2>
-            <p>Hi ${userName},</p>
-            <p>Thank you for your interest in posting sale listings on our platform.</p>
-            <p>After reviewing your request, we are unable to grant sales listing permissions at this time.</p>
-            ${adminNotes ? `<p><strong>Reason:</strong> ${adminNotes}</p>` : ''}
-            <p>If you have any questions or would like to discuss this further, please contact our support team.</p>
-          `,
-        },
+      const reasonSection = adminNotes
+        ? `<div style="margin:16px 0;padding:12px;background-color:#FEF3C7;border-left:4px solid #F59E0B;border-radius:4px;">
+            <strong>Reason:</strong>
+            <p style="margin:8px 0 0 0;">${adminNotes.replace(/\n/g, '<br>')}</p>
+          </div>`
+        : '';
+
+      const bodyHtml = `
+        <p style="margin-top:0;">Hi ${userName},</p>
+        <p>Thank you for your interest in posting sale listings on our platform.</p>
+        <p>After reviewing your request, we are unable to grant sales listing permissions at this time.</p>
+        ${reasonSection}
+        <p>If you have any questions or would like to discuss this further, please contact our support team.</p>
+      `;
+
+      const html = renderBrandEmail({
+        title: 'Permission Request Update',
+        bodyHtml,
       });
 
-      if (result.error) {
+      const result = await emailService.sendEmail({
+        to: userEmail,
+        subject: 'Update on Your Sales Listing Permission Request',
+        html,
+      });
+
+      if (!result.success) {
         console.error('Error sending denial notification:', result.error);
-        throw result.error;
+        throw new Error(result.error || 'Failed to send denial notification');
       }
 
       console.log('✅ Denial notification email sent successfully');
