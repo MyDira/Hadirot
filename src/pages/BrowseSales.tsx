@@ -84,6 +84,16 @@ export function BrowseSales() {
         </div>
       </div>
 
+      {/* Desktop Filters */}
+      <div className="hidden lg:block mb-6">
+        <ListingFilters
+          filters={filters}
+          onFilterChange={setFilter}
+          onReset={resetFilters}
+          listingType="sale"
+        />
+      </div>
+
       {/* Mobile Filter Button */}
       <div className="lg:hidden mb-6">
         <button
@@ -102,21 +112,42 @@ export function BrowseSales() {
         </button>
       </div>
 
-      <div className="flex flex-col lg:flex-row gap-8">
-        {/* Filters Sidebar */}
-        <aside className={`lg:w-80 flex-shrink-0 ${showMobileFilters ? 'block' : 'hidden lg:block'}`}>
-          <div className="sticky top-24">
+      {/* Mobile Filters Modal */}
+      {showMobileFilters && (
+        <div className="lg:hidden fixed inset-0 z-50 bg-white overflow-y-auto">
+          <div className="p-4">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-bold text-[#4E4B43]">Filters</h2>
+              <button
+                onClick={() => setShowMobileFilters(false)}
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
             <ListingFilters
               filters={filters}
               onFilterChange={setFilter}
               onReset={resetFilters}
+              isMobile
               listingType="sale"
             />
+            <div className="mt-6">
+              <button
+                onClick={() => setShowMobileFilters(false)}
+                className="w-full bg-[#4E4B43] text-white py-3 px-4 rounded-lg font-semibold hover:bg-[#3d3a35] transition-colors"
+              >
+                Apply Filters
+              </button>
+            </div>
           </div>
-        </aside>
+        </div>
+      )}
 
-        {/* Listings Grid */}
-        <main className="flex-1">
+      {/* Listings Grid */}
+      <main>
           {loading ? (
             <div className="text-center py-12">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#4E4B43] mx-auto"></div>
@@ -129,11 +160,19 @@ export function BrowseSales() {
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
                 {listings.map((listing) => (
-                  <ListingCard
+                  <div
                     key={listing.id}
-                    listing={listing}
-                    isFavorited={false}
-                  />
+                    ref={(el) => {
+                      if (el) {
+                        observeElement(el, listing.id);
+                      }
+                    }}
+                  >
+                    <ListingCard
+                      listing={listing}
+                      isFavorited={false}
+                    />
+                  </div>
                 ))}
               </div>
 
@@ -207,7 +246,6 @@ export function BrowseSales() {
             </div>
           )}
         </main>
-      </div>
     </div>
   );
 }

@@ -14,6 +14,7 @@ import { ListingCard } from "../components/listings/ListingCard";
 import { Listing, Agency } from "@/config/supabase";
 import { listingsService } from "@/services/listings";
 import { agenciesService } from "@/services/agencies";
+import { salesService } from "@/services/sales";
 import { slugToAgencyLabel } from "@/utils/agency";
 import { formatPhoneForDisplay } from "@/utils/phone";
 import { normalizeUrlForHref, canonicalUrl } from "@/utils/url";
@@ -48,6 +49,9 @@ export function AgencyPage() {
   const [filters, setFilters] = useState<AgencyFilters>({});
   const [shareToastMessage, setShareToastMessage] = useState<string | null>(null);
   const [isAboutExpanded, setIsAboutExpanded] = useState(false);
+  const [listingType, setListingType] = useState<'rental' | 'sale'>('rental');
+  const [agencyOwnerCanPostSales, setAgencyOwnerCanPostSales] = useState(false);
+  const [salesFeatureEnabled, setSalesFeatureEnabled] = useState(false);
   const shareToastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const resolvedAgencyDisplayName =
     agency?.name?.trim() ||
@@ -121,6 +125,21 @@ export function AgencyPage() {
     void trackAgencyPageView(agencyId, slugForEvent);
   }, [agency?.id, agency?.slug, slugParam]);
 
+  // Load sales feature status
+  useEffect(() => {
+    salesService.isSalesFeatureEnabled().then(setSalesFeatureEnabled);
+  }, []);
+
+  // Check if agency owner can post sales
+  useEffect(() => {
+    if (!agency?.owner_id) {
+      setAgencyOwnerCanPostSales(false);
+      return;
+    }
+
+    salesService.canUserPostSales(agency.owner_id).then(setAgencyOwnerCanPostSales);
+  }, [agency?.owner_id]);
+
   // Set up listing impression tracking
   const { observeElement } = useListingImpressions({
     listingIds: listings.map(l => l.id),
@@ -129,25 +148,30 @@ export function AgencyPage() {
   const ITEMS_PER_PAGE = 20;
   const totalPages = Math.ceil(totalCount / ITEMS_PER_PAGE);
 
-  // Initialize filters from URL
+  // Initialize filters and listing type from URL
   useEffect(() => {
     const urlFilters: AgencyFilters = {};
-    
+
     const bedrooms = searchParams.get("bedrooms");
     if (bedrooms) urlFilters.bedrooms = parseInt(bedrooms);
-    
+
     const min_price = searchParams.get("min_price");
     if (min_price) urlFilters.min_price = parseInt(min_price);
-    
+
     const max_price = searchParams.get("max_price");
     if (max_price) urlFilters.max_price = parseInt(max_price);
-    
+
     const sort = searchParams.get("sort") as AgencyFilters['sort'];
     if (sort) urlFilters.sort = sort;
-    
+
     const page = searchParams.get("page");
     if (page) setCurrentPage(parseInt(page));
-    
+
+    const type = searchParams.get("type");
+    if (type === 'sale' || type === 'rental') {
+      setListingType(type);
+    }
+
     setFilters(urlFilters);
   }, [searchParams]);
 
@@ -207,6 +231,7 @@ export function AgencyPage() {
           sort: filters.sort,
           limit: ITEMS_PER_PAGE,
           offset,
+          listingType,
         },
       );
 
@@ -221,10 +246,10 @@ export function AgencyPage() {
     }
   };
 
-  // Load listings when filters, page, or slug changes
+  // Load listings when filters, page, slug, or listing type changes
   useEffect(() => {
     loadAgencyListings();
-  }, [agency?.id, filters, currentPage]);
+  }, [agency?.id, filters, currentPage, listingType]);
 
   useEffect(() => {
     setCurrentPage(1);
@@ -233,10 +258,10 @@ export function AgencyPage() {
   const handleFiltersChange = (newFilters: AgencyFilters) => {
     setFilters(newFilters);
     setCurrentPage(1);
-    
+
     // Update URL with new filters
     const params = new URLSearchParams();
-    
+
     if (newFilters.bedrooms !== undefined) {
       params.set("bedrooms", newFilters.bedrooms.toString());
     }
@@ -249,10 +274,15 @@ export function AgencyPage() {
     if (newFilters.sort && newFilters.sort !== 'newest') {
       params.set("sort", newFilters.sort);
     }
-    
+
+    // Preserve listing type in URL
+    if (listingType !== 'rental') {
+      params.set("type", listingType);
+    }
+
     params.set("page", "1");
     setSearchParams(params);
-    
+
     // Track filter usage
     track('agency_filter_apply', {
       agency_name: resolvedAgencyDisplayName,
@@ -260,6 +290,29 @@ export function AgencyPage() {
       agency_id: agency?.id,
       agency_found: agencyExists ?? false,
       filters: newFilters,
+    });
+  };
+
+  const handleListingTypeChange = (type: 'rental' | 'sale') => {
+    setListingType(type);
+    setCurrentPage(1);
+
+    // Update URL with new type
+    const params = new URLSearchParams(searchParams);
+    if (type === 'sale') {
+      params.set("type", "sale");
+    } else {
+      params.delete("type");
+    }
+    params.set("page", "1");
+    setSearchParams(params);
+
+    // Track type change
+    track('agency_listing_type_change', {
+      agency_name: resolvedAgencyDisplayName,
+      agency_slug: agency?.slug ?? slugParam,
+      agency_id: agency?.id,
+      listing_type: type,
     });
   };
 
@@ -544,6 +597,34 @@ export function AgencyPage() {
           )}
         </div>
       </div>
+
+      {/* Listing Type Toggle */}
+      {salesFeatureEnabled && agencyOwnerCanPostSales && (
+        <div className="mb-6">
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-1 inline-flex">
+            <button
+              onClick={() => handleListingTypeChange('rental')}
+              className={`px-6 py-2 rounded-md font-medium transition-colors ${
+                listingType === 'rental'
+                  ? 'bg-[#273140] text-white'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              For Rent
+            </button>
+            <button
+              onClick={() => handleListingTypeChange('sale')}
+              className={`px-6 py-2 rounded-md font-medium transition-colors ${
+                listingType === 'sale'
+                  ? 'bg-[#273140] text-white'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              For Sale
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Mobile Filter Button */}
       <div className="lg:hidden mb-6">

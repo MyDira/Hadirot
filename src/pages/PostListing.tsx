@@ -81,6 +81,9 @@ export function PostListing() {
   const [ownedAgencyId, setOwnedAgencyId] = useState<string | null>(null);
   const [salesFeatureEnabled, setSalesFeatureEnabled] = useState(false);
   const [canPostSales, setCanPostSales] = useState(false);
+  const [showPermissionModal, setShowPermissionModal] = useState(false);
+  const [permissionRequestMessage, setPermissionRequestMessage] = useState('');
+  const [requestingPermission, setRequestingPermission] = useState(false);
   const [formData, setFormData] = useState<ListingFormData>({
     listing_type: "rental",
     title: "",
@@ -434,6 +437,31 @@ export function PostListing() {
         };
       }
     });
+  };
+
+  const handlePermissionRequest = async () => {
+    if (!user?.id) {
+      alert('Please sign in to request permission');
+      return;
+    }
+
+    if (!permissionRequestMessage.trim()) {
+      alert('Please provide a reason for requesting sales permission');
+      return;
+    }
+
+    try {
+      setRequestingPermission(true);
+      await salesService.createPermissionRequest(user.id, permissionRequestMessage);
+      alert('Your request has been submitted. Admins will be notified via email.');
+      setShowPermissionModal(false);
+      setPermissionRequestMessage('');
+    } catch (error) {
+      console.error('Error requesting permission:', error);
+      alert('Failed to submit request. Please try again.');
+    } finally {
+      setRequestingPermission(false);
+    }
   };
 
   const handleMediaAdd = async (files: File[]) => {
@@ -934,36 +962,56 @@ export function PostListing() {
                 <div className="text-lg font-semibold">Rental Listing</div>
                 <div className="text-sm text-gray-600 mt-1">Post a property for rent</div>
               </button>
-              {canPostSales && (
-                <button
-                  type="button"
-                  onClick={() => setFormData({ ...formData, listing_type: 'sale' })}
-                  className={`p-4 border-2 rounded-lg transition-all ${
-                    formData.listing_type === 'sale'
-                      ? 'border-brand-700 bg-brand-50'
-                      : 'border-gray-300 hover:border-gray-400'
-                  }`}
-                >
-                  <div className="text-lg font-semibold">Sale Listing</div>
-                  <div className="text-sm text-gray-600 mt-1">Post a property for sale</div>
-                </button>
+
+              {salesFeatureEnabled && (
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (canPostSales) {
+                        setFormData({ ...formData, listing_type: 'sale' });
+                      } else {
+                        setShowPermissionModal(true);
+                      }
+                    }}
+                    className={`w-full p-4 border-2 rounded-lg transition-all ${
+                      formData.listing_type === 'sale'
+                        ? 'border-brand-700 bg-brand-50'
+                        : 'border-gray-300 hover:border-gray-400'
+                    } ${!canPostSales ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  >
+                    <div className="text-lg font-semibold">Sale Listing</div>
+                    <div className="text-sm text-gray-600 mt-1">Post a property for sale</div>
+                  </button>
+                  {!canPostSales && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-gray-100 bg-opacity-90 rounded-lg pointer-events-none">
+                      <div className="text-center p-4">
+                        <p className="text-sm font-medium text-gray-700">
+                          You don't have permission to post sale listings yet.
+                        </p>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setShowPermissionModal(true);
+                          }}
+                          className="text-sm text-brand-700 underline font-medium mt-1 pointer-events-auto"
+                        >
+                          Request permission
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
               )}
             </div>
-            {salesFeatureEnabled && !canPostSales && (
-              <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-                <p className="text-sm text-yellow-800">
-                  You don't have permission to post sale listings yet.{' '}
-                  <a href="/account-settings" className="underline font-medium">
-                    Request permission
-                  </a>
-                </p>
-              </div>
-            )}
           </div>
         )}
 
         {/* Basic Information */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+        <div className={`bg-white rounded-lg shadow-sm border border-gray-200 p-6 relative ${
+          formData.listing_type === 'sale' && !canPostSales ? 'opacity-50 pointer-events-none' : ''
+        }`}>
           <h2 className="text-xl font-semibold text-[#273140] mb-4">
             Basic Information
           </h2>
@@ -1076,7 +1124,9 @@ export function PostListing() {
         </div>
 
         {/* Property Details */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+        <div className={`bg-white rounded-lg shadow-sm border border-gray-200 p-6 relative ${
+          formData.listing_type === 'sale' && !canPostSales ? 'opacity-50 pointer-events-none' : ''
+        }`}>
           <h2 className="text-xl font-semibold text-[#273140] mb-4">
             Property Details
           </h2>
@@ -1420,7 +1470,9 @@ export function PostListing() {
         </div>
 
         {/* Media Upload (Images & Videos) */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+        <div className={`bg-white rounded-lg shadow-sm border border-gray-200 p-6 relative ${
+          formData.listing_type === 'sale' && !canPostSales ? 'opacity-50 pointer-events-none' : ''
+        }`}>
           <h2 className="text-xl font-semibold text-[#273140] mb-4">
             Media (Images & Video)
           </h2>
@@ -1446,7 +1498,9 @@ export function PostListing() {
         </div>
 
         {/* Contact Information */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+        <div className={`bg-white rounded-lg shadow-sm border border-gray-200 p-6 relative ${
+          formData.listing_type === 'sale' && !canPostSales ? 'opacity-50 pointer-events-none' : ''
+        }`}>
           <h2 className="text-xl font-semibold text-[#273140] mb-4">
             Contact Information
           </h2>
@@ -1486,7 +1540,7 @@ export function PostListing() {
         <div className="flex justify-end">
           <button
             type="submit"
-            disabled={loading}
+            disabled={loading || (formData.listing_type === 'sale' && !canPostSales)}
             className="bg-accent-500 text-white px-8 py-3 rounded-md font-semibold hover:bg-accent-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-accent-400 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {loading ? "Creating Listing..." : "Post Listing"}
@@ -1506,6 +1560,55 @@ export function PostListing() {
             draft will be saved automatically.
           </p>
           <AuthForm onAuthSuccess={handleAuthSuccess} />
+        </div>
+      </Modal>
+
+      {/* Permission Request Modal */}
+      <Modal
+        isOpen={showPermissionModal}
+        onClose={() => {
+          setShowPermissionModal(false);
+          setPermissionRequestMessage('');
+        }}
+        title="Request Sales Listing Permission"
+      >
+        <div className="space-y-4">
+          <p className="text-gray-600">
+            Please provide a reason for requesting permission to post sale listings.
+            Admins will be notified via email and will review your request.
+          </p>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Why do you need sales listing access?
+            </label>
+            <textarea
+              value={permissionRequestMessage}
+              onChange={(e) => setPermissionRequestMessage(e.target.value)}
+              rows={4}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-brand-700 focus:border-brand-700"
+              placeholder="e.g., I am a licensed real estate agent looking to list properties for sale..."
+            />
+          </div>
+          <div className="flex justify-end gap-3">
+            <button
+              type="button"
+              onClick={() => {
+                setShowPermissionModal(false);
+                setPermissionRequestMessage('');
+              }}
+              className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={handlePermissionRequest}
+              disabled={requestingPermission || !permissionRequestMessage.trim()}
+              className="px-4 py-2 bg-brand-700 text-white rounded-md hover:bg-brand-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              {requestingPermission ? 'Submitting...' : 'Submit Request'}
+            </button>
+          </div>
         </div>
       </Modal>
     </div>

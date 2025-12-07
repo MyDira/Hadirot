@@ -35,6 +35,7 @@ interface AgencyListingsQueryOptions {
   sort?: 'newest' | 'price_asc' | 'price_desc';
   limit?: number;
   offset?: number;
+  listingType?: 'rental' | 'sale';
 }
 
 export const listingsService = {
@@ -177,7 +178,7 @@ export const listingsService = {
       return { data: [], count: 0 };
     }
 
-    const { beds, priceMin, priceMax, sort = 'newest' } = options;
+    const { beds, priceMin, priceMax, sort = 'newest', listingType = 'rental' } = options;
     const limit = Number.isFinite(options.limit) && (options.limit ?? 0) > 0 ? Number(options.limit) : 20;
     const offset = Number.isFinite(options.offset) && (options.offset ?? 0) > 0 ? Number(options.offset) : 0;
 
@@ -193,7 +194,8 @@ export const listingsService = {
       )
       .eq('is_active', true)
       .eq('approved', true)
-      .eq('agency_id', agencyId);
+      .eq('agency_id', agencyId)
+      .eq('listing_type', listingType);
 
     const normalizedBeds = typeof beds === 'string' ? parseInt(beds, 10) : beds;
 

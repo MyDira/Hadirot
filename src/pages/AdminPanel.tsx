@@ -111,6 +111,8 @@ export function AdminPanel() {
   const [dateFilter, setDateFilter] = useState({ startDate: '', endDate: '' });
   const [toast, setToast] = useState<{ message: string; tone: 'success' | 'error' } | null>(null);
   const [updatingAgencyAccessId, setUpdatingAgencyAccessId] = useState<string | null>(null);
+  const [updatingSalesAccessId, setUpdatingSalesAccessId] = useState<string | null>(null);
+  const [salesFeatureEnabled, setSalesFeatureEnabled] = useState(false);
   const [sendingEmailListingId, setSendingEmailListingId] = useState<string | null>(null);
   const [impersonatingUserId, setImpersonatingUserId] = useState<string | null>(null);
 
@@ -136,6 +138,11 @@ export function AdminPanel() {
       return search;
     }, { replace: true });
   };
+
+  // Load sales feature settings
+  useEffect(() => {
+    salesService.isSalesFeatureEnabled().then(setSalesFeatureEnabled);
+  }, []);
 
   useEffect(() => {
     if (profile?.is_admin) {
@@ -323,7 +330,7 @@ export function AdminPanel() {
       // Load full data for tables
       const { data: allUsers } = await supabase
         .from('profiles')
-        .select('id, full_name, email, role, phone, agency, is_admin, is_banned, created_at, can_manage_agency')
+        .select('id, full_name, email, role, phone, agency, is_admin, is_banned, created_at, can_manage_agency, can_post_sales')
         .order('created_at', { ascending: false })
         .limit(50);
 
@@ -478,6 +485,39 @@ export function AdminPanel() {
       setToast({ message: "Couldn't update Agency Access. Try again.", tone: 'error' });
     } finally {
       setUpdatingAgencyAccessId(null);
+    }
+  };
+
+  const handleToggleSalesAccess = async (targetUser: Profile) => {
+    if (!profile?.is_admin || updatingSalesAccessId === targetUser.id) {
+      return;
+    }
+
+    const previousValue = Boolean(targetUser.can_post_sales);
+    const nextValue = !previousValue;
+
+    setUpdatingSalesAccessId(targetUser.id);
+    setUsers(prev =>
+      prev.map(user =>
+        user.id === targetUser.id ? { ...user, can_post_sales: nextValue } : user
+      )
+    );
+
+    try {
+      await salesService.toggleUserSalesPermission(targetUser.id, nextValue);
+      setToast({ message: 'Sales Access updated', tone: 'success' });
+    } catch (error) {
+      console.error('Error updating sales access:', error);
+      setUsers(prev =>
+        prev.map(user =>
+          user.id === targetUser.id
+            ? { ...user, can_post_sales: previousValue }
+            : user
+        )
+      );
+      setToast({ message: "Couldn't update Sales Access. Try again.", tone: 'error' });
+    } finally {
+      setUpdatingSalesAccessId(null);
     }
   };
 
@@ -1134,6 +1174,11 @@ export function AdminPanel() {
                             Agency Access
                           </th>
                         )}
+                        {profile?.is_admin && (
+                          <th className={`px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider ${!salesFeatureEnabled ? 'opacity-50' : ''}`}>
+                            Sales Access
+                          </th>
+                        )}
                         <th className="hidden lg:table-cell px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                           <button
                             onClick={() => handleUsersSort('status')}
@@ -1213,6 +1258,27 @@ export function AdminPanel() {
                                 <span
                                   className={`inline-block h-5 w-5 transform rounded-full bg-white transition ${
                                     user.can_manage_agency ? 'translate-x-5' : 'translate-x-1'
+                                  }`}
+                                />
+                              </button>
+                            </td>
+                          )}
+                          {profile?.is_admin && (
+                            <td className={`px-4 py-3 align-top ${!salesFeatureEnabled ? 'opacity-50' : ''}`}>
+                              <button
+                                type="button"
+                                role="switch"
+                                aria-checked={Boolean(user.can_post_sales)}
+                                aria-label="Toggle sales access"
+                                onClick={() => handleToggleSalesAccess(user)}
+                                disabled={updatingSalesAccessId === user.id}
+                                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                                  user.can_post_sales ? 'bg-[#4E4B43]' : 'bg-gray-300'
+                                } ${updatingSalesAccessId === user.id ? 'cursor-wait opacity-60' : 'cursor-pointer'}`}
+                              >
+                                <span
+                                  className={`inline-block h-5 w-5 transform rounded-full bg-white transition ${
+                                    user.can_post_sales ? 'translate-x-5' : 'translate-x-1'
                                   }`}
                                 />
                               </button>
