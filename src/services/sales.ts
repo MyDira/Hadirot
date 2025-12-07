@@ -96,36 +96,24 @@ export const salesService = {
 
   async notifyAdminsOfNewRequest(request: SalesPermissionRequest): Promise<void> {
     try {
-      const { data: admins, error: adminsError } = await supabase
-        .from('profiles')
-        .select('email, full_name')
-        .eq('is_admin', true);
-
-      if (adminsError) {
-        console.error('Error fetching admins:', error);
-        return;
-      }
-
       const { data: user } = await supabase
         .from('profiles')
         .select('full_name, email, phone, role')
         .eq('id', request.user_id)
         .maybeSingle();
 
-      if (!admins || admins.length === 0 || !user) {
+      if (!user) {
+        console.error('User not found for permission request');
         return;
       }
 
-      const adminEmails = admins.map(a => a.email).filter(Boolean);
+      const siteUrl = window.location.origin;
 
-      if (adminEmails.length === 0) {
-        return;
-      }
-
-      await supabase.functions.invoke('send-email', {
+      const result = await supabase.functions.invoke('send-email', {
         body: {
-          to: adminEmails,
+          to: [],
           subject: `New Sales Permission Request from ${user.full_name}`,
+          type: 'admin_notification',
           html: `
             <h2>New Sales Listing Permission Request</h2>
             <p>A user has requested permission to post sale listings.</p>
@@ -138,12 +126,20 @@ export const salesService = {
             </ul>
             <h3>Request Message:</h3>
             <p>${request.request_message}</p>
-            <p><a href="${window.location.origin}/admin?tab=sales">Review Request in Admin Panel</a></p>
+            <p><a href="${siteUrl}/admin?tab=sales">Review Request in Admin Panel</a></p>
           `,
         },
       });
+
+      if (result.error) {
+        console.error('Error sending admin notification:', result.error);
+        throw result.error;
+      }
+
+      console.log('✅ Admin notification email sent successfully');
     } catch (error) {
       console.error('Error notifying admins:', error);
+      throw error;
     }
   },
 
@@ -262,54 +258,77 @@ export const salesService = {
 
   async notifyUserOfApproval(userId: string, adminNotes?: string): Promise<void> {
     try {
-      const { data: user } = await supabase
-        .from('profiles')
-        .select('email, full_name')
-        .eq('id', userId)
-        .maybeSingle();
+      // Get the user's auth email
+      const { data: authUser, error: authError } = await supabase.auth.admin.getUserById(userId);
 
-      if (!user?.email) {
+      if (authError || !authUser?.user?.email) {
+        console.error('Error fetching user email for approval notification:', authError);
         return;
       }
 
-      await supabase.functions.invoke('send-email', {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('full_name')
+        .eq('id', userId)
+        .maybeSingle();
+
+      const userName = profile?.full_name || 'User';
+      const userEmail = authUser.user.email;
+      const siteUrl = window.location.origin;
+
+      const result = await supabase.functions.invoke('send-email', {
         body: {
-          to: [user.email],
+          to: [userEmail],
           subject: 'Your Sales Listing Permission Request Has Been Approved',
           html: `
             <h2>Permission Approved!</h2>
-            <p>Hi ${user.full_name},</p>
+            <p>Hi ${userName},</p>
             <p>Great news! Your request to post sale listings has been approved.</p>
             <p>You can now create and publish sale listings on our platform.</p>
             ${adminNotes ? `<p><strong>Note from admin:</strong> ${adminNotes}</p>` : ''}
-            <p><a href="${window.location.origin}/post-listing">Post Your First Sale Listing</a></p>
+            <p><a href="${siteUrl}/post-listing">Post Your First Sale Listing</a></p>
           `,
         },
       });
+
+      if (result.error) {
+        console.error('Error sending approval notification:', result.error);
+        throw result.error;
+      }
+
+      console.log('✅ Approval notification email sent successfully');
     } catch (error) {
       console.error('Error notifying user of approval:', error);
+      throw error;
     }
   },
 
   async notifyUserOfDenial(userId: string, adminNotes?: string): Promise<void> {
     try {
-      const { data: user } = await supabase
-        .from('profiles')
-        .select('email, full_name')
-        .eq('id', userId)
-        .maybeSingle();
+      // Get the user's auth email
+      const { data: authUser, error: authError } = await supabase.auth.admin.getUserById(userId);
 
-      if (!user?.email) {
+      if (authError || !authUser?.user?.email) {
+        console.error('Error fetching user email for denial notification:', authError);
         return;
       }
 
-      await supabase.functions.invoke('send-email', {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('full_name')
+        .eq('id', userId)
+        .maybeSingle();
+
+      const userName = profile?.full_name || 'User';
+      const userEmail = authUser.user.email;
+
+      const result = await supabase.functions.invoke('send-email', {
         body: {
-          to: [user.email],
+          to: [userEmail],
           subject: 'Update on Your Sales Listing Permission Request',
           html: `
             <h2>Permission Request Update</h2>
-            <p>Hi ${user.full_name},</p>
+            <p>Hi ${userName},</p>
             <p>Thank you for your interest in posting sale listings on our platform.</p>
             <p>After reviewing your request, we are unable to grant sales listing permissions at this time.</p>
             ${adminNotes ? `<p><strong>Reason:</strong> ${adminNotes}</p>` : ''}
@@ -317,8 +336,16 @@ export const salesService = {
           `,
         },
       });
+
+      if (result.error) {
+        console.error('Error sending denial notification:', result.error);
+        throw result.error;
+      }
+
+      console.log('✅ Denial notification email sent successfully');
     } catch (error) {
       console.error('Error notifying user of denial:', error);
+      throw error;
     }
   },
 
