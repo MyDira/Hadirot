@@ -1,6 +1,6 @@
-import { corsHeaders } from "../_shared/cors.ts";
+import { corsHeaders } from "./_shared/cors.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { renderBrandEmail, sendViaZepto } from "../_shared/zepto.ts";
+import { renderBrandEmail, sendViaZepto } from "./_shared/zepto.ts";
 
 interface EmailRequest {
   to: string | string[];
@@ -11,13 +11,11 @@ interface EmailRequest {
 }
 
 Deno.serve(async (req) => {
-  // Handle CORS preflight requests
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
 
   try {
-    // Only allow POST requests
     if (req.method !== "POST") {
       return new Response(JSON.stringify({ error: "Method not allowed" }), {
         status: 405,
@@ -25,10 +23,8 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Get the authorization header at the start
     const authHeader = req.headers.get("Authorization");
 
-    // Get ZeptoMail configuration from environment variables
     const zeptoToken = Deno.env.get("ZEPTO_TOKEN");
     const zeptoFromAddress = Deno.env.get("ZEPTO_FROM_ADDRESS") || "noreply@hadirot.com";
     const zeptoFromName = Deno.env.get("ZEPTO_FROM_NAME") || "HaDirot";
@@ -46,7 +42,6 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Parse the request body
     let emailData: EmailRequest;
     try {
       emailData = await req.json();
@@ -70,7 +65,6 @@ Deno.serve(async (req) => {
     const isPasswordReset = emailData.type === "password_reset";
     const isAdminNotification = emailData.type === "admin_notification";
 
-    // For non-password-reset and non-admin-notification emails, require authentication
     if (!isPasswordReset && !isAdminNotification && !authHeader) {
       console.log("❌ Missing authorization for email");
       return new Response(
@@ -82,7 +76,6 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Create Supabase admin client for password resets
     const supabaseAdmin = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
@@ -94,7 +87,6 @@ Deno.serve(async (req) => {
       },
     );
 
-    // Handle password reset emails specially
     if (isPasswordReset) {
       console.log("🔐 Processing password reset for:", emailData.to);
 
@@ -111,7 +103,6 @@ Deno.serve(async (req) => {
           redirectTo: redirectUrl,
         });
 
-        // Generate password reset link using admin client (without sending Supabase's default email)
         const { data, error: resetError } =
           await supabaseAdmin.auth.admin.generateLink({
             type: "recovery",
@@ -130,7 +121,6 @@ Deno.serve(async (req) => {
             redirectTo: redirectUrl,
           });
 
-          // Handle rate limit errors specifically
           if (
             resetError.status === 429 ||
             resetError.message?.includes(
@@ -181,7 +171,6 @@ Deno.serve(async (req) => {
           linkLength: resetLink.length,
         });
 
-        // Create branded password reset email HTML
         const resetHtml = renderBrandEmail({
           title: "Reset Your Password",
           bodyHtml:
@@ -299,7 +288,6 @@ Deno.serve(async (req) => {
         );
       }
     } else if (authHeader) {
-      // For non-password-reset and non-admin-notification emails, verify the session
       try {
         const supabaseClient = createClient(
           Deno.env.get("SUPABASE_URL") ?? "",
@@ -336,7 +324,6 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Validate required fields
     if (!emailData.to || !emailData.subject) {
       console.error("❌ Missing required fields:", {
         to: !!emailData.to,
@@ -353,7 +340,6 @@ Deno.serve(async (req) => {
       );
     }
 
-    // For non-password-reset emails, require HTML content
     if (!isPasswordReset && !emailData.html) {
       console.error("❌ Missing HTML content for email");
       return new Response(
