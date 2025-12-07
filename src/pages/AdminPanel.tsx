@@ -331,8 +331,7 @@ export function AdminPanel() {
       const { data: allUsers } = await supabase
         .from('profiles')
         .select('id, full_name, email, role, phone, agency, is_admin, is_banned, created_at, can_manage_agency, can_post_sales')
-        .order('created_at', { ascending: false })
-        .limit(50);
+        .order('created_at', { ascending: false });
 
       const { data: allListings } = await supabase
         .from('listings')
