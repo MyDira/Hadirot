@@ -1828,7 +1828,9 @@ export function AdminPanel() {
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                               {listing.call_for_price
                                 ? 'Call for Price'
-                                : `$${listing.price.toLocaleString()}/month`}
+                                : listing.listing_type === 'sale'
+                                ? `$${(listing.asking_price || 0).toLocaleString()}`
+                                : `$${(listing.price || 0).toLocaleString()}/month`}
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                               {new Date(listing.created_at).toLocaleDateString()}
