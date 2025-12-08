@@ -614,6 +614,12 @@ export function ListingDetail() {
           <section id="ld-price" className="order-4 lg:order-none">
             {listing.call_for_price ? (
               <strong>Call for Price</strong>
+            ) : listing.listing_type === 'sale' ? (
+              listing.asking_price != null && (
+                <div className="text-3xl font-bold text-[#273140]">
+                  <span className="num-font">{formatPrice(listing.asking_price)}</span>
+                </div>
+              )
             ) : (
               listing.price != null && (
                 <div className="text-3xl font-bold text-[#273140]">
