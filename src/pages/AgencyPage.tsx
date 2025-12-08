@@ -132,13 +132,13 @@ export function AgencyPage() {
 
   // Check if agency owner can post sales
   useEffect(() => {
-    if (!agency?.owner_id) {
+    if (!agency?.owner_profile_id) {
       setAgencyOwnerCanPostSales(false);
       return;
     }
 
-    salesService.canUserPostSales(agency.owner_id).then(setAgencyOwnerCanPostSales);
-  }, [agency?.owner_id]);
+    salesService.canUserPostSales(agency.owner_profile_id).then(setAgencyOwnerCanPostSales);
+  }, [agency?.owner_profile_id]);
 
   // Set up listing impression tracking
   const { observeElement } = useListingImpressions({
