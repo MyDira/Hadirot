@@ -660,7 +660,14 @@ export function PostListing() {
         agency_id: ownedAgencyId || null,
         is_active: false,
         approved: false,
-        price: formData.call_for_price ? null : formData.price,
+        // For rental listings: use price field
+        // For sale listings: use asking_price field and set price to null
+        price: formData.listing_type === 'sale'
+          ? null
+          : (formData.call_for_price ? null : formData.price),
+        asking_price: formData.listing_type === 'sale'
+          ? (formData.call_for_price ? null : formData.asking_price)
+          : null,
         call_for_price: !!formData.call_for_price,
         ac_type: formData.ac_type || null,
         apartment_conditions: formData.apartment_conditions.length > 0 ? formData.apartment_conditions : null,
