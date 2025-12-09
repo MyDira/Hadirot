@@ -178,9 +178,9 @@ export function AdminPanel() {
     if (!searchTerm.trim()) {
       setFilteredPendingListings(pendingListings);
     } else {
-      const filtered = pendingListings.filter(listing => 
-        listing.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        listing.owner?.full_name.toLowerCase().includes(searchTerm.toLowerCase())
+      const filtered = pendingListings.filter(listing =>
+        (listing.title || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (listing.owner?.full_name || '').toLowerCase().includes(searchTerm.toLowerCase())
       );
       setFilteredPendingListings(filtered);
     }
@@ -763,7 +763,7 @@ export function AdminPanel() {
   const filteredUsers = users.filter(user => {
     if (userFilters.role && user.role !== userFilters.role) return false;
     if (userFilters.agency && user.agency !== userFilters.agency) return false;
-    if (userFilters.search && !user.full_name.toLowerCase().includes(userFilters.search.toLowerCase())) return false;
+    if (userFilters.search && !(user.full_name || '').toLowerCase().includes(userFilters.search.toLowerCase())) return false;
     return true;
   }).sort((a, b) => {
     if (!usersSortField) return 0;
