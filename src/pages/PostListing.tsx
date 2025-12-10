@@ -64,6 +64,8 @@ interface ListingFormData {
   property_width_ft?: number | null;
   square_footage?: number;
   building_size_sqft?: number | null;
+  building_length_ft?: number | null;
+  building_width_ft?: number | null;
   unit_count?: number | null;
   number_of_floors?: number | null;
   parking: ParkingType;
@@ -99,6 +101,7 @@ interface ListingFormData {
   state?: string;
   zip_code?: string;
   lot_size_input_mode: 'sqft' | 'dimensions';
+  building_size_input_mode: 'sqft' | 'dimensions';
   terms_agreed: boolean;
 }
 
@@ -143,6 +146,8 @@ export function PostListing() {
     property_width_ft: undefined,
     square_footage: undefined,
     building_size_sqft: undefined,
+    building_length_ft: undefined,
+    building_width_ft: undefined,
     unit_count: undefined,
     number_of_floors: undefined,
     parking: "no",
@@ -178,6 +183,7 @@ export function PostListing() {
     state: "NY",
     zip_code: "",
     lot_size_input_mode: 'sqft',
+    building_size_input_mode: 'sqft',
     terms_agreed: false,
   });
 
@@ -581,6 +587,17 @@ export function PostListing() {
     return null;
   };
 
+  const handleBuildingSizeModeChange = (mode: 'sqft' | 'dimensions') => {
+    setFormData((prev) => ({ ...prev, building_size_input_mode: mode }));
+  };
+
+  const calculateBuildingSize = () => {
+    if (formData.building_length_ft && formData.building_width_ft) {
+      return Math.round(formData.building_length_ft * formData.building_width_ft);
+    }
+    return null;
+  };
+
   const handlePermissionRequest = async () => {
     if (!user?.id) {
       alert('Please sign in to request permission');
@@ -828,6 +845,11 @@ export function PostListing() {
         ? Math.round(formData.property_length_ft * formData.property_width_ft)
         : formData.lot_size_sqft;
 
+      // Calculate building size if using dimensions mode
+      const finalBuildingSize = formData.building_size_input_mode === 'dimensions' && formData.building_length_ft && formData.building_width_ft
+        ? Math.round(formData.building_length_ft * formData.building_width_ft)
+        : formData.building_size_sqft;
+
       // Create the listing first
       const payload = {
         ...formData,
@@ -852,6 +874,7 @@ export function PostListing() {
         apartment_conditions: formData.apartment_conditions.length > 0 ? formData.apartment_conditions : null,
         additional_rooms: formData.additional_rooms > 0 ? formData.additional_rooms : null,
         lot_size_sqft: finalLotSize,
+        building_size_sqft: finalBuildingSize,
         property_condition: formData.property_condition || null,
         occupancy_status: formData.occupancy_status || null,
         delivery_condition: formData.delivery_condition || null,
@@ -1609,6 +1632,7 @@ export function PostListing() {
                     <option value="no">No Parking</option>
                     <option value="yes">Private Driveway</option>
                     <option value="included">Shared Driveway</option>
+                    <option value="carport">Carport</option>
                     <option value="optional">Easement (parking in back/garage)</option>
                   </>
                 ) : (
@@ -1702,82 +1726,84 @@ export function PostListing() {
             </>
           )}
 
-          <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="flex items-center">
-              <input
-                type="checkbox"
-                name="washer_dryer_hookup"
-                checked={formData.washer_dryer_hookup}
-                onChange={handleInputChange}
-                className="h-4 w-4 text-[#273140] focus:ring-[#273140] border-gray-300 rounded"
-              />
-              <label className="ml-2 text-sm font-medium text-gray-700">
-                Washer/Dryer Hookup
-              </label>
-            </div>
-
-            <div className="flex items-center">
-              <input
-                type="checkbox"
-                name="dishwasher"
-                checked={formData.dishwasher}
-                onChange={handleInputChange}
-                className="h-4 w-4 text-[#273140] focus:ring-[#273140] border-gray-300 rounded"
-              />
-              <label className="ml-2 text-sm font-medium text-gray-700">
-                Dishwasher
-              </label>
-            </div>
-
-            <div>
-              <label className="flex items-center gap-2">
+          {formData.listing_type === 'rental' && (
+            <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="flex items-center">
                 <input
                   type="checkbox"
-                  name="broker_fee"
-                  checked={formData.broker_fee}
+                  name="washer_dryer_hookup"
+                  checked={formData.washer_dryer_hookup}
                   onChange={handleInputChange}
                   className="h-4 w-4 text-[#273140] focus:ring-[#273140] border-gray-300 rounded"
                 />
-                <span className="text-sm font-medium text-gray-700">
-                  Broker Fee
-                </span>
-              </label>
-              <p className="text-xs text-gray-500">
-                Check this if a broker fee applies.
-              </p>
-            </div>
+                <label className="ml-2 text-sm font-medium text-gray-700">
+                  Washer/Dryer Hookup
+                </label>
+              </div>
 
-            <div className="flex items-center">
-              <input
-                type="checkbox"
-                name="is_featured"
-                checked={formData.is_featured}
-                onChange={handleInputChange}
-                disabled={
-                  !profile?.is_admin &&
-                  (profile?.max_featured_listings_per_user ?? 0) <= 0
-                }
-                className="h-4 w-4 text-[#273140] focus:ring-[#273140] border-gray-300 rounded"
-              />
-              <label
-                className={`ml-2 text-sm font-medium flex items-center ${
-                  !profile?.is_admin &&
-                  (profile?.max_featured_listings_per_user ?? 0) <= 0
-                    ? "text-gray-400"
-                    : "text-gray-700"
-                }`}
-              >
-                <Star className="w-4 h-4 mr-1 text-accent-600" />
-                Feature this listing
-                {!profile?.is_admin &&
-                  (profile?.max_featured_listings_per_user ?? 0) <= 0 && (
-                    <span className="ml-2 text-xs text-gray-400">
-                      (Contact support to upgrade)
-                    </span>
-                  )}
-              </label>
+              <div className="flex items-center">
+                <input
+                  type="checkbox"
+                  name="dishwasher"
+                  checked={formData.dishwasher}
+                  onChange={handleInputChange}
+                  className="h-4 w-4 text-[#273140] focus:ring-[#273140] border-gray-300 rounded"
+                />
+                <label className="ml-2 text-sm font-medium text-gray-700">
+                  Dishwasher
+                </label>
+              </div>
+
+              <div>
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    name="broker_fee"
+                    checked={formData.broker_fee}
+                    onChange={handleInputChange}
+                    className="h-4 w-4 text-[#273140] focus:ring-[#273140] border-gray-300 rounded"
+                  />
+                  <span className="text-sm font-medium text-gray-700">
+                    Broker Fee
+                  </span>
+                </label>
+                <p className="text-xs text-gray-500">
+                  Check this if a broker fee applies.
+                </p>
+              </div>
+
+              <div className="flex items-center">
+                <input
+                  type="checkbox"
+                  name="is_featured"
+                  checked={formData.is_featured}
+                  onChange={handleInputChange}
+                  disabled={
+                    !profile?.is_admin &&
+                    (profile?.max_featured_listings_per_user ?? 0) <= 0
+                  }
+                  className="h-4 w-4 text-[#273140] focus:ring-[#273140] border-gray-300 rounded"
+                />
+                <label
+                  className={`ml-2 text-sm font-medium flex items-center ${
+                    !profile?.is_admin &&
+                    (profile?.max_featured_listings_per_user ?? 0) <= 0
+                      ? "text-gray-400"
+                      : "text-gray-700"
+                  }`}
+                >
+                  <Star className="w-4 h-4 mr-1 text-accent-600" />
+                  Feature this listing
+                  {!profile?.is_admin &&
+                    (profile?.max_featured_listings_per_user ?? 0) <= 0 && (
+                      <span className="ml-2 text-xs text-gray-400">
+                        (Contact support to upgrade)
+                      </span>
+                    )}
+                </label>
+              </div>
             </div>
-          </div>
+          )}
         </div>
 
         {/* Sales-Specific Fields */}
@@ -1795,6 +1821,8 @@ export function PostListing() {
               removeRentRollUnit={removeRentRollUnit}
               handleLotSizeModeChange={handleLotSizeModeChange}
               calculateLotSize={calculateLotSize}
+              handleBuildingSizeModeChange={handleBuildingSizeModeChange}
+              calculateBuildingSize={calculateBuildingSize}
             />
           </div>
         )}

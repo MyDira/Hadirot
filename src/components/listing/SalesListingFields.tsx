@@ -23,6 +23,8 @@ interface SalesListingFieldsProps {
   removeRentRollUnit: (index: number) => void;
   handleLotSizeModeChange: (mode: 'sqft' | 'dimensions') => void;
   calculateLotSize: () => number | null;
+  handleBuildingSizeModeChange: (mode: 'sqft' | 'dimensions') => void;
+  calculateBuildingSize: () => number | null;
 }
 
 export function SalesListingFields({
@@ -37,6 +39,8 @@ export function SalesListingFields({
   removeRentRollUnit,
   handleLotSizeModeChange,
   calculateLotSize,
+  handleBuildingSizeModeChange,
+  calculateBuildingSize,
 }: SalesListingFieldsProps) {
   const isMultiFamily = ['semi_attached_house', 'fully_attached_townhouse', 'condo'].includes(formData.property_type);
 
@@ -46,20 +50,79 @@ export function SalesListingFields({
       <div className="bg-white rounded-lg shadow p-6">
         <h2 className="text-xl font-semibold text-gray-900 mb-4">Property Specifications</h2>
         <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Interior Square Footage *
+          <div className="col-span-2">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Building Size *
             </label>
-            <input
-              type="number"
-              name="square_footage"
-              value={formData.square_footage || ''}
-              onChange={handleInputChange}
-              required
-              min="1"
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
-              placeholder="1500"
-            />
+            <div className="flex gap-4 mb-3">
+              <label className="flex items-center">
+                <input
+                  type="radio"
+                  checked={formData.building_size_input_mode === 'sqft'}
+                  onChange={() => handleBuildingSizeModeChange('sqft')}
+                  className="mr-2"
+                />
+                Square Feet
+              </label>
+              <label className="flex items-center">
+                <input
+                  type="radio"
+                  checked={formData.building_size_input_mode === 'dimensions'}
+                  onChange={() => handleBuildingSizeModeChange('dimensions')}
+                  className="mr-2"
+                />
+                Dimensions
+              </label>
+            </div>
+
+            {formData.building_size_input_mode === 'sqft' ? (
+              <input
+                type="number"
+                name="building_size_sqft"
+                value={formData.building_size_sqft || ''}
+                onChange={handleInputChange}
+                required
+                min="1"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
+                placeholder="1500"
+              />
+            ) : (
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs text-gray-600 mb-1">Length (ft) *</label>
+                  <input
+                    type="number"
+                    name="building_length_ft"
+                    value={formData.building_length_ft || ''}
+                    onChange={handleInputChange}
+                    required
+                    min="1"
+                    step="0.01"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
+                    placeholder="50"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-600 mb-1">Width (ft) *</label>
+                  <input
+                    type="number"
+                    name="building_width_ft"
+                    value={formData.building_width_ft || ''}
+                    onChange={handleInputChange}
+                    required
+                    min="1"
+                    step="0.01"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
+                    placeholder="30"
+                  />
+                </div>
+                {calculateBuildingSize() && (
+                  <div className="col-span-2 text-sm text-gray-600">
+                    Calculated: {calculateBuildingSize()?.toLocaleString()} sq ft
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           <div>
@@ -341,9 +404,13 @@ export function SalesListingFields({
             </label>
             <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
               {[
+                'Modern',
+                'Renovated',
+                'Large Rooms',
+                'High Ceilings (10ft+)',
+                'Large Closets',
                 'Hardwood Floors',
                 'Crown Molding',
-                'High Ceilings (10ft+)',
                 'Fireplace',
                 'Walk-in Closet',
                 'Built-in Storage',

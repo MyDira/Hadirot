@@ -16,7 +16,7 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
 
 export type UserRole = 'tenant' | 'landlord' | 'agent';
 export type PropertyType = 'apartment_building' | 'apartment_house' | 'full_house' | 'duplex' | 'basement' | 'detached_house' | 'semi_attached_house' | 'fully_attached_townhouse' | 'condo' | 'co_op';
-export type ParkingType = 'yes' | 'included' | 'optional' | 'no';
+export type ParkingType = 'yes' | 'included' | 'optional' | 'no' | 'carport';
 export type HeatType = 'included' | 'tenant_pays';
 export type LeaseLength = 'short_term' | '1_year' | '18_months' | '2_years';
 export type ACType = 'central' | 'split_unit' | 'window';
