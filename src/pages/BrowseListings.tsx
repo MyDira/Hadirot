@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { ChevronLeft, ChevronRight, Star, Filter, X, List, Map } from "lucide-react";
+import { ChevronLeft, ChevronRight, Star, Filter, X, List, Map as MapIcon } from "lucide-react";
 import { ListingCard } from "../components/listings/ListingCard";
 import { ListingFilters } from "../components/listings/ListingFilters";
 import { ListingsMap } from "../components/listings/ListingsMap";
@@ -425,7 +425,7 @@ export function BrowseListings() {
                   : 'text-gray-600 hover:text-gray-900'
               }`}
             >
-              <Map className="w-4 h-4 mr-2" />
+              <MapIcon className="w-4 h-4 mr-2" />
               Map
             </button>
           </div>
