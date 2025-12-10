@@ -19,6 +19,7 @@ interface MediaUploaderProps {
   onMediaRemove: (id: string) => void;
   onSetFeatured: (id: string) => void;
   maxFiles?: number;
+  minFiles?: number;
   disabled?: boolean;
   uploading?: boolean;
   showAuthWarning?: boolean;
@@ -30,6 +31,7 @@ export function MediaUploader({
   onMediaRemove,
   onSetFeatured,
   maxFiles = 11,
+  minFiles = 0,
   disabled = false,
   uploading = false,
   showAuthWarning = false,
@@ -187,8 +189,15 @@ export function MediaUploader({
         </div>
       )}
 
+      {minFiles > 0 && mediaFiles.length < minFiles && (
+        <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-md">
+          <p className="text-sm text-blue-800">
+            At least {minFiles} image{minFiles > 1 ? 's are' : ' is'} required to post this listing.
+          </p>
+        </div>
+      )}
+
       <p className="text-xs text-gray-500">
-        {mediaFiles.length === 0 && "If you don't upload media, a tasteful stock photo will be shown on your public listing."}
         {mediaFiles.length > 0 && `${mediaFiles.length} of ${maxFiles} files uploaded. ${mediaFiles.filter(m => m.type === 'image').length} image(s), ${mediaFiles.filter(m => m.type === 'video').length} video(s).`}
         {mediaFiles.length > 0 && mediaFiles.filter(m => m.type === 'image').length === 0 && " Video thumbnail will be used for listing cards."}
       </p>
