@@ -26,6 +26,12 @@ export type PermissionRequestStatus = 'pending' | 'approved' | 'denied';
 export type DrivewayStatus = 'private' | 'easement' | 'shared' | 'carport' | 'none';
 export type HeatingType = 'forced_air' | 'radiator' | 'baseboard' | 'heat_pump' | 'other';
 export type CoolingType = 'central_ac' | 'split_units' | 'window_units' | 'none';
+export type PropertyCondition = 'excellent' | 'good' | 'fair' | 'needs_work';
+export type OccupancyStatus = 'owner_occupied' | 'tenant_occupied' | 'vacant';
+export type DeliveryCondition = 'vacant_at_closing' | 'subject_to_lease' | 'negotiable';
+export type BasementType = 'finished' | 'unfinished' | 'partially_finished' | 'walkout' | 'none';
+export type LaundryType = 'in_unit' | 'hookups_only' | 'common_area' | 'none';
+export type BuildingType = 'detached' | 'semi_attached' | 'fully_attached' | 'apartment';
 
 export interface Profile {
   id: string;
@@ -103,9 +109,30 @@ export interface Listing {
   additional_rooms?: number | null;
   video_url?: string | null;
   video_thumbnail_url?: string | null;
+  year_renovated?: number | null;
+  property_condition?: PropertyCondition | null;
+  occupancy_status?: OccupancyStatus | null;
+  delivery_condition?: DeliveryCondition | null;
+  outdoor_space?: string[] | null;
+  interior_features?: string[] | null;
+  laundry_type?: LaundryType | null;
+  basement_type?: BasementType | null;
+  basement_notes?: string | null;
+  building_type?: BuildingType | null;
+  rent_roll_total?: number | null;
+  rent_roll_data?: RentRollUnit[] | null;
+  utilities_included?: string[] | null;
+  tenant_notes?: string | null;
+  full_address?: string | null;
   owner?: Profile;
   listing_images?: ListingImage[];
   is_favorited?: boolean;
+}
+
+export interface RentRollUnit {
+  unit: string;
+  bedrooms: number;
+  rent: number;
 }
 
 export interface ListingImage {

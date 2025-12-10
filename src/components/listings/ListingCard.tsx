@@ -112,11 +112,22 @@ export function ListingCard({
       full_house: "Full House",
       duplex: "Duplex",
       basement: "Basement",
-      detached_house: "Detached House",
-      semi_attached_house: "Semi-Detached",
-      fully_attached_townhouse: "Townhouse",
-      condo: "Condo",
-      co_op: "Co-op",
+      detached_house: "Single-Family",
+      semi_attached_house: "Two-Family",
+      fully_attached_townhouse: "Three-Family",
+      condo: "Four-Family",
+      co_op: "Condo",
+    };
+    return labels[type] || type;
+  };
+
+  const getBuildingTypeLabel = (type: string | undefined): string => {
+    if (!type) return '';
+    const labels: Record<string, string> = {
+      detached: "Detached",
+      semi_attached: "Semi-Attached",
+      fully_attached: "Fully Attached",
+      apartment: "Apartment",
     };
     return labels[type] || type;
   };
@@ -232,7 +243,7 @@ export function ListingCard({
           )}
         </div>
 
-        {/* Property specs - bedrooms, bathrooms, parking/driveway, broker fee */}
+        {/* Property specs - bedrooms, bathrooms, building type/parking */}
         <div className="inline-flex items-center gap-3 text-gray-600 leading-none mb-2">
           <Bed className="w-4 h-4 align-middle" />
           {listing.bedrooms === 0 ? (
@@ -246,6 +257,9 @@ export function ListingCard({
           <span className="text-sm num-font">{listing.bathrooms}</span>
           {isSaleListing ? (
             <>
+              {listing.building_type && (
+                <span className="text-sm">{getBuildingTypeLabel(listing.building_type)}</span>
+              )}
               {listing.driveway_status && listing.driveway_status !== "none" && (
                 <span className="text-sm capitalize">{listing.driveway_status.replace(/_/g, " ")}</span>
               )}
@@ -267,7 +281,7 @@ export function ListingCard({
             className="text-sm leading-tight truncate flex-1 min-w-0"
             text={
               isSaleListing
-                ? listing.location || ""
+                ? (listing.full_address || listing.location || "")
                 : (listing.cross_streets ?? listing.location) || ""
             }
           />

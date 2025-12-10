@@ -13,6 +13,7 @@ import { AuthForm } from "../components/auth/AuthForm";
 import { compressImage } from "../utils/imageUtils";
 import { generateVideoThumbnail } from "../utils/videoUtils";
 import { MediaUploader, MediaFile } from "../components/shared/MediaUploader";
+import { SalesListingFields } from "../components/listing/SalesListingFields";
 import { gaEvent } from "@/lib/ga";
 import {
   ensurePostAttempt,
@@ -31,6 +32,13 @@ import {
   TempListingImage,
   ACType,
   ListingType,
+  PropertyCondition,
+  OccupancyStatus,
+  DeliveryCondition,
+  BasementType,
+  LaundryType,
+  BuildingType,
+  RentRollUnit,
 } from "../config/supabase";
 
 interface ListingFormData {
@@ -46,16 +54,24 @@ interface ListingFormData {
   call_for_price: boolean;
   asking_price?: number | null;
   property_age?: number | null;
+  year_built?: number | null;
+  year_renovated?: number | null;
   hoa_fees?: number | null;
   property_taxes?: number | null;
   lot_size_sqft?: number | null;
+  property_length_ft?: number | null;
+  property_width_ft?: number | null;
   square_footage?: number;
+  building_size_sqft?: number | null;
+  unit_count?: number | null;
+  number_of_floors?: number | null;
   parking: ParkingType;
   washer_dryer_hookup: boolean;
   dishwasher: boolean;
   lease_length?: LeaseLength | null;
   heat: HeatType;
   property_type: PropertyType | '';
+  building_type?: BuildingType | '';
   contact_name: string;
   contact_phone: string;
   is_featured: boolean;
@@ -63,6 +79,24 @@ interface ListingFormData {
   ac_type?: ACType | null;
   apartment_conditions: string[];
   additional_rooms: number;
+  property_condition?: PropertyCondition | '';
+  occupancy_status?: OccupancyStatus | '';
+  delivery_condition?: DeliveryCondition | '';
+  outdoor_space: string[];
+  interior_features: string[];
+  laundry_type?: LaundryType | '';
+  basement_type?: BasementType | '';
+  basement_notes?: string;
+  rent_roll_total?: number | null;
+  rent_roll_data: RentRollUnit[];
+  utilities_included: string[];
+  tenant_notes?: string;
+  street_address?: string;
+  unit_number?: string;
+  city?: string;
+  state?: string;
+  zip_code?: string;
+  lot_size_input_mode: 'sqft' | 'dimensions';
 }
 
 export function PostListing() {
@@ -97,16 +131,24 @@ export function PostListing() {
     call_for_price: false,
     asking_price: null,
     property_age: undefined,
+    year_built: undefined,
+    year_renovated: undefined,
     hoa_fees: undefined,
     property_taxes: undefined,
     lot_size_sqft: undefined,
+    property_length_ft: undefined,
+    property_width_ft: undefined,
     square_footage: undefined,
+    building_size_sqft: undefined,
+    unit_count: undefined,
+    number_of_floors: undefined,
     parking: "no",
     washer_dryer_hookup: false,
     dishwasher: false,
     lease_length: null,
     heat: "tenant_pays",
     property_type: "",
+    building_type: "",
     contact_name: profile?.full_name || "",
     contact_phone: profile?.phone || "",
     is_featured: false,
@@ -114,6 +156,24 @@ export function PostListing() {
     ac_type: null,
     apartment_conditions: [],
     additional_rooms: 0,
+    property_condition: "",
+    occupancy_status: "",
+    delivery_condition: "",
+    outdoor_space: [],
+    interior_features: [],
+    laundry_type: "",
+    basement_type: "",
+    basement_notes: "",
+    rent_roll_total: null,
+    rent_roll_data: [],
+    utilities_included: [],
+    tenant_notes: "",
+    street_address: "",
+    unit_number: "",
+    city: "Brooklyn",
+    state: "NY",
+    zip_code: "",
+    lot_size_input_mode: 'sqft',
   });
 
   const [hasDraft, setHasDraft] = useState<boolean | null>(null);
@@ -439,6 +499,83 @@ export function PostListing() {
     });
   };
 
+  const handleOutdoorSpaceToggle = (space: string) => {
+    setFormData((prev) => {
+      const current = prev.outdoor_space || [];
+      const isSelected = current.includes(space);
+      return {
+        ...prev,
+        outdoor_space: isSelected ? current.filter(s => s !== space) : [...current, space]
+      };
+    });
+  };
+
+  const handleInteriorFeatureToggle = (feature: string) => {
+    setFormData((prev) => {
+      const current = prev.interior_features || [];
+      const isSelected = current.includes(feature);
+      return {
+        ...prev,
+        interior_features: isSelected ? current.filter(f => f !== feature) : [...current, feature]
+      };
+    });
+  };
+
+  const handleApplianceToggle = (appliance: string) => {
+    setFormData((prev) => {
+      const current = prev.apartment_conditions || [];
+      const isSelected = current.includes(appliance);
+      return {
+        ...prev,
+        apartment_conditions: isSelected ? current.filter(a => a !== appliance) : [...current, appliance]
+      };
+    });
+  };
+
+  const handleUtilityToggle = (utility: string) => {
+    setFormData((prev) => {
+      const current = prev.utilities_included || [];
+      const isSelected = current.includes(utility);
+      return {
+        ...prev,
+        utilities_included: isSelected ? current.filter(u => u !== utility) : [...current, utility]
+      };
+    });
+  };
+
+  const handleRentRollUnitChange = (index: number, field: keyof RentRollUnit, value: string | number) => {
+    setFormData((prev) => {
+      const newRentRoll = [...prev.rent_roll_data];
+      newRentRoll[index] = { ...newRentRoll[index], [field]: value };
+      return { ...prev, rent_roll_data: newRentRoll };
+    });
+  };
+
+  const addRentRollUnit = () => {
+    setFormData((prev) => ({
+      ...prev,
+      rent_roll_data: [...prev.rent_roll_data, { unit: '', bedrooms: 1, rent: 0 }]
+    }));
+  };
+
+  const removeRentRollUnit = (index: number) => {
+    setFormData((prev) => ({
+      ...prev,
+      rent_roll_data: prev.rent_roll_data.filter((_, i) => i !== index)
+    }));
+  };
+
+  const handleLotSizeModeChange = (mode: 'sqft' | 'dimensions') => {
+    setFormData((prev) => ({ ...prev, lot_size_input_mode: mode }));
+  };
+
+  const calculateLotSize = () => {
+    if (formData.property_length_ft && formData.property_width_ft) {
+      return Math.round(formData.property_length_ft * formData.property_width_ft);
+    }
+    return null;
+  };
+
   const handlePermissionRequest = async () => {
     if (!user?.id) {
       alert('Please sign in to request permission');
@@ -651,11 +788,35 @@ export function PostListing() {
       // Track submission attempt only after validation passes
       trackPostSubmit();
 
+      // Format address for sales listings
+      let finalLocation = formData.location;
+      let fullAddress = null;
+
+      if (formData.listing_type === 'sale' && formData.street_address) {
+        // Build full address string
+        const addressParts = [
+          formData.street_address,
+          formData.unit_number ? `Unit ${formData.unit_number}` : '',
+          formData.city || 'Brooklyn',
+          formData.state || 'NY',
+          formData.zip_code || ''
+        ].filter(Boolean);
+        fullAddress = addressParts.join(', ');
+        finalLocation = fullAddress;
+      }
+
+      // Calculate lot size if using dimensions mode
+      const finalLotSize = formData.lot_size_input_mode === 'dimensions' && formData.property_length_ft && formData.property_width_ft
+        ? Math.round(formData.property_length_ft * formData.property_width_ft)
+        : formData.lot_size_sqft;
+
       // Create the listing first
       const payload = {
         ...formData,
         broker_fee: false,
         neighborhood,
+        location: finalLocation,
+        full_address: fullAddress,
         user_id: user.id,
         agency_id: ownedAgencyId || null,
         is_active: false,
@@ -672,6 +833,21 @@ export function PostListing() {
         ac_type: formData.ac_type || null,
         apartment_conditions: formData.apartment_conditions.length > 0 ? formData.apartment_conditions : null,
         additional_rooms: formData.additional_rooms > 0 ? formData.additional_rooms : null,
+        lot_size_sqft: finalLotSize,
+        property_condition: formData.property_condition || null,
+        occupancy_status: formData.occupancy_status || null,
+        delivery_condition: formData.delivery_condition || null,
+        outdoor_space: formData.outdoor_space.length > 0 ? formData.outdoor_space : null,
+        interior_features: formData.interior_features.length > 0 ? formData.interior_features : null,
+        laundry_type: formData.laundry_type || null,
+        basement_type: formData.basement_type || null,
+        basement_notes: formData.basement_notes || null,
+        building_type: formData.building_type || null,
+        rent_roll_total: formData.rent_roll_total,
+        rent_roll_data: formData.rent_roll_data.length > 0 ? formData.rent_roll_data : null,
+        utilities_included: formData.utilities_included.length > 0 ? formData.utilities_included : null,
+        tenant_notes: formData.tenant_notes || null,
+        year_renovated: formData.year_renovated || null,
       } as any;
       const listing = await listingsService.createListing(payload);
 
@@ -1053,19 +1229,103 @@ export function PostListing() {
               />
             </div>
 
+            {formData.listing_type === 'sale' ? (
+              <>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Street Address *
+                  </label>
+                  <input
+                    type="text"
+                    name="street_address"
+                    value={formData.street_address}
+                    onChange={handleInputChange}
+                    required
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
+                    placeholder="123 Main Street"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Unit/Apt #
+                    </label>
+                    <input
+                      type="text"
+                      name="unit_number"
+                      value={formData.unit_number}
+                      onChange={handleInputChange}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
+                      placeholder="Optional"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      ZIP Code *
+                    </label>
+                    <input
+                      type="text"
+                      name="zip_code"
+                      value={formData.zip_code}
+                      onChange={handleInputChange}
+                      required
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
+                      placeholder="11201"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      City *
+                    </label>
+                    <input
+                      type="text"
+                      name="city"
+                      value={formData.city}
+                      onChange={handleInputChange}
+                      required
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
+                      placeholder="Brooklyn"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      State *
+                    </label>
+                    <input
+                      type="text"
+                      name="state"
+                      value={formData.state}
+                      onChange={handleInputChange}
+                      required
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
+                      placeholder="NY"
+                      maxLength={2}
+                    />
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Cross Streets *
+                </label>
+                <input
+                  type="text"
+                  name="location"
+                  value={formData.location}
+                  onChange={handleInputChange}
+                  required
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140] mb-2"
+                  placeholder="Main St & 1st Ave"
+                />
+              </div>
+            )}
+
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Cross Streets *
-              </label>
-              <input
-                type="text"
-                name="location"
-                value={formData.location}
-                onChange={handleInputChange}
-                required
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140] mb-2"
-                placeholder="Main St & 1st Ave"
-              />
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Neighborhood *
               </label>
@@ -1110,11 +1370,12 @@ export function PostListing() {
                 <option value="">Select Property Type</option>
                 {formData.listing_type === 'sale' ? (
                   <>
-                    <option value="detached_house">Detached House</option>
-                    <option value="semi_attached_house">Semi-Detached House</option>
-                    <option value="fully_attached_townhouse">Townhouse</option>
-                    <option value="condo">Condo</option>
-                    <option value="co_op">Co-op</option>
+                    <option value="detached_house">Single-Family</option>
+                    <option value="semi_attached_house">Two-Family</option>
+                    <option value="fully_attached_townhouse">Three-Family</option>
+                    <option value="condo">Four-Family</option>
+                    <option value="co_op">Condo</option>
+                    <option value="apartment_building">Co-op</option>
                   </>
                 ) : (
                   <>
@@ -1127,6 +1388,27 @@ export function PostListing() {
                 )}
               </select>
             </div>
+
+            {formData.listing_type === 'sale' && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Building Type *
+                </label>
+                <select
+                  name="building_type"
+                  value={formData.building_type || ''}
+                  onChange={handleInputChange}
+                  required
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
+                >
+                  <option value="">Select Building Type</option>
+                  <option value="detached">Detached</option>
+                  <option value="semi_attached">Semi-Attached</option>
+                  <option value="fully_attached">Fully Attached</option>
+                  <option value="apartment">Apartment</option>
+                </select>
+              </div>
+            )}
           </div>
         </div>
 
@@ -1475,6 +1757,25 @@ export function PostListing() {
             </div>
           </div>
         </div>
+
+        {/* Sales-Specific Fields */}
+        {formData.listing_type === 'sale' && canPostSales && (
+          <div className="space-y-6">
+            <SalesListingFields
+              formData={formData}
+              handleInputChange={handleInputChange}
+              handleOutdoorSpaceToggle={handleOutdoorSpaceToggle}
+              handleInteriorFeatureToggle={handleInteriorFeatureToggle}
+              handleApplianceToggle={handleApplianceToggle}
+              handleUtilityToggle={handleUtilityToggle}
+              handleRentRollUnitChange={handleRentRollUnitChange}
+              addRentRollUnit={addRentRollUnit}
+              removeRentRollUnit={removeRentRollUnit}
+              handleLotSizeModeChange={handleLotSizeModeChange}
+              calculateLotSize={calculateLotSize}
+            />
+          </div>
+        )}
 
         {/* Media Upload (Images & Videos) */}
         <div className={`bg-white rounded-lg shadow-sm border border-gray-200 p-6 relative ${
