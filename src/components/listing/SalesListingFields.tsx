@@ -6,7 +6,9 @@ import {
   DeliveryCondition,
   BasementType,
   LaundryType,
-  RentRollUnit
+  RentRollUnit,
+  HeatingType,
+  ACType
 } from '../../config/supabase';
 
 interface SalesListingFieldsProps {
@@ -270,6 +272,45 @@ export function SalesListingFields({
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
                 placeholder="2020"
               />
+            </div>
+          </div>
+
+          {/* HVAC Systems */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Heating Type
+              </label>
+              <select
+                name="heating_type"
+                value={formData.heating_type || ''}
+                onChange={handleInputChange}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
+              >
+                <option value="">Select Heating Type (optional)</option>
+                <option value="forced_air">Forced Hot Air</option>
+                <option value="radiator">Radiant</option>
+                <option value="baseboard">Baseboard</option>
+                <option value="heat_pump">Heat Pump</option>
+                <option value="other">Other</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                AC Type
+              </label>
+              <select
+                name="ac_type"
+                value={formData.ac_type || ''}
+                onChange={handleInputChange}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
+              >
+                <option value="">Select AC Type (optional)</option>
+                <option value="central">Central AC</option>
+                <option value="split_unit">Split Unit AC</option>
+                <option value="window">Window AC</option>
+              </select>
             </div>
           </div>
 
