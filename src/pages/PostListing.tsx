@@ -601,10 +601,22 @@ export function PostListing() {
   };
 
   const handleNeighborhoodFromMap = (detectedNeighborhood: string) => {
-    setFormData((prev) => ({ ...prev, neighborhood: detectedNeighborhood }));
-    setNeighborhoodSelectValue("__custom__");
-    setShowCustomNeighborhood(true);
-    setCustomNeighborhoodInput(detectedNeighborhood);
+    const presetNeighborhoods = ["Midwood", "Homecrest", "Marine Park", "Flatbush", "Gravesend", "Boro Park"];
+    const matchedPreset = presetNeighborhoods.find(
+      (n) => n.toLowerCase() === detectedNeighborhood.toLowerCase()
+    );
+
+    if (matchedPreset) {
+      setNeighborhoodSelectValue(matchedPreset);
+      setShowCustomNeighborhood(false);
+      setCustomNeighborhoodInput("");
+      setFormData((prev) => ({ ...prev, neighborhood: matchedPreset }));
+    } else {
+      setNeighborhoodSelectValue("other");
+      setShowCustomNeighborhood(true);
+      setCustomNeighborhoodInput(detectedNeighborhood);
+      setFormData((prev) => ({ ...prev, neighborhood: detectedNeighborhood }));
+    }
   };
 
   const calculateBuildingSize = () => {
