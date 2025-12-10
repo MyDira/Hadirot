@@ -600,6 +600,13 @@ export function PostListing() {
     setFormData((prev) => ({ ...prev, latitude: lat, longitude: lng }));
   };
 
+  const handleNeighborhoodFromMap = (detectedNeighborhood: string) => {
+    setFormData((prev) => ({ ...prev, neighborhood: detectedNeighborhood }));
+    setNeighborhoodSelectValue("__custom__");
+    setShowCustomNeighborhood(true);
+    setCustomNeighborhoodInput(detectedNeighborhood);
+  };
+
   const calculateBuildingSize = () => {
     if (formData.building_length_ft && formData.building_width_ft) {
       return Math.round(formData.building_length_ft * formData.building_width_ft);
@@ -1389,6 +1396,7 @@ export function PostListing() {
                     latitude={formData.latitude}
                     longitude={formData.longitude}
                     onLocationChange={handleLocationCoordinatesChange}
+                    onNeighborhoodChange={handleNeighborhoodFromMap}
                   />
                 </div>
               </div>

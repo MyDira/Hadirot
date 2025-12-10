@@ -299,6 +299,13 @@ export function EditListing() {
     setFormData((prev) => ({ ...prev, latitude: lat, longitude: lng }));
   };
 
+  const handleNeighborhoodFromMap = (detectedNeighborhood: string) => {
+    setFormData((prev) => ({ ...prev, neighborhood: detectedNeighborhood }));
+    setNeighborhoodSelectValue("__custom__");
+    setShowCustomNeighborhood(true);
+    setCustomNeighborhoodInput(detectedNeighborhood);
+  };
+
   const handleMediaAdd = async (files: File[]) => {
     if (!user) {
       alert("Please sign in to upload media");
@@ -811,6 +818,7 @@ export function EditListing() {
                   latitude={formData.latitude}
                   longitude={formData.longitude}
                   onLocationChange={handleLocationCoordinatesChange}
+                  onNeighborhoodChange={handleNeighborhoodFromMap}
                 />
               </div>
             </div>
