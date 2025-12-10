@@ -1385,6 +1385,7 @@ export function PostListing() {
                   </p>
                   <LocationPicker
                     crossStreets={formData.location}
+                    neighborhood={formData.neighborhood}
                     latitude={formData.latitude}
                     longitude={formData.longitude}
                     onLocationChange={handleLocationCoordinatesChange}

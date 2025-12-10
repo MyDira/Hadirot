@@ -8,6 +8,7 @@ const DEFAULT_ZOOM = 13;
 
 interface LocationPickerProps {
   crossStreets: string;
+  neighborhood?: string;
   latitude: number | null;
   longitude: number | null;
   onLocationChange: (lat: number | null, lng: number | null) => void;
@@ -16,6 +17,7 @@ interface LocationPickerProps {
 
 export function LocationPicker({
   crossStreets,
+  neighborhood,
   latitude,
   longitude,
   onLocationChange,
@@ -115,9 +117,14 @@ export function LocationPicker({
     setGeocodeError(null);
 
     try {
-      const searchQuery = `${crossStreets.trim()}, Brooklyn, NY`;
+      const locationParts = [crossStreets.trim()];
+      if (neighborhood?.trim()) {
+        locationParts.push(neighborhood.trim());
+      }
+      const searchQuery = locationParts.join(", ");
+
       const response = await fetch(
-        `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(searchQuery)}.json?access_token=${MAPBOX_ACCESS_TOKEN}&limit=1&bbox=-74.042,40.57,-73.833,40.739`
+        `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(searchQuery)}.json?access_token=${MAPBOX_ACCESS_TOKEN}&limit=1&types=address,poi`
       );
 
       if (!response.ok) {

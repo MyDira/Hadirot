@@ -807,6 +807,7 @@ export function EditListing() {
                 </p>
                 <LocationPicker
                   crossStreets={formData.location}
+                  neighborhood={formData.neighborhood}
                   latitude={formData.latitude}
                   longitude={formData.longitude}
                   onLocationChange={handleLocationCoordinatesChange}
