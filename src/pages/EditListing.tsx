@@ -7,6 +7,7 @@ import { listingsService } from "../services/listings";
 import { emailService } from "../services/email";
 import { generateVideoThumbnail } from "../utils/videoUtils";
 import { MediaUploader, MediaFile } from "../components/shared/MediaUploader";
+import { LocationPicker } from "../components/listing/LocationPicker";
 import {
   PropertyType,
   ParkingType,
@@ -42,6 +43,8 @@ interface ListingFormData {
   ac_type?: ACType | null;
   apartment_conditions: string[];
   additional_rooms: number;
+  latitude: number | null;
+  longitude: number | null;
 }
 
 interface ProcessedImage {
@@ -91,6 +94,8 @@ export function EditListing() {
     ac_type: null,
     apartment_conditions: [],
     additional_rooms: 0,
+    latitude: null,
+    longitude: null,
   });
 
   useEffect(() => {
@@ -174,6 +179,8 @@ export function EditListing() {
         ac_type: data.ac_type || null,
         apartment_conditions: data.apartment_conditions || [],
         additional_rooms: data.additional_rooms || 0,
+        latitude: data.latitude || null,
+        longitude: data.longitude || null,
       });
       // Check if using custom neighborhood
       const standardNeighborhoods = [
@@ -286,6 +293,10 @@ export function EditListing() {
         };
       }
     });
+  };
+
+  const handleLocationCoordinatesChange = (lat: number | null, lng: number | null) => {
+    setFormData((prev) => ({ ...prev, latitude: lat, longitude: lng }));
   };
 
   const handleMediaAdd = async (files: File[]) => {
@@ -516,6 +527,8 @@ export function EditListing() {
         ac_type: formData.ac_type || null,
         apartment_conditions: formData.apartment_conditions.length > 0 ? formData.apartment_conditions : null,
         additional_rooms: formData.additional_rooms > 0 ? formData.additional_rooms : null,
+        latitude: formData.latitude,
+        longitude: formData.longitude,
       };
 
       // Update the listing
@@ -772,7 +785,7 @@ export function EditListing() {
               />
             </div>
 
-            <div>
+            <div className="lg:col-span-2">
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Cross Streets *
               </label>
@@ -782,9 +795,26 @@ export function EditListing() {
                 value={formData.location}
                 onChange={handleInputChange}
                 required
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140] mb-2"
-                placeholder="Main St & 1st Ave"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140] mb-4"
+                placeholder="Avenue J & East 15th Street"
               />
+              <div className="mt-4 mb-6">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Set Location on Map (optional)
+                </label>
+                <p className="text-sm text-gray-500 mb-3">
+                  Help tenants find your listing by setting its location on the map.
+                </p>
+                <LocationPicker
+                  crossStreets={formData.location}
+                  latitude={formData.latitude}
+                  longitude={formData.longitude}
+                  onLocationChange={handleLocationCoordinatesChange}
+                />
+              </div>
+            </div>
+
+            <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Neighborhood *
               </label>

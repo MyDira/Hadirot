@@ -124,6 +124,8 @@ export interface Listing {
   utilities_included?: string[] | null;
   tenant_notes?: string | null;
   full_address?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
   owner?: Profile;
   listing_images?: ListingImage[];
   is_favorited?: boolean;

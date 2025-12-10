@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { ChevronLeft, ChevronRight, Star, Filter, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Star, Filter, X, List, Map } from "lucide-react";
 import { ListingCard } from "../components/listings/ListingCard";
 import { ListingFilters } from "../components/listings/ListingFilters";
+import { ListingsMap } from "../components/listings/ListingsMap";
 import { Listing } from "../config/supabase";
 import { listingsService } from "../services/listings";
 import { useAuth } from "@/hooks/useAuth";
@@ -26,17 +27,21 @@ interface FilterState {
   sort?: SortOption;
 }
 
+type ViewMode = 'list' | 'map';
+
 export function BrowseListings() {
   const navigate = useNavigate();
   const [displayListings, setDisplayListings] = useState<
     (Listing & { showFeaturedBadge: boolean })[]
   >([]);
+  const [allListingsForMap, setAllListingsForMap] = useState<Listing[]>([]);
   const [userFavorites, setUserFavorites] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [totalCount, setTotalCount] = useState(0);
   const [agencies, setAgencies] = useState<string[]>([]);
   const [allNeighborhoods, setAllNeighborhoods] = useState<string[]>([]);
   const [showFiltersMobile, setShowFiltersMobile] = useState(false);
+  const [viewMode, setViewMode] = useState<ViewMode>('list');
   const { user } = useAuth();
   const { filters, currentPage, updateFilters, updatePage, markNavigatingToDetail, isReady } = useBrowseFilters();
   
@@ -278,6 +283,18 @@ export function BrowseListings() {
 
       setDisplayListings(finalListings);
 
+      // Fetch all listings for map view (only those matching filters, no pagination)
+      if (viewMode === 'map' || allListingsForMap.length === 0) {
+        const { data: allData } = await listingsService.getListings(
+          serviceFilters,
+          undefined,
+          user?.id,
+          0,
+          false,
+        );
+        setAllListingsForMap(allData || []);
+      }
+
     } catch (error) {
       console.error("Error loading listings:", error);
     } finally {
@@ -374,14 +391,45 @@ export function BrowseListings() {
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold font-brand text-[#273140] mb-2">
-          Browse Listings
-        </h1>
-        <p className="text-gray-600">
-          {loading
-            ? "Loading..."
-            : `Showing ${(currentPage - 1) * NUM_STANDARD_SLOTS_PER_PAGE + 1}-${Math.min((currentPage - 1) * NUM_STANDARD_SLOTS_PER_PAGE + displayListings.filter((l) => !l.showFeaturedBadge).length, totalCount)} of ${totalCount} properties`}
-        </p>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-bold font-brand text-[#273140] mb-2">
+              Browse Listings
+            </h1>
+            <p className="text-gray-600">
+              {loading
+                ? "Loading..."
+                : viewMode === 'list'
+                  ? `Showing ${(currentPage - 1) * NUM_STANDARD_SLOTS_PER_PAGE + 1}-${Math.min((currentPage - 1) * NUM_STANDARD_SLOTS_PER_PAGE + displayListings.filter((l) => !l.showFeaturedBadge).length, totalCount)} of ${totalCount} properties`
+                  : `${totalCount} properties available`}
+            </p>
+          </div>
+
+          <div className="flex items-center bg-gray-100 rounded-lg p-1">
+            <button
+              onClick={() => setViewMode('list')}
+              className={`flex items-center px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                viewMode === 'list'
+                  ? 'bg-white text-[#273140] shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              <List className="w-4 h-4 mr-2" />
+              List
+            </button>
+            <button
+              onClick={() => setViewMode('map')}
+              className={`flex items-center px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                viewMode === 'map'
+                  ? 'bg-white text-[#273140] shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              <Map className="w-4 h-4 mr-2" />
+              Map
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* Mobile Filter Button */}
@@ -455,7 +503,20 @@ export function BrowseListings() {
         </>
       )}
 
-      {loading ? (
+      {viewMode === 'map' ? (
+        <div className="mt-6">
+          {loading ? (
+            <div className="h-[600px] bg-gray-100 rounded-lg flex items-center justify-center">
+              <div className="text-center">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#273140] mx-auto mb-3"></div>
+                <p className="text-gray-600">Loading map...</p>
+              </div>
+            </div>
+          ) : (
+            <ListingsMap listings={allListingsForMap} />
+          )}
+        </div>
+      ) : loading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
             <div
@@ -499,7 +560,6 @@ export function BrowseListings() {
                 if (el) {
                   observeElement(el, listing.id);
                 } else {
-                  // Element is being unmounted
                   const existingEl = document.querySelector(`[data-listing-id="${listing.id}"]`);
                   if (existingEl) {
                     unobserveElement(existingEl);
@@ -520,8 +580,8 @@ export function BrowseListings() {
         </div>
       )}
 
-      {/* Pagination */}
-      {totalPages > 1 && (
+      {/* Pagination - only show in list view */}
+      {viewMode === 'list' && totalPages > 1 && (
         <div className="flex items-center justify-center space-x-2 mt-12">
           {/* Previous Button */}
           <button

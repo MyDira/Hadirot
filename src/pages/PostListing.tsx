@@ -14,6 +14,7 @@ import { compressImage } from "../utils/imageUtils";
 import { generateVideoThumbnail } from "../utils/videoUtils";
 import { MediaUploader, MediaFile } from "../components/shared/MediaUploader";
 import { SalesListingFields } from "../components/listing/SalesListingFields";
+import { LocationPicker } from "../components/listing/LocationPicker";
 import { gaEvent } from "@/lib/ga";
 import {
   ensurePostAttempt,
@@ -103,6 +104,8 @@ interface ListingFormData {
   lot_size_input_mode: 'sqft' | 'dimensions';
   building_size_input_mode: 'sqft' | 'dimensions';
   terms_agreed: boolean;
+  latitude: number | null;
+  longitude: number | null;
 }
 
 export function PostListing() {
@@ -185,6 +188,8 @@ export function PostListing() {
     lot_size_input_mode: 'sqft',
     building_size_input_mode: 'sqft',
     terms_agreed: false,
+    latitude: null,
+    longitude: null,
   });
 
   const [hasDraft, setHasDraft] = useState<boolean | null>(null);
@@ -591,6 +596,10 @@ export function PostListing() {
     setFormData((prev) => ({ ...prev, building_size_input_mode: mode }));
   };
 
+  const handleLocationCoordinatesChange = (lat: number | null, lng: number | null) => {
+    setFormData((prev) => ({ ...prev, latitude: lat, longitude: lng }));
+  };
+
   const calculateBuildingSize = () => {
     if (formData.building_length_ft && formData.building_width_ft) {
       return Math.round(formData.building_length_ft * formData.building_width_ft);
@@ -890,6 +899,8 @@ export function PostListing() {
         tenant_notes: formData.tenant_notes || null,
         year_renovated: formData.year_renovated || null,
         heating_type: formData.heating_type || null,
+        latitude: formData.latitude,
+        longitude: formData.longitude,
         terms_agreed: undefined,
       } as any;
       const listing = await listingsService.createListing(payload);
@@ -1352,7 +1363,7 @@ export function PostListing() {
                 </div>
               </>
             ) : (
-              <div>
+              <div className="lg:col-span-2">
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Cross Streets *
                 </label>
@@ -1362,9 +1373,23 @@ export function PostListing() {
                   value={formData.location}
                   onChange={handleInputChange}
                   required
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140] mb-2"
-                  placeholder="Main St & 1st Ave"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140] mb-4"
+                  placeholder="Avenue J & East 15th Street"
                 />
+                <div className="mt-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Set Location on Map (optional)
+                  </label>
+                  <p className="text-sm text-gray-500 mb-3">
+                    Help tenants find your listing by setting its location on the map.
+                  </p>
+                  <LocationPicker
+                    crossStreets={formData.location}
+                    latitude={formData.latitude}
+                    longitude={formData.longitude}
+                    onLocationChange={handleLocationCoordinatesChange}
+                  />
+                </div>
               </div>
             )}
 
