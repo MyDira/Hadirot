@@ -106,7 +106,7 @@ Deno.serve(async (req) => {
     // Fetch listing details
     const { data: listing, error: listingError } = await supabase
       .from("listings")
-      .select("bedrooms, location, neighborhood, price, contact_phone")
+      .select("bedrooms, location, neighborhood, contact_phone")
       .eq("id", formData.listingId)
       .single();
 
@@ -135,11 +135,8 @@ Deno.serve(async (req) => {
     // Format the SMS message
     const bedroomText = listing.bedrooms === 0 ? "Studio" : `${listing.bedrooms} bd`;
     const locationText = listing.neighborhood || listing.location;
-    const priceText = listing.price
-      ? `$${listing.price.toLocaleString()}`
-      : "Call for Price";
 
-    const smsMessage = `Hadirot- ${formData.userName} is interested in the ${bedroomText} apartment by ${locationText} for ${priceText}, please call them @ ${formData.userPhone}`;
+    const smsMessage = `New Hadirot inquiry: ${formData.userName} (${formData.userPhone}) about the ${bedroomText} at ${locationText}`;
 
     console.log("Sending SMS to:", listing.contact_phone);
     console.log("Message:", smsMessage);
