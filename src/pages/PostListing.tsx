@@ -39,7 +39,6 @@ import {
   LaundryType,
   BuildingType,
   RentRollUnit,
-  HeatingType,
 } from "../config/supabase";
 
 interface ListingFormData {
@@ -71,7 +70,6 @@ interface ListingFormData {
   dishwasher: boolean;
   lease_length?: LeaseLength | null;
   heat: HeatType;
-  heating_type?: HeatingType | null;
   property_type: PropertyType | '';
   building_type?: BuildingType | '';
   contact_name: string;
@@ -99,7 +97,6 @@ interface ListingFormData {
   state?: string;
   zip_code?: string;
   lot_size_input_mode: 'sqft' | 'dimensions';
-  terms_agreed: boolean;
 }
 
 export function PostListing() {
@@ -150,7 +147,6 @@ export function PostListing() {
     dishwasher: false,
     lease_length: null,
     heat: "tenant_pays",
-    heating_type: null,
     property_type: "",
     building_type: "",
     contact_name: profile?.full_name || "",
@@ -178,7 +174,6 @@ export function PostListing() {
     state: "NY",
     zip_code: "",
     lot_size_input_mode: 'sqft',
-    terms_agreed: false,
   });
 
   const [hasDraft, setHasDraft] = useState<boolean | null>(null);
@@ -782,19 +777,6 @@ export function PostListing() {
       return;
     }
 
-    if (!formData.terms_agreed) {
-      alert("Please agree to the Terms and Conditions and Privacy Policy before posting");
-      setLoading(false);
-      return;
-    }
-
-    const imageFiles = mediaFiles.filter(m => m.type === 'image');
-    if (formData.listing_type === 'sale' && imageFiles.length < 2) {
-      alert("Please upload at least 2 images for sale listings");
-      setLoading(false);
-      return;
-    }
-
       if (formData.broker_fee) {
         alert(
           "Listings with a tenant broker fee are not permitted on HaDirot. Please remove the fee to proceed.",
@@ -866,8 +848,6 @@ export function PostListing() {
         utilities_included: formData.utilities_included.length > 0 ? formData.utilities_included : null,
         tenant_notes: formData.tenant_notes || null,
         year_renovated: formData.year_renovated || null,
-        heating_type: formData.heating_type || null,
-        terms_agreed: undefined,
       } as any;
       const listing = await listingsService.createListing(payload);
 
@@ -1501,21 +1481,19 @@ export function PostListing() {
               </select>
             </div>
 
-            {formData.listing_type === 'rental' && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Floor
-                </label>
-                <input
-                  type="number"
-                  name="floor"
-                  value={formData.floor || ""}
-                  onChange={handleInputChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
-                  placeholder="2"
-                />
-              </div>
-            )}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Floor
+              </label>
+              <input
+                type="number"
+                name="floor"
+                value={formData.floor || ""}
+                onChange={handleInputChange}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
+                placeholder="2"
+              />
+            </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -1604,103 +1582,103 @@ export function PostListing() {
                 onChange={handleInputChange}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
               >
-                {formData.listing_type === 'sale' ? (
-                  <>
-                    <option value="no">No Parking</option>
-                    <option value="yes">Private Driveway</option>
-                    <option value="included">Shared Driveway</option>
-                    <option value="optional">Easement (parking in back/garage)</option>
-                  </>
-                ) : (
-                  <>
-                    <option value="no">No Parking</option>
-                    <option value="yes">Parking Available</option>
-                    <option value="included">Parking Included</option>
-                    <option value="optional">Optional Parking</option>
-                  </>
-                )}
+                <option value="no">No Parking</option>
+                <option value="yes">Parking Available</option>
+                <option value="included">Parking Included</option>
+                <option value="optional">Optional Parking</option>
               </select>
             </div>
 
-            {formData.listing_type === 'rental' && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Heat
-                </label>
-                <select
-                  name="heat"
-                  value={formData.heat}
-                  onChange={handleInputChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
-                >
-                  <option value="tenant_pays">Tenant Pays</option>
-                  <option value="included">Heat Included</option>
-                </select>
-              </div>
-            )}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Heat
+              </label>
+              <select
+                name="heat"
+                value={formData.heat}
+                onChange={handleInputChange}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
+              >
+                <option value="tenant_pays">Tenant Pays</option>
+                <option value="included">Heat Included</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                AC Type
+              </label>
+              <select
+                name="ac_type"
+                value={formData.ac_type || ""}
+                onChange={(e) => setFormData(prev => ({ ...prev, ac_type: e.target.value as ACType || null }))}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
+              >
+                <option value="">Select AC Type (optional)</option>
+                <option value="central">Central AC</option>
+                <option value="split_unit">Split Unit AC</option>
+                <option value="window">Window AC</option>
+              </select>
+            </div>
           </div>
 
-          {formData.listing_type === 'rental' && (
-            <>
-              {/* Apartment Conditions - Rental Only */}
-              <div className="mt-6">
-                <label className="block text-sm font-medium text-gray-700 mb-3">
-                  Apartment Conditions
-                </label>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <label className="flex items-center">
-                    <input
-                      type="checkbox"
-                      checked={formData.apartment_conditions.includes('modern')}
-                      onChange={() => handleApartmentConditionToggle('modern')}
-                      className="h-4 w-4 text-[#273140] focus:ring-[#273140] border-gray-300 rounded"
-                    />
-                    <span className="ml-2 text-sm font-medium text-gray-700">Modern</span>
-                  </label>
+          {/* Apartment Conditions */}
+          <div className="mt-6">
+            <label className="block text-sm font-medium text-gray-700 mb-3">
+              Apartment Conditions
+            </label>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <label className="flex items-center">
+                <input
+                  type="checkbox"
+                  checked={formData.apartment_conditions.includes('modern')}
+                  onChange={() => handleApartmentConditionToggle('modern')}
+                  className="h-4 w-4 text-[#273140] focus:ring-[#273140] border-gray-300 rounded"
+                />
+                <span className="ml-2 text-sm font-medium text-gray-700">Modern</span>
+              </label>
 
-                  <label className="flex items-center">
-                    <input
-                      type="checkbox"
-                      checked={formData.apartment_conditions.includes('renovated')}
-                      onChange={() => handleApartmentConditionToggle('renovated')}
-                      className="h-4 w-4 text-[#273140] focus:ring-[#273140] border-gray-300 rounded"
-                    />
-                    <span className="ml-2 text-sm font-medium text-gray-700">Renovated</span>
-                  </label>
+              <label className="flex items-center">
+                <input
+                  type="checkbox"
+                  checked={formData.apartment_conditions.includes('renovated')}
+                  onChange={() => handleApartmentConditionToggle('renovated')}
+                  className="h-4 w-4 text-[#273140] focus:ring-[#273140] border-gray-300 rounded"
+                />
+                <span className="ml-2 text-sm font-medium text-gray-700">Renovated</span>
+              </label>
 
-                  <label className="flex items-center">
-                    <input
-                      type="checkbox"
-                      checked={formData.apartment_conditions.includes('large_rooms')}
-                      onChange={() => handleApartmentConditionToggle('large_rooms')}
-                      className="h-4 w-4 text-[#273140] focus:ring-[#273140] border-gray-300 rounded"
-                    />
-                    <span className="ml-2 text-sm font-medium text-gray-700">Large Rooms</span>
-                  </label>
+              <label className="flex items-center">
+                <input
+                  type="checkbox"
+                  checked={formData.apartment_conditions.includes('large_rooms')}
+                  onChange={() => handleApartmentConditionToggle('large_rooms')}
+                  className="h-4 w-4 text-[#273140] focus:ring-[#273140] border-gray-300 rounded"
+                />
+                <span className="ml-2 text-sm font-medium text-gray-700">Large Rooms</span>
+              </label>
 
-                  <label className="flex items-center">
-                    <input
-                      type="checkbox"
-                      checked={formData.apartment_conditions.includes('high_ceilings')}
-                      onChange={() => handleApartmentConditionToggle('high_ceilings')}
-                      className="h-4 w-4 text-[#273140] focus:ring-[#273140] border-gray-300 rounded"
-                    />
-                    <span className="ml-2 text-sm font-medium text-gray-700">High Ceilings</span>
-                  </label>
+              <label className="flex items-center">
+                <input
+                  type="checkbox"
+                  checked={formData.apartment_conditions.includes('high_ceilings')}
+                  onChange={() => handleApartmentConditionToggle('high_ceilings')}
+                  className="h-4 w-4 text-[#273140] focus:ring-[#273140] border-gray-300 rounded"
+                />
+                <span className="ml-2 text-sm font-medium text-gray-700">High Ceilings</span>
+              </label>
 
-                  <label className="flex items-center">
-                    <input
-                      type="checkbox"
-                      checked={formData.apartment_conditions.includes('large_closets')}
-                      onChange={() => handleApartmentConditionToggle('large_closets')}
-                      className="h-4 w-4 text-[#273140] focus:ring-[#273140] border-gray-300 rounded"
-                    />
-                    <span className="ml-2 text-sm font-medium text-gray-700">Large Closets</span>
-                  </label>
-                </div>
-              </div>
-            </>
-          )}
+              <label className="flex items-center">
+                <input
+                  type="checkbox"
+                  checked={formData.apartment_conditions.includes('large_closets')}
+                  onChange={() => handleApartmentConditionToggle('large_closets')}
+                  className="h-4 w-4 text-[#273140] focus:ring-[#273140] border-gray-300 rounded"
+                />
+                <span className="ml-2 text-sm font-medium text-gray-700">Large Closets</span>
+              </label>
+            </div>
+          </div>
 
           <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="flex items-center">
@@ -1813,7 +1791,6 @@ export function PostListing() {
             onMediaRemove={handleMediaRemove}
             onSetFeatured={handleSetFeatured}
             maxFiles={11}
-            minFiles={formData.listing_type === 'sale' ? 2 : 0}
             disabled={!user}
             uploading={uploadingMedia}
             showAuthWarning={!user}
@@ -1867,28 +1844,11 @@ export function PostListing() {
           </div>
         </div>
 
-        {/* Terms & Conditions Agreement */}
-        <div className={`bg-white rounded-lg shadow-sm border border-gray-200 p-6 relative ${
-          formData.listing_type === 'sale' && !canPostSales ? 'opacity-50 pointer-events-none' : ''
-        }`}>
-          <label className="flex items-start gap-3">
-            <input
-              type="checkbox"
-              checked={formData.terms_agreed}
-              onChange={(e) => setFormData(prev => ({ ...prev, terms_agreed: e.target.checked }))}
-              className="mt-1 h-4 w-4 text-[#273140] focus:ring-[#273140] border-gray-300 rounded"
-            />
-            <span className="text-sm text-gray-700">
-              By posting this listing, I agree to the <a href="/terms" target="_blank" rel="noopener noreferrer" className="text-[#273140] font-semibold hover:underline">Terms and Conditions</a> and <a href="/privacy" target="_blank" rel="noopener noreferrer" className="text-[#273140] font-semibold hover:underline">Privacy Policy</a>.
-            </span>
-          </label>
-        </div>
-
         {/* Submit Button */}
         <div className="flex justify-end">
           <button
             type="submit"
-            disabled={loading || (formData.listing_type === 'sale' && !canPostSales) || !formData.terms_agreed}
+            disabled={loading || (formData.listing_type === 'sale' && !canPostSales)}
             className="bg-accent-500 text-white px-8 py-3 rounded-md font-semibold hover:bg-accent-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-accent-400 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {loading ? "Creating Listing..." : "Post Listing"}
