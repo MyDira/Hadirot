@@ -1,22 +1,27 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { DollarSign, Home, Filter, ChevronLeft, ChevronRight } from 'lucide-react';
+import { DollarSign, Home, Filter, ChevronLeft, ChevronRight, List, Map as MapIcon } from 'lucide-react';
 import { listingsService } from '../services/listings';
 import { Listing } from '../config/supabase';
 import { ListingCard } from '../components/listings/ListingCard';
 import { ListingFilters } from '../components/listings/ListingFilters';
+import { ListingsMap } from '../components/listings/ListingsMap';
 import { useBrowseFilters } from '../hooks/useBrowseFilters';
 import { gaEvent } from '@/lib/ga';
 import { useAuth } from '@/hooks/useAuth';
 import { useListingImpressions } from '../hooks/useListingImpressions';
 
+type ViewMode = 'list' | 'map';
+
 export function BrowseSales() {
   const { user } = useAuth();
   const [listings, setListings] = useState<Listing[]>([]);
+  const [allListingsForMap, setAllListingsForMap] = useState<Listing[]>([]);
   const [loading, setLoading] = useState(true);
   const [totalCount, setTotalCount] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
   const [showMobileFilters, setShowMobileFilters] = useState(false);
+  const [viewMode, setViewMode] = useState<ViewMode>('list');
   const { filters, setFilter, resetFilters, filtersActive } = useBrowseFilters('sales');
 
   const ITEMS_PER_PAGE = 20;
@@ -40,7 +45,7 @@ export function BrowseSales() {
 
   useEffect(() => {
     loadListings();
-  }, [filters, currentPage, user]);
+  }, [filters, currentPage, user, viewMode]);
 
   const loadListings = async () => {
     try {
@@ -60,6 +65,18 @@ export function BrowseSales() {
 
       setListings(result.data || []);
       setTotalCount(result.totalCount || 0);
+
+      if (viewMode === 'map' || allListingsForMap.length === 0) {
+        const allResult = await listingsService.getSaleListings(
+          serviceFilters,
+          undefined,
+          user?.id,
+          0,
+          false,
+          false
+        );
+        setAllListingsForMap(allResult.data || []);
+      }
     } catch (error) {
       console.error('Error loading sale listings:', error);
     } finally {
@@ -75,11 +92,44 @@ export function BrowseSales() {
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <div className="mb-8">
-        <div className="flex items-center mb-4">
-          <DollarSign className="w-10 h-10 text-[#4E4B43] mr-3" />
-          <div>
-            <h1 className="text-3xl font-bold text-[#4E4B43]">Properties for Sale</h1>
-            <p className="text-gray-600">Browse available properties for purchase</p>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div className="flex items-center">
+            <DollarSign className="w-10 h-10 text-[#4E4B43] mr-3" />
+            <div>
+              <h1 className="text-3xl font-bold text-[#4E4B43]">Properties for Sale</h1>
+              <p className="text-gray-600">
+                {loading
+                  ? 'Loading...'
+                  : viewMode === 'list'
+                    ? `Showing ${totalCount > 0 ? (currentPage - 1) * ITEMS_PER_PAGE + 1 : 0}-${Math.min(currentPage * ITEMS_PER_PAGE, totalCount)} of ${totalCount} properties`
+                    : `${totalCount} properties available`}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center bg-gray-100 rounded-lg p-1">
+            <button
+              onClick={() => setViewMode('list')}
+              className={`flex items-center px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                viewMode === 'list'
+                  ? 'bg-white text-[#4E4B43] shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              <List className="w-4 h-4 mr-2" />
+              List
+            </button>
+            <button
+              onClick={() => setViewMode('map')}
+              className={`flex items-center px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                viewMode === 'map'
+                  ? 'bg-white text-[#4E4B43] shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              <MapIcon className="w-4 h-4 mr-2" />
+              Map
+            </button>
           </div>
         </div>
       </div>
@@ -146,8 +196,23 @@ export function BrowseSales() {
         </div>
       )}
 
-      {/* Listings Grid */}
-      <main>
+      {/* Map View */}
+      {viewMode === 'map' ? (
+        <div className="mt-6">
+          {loading ? (
+            <div className="h-[600px] bg-gray-100 rounded-lg flex items-center justify-center">
+              <div className="text-center">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#4E4B43] mx-auto mb-3"></div>
+                <p className="text-gray-600">Loading map...</p>
+              </div>
+            </div>
+          ) : (
+            <ListingsMap listings={allListingsForMap} />
+          )}
+        </div>
+      ) : (
+        /* Listings Grid */
+        <main>
           {loading ? (
             <div className="text-center py-12">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#4E4B43] mx-auto"></div>
@@ -155,9 +220,6 @@ export function BrowseSales() {
             </div>
           ) : listings.length > 0 ? (
             <>
-              <div className="mb-4 text-sm text-gray-600">
-                {totalCount} {totalCount === 1 ? 'property' : 'properties'} found
-              </div>
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
                 {listings.map((listing) => (
                   <div
@@ -246,6 +308,7 @@ export function BrowseSales() {
             </div>
           )}
         </main>
+      )}
     </div>
   );
 }

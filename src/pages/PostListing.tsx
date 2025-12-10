@@ -1380,6 +1380,23 @@ export function PostListing() {
                     />
                   </div>
                 </div>
+
+                <div className="lg:col-span-2 mt-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Set Location on Map (optional)
+                  </label>
+                  <p className="text-sm text-gray-500 mb-3">
+                    Help buyers find your property by setting its location on the map.
+                  </p>
+                  <LocationPicker
+                    crossStreets={`${formData.street_address || ''}, ${formData.city || ''}, ${formData.state || ''}`}
+                    neighborhood={formData.neighborhood}
+                    latitude={formData.latitude}
+                    longitude={formData.longitude}
+                    onLocationChange={handleLocationCoordinatesChange}
+                    onNeighborhoodChange={handleNeighborhoodFromMap}
+                  />
+                </div>
               </>
             ) : (
               <div className="lg:col-span-2">
