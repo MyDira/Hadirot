@@ -314,8 +314,9 @@ export function PostListing() {
       }
 
       if (draftData) {
-        // Restore form data
-        setFormData({
+        // Restore form data - use spread to keep default values for missing fields
+        setFormData(prev => ({
+          ...prev,
           title: draftData.title || "",
           description: draftData.description || "",
           location: draftData.location || "",
@@ -339,7 +340,45 @@ export function PostListing() {
           ac_type: (draftData as any).ac_type || null,
           apartment_conditions: (draftData as any).apartment_conditions || [],
           additional_rooms: (draftData as any).additional_rooms || 0,
-        });
+          listing_type: (draftData as any).listing_type || "rental",
+          asking_price: (draftData as any).asking_price || null,
+          property_age: (draftData as any).property_age,
+          year_built: (draftData as any).year_built,
+          year_renovated: (draftData as any).year_renovated,
+          hoa_fees: (draftData as any).hoa_fees,
+          property_taxes: (draftData as any).property_taxes,
+          lot_size_sqft: (draftData as any).lot_size_sqft,
+          property_length_ft: (draftData as any).property_length_ft,
+          property_width_ft: (draftData as any).property_width_ft,
+          building_size_sqft: (draftData as any).building_size_sqft,
+          building_length_ft: (draftData as any).building_length_ft,
+          building_width_ft: (draftData as any).building_width_ft,
+          unit_count: (draftData as any).unit_count,
+          number_of_floors: (draftData as any).number_of_floors,
+          heating_type: (draftData as any).heating_type || null,
+          property_condition: (draftData as any).property_condition || "",
+          occupancy_status: (draftData as any).occupancy_status || "",
+          delivery_condition: (draftData as any).delivery_condition || "",
+          outdoor_space: (draftData as any).outdoor_space || [],
+          interior_features: (draftData as any).interior_features || [],
+          laundry_type: (draftData as any).laundry_type || "",
+          basement_type: (draftData as any).basement_type || "",
+          basement_notes: (draftData as any).basement_notes || "",
+          building_type: (draftData as any).building_type || "",
+          rent_roll_total: (draftData as any).rent_roll_total || null,
+          rent_roll_data: (draftData as any).rent_roll_data || [],
+          utilities_included: (draftData as any).utilities_included || [],
+          tenant_notes: (draftData as any).tenant_notes || "",
+          street_address: (draftData as any).street_address || "",
+          unit_number: (draftData as any).unit_number || "",
+          city: (draftData as any).city || "",
+          state: (draftData as any).state || "",
+          zip_code: (draftData as any).zip_code || "",
+          lot_size_input_mode: (draftData as any).lot_size_input_mode || 'sqft',
+          building_size_input_mode: (draftData as any).building_size_input_mode || 'sqft',
+          latitude: (draftData as any).latitude || null,
+          longitude: (draftData as any).longitude || null,
+        }));
 
         // Restore media files (images and video) if they exist
         const restoredMedia: MediaFile[] = [];
@@ -561,7 +600,7 @@ export function PostListing() {
 
   const handleRentRollUnitChange = (index: number, field: keyof RentRollUnit, value: string | number) => {
     setFormData((prev) => {
-      const newRentRoll = [...prev.rent_roll_data];
+      const newRentRoll = [...(prev.rent_roll_data || [])];
       newRentRoll[index] = { ...newRentRoll[index], [field]: value };
       return { ...prev, rent_roll_data: newRentRoll };
     });
@@ -570,14 +609,14 @@ export function PostListing() {
   const addRentRollUnit = () => {
     setFormData((prev) => ({
       ...prev,
-      rent_roll_data: [...prev.rent_roll_data, { unit: '', bedrooms: 1, rent: 0 }]
+      rent_roll_data: [...(prev.rent_roll_data || []), { unit: '', bedrooms: 1, rent: 0 }]
     }));
   };
 
   const removeRentRollUnit = (index: number) => {
     setFormData((prev) => ({
       ...prev,
-      rent_roll_data: prev.rent_roll_data.filter((_, i) => i !== index)
+      rent_roll_data: (prev.rent_roll_data || []).filter((_, i) => i !== index)
     }));
   };
 
@@ -899,22 +938,22 @@ export function PostListing() {
           : null,
         call_for_price: !!formData.call_for_price,
         ac_type: formData.ac_type || null,
-        apartment_conditions: formData.apartment_conditions.length > 0 ? formData.apartment_conditions : null,
+        apartment_conditions: formData.apartment_conditions?.length > 0 ? formData.apartment_conditions : null,
         additional_rooms: formData.additional_rooms > 0 ? formData.additional_rooms : null,
         lot_size_sqft: finalLotSize,
         building_size_sqft: finalBuildingSize,
         property_condition: formData.property_condition || null,
         occupancy_status: formData.occupancy_status || null,
         delivery_condition: formData.delivery_condition || null,
-        outdoor_space: formData.outdoor_space.length > 0 ? formData.outdoor_space : null,
-        interior_features: formData.interior_features.length > 0 ? formData.interior_features : null,
+        outdoor_space: formData.outdoor_space?.length > 0 ? formData.outdoor_space : null,
+        interior_features: formData.interior_features?.length > 0 ? formData.interior_features : null,
         laundry_type: formData.laundry_type || null,
         basement_type: formData.basement_type || null,
         basement_notes: formData.basement_notes || null,
         building_type: formData.building_type || null,
         rent_roll_total: formData.rent_roll_total,
-        rent_roll_data: formData.rent_roll_data.length > 0 ? formData.rent_roll_data : null,
-        utilities_included: formData.utilities_included.length > 0 ? formData.utilities_included : null,
+        rent_roll_data: formData.rent_roll_data?.length > 0 ? formData.rent_roll_data : null,
+        utilities_included: formData.utilities_included?.length > 0 ? formData.utilities_included : null,
         tenant_notes: formData.tenant_notes || null,
         year_renovated: formData.year_renovated || null,
         heating_type: formData.heating_type || null,

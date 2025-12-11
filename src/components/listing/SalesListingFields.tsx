@@ -593,7 +593,7 @@ export function SalesListingFields({
                   Add Unit
                 </button>
               </div>
-              {formData.rent_roll_data.map((unit: RentRollUnit, index: number) => (
+              {(formData.rent_roll_data || []).map((unit: RentRollUnit, index: number) => (
                 <div key={index} className="grid grid-cols-4 gap-3 mb-3">
                   <input
                     type="text"
