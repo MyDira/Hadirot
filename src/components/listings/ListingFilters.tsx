@@ -498,7 +498,7 @@ export function ListingFilters({
         <div className="mt-6 pt-4 border-t border-gray-200">
           <button
             onClick={() => onFiltersChange(filters)}
-            className="w-full bg-[#273140] text-white py-3 px-4 rounded-md font-semibold hover:bg-[#1e252f] transition-colors"
+            className="w-full bg-accent-500 text-white py-3 px-4 rounded-md font-semibold hover:bg-accent-600 transition-colors"
           >
             Apply Filters
           </button>
@@ -524,7 +524,7 @@ export function ListingFilters({
             return (
               <span
                 key={`bedroom-${bedrooms}`}
-                className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-[#273140] text-white"
+                className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-accent-500 text-white"
               >
                 {label}
                 <button
@@ -536,7 +536,7 @@ export function ListingFilters({
                       newBedrooms?.length ? newBedrooms : undefined
                     );
                   }}
-                  className="ml-2 hover:bg-[#1e252f] rounded-full p-0.5"
+                  className="ml-2 hover:bg-accent-600 rounded-full p-0.5"
                 >
                   <svg
                     className="w-3 h-3"

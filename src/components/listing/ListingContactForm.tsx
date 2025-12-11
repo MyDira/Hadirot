@@ -216,7 +216,7 @@ export function ListingContactForm({ listingId, onSuccess }: ListingContactFormP
       <button
         type="submit"
         disabled={loading}
-        className="w-full bg-[#273140] text-white py-3 px-4 rounded-md font-semibold hover:bg-[#1e252f] transition-colors flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
+        className="w-full bg-accent-500 text-white py-3 px-4 rounded-md font-semibold hover:bg-accent-600 transition-colors flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
       >
         {loading ? (
           <>

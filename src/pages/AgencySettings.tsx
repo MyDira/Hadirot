@@ -135,7 +135,7 @@ export function AgencySettings() {
   const toolbarButtonClass = (active?: boolean) =>
     `inline-flex items-center justify-center rounded-md border px-2 py-1 text-sm transition-colors ${
       active
-        ? "border-[#273140] bg-[#273140] text-white"
+        ? "border-accent-500 bg-accent-500 text-white"
         : "border-gray-200 text-gray-600 hover:bg-gray-100"
     }`;
 
@@ -645,7 +645,7 @@ export function AgencySettings() {
               href={publicAgencyLink}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 rounded-md border border-[#273140] bg-[#273140] px-3 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-[#1f2935]"
+              className="inline-flex items-center gap-2 rounded-md border border-accent-500 bg-accent-500 px-3 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-accent-600"
             >
               <ExternalLink className="w-4 h-4" />
               View Live
@@ -769,7 +769,7 @@ export function AgencySettings() {
               type="button"
               onClick={handleCreateAgency}
               disabled={creating || !createName.trim()}
-              className="inline-flex items-center justify-center gap-2 rounded-md bg-[#273140] px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-[#1f2935] disabled:cursor-not-allowed disabled:opacity-60"
+              className="inline-flex items-center justify-center gap-2 rounded-md bg-accent-500 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-accent-600 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {creating ? (
                 <Loader2 className="w-4 h-4 animate-spin" />

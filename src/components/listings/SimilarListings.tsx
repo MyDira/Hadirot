@@ -370,7 +370,7 @@ export function SimilarListings({ listing }: SimilarListingsProps) {
                   onClick={() => setCurrentMobileIndex(index)}
                   className={`w-3 h-3 rounded-full transition-colors ${
                     index === currentMobileIndex
-                      ? 'bg-[#273140]'
+                      ? 'bg-accent-500'
                       : 'bg-gray-300 hover:bg-gray-400'
                   }`}
                   aria-label={`Go to listing ${index + 1}`}
@@ -390,7 +390,7 @@ export function SimilarListings({ listing }: SimilarListingsProps) {
                   onClick={() => setCurrentSlideIndex(index)}
                   className={`w-3 h-3 rounded-full transition-colors ${
                     index === currentSlideIndex
-                      ? 'bg-[#273140]'
+                      ? 'bg-accent-500'
                       : 'bg-gray-300 hover:bg-gray-400'
                   }`}
                   aria-label={`Go to slide ${index + 1}`}

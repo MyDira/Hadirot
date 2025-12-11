@@ -782,7 +782,7 @@ export function ListingDetail() {
 
                 {listing.floor && (
                   <div className="flex items-center">
-                    <div className="w-5 h-5 bg-[#273140] rounded mr-3 flex items-center justify-center">
+                    <div className="w-5 h-5 bg-accent-500 rounded mr-3 flex items-center justify-center">
                       <span className="text-white text-xs font-bold">
                         {listing.floor}
                       </span>

@@ -514,7 +514,7 @@ export function AgencyPage() {
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       {shareToastMessage && (
-        <div className="fixed top-24 right-4 z-50 rounded-md bg-[#273140] px-4 py-2 text-sm font-medium text-white shadow-lg">
+        <div className="fixed top-24 right-4 z-50 rounded-md bg-accent-500 px-4 py-2 text-sm font-medium text-white shadow-lg">
           {shareToastMessage}
         </div>
       )}
@@ -606,7 +606,7 @@ export function AgencyPage() {
               onClick={() => handleListingTypeChange('rental')}
               className={`px-6 py-2 rounded-md font-medium transition-colors ${
                 listingType === 'rental'
-                  ? 'bg-[#273140] text-white'
+                  ? 'bg-accent-500 text-white'
                   : 'text-gray-600 hover:text-gray-900'
               }`}
             >
@@ -616,7 +616,7 @@ export function AgencyPage() {
               onClick={() => handleListingTypeChange('sale')}
               className={`px-6 py-2 rounded-md font-medium transition-colors ${
                 listingType === 'sale'
-                  ? 'bg-[#273140] text-white'
+                  ? 'bg-accent-500 text-white'
                   : 'text-gray-600 hover:text-gray-900'
               }`}
             >
