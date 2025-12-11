@@ -83,7 +83,7 @@ export function SalesListingFields({
                 onChange={handleInputChange}
                 required
                 min="1"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-brand-700 focus:border-brand-700"
                 placeholder="1500"
               />
             ) : (
@@ -98,7 +98,7 @@ export function SalesListingFields({
                     required
                     min="1"
                     step="0.01"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-brand-700 focus:border-brand-700"
                     placeholder="50"
                   />
                 </div>
@@ -112,7 +112,7 @@ export function SalesListingFields({
                     required
                     min="1"
                     step="0.01"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-brand-700 focus:border-brand-700"
                     placeholder="30"
                   />
                 </div>
@@ -137,7 +137,7 @@ export function SalesListingFields({
               required
               min="1"
               max="10"
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-brand-700 focus:border-brand-700"
               placeholder="2"
             />
           </div>
@@ -154,7 +154,7 @@ export function SalesListingFields({
                 onChange={handleInputChange}
                 required
                 min="2"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-brand-700 focus:border-brand-700"
                 placeholder="2"
               />
             </div>
@@ -193,7 +193,7 @@ export function SalesListingFields({
                 onChange={handleInputChange}
                 required
                 min="1"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-brand-700 focus:border-brand-700"
                 placeholder="5000"
               />
             ) : (
@@ -208,7 +208,7 @@ export function SalesListingFields({
                     required
                     min="1"
                     step="0.01"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-brand-700 focus:border-brand-700"
                     placeholder="100"
                   />
                 </div>
@@ -222,7 +222,7 @@ export function SalesListingFields({
                     required
                     min="1"
                     step="0.01"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-brand-700 focus:border-brand-700"
                     placeholder="50"
                   />
                 </div>
@@ -250,7 +250,7 @@ export function SalesListingFields({
               value={formData.property_condition || ''}
               onChange={handleInputChange}
               required
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-brand-700 focus:border-brand-700"
             >
               <option value="">Select Condition</option>
               <option value="excellent">Excellent</option>
@@ -269,7 +269,7 @@ export function SalesListingFields({
               value={formData.occupancy_status || ''}
               onChange={handleInputChange}
               required
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-brand-700 focus:border-brand-700"
             >
               <option value="">Select Status</option>
               <option value="owner_occupied">Owner Occupied</option>
@@ -287,7 +287,7 @@ export function SalesListingFields({
               value={formData.delivery_condition || ''}
               onChange={handleInputChange}
               required
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-brand-700 focus:border-brand-700"
             >
               <option value="">Select Delivery</option>
               <option value="vacant_at_closing">Vacant at Closing</option>
@@ -317,7 +317,7 @@ export function SalesListingFields({
                 onChange={handleInputChange}
                 min="1800"
                 max={new Date().getFullYear() + 5}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-brand-700 focus:border-brand-700"
                 placeholder="1950"
               />
             </div>
@@ -332,7 +332,7 @@ export function SalesListingFields({
                 onChange={handleInputChange}
                 min="1800"
                 max={new Date().getFullYear() + 5}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-brand-700 focus:border-brand-700"
                 placeholder="2020"
               />
             </div>
@@ -348,7 +348,7 @@ export function SalesListingFields({
                 name="heating_type"
                 value={formData.heating_type || ''}
                 onChange={handleInputChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-brand-700 focus:border-brand-700"
               >
                 <option value="">Select Heating Type (optional)</option>
                 <option value="forced_air">Forced Hot Air</option>
@@ -367,7 +367,7 @@ export function SalesListingFields({
                 name="ac_type"
                 value={formData.ac_type || ''}
                 onChange={handleInputChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-brand-700 focus:border-brand-700"
               >
                 <option value="">Select AC Type (optional)</option>
                 <option value="central">Central AC</option>
@@ -460,7 +460,7 @@ export function SalesListingFields({
               name="laundry_type"
               value={formData.laundry_type || ''}
               onChange={handleInputChange}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-brand-700 focus:border-brand-700"
             >
               <option value="">Select Laundry Type</option>
               <option value="in_unit">In-Unit</option>
@@ -479,7 +479,7 @@ export function SalesListingFields({
               name="basement_type"
               value={formData.basement_type || ''}
               onChange={handleInputChange}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-brand-700 focus:border-brand-700"
             >
               <option value="">Select Basement Type</option>
               <option value="finished">Finished</option>
@@ -500,7 +500,7 @@ export function SalesListingFields({
                 value={formData.basement_notes || ''}
                 onChange={handleInputChange}
                 rows={3}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-brand-700 focus:border-brand-700"
                 placeholder="Ceiling height, features, additional details..."
               />
             </div>
@@ -527,7 +527,7 @@ export function SalesListingFields({
                   value={formData.property_taxes || ''}
                   onChange={handleInputChange}
                   min="0"
-                  className="w-full pl-7 pr-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
+                  className="w-full pl-7 pr-3 py-2 border border-gray-300 rounded-md focus:ring-brand-700 focus:border-brand-700"
                   placeholder="5000"
                 />
               </div>
@@ -545,7 +545,7 @@ export function SalesListingFields({
                   value={formData.hoa_fees || ''}
                   onChange={handleInputChange}
                   min="0"
-                  className="w-full pl-7 pr-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
+                  className="w-full pl-7 pr-3 py-2 border border-gray-300 rounded-md focus:ring-brand-700 focus:border-brand-700"
                   placeholder="200"
                 />
               </div>
@@ -573,7 +573,7 @@ export function SalesListingFields({
                   value={formData.rent_roll_total || ''}
                   onChange={handleInputChange}
                   min="0"
-                  className="w-full pl-7 pr-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
+                  className="w-full pl-7 pr-3 py-2 border border-gray-300 rounded-md focus:ring-brand-700 focus:border-brand-700"
                   placeholder="4000"
                 />
               </div>
@@ -587,7 +587,7 @@ export function SalesListingFields({
                 <button
                   type="button"
                   onClick={addRentRollUnit}
-                  className="flex items-center text-sm text-[#273140] hover:text-[#1a2230]"
+                  className="flex items-center text-sm text-brand-700 hover:text-brand-800"
                 >
                   <Plus className="w-4 h-4 mr-1" />
                   Add Unit
@@ -600,7 +600,7 @@ export function SalesListingFields({
                     value={unit.unit}
                     onChange={(e) => handleRentRollUnitChange(index, 'unit', e.target.value)}
                     placeholder="Unit #"
-                    className="px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
+                    className="px-3 py-2 border border-gray-300 rounded-md focus:ring-brand-700 focus:border-brand-700"
                   />
                   <input
                     type="number"
@@ -608,7 +608,7 @@ export function SalesListingFields({
                     onChange={(e) => handleRentRollUnitChange(index, 'bedrooms', parseInt(e.target.value))}
                     placeholder="Beds"
                     min="0"
-                    className="px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
+                    className="px-3 py-2 border border-gray-300 rounded-md focus:ring-brand-700 focus:border-brand-700"
                   />
                   <input
                     type="number"
@@ -616,7 +616,7 @@ export function SalesListingFields({
                     onChange={(e) => handleRentRollUnitChange(index, 'rent', parseFloat(e.target.value))}
                     placeholder="Rent"
                     min="0"
-                    className="px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
+                    className="px-3 py-2 border border-gray-300 rounded-md focus:ring-brand-700 focus:border-brand-700"
                   />
                   <button
                     type="button"
@@ -657,7 +657,7 @@ export function SalesListingFields({
                 value={formData.tenant_notes || ''}
                 onChange={handleInputChange}
                 rows={3}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-brand-700 focus:border-brand-700"
                 placeholder="Lease details, tenant information, etc..."
               />
             </div>

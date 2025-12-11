@@ -44,7 +44,7 @@ import {
 } from "../config/supabase";
 
 interface ListingFormData {
-  listing_type: ListingType;
+  listing_type: ListingType | '';
   title: string;
   description: string;
   location: string;
@@ -128,7 +128,7 @@ export function PostListing() {
   const [permissionRequestMessage, setPermissionRequestMessage] = useState('');
   const [requestingPermission, setRequestingPermission] = useState(false);
   const [formData, setFormData] = useState<ListingFormData>({
-    listing_type: "rental",
+    listing_type: "",
     title: "",
     description: "",
     location: "",
@@ -1221,7 +1221,7 @@ export function PostListing() {
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-[#273140]">Post a Listing</h1>
+        <h1 className="text-3xl font-bold text-brand-700">Post a Listing</h1>
         <p className="text-gray-600 mt-2">
           Share your property with potential tenants
           {!user && (
@@ -1238,76 +1238,86 @@ export function PostListing() {
         onChange={handleFirstInteraction}
         className="space-y-8"
       >
-        {/* Listing Type Selector */}
-        {salesFeatureEnabled && (
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-            <h2 className="text-xl font-semibold text-[#273140] mb-4">
-              Listing Type
-            </h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Listing Type Selector - Always Visible */}
+        <div className="bg-white rounded-lg shadow-sm border-2 border-accent-500 p-6">
+          <h2 className="text-xl font-semibold text-brand-700 mb-2">
+            Choose Listing Type *
+          </h2>
+          <p className="text-sm text-gray-600 mb-4">
+            Select the type of listing you want to create to continue
+          </p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <button
+              type="button"
+              onClick={() => setFormData({ ...formData, listing_type: 'rental' })}
+              className={`p-6 border-2 rounded-lg transition-all ${
+                formData.listing_type === 'rental'
+                  ? 'border-accent-500 bg-accent-50 shadow-md'
+                  : 'border-gray-300 hover:border-accent-400 hover:bg-gray-50'
+              }`}
+            >
+              <div className="text-lg font-bold text-brand-700">Rental Listing</div>
+              <div className="text-sm text-gray-600 mt-1">Post a property for rent</div>
+            </button>
+
+            {salesFeatureEnabled ? (
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (canPostSales) {
+                      setFormData({ ...formData, listing_type: 'sale' });
+                    } else {
+                      setShowPermissionModal(true);
+                    }
+                  }}
+                  className={`w-full p-6 border-2 rounded-lg transition-all ${
+                    formData.listing_type === 'sale'
+                      ? 'border-accent-500 bg-accent-50 shadow-md'
+                      : 'border-gray-300 hover:border-accent-400 hover:bg-gray-50'
+                  } ${!canPostSales ? 'opacity-50 cursor-not-allowed' : ''}`}
+                >
+                  <div className="text-lg font-bold text-brand-700">Sale Listing</div>
+                  <div className="text-sm text-gray-600 mt-1">Post a property for sale</div>
+                </button>
+                {!canPostSales && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-gray-100 bg-opacity-90 rounded-lg pointer-events-none">
+                    <div className="text-center p-4">
+                      <p className="text-sm font-medium text-gray-700">
+                        You don't have permission to post sale listings yet.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setShowPermissionModal(true);
+                        }}
+                        className="text-sm text-accent-600 underline font-medium mt-1 pointer-events-auto"
+                      >
+                        Request permission
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
               <button
                 type="button"
-                onClick={() => setFormData({ ...formData, listing_type: 'rental' })}
-                className={`p-4 border-2 rounded-lg transition-all ${
-                  formData.listing_type === 'rental'
-                    ? 'border-brand-700 bg-brand-50'
-                    : 'border-gray-300 hover:border-gray-400'
-                }`}
+                disabled
+                className="p-6 border-2 rounded-lg transition-all border-gray-300 opacity-50 cursor-not-allowed"
               >
-                <div className="text-lg font-semibold">Rental Listing</div>
-                <div className="text-sm text-gray-600 mt-1">Post a property for rent</div>
+                <div className="text-lg font-bold text-gray-500">Sale Listing</div>
+                <div className="text-sm text-gray-500 mt-1">Coming soon</div>
               </button>
-
-              {salesFeatureEnabled && (
-                <div className="relative">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (canPostSales) {
-                        setFormData({ ...formData, listing_type: 'sale' });
-                      } else {
-                        setShowPermissionModal(true);
-                      }
-                    }}
-                    className={`w-full p-4 border-2 rounded-lg transition-all ${
-                      formData.listing_type === 'sale'
-                        ? 'border-brand-700 bg-brand-50'
-                        : 'border-gray-300 hover:border-gray-400'
-                    } ${!canPostSales ? 'opacity-50 cursor-not-allowed' : ''}`}
-                  >
-                    <div className="text-lg font-semibold">Sale Listing</div>
-                    <div className="text-sm text-gray-600 mt-1">Post a property for sale</div>
-                  </button>
-                  {!canPostSales && (
-                    <div className="absolute inset-0 flex items-center justify-center bg-gray-100 bg-opacity-90 rounded-lg pointer-events-none">
-                      <div className="text-center p-4">
-                        <p className="text-sm font-medium text-gray-700">
-                          You don't have permission to post sale listings yet.
-                        </p>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setShowPermissionModal(true);
-                          }}
-                          className="text-sm text-brand-700 underline font-medium mt-1 pointer-events-auto"
-                        >
-                          Request permission
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
+            )}
           </div>
-        )}
+        </div>
 
         {/* Basic Information */}
-        <div className={`bg-white rounded-lg shadow-sm border border-gray-200 p-6 relative ${
-          formData.listing_type === 'sale' && !canPostSales ? 'opacity-50 pointer-events-none' : ''
+        <div className={`bg-white rounded-lg shadow-sm border border-gray-200 p-6 relative transition-all ${
+          !formData.listing_type ? 'opacity-40 pointer-events-none' : ''
         }`}>
-          <h2 className="text-xl font-semibold text-[#273140] mb-4">
+          <h2 className="text-xl font-semibold text-brand-700 mb-4">
             Basic Information
           </h2>
 
@@ -1322,7 +1332,7 @@ export function PostListing() {
                 value={formData.title}
                 onChange={handleInputChange}
                 required
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-brand-700 focus:border-brand-700"
                 placeholder="Beautiful 2BR apartment in downtown"
               />
             </div>
@@ -1336,7 +1346,7 @@ export function PostListing() {
                 value={formData.description}
                 onChange={handleInputChange}
                 rows={4}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-brand-700 focus:border-brand-700"
                 placeholder="Describe your property, amenities, and neighborhood..."
               />
             </div>
@@ -1353,7 +1363,7 @@ export function PostListing() {
                     value={formData.street_address}
                     onChange={handleInputChange}
                     required
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-brand-700 focus:border-brand-700"
                     placeholder="123 Main Street"
                   />
                 </div>
@@ -1368,7 +1378,7 @@ export function PostListing() {
                       name="unit_number"
                       value={formData.unit_number}
                       onChange={handleInputChange}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-brand-700 focus:border-brand-700"
                       placeholder="Optional"
                     />
                   </div>
@@ -1382,7 +1392,7 @@ export function PostListing() {
                       value={formData.zip_code}
                       onChange={handleInputChange}
                       required
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-brand-700 focus:border-brand-700"
                       placeholder="11201"
                     />
                   </div>
@@ -1399,7 +1409,7 @@ export function PostListing() {
                       value={formData.city}
                       onChange={handleInputChange}
                       required
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-brand-700 focus:border-brand-700"
                       placeholder="Brooklyn"
                     />
                   </div>
@@ -1413,7 +1423,7 @@ export function PostListing() {
                       value={formData.state}
                       onChange={handleInputChange}
                       required
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-brand-700 focus:border-brand-700"
                       placeholder="NY"
                       maxLength={2}
                     />
@@ -1448,7 +1458,7 @@ export function PostListing() {
                   value={formData.location}
                   onChange={handleInputChange}
                   required
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140] mb-4"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-brand-700 focus:border-brand-700 mb-4"
                   placeholder="Avenue J & East 15th Street"
                 />
                 <div className="mt-4">
@@ -1479,7 +1489,7 @@ export function PostListing() {
                 value={neighborhoodSelectValue}
                 onChange={handleNeighborhoodSelect}
                 required
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-brand-700 focus:border-brand-700"
               >
                 <option value="">Select a neighborhood</option>
                 <option value="Midwood">Midwood</option>
@@ -1495,7 +1505,7 @@ export function PostListing() {
                   type="text"
                   value={customNeighborhoodInput}
                   onChange={handleCustomNeighborhoodChange}
-                  className="mt-2 w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
+                  className="mt-2 w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-brand-700 focus:border-brand-700"
                   placeholder="Enter custom neighborhood"
                 />
               )}
@@ -1510,7 +1520,7 @@ export function PostListing() {
                 value={formData.property_type}
                 onChange={handleInputChange}
                 required
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-brand-700 focus:border-brand-700"
               >
                 <option value="">Select Property Type</option>
                 {formData.listing_type === 'sale' ? (
@@ -1544,7 +1554,7 @@ export function PostListing() {
                   value={formData.building_type || ''}
                   onChange={handleInputChange}
                   required
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-brand-700 focus:border-brand-700"
                 >
                   <option value="">Select Building Type</option>
                   <option value="detached">Detached</option>
@@ -1558,10 +1568,10 @@ export function PostListing() {
         </div>
 
         {/* Property Details */}
-        <div className={`bg-white rounded-lg shadow-sm border border-gray-200 p-6 relative ${
-          formData.listing_type === 'sale' && !canPostSales ? 'opacity-50 pointer-events-none' : ''
+        <div className={`bg-white rounded-lg shadow-sm border border-gray-200 p-6 relative transition-all ${
+          !formData.listing_type ? 'opacity-40 pointer-events-none' : ''
         }`}>
-          <h2 className="text-xl font-semibold text-[#273140] mb-4">
+          <h2 className="text-xl font-semibold text-brand-700 mb-4">
             Property Details
           </h2>
 
@@ -1574,7 +1584,7 @@ export function PostListing() {
                 name="bedrooms"
                 value={formData.bedrooms}
                 onChange={(e) => handleMainBedroomChange(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-brand-700 focus:border-brand-700"
               >
                 <option value={0}>Studio</option>
                 <option value={1}>1 Bedroom</option>
@@ -1596,7 +1606,7 @@ export function PostListing() {
                 name="additional_rooms"
                 value={formData.additional_rooms || ""}
                 onChange={(e) => handleAdditionalRoomsChange(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-brand-700 focus:border-brand-700"
               >
                 <option value="">None</option>
                 <option value={1}>+1</option>
@@ -1614,7 +1624,7 @@ export function PostListing() {
                 name="bathrooms"
                 value={formData.bathrooms}
                 onChange={handleInputChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-brand-700 focus:border-brand-700"
               >
                 <option value={1}>1 Bathroom</option>
                 <option value={1.5}>1.5 Bathrooms</option>
@@ -1636,7 +1646,7 @@ export function PostListing() {
                   name="floor"
                   value={formData.floor || ""}
                   onChange={handleInputChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-brand-700 focus:border-brand-700"
                   placeholder="2"
                 />
               </div>
@@ -1662,7 +1672,7 @@ export function PostListing() {
                 }
                 disabled={formData.call_for_price}
                 required={!formData.call_for_price}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-brand-700 focus:border-brand-700"
                 placeholder={formData.listing_type === 'sale' ? '450000' : '2500'}
               />
               <label className="flex items-center gap-2 mt-2">
@@ -1694,7 +1704,7 @@ export function PostListing() {
                 name="square_footage"
                 value={formData.square_footage || ""}
                 onChange={handleInputChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-brand-700 focus:border-brand-700"
                 placeholder="800"
               />
             </div>
@@ -1708,7 +1718,7 @@ export function PostListing() {
                   name="lease_length"
                   value={formData.lease_length || ""}
                   onChange={handleInputChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-brand-700 focus:border-brand-700"
                 >
                   <option value="">Select lease length (optional)</option>
                   <option value="short_term">Short Term</option>
@@ -1727,7 +1737,7 @@ export function PostListing() {
                 name="parking"
                 value={formData.parking}
                 onChange={handleInputChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-brand-700 focus:border-brand-700"
               >
                 {formData.listing_type === 'sale' ? (
                   <>
@@ -1757,7 +1767,7 @@ export function PostListing() {
                   name="heat"
                   value={formData.heat}
                   onChange={handleInputChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-brand-700 focus:border-brand-700"
                 >
                   <option value="tenant_pays">Tenant Pays</option>
                   <option value="included">Heat Included</option>
@@ -1779,7 +1789,7 @@ export function PostListing() {
                       type="checkbox"
                       checked={formData.apartment_conditions.includes('modern')}
                       onChange={() => handleApartmentConditionToggle('modern')}
-                      className="h-4 w-4 text-[#273140] focus:ring-[#273140] border-gray-300 rounded"
+                      className="h-4 w-4 text-brand-700 focus:ring-[#273140] border-gray-300 rounded"
                     />
                     <span className="ml-2 text-sm font-medium text-gray-700">Modern</span>
                   </label>
@@ -1789,7 +1799,7 @@ export function PostListing() {
                       type="checkbox"
                       checked={formData.apartment_conditions.includes('renovated')}
                       onChange={() => handleApartmentConditionToggle('renovated')}
-                      className="h-4 w-4 text-[#273140] focus:ring-[#273140] border-gray-300 rounded"
+                      className="h-4 w-4 text-brand-700 focus:ring-[#273140] border-gray-300 rounded"
                     />
                     <span className="ml-2 text-sm font-medium text-gray-700">Renovated</span>
                   </label>
@@ -1799,7 +1809,7 @@ export function PostListing() {
                       type="checkbox"
                       checked={formData.apartment_conditions.includes('large_rooms')}
                       onChange={() => handleApartmentConditionToggle('large_rooms')}
-                      className="h-4 w-4 text-[#273140] focus:ring-[#273140] border-gray-300 rounded"
+                      className="h-4 w-4 text-brand-700 focus:ring-[#273140] border-gray-300 rounded"
                     />
                     <span className="ml-2 text-sm font-medium text-gray-700">Large Rooms</span>
                   </label>
@@ -1809,7 +1819,7 @@ export function PostListing() {
                       type="checkbox"
                       checked={formData.apartment_conditions.includes('high_ceilings')}
                       onChange={() => handleApartmentConditionToggle('high_ceilings')}
-                      className="h-4 w-4 text-[#273140] focus:ring-[#273140] border-gray-300 rounded"
+                      className="h-4 w-4 text-brand-700 focus:ring-[#273140] border-gray-300 rounded"
                     />
                     <span className="ml-2 text-sm font-medium text-gray-700">High Ceilings</span>
                   </label>
@@ -1819,7 +1829,7 @@ export function PostListing() {
                       type="checkbox"
                       checked={formData.apartment_conditions.includes('large_closets')}
                       onChange={() => handleApartmentConditionToggle('large_closets')}
-                      className="h-4 w-4 text-[#273140] focus:ring-[#273140] border-gray-300 rounded"
+                      className="h-4 w-4 text-brand-700 focus:ring-[#273140] border-gray-300 rounded"
                     />
                     <span className="ml-2 text-sm font-medium text-gray-700">Large Closets</span>
                   </label>
@@ -1836,7 +1846,7 @@ export function PostListing() {
                   name="washer_dryer_hookup"
                   checked={formData.washer_dryer_hookup}
                   onChange={handleInputChange}
-                  className="h-4 w-4 text-[#273140] focus:ring-[#273140] border-gray-300 rounded"
+                  className="h-4 w-4 text-brand-700 focus:ring-[#273140] border-gray-300 rounded"
                 />
                 <label className="ml-2 text-sm font-medium text-gray-700">
                   Washer/Dryer Hookup
@@ -1849,7 +1859,7 @@ export function PostListing() {
                   name="dishwasher"
                   checked={formData.dishwasher}
                   onChange={handleInputChange}
-                  className="h-4 w-4 text-[#273140] focus:ring-[#273140] border-gray-300 rounded"
+                  className="h-4 w-4 text-brand-700 focus:ring-[#273140] border-gray-300 rounded"
                 />
                 <label className="ml-2 text-sm font-medium text-gray-700">
                   Dishwasher
@@ -1863,7 +1873,7 @@ export function PostListing() {
                     name="broker_fee"
                     checked={formData.broker_fee}
                     onChange={handleInputChange}
-                    className="h-4 w-4 text-[#273140] focus:ring-[#273140] border-gray-300 rounded"
+                    className="h-4 w-4 text-brand-700 focus:ring-[#273140] border-gray-300 rounded"
                   />
                   <span className="text-sm font-medium text-gray-700">
                     Broker Fee
@@ -1884,7 +1894,7 @@ export function PostListing() {
                     !profile?.is_admin &&
                     (profile?.max_featured_listings_per_user ?? 0) <= 0
                   }
-                  className="h-4 w-4 text-[#273140] focus:ring-[#273140] border-gray-300 rounded"
+                  className="h-4 w-4 text-brand-700 focus:ring-[#273140] border-gray-300 rounded"
                 />
                 <label
                   className={`ml-2 text-sm font-medium flex items-center ${
@@ -1930,10 +1940,10 @@ export function PostListing() {
         )}
 
         {/* Media Upload (Images & Videos) */}
-        <div className={`bg-white rounded-lg shadow-sm border border-gray-200 p-6 relative ${
-          formData.listing_type === 'sale' && !canPostSales ? 'opacity-50 pointer-events-none' : ''
+        <div className={`bg-white rounded-lg shadow-sm border border-gray-200 p-6 relative transition-all ${
+          !formData.listing_type ? 'opacity-40 pointer-events-none' : ''
         }`}>
-          <h2 className="text-xl font-semibold text-[#273140] mb-4">
+          <h2 className="text-xl font-semibold text-brand-700 mb-4">
             Media (Images & Video)
           </h2>
 
@@ -1959,10 +1969,10 @@ export function PostListing() {
         </div>
 
         {/* Contact Information */}
-        <div className={`bg-white rounded-lg shadow-sm border border-gray-200 p-6 relative ${
-          formData.listing_type === 'sale' && !canPostSales ? 'opacity-50 pointer-events-none' : ''
+        <div className={`bg-white rounded-lg shadow-sm border border-gray-200 p-6 relative transition-all ${
+          !formData.listing_type ? 'opacity-40 pointer-events-none' : ''
         }`}>
-          <h2 className="text-xl font-semibold text-[#273140] mb-4">
+          <h2 className="text-xl font-semibold text-brand-700 mb-4">
             Contact Information
           </h2>
 
@@ -1977,7 +1987,7 @@ export function PostListing() {
                 value={formData.contact_name}
                 onChange={handleInputChange}
                 required
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-brand-700 focus:border-brand-700"
               />
             </div>
 
@@ -1991,25 +2001,25 @@ export function PostListing() {
                 value={formData.contact_phone}
                 onChange={handleInputChange}
                 required
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-brand-700 focus:border-brand-700"
               />
             </div>
           </div>
         </div>
 
         {/* Terms & Conditions Agreement */}
-        <div className={`bg-white rounded-lg shadow-sm border border-gray-200 p-6 relative ${
-          formData.listing_type === 'sale' && !canPostSales ? 'opacity-50 pointer-events-none' : ''
+        <div className={`bg-white rounded-lg shadow-sm border border-gray-200 p-6 relative transition-all ${
+          !formData.listing_type ? 'opacity-40 pointer-events-none' : ''
         }`}>
           <label className="flex items-start gap-3">
             <input
               type="checkbox"
               checked={formData.terms_agreed}
               onChange={(e) => setFormData(prev => ({ ...prev, terms_agreed: e.target.checked }))}
-              className="mt-1 h-4 w-4 text-[#273140] focus:ring-[#273140] border-gray-300 rounded"
+              className="mt-1 h-4 w-4 text-accent-600 focus:ring-accent-500 border-gray-300 rounded"
             />
             <span className="text-sm text-gray-700">
-              By posting this listing, I agree to the <a href="/terms" target="_blank" rel="noopener noreferrer" className="text-[#273140] font-semibold hover:underline">Terms and Conditions</a> and <a href="/privacy" target="_blank" rel="noopener noreferrer" className="text-[#273140] font-semibold hover:underline">Privacy Policy</a>.
+              By posting this listing, I agree to the <a href="/terms" target="_blank" rel="noopener noreferrer" className="text-brand-700 font-semibold hover:underline">Terms and Conditions</a> and <a href="/privacy" target="_blank" rel="noopener noreferrer" className="text-brand-700 font-semibold hover:underline">Privacy Policy</a>.
             </span>
           </label>
         </div>
@@ -2018,7 +2028,7 @@ export function PostListing() {
         <div className="flex justify-end">
           <button
             type="submit"
-            disabled={loading || (formData.listing_type === 'sale' && !canPostSales) || !formData.terms_agreed}
+            disabled={loading || !formData.listing_type || !formData.terms_agreed}
             className="bg-accent-500 text-white px-8 py-3 rounded-md font-semibold hover:bg-accent-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-accent-400 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {loading ? "Creating Listing..." : "Post Listing"}
