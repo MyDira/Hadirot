@@ -22,6 +22,19 @@ import {
   Maximize2,
   ArrowUpFromLine,
   Package,
+  Building,
+  Layers,
+  Ruler,
+  LandPlot,
+  CalendarDays,
+  CheckCircle,
+  Users,
+  Key,
+  Thermometer,
+  Trees,
+  Sofa,
+  SquareStack,
+  Receipt,
 } from "lucide-react";
 import { Listing } from "../config/supabase";
 import { listingsService } from "../services/listings";
@@ -339,21 +352,111 @@ export function ListingDetail() {
   };
 
   const getPropertyTypeLabel = () => {
-    switch (listing.property_type) {
-      case "apartment_building":
-        return "Apartment in Building";
-      case "apartment_house":
-        return "Apartment in House";
-      case "basement":
-        return "Basement";
-      case "duplex":
-        return "Duplex";
-      case "full_house":
-        return "Full House";
-      default:
-        return listing.property_type;
-    }
+    const labels: Record<string, string> = {
+      apartment_building: "Apartment in Building",
+      apartment_house: "Apartment in House",
+      basement: "Basement",
+      duplex: "Duplex",
+      full_house: "Full House",
+      single_family: "Single-Family",
+      two_family: "Two-Family",
+      three_family: "Three-Family",
+      four_family: "Four-Family",
+      condo: "Condo",
+      co_op: "Co-op",
+      detached_house: "Detached House",
+      semi_attached_house: "Semi-Attached House",
+      fully_attached_townhouse: "Townhouse",
+    };
+    return labels[listing.property_type] || listing.property_type;
   };
+
+  const getBuildingTypeLabel = (type: string | undefined): string => {
+    if (!type) return '';
+    const labels: Record<string, string> = {
+      detached: "Detached",
+      semi_attached: "Semi-Attached",
+      fully_attached: "Fully Attached",
+      apartment: "Apartment",
+    };
+    return labels[type] || type;
+  };
+
+  const getPropertyConditionLabel = (condition: string | undefined): string => {
+    if (!condition) return '';
+    const labels: Record<string, string> = {
+      excellent: "Excellent",
+      good: "Good",
+      fair: "Fair",
+      needs_work: "Needs Work",
+    };
+    return labels[condition] || condition;
+  };
+
+  const getOccupancyStatusLabel = (status: string | undefined): string => {
+    if (!status) return '';
+    const labels: Record<string, string> = {
+      owner_occupied: "Owner Occupied",
+      tenant_occupied: "Tenant Occupied",
+      vacant: "Vacant",
+    };
+    return labels[status] || status;
+  };
+
+  const getDeliveryConditionLabel = (condition: string | undefined): string => {
+    if (!condition) return '';
+    const labels: Record<string, string> = {
+      vacant_at_closing: "Vacant at Closing",
+      subject_to_lease: "Subject to Lease",
+      negotiable: "Negotiable",
+    };
+    return labels[condition] || condition;
+  };
+
+  const getLaundryTypeLabel = (type: string | undefined): string => {
+    if (!type) return '';
+    const labels: Record<string, string> = {
+      in_unit: "In-Unit",
+      hookups_only: "Hookups Only",
+      common_area: "Common Area",
+      none: "None",
+    };
+    return labels[type] || type;
+  };
+
+  const getBasementTypeLabel = (type: string | undefined): string => {
+    if (!type) return '';
+    const labels: Record<string, string> = {
+      finished: "Finished",
+      unfinished: "Unfinished",
+      partially_finished: "Partially Finished",
+      walkout: "Walkout",
+      none: "None",
+    };
+    return labels[type] || type;
+  };
+
+  const getHeatingTypeLabel = (type: string | undefined): string => {
+    if (!type) return '';
+    const labels: Record<string, string> = {
+      forced_air: "Forced Hot Air",
+      radiator: "Radiant",
+      baseboard: "Baseboard",
+      heat_pump: "Heat Pump",
+      other: "Other",
+    };
+    return labels[type] || type;
+  };
+
+  const formatOutdoorSpace = (space: string): string => {
+    return space.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+  };
+
+  const formatInteriorFeature = (feature: string): string => {
+    return feature.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+  };
+
+  const isSaleListing = listing.listing_type === 'sale';
 
   const formatLeaseLength = (leaseLength: string | null | undefined): string => {
     if (!leaseLength) return "";
@@ -738,120 +841,375 @@ export function ListingDetail() {
 
           {/* Property Details (Features & Amenities) - Seventh on mobile */}
           <section id="ld-details" className="order-7 lg:order-none">
-            <div className="mb-8">
-              <h2 className="text-2xl font-bold text-[#273140] mb-4">
-                Features & Amenities
-              </h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="flex items-center">
-                  <DollarSign className="w-5 h-5 text-[#273140] mr-3" />
-                  <span>
-                    {listing.broker_fee ? "Broker Fee Applies" : "No Broker Fee"}
-                  </span>
-                </div>
-
-                {listing.parking !== "no" && (
-                  <div className="flex items-center">
-                    <Car className="w-5 h-5 text-[#273140] mr-3" />
-                    <span className="capitalize">
-                      {listing.parking.replace("_", " ")}
-                    </span>
-                  </div>
-                )}
-
-                {listing.washer_dryer_hookup && (
-                  <div className="flex items-center">
-                    <WashingMachine className="w-5 h-5 text-[#273140] mr-3" />
-                    <span>Washer/Dryer Hookup</span>
-                  </div>
-                )}
-
-                {listing.dishwasher && (
-                  <div className="flex items-center">
-                    <Droplets className="w-5 h-5 text-[#273140] mr-3" />
-                    <span>Dishwasher</span>
-                  </div>
-                )}
-
-                <div className="flex items-center">
-                  <Flame className="w-5 h-5 text-[#273140] mr-3" />
-                  <span>
-                    {listing.heat === "included" ? "Heat Included" : "Tenant Pays Heat"}
-                  </span>
-                </div>
-
-                {listing.floor && (
-                  <div className="flex items-center">
-                    <div className="w-5 h-5 bg-accent-500 rounded mr-3 flex items-center justify-center">
-                      <span className="text-white text-xs font-bold">
-                        {listing.floor}
-                      </span>
+            {isSaleListing ? (
+              <div className="space-y-6">
+                {/* Property Details Section */}
+                <div className="bg-gray-50 rounded-lg p-5">
+                  <h2 className="text-xl font-bold text-[#273140] mb-4 flex items-center">
+                    <Building className="w-5 h-5 mr-2" />
+                    Property Details
+                  </h2>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                    <div className="bg-white rounded-lg p-3 border border-gray-100">
+                      <div className="text-xs text-gray-500 uppercase tracking-wide mb-1">Property Type</div>
+                      <div className="font-semibold text-[#273140]">{getPropertyTypeLabel()}</div>
                     </div>
-                    <span>{getOrdinalWordText(listing.floor)} Floor</span>
+                    {listing.building_type && (
+                      <div className="bg-white rounded-lg p-3 border border-gray-100">
+                        <div className="text-xs text-gray-500 uppercase tracking-wide mb-1">Building Type</div>
+                        <div className="font-semibold text-[#273140]">{getBuildingTypeLabel(listing.building_type)}</div>
+                      </div>
+                    )}
+                    {listing.building_size_sqft && (
+                      <div className="bg-white rounded-lg p-3 border border-gray-100">
+                        <div className="text-xs text-gray-500 uppercase tracking-wide mb-1">Building Size</div>
+                        <div className="font-semibold text-[#273140]">{listing.building_size_sqft.toLocaleString()} sq ft</div>
+                      </div>
+                    )}
+                    {listing.lot_size_sqft && (
+                      <div className="bg-white rounded-lg p-3 border border-gray-100">
+                        <div className="text-xs text-gray-500 uppercase tracking-wide mb-1">Lot Size</div>
+                        <div className="font-semibold text-[#273140]">{listing.lot_size_sqft.toLocaleString()} sq ft</div>
+                      </div>
+                    )}
+                    {listing.number_of_floors && (
+                      <div className="bg-white rounded-lg p-3 border border-gray-100">
+                        <div className="text-xs text-gray-500 uppercase tracking-wide mb-1">Floors</div>
+                        <div className="font-semibold text-[#273140]">{listing.number_of_floors}</div>
+                      </div>
+                    )}
+                    {listing.year_built && (
+                      <div className="bg-white rounded-lg p-3 border border-gray-100">
+                        <div className="text-xs text-gray-500 uppercase tracking-wide mb-1">Year Built</div>
+                        <div className="font-semibold text-[#273140]">{listing.year_built}</div>
+                      </div>
+                    )}
+                    {listing.year_renovated && listing.year_renovated !== listing.year_built && (
+                      <div className="bg-white rounded-lg p-3 border border-gray-100">
+                        <div className="text-xs text-gray-500 uppercase tracking-wide mb-1">Year Renovated</div>
+                        <div className="font-semibold text-[#273140]">{listing.year_renovated}</div>
+                      </div>
+                    )}
+                    {listing.unit_count && listing.unit_count > 1 && (
+                      <div className="bg-white rounded-lg p-3 border border-gray-100">
+                        <div className="text-xs text-gray-500 uppercase tracking-wide mb-1">Units</div>
+                        <div className="font-semibold text-[#273140]">{listing.unit_count}</div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Property Condition & Status Section */}
+                {(listing.property_condition || listing.occupancy_status || listing.delivery_condition) && (
+                  <div className="bg-gray-50 rounded-lg p-5">
+                    <h2 className="text-xl font-bold text-[#273140] mb-4 flex items-center">
+                      <CheckCircle className="w-5 h-5 mr-2" />
+                      Property Condition & Status
+                    </h2>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      {listing.property_condition && (
+                        <div className="bg-white rounded-lg p-3 border border-gray-100">
+                          <div className="text-xs text-gray-500 uppercase tracking-wide mb-1">Condition</div>
+                          <div className="font-semibold text-[#273140]">{getPropertyConditionLabel(listing.property_condition)}</div>
+                        </div>
+                      )}
+                      {listing.occupancy_status && (
+                        <div className="bg-white rounded-lg p-3 border border-gray-100">
+                          <div className="text-xs text-gray-500 uppercase tracking-wide mb-1">Occupancy</div>
+                          <div className="font-semibold text-[#273140]">{getOccupancyStatusLabel(listing.occupancy_status)}</div>
+                        </div>
+                      )}
+                      {listing.delivery_condition && (
+                        <div className="bg-white rounded-lg p-3 border border-gray-100">
+                          <div className="text-xs text-gray-500 uppercase tracking-wide mb-1">Delivery</div>
+                          <div className="font-semibold text-[#273140]">{getDeliveryConditionLabel(listing.delivery_condition)}</div>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 )}
 
-                {listing.lease_length && (
-                  <div className="flex items-center">
-                    <Calendar className="w-5 h-5 text-[#273140] mr-3" />
-                    <span>Lease: {formatLeaseLength(listing.lease_length)}</span>
+                {/* Financial Information Section */}
+                {(listing.property_taxes || listing.hoa_fees) && (
+                  <div className="bg-gray-50 rounded-lg p-5">
+                    <h2 className="text-xl font-bold text-[#273140] mb-4 flex items-center">
+                      <Receipt className="w-5 h-5 mr-2" />
+                      Financial Information
+                    </h2>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {listing.property_taxes && (
+                        <div className="bg-white rounded-lg p-3 border border-gray-100">
+                          <div className="text-xs text-gray-500 uppercase tracking-wide mb-1">Annual Property Taxes</div>
+                          <div className="font-semibold text-[#273140]">${listing.property_taxes.toLocaleString()}</div>
+                        </div>
+                      )}
+                      {listing.hoa_fees && (
+                        <div className="bg-white rounded-lg p-3 border border-gray-100">
+                          <div className="text-xs text-gray-500 uppercase tracking-wide mb-1">{listing.property_type === 'co_op' ? 'Monthly Maintenance' : 'HOA Fees / Monthly'}</div>
+                          <div className="font-semibold text-[#273140]">${listing.hoa_fees.toLocaleString()}/mo</div>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 )}
 
-                {listing.ac_type && (
-                  <div className="flex items-center">
-                    <Wind className="w-5 h-5 text-[#273140] mr-3" />
-                    <span>
-                      {listing.ac_type === 'central' && 'Central AC'}
-                      {listing.ac_type === 'split_unit' && 'Split Unit AC'}
-                      {listing.ac_type === 'window' && 'Window AC'}
-                    </span>
+                {/* Features & Amenities Section */}
+                <div className="bg-gray-50 rounded-lg p-5">
+                  <h2 className="text-xl font-bold text-[#273140] mb-4 flex items-center">
+                    <Sofa className="w-5 h-5 mr-2" />
+                    Features & Amenities
+                  </h2>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {listing.parking !== "no" && (
+                      <div className="flex items-center">
+                        <Car className="w-5 h-5 text-[#273140] mr-3" />
+                        <span className="capitalize">{listing.parking.replace("_", " ")}</span>
+                      </div>
+                    )}
+                    {listing.heating_type && (
+                      <div className="flex items-center">
+                        <Thermometer className="w-5 h-5 text-[#273140] mr-3" />
+                        <span>{getHeatingTypeLabel(listing.heating_type)}</span>
+                      </div>
+                    )}
+                    {listing.ac_type && (
+                      <div className="flex items-center">
+                        <Wind className="w-5 h-5 text-[#273140] mr-3" />
+                        <span>
+                          {listing.ac_type === 'central' && 'Central AC'}
+                          {listing.ac_type === 'split_unit' && 'Split Unit AC'}
+                          {listing.ac_type === 'window' && 'Window AC'}
+                        </span>
+                      </div>
+                    )}
+                    {listing.laundry_type && listing.laundry_type !== 'none' && (
+                      <div className="flex items-center">
+                        <WashingMachine className="w-5 h-5 text-[#273140] mr-3" />
+                        <span>Laundry: {getLaundryTypeLabel(listing.laundry_type)}</span>
+                      </div>
+                    )}
+                    {listing.basement_type && listing.basement_type !== 'none' && (
+                      <div className="flex items-center">
+                        <SquareStack className="w-5 h-5 text-[#273140] mr-3" />
+                        <span>Basement: {getBasementTypeLabel(listing.basement_type)}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Outdoor Space */}
+                  {listing.outdoor_space && listing.outdoor_space.length > 0 && (
+                    <div className="mt-5 pt-4 border-t border-gray-200">
+                      <h3 className="text-sm font-semibold text-[#273140] mb-3 flex items-center">
+                        <Trees className="w-4 h-4 mr-2" />
+                        Outdoor Space
+                      </h3>
+                      <div className="flex flex-wrap gap-2">
+                        {listing.outdoor_space.map((space: string) => (
+                          <span key={space} className="bg-white px-3 py-1 rounded-full text-sm border border-gray-200">
+                            {formatOutdoorSpace(space)}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Interior Features */}
+                  {listing.interior_features && listing.interior_features.length > 0 && (
+                    <div className="mt-5 pt-4 border-t border-gray-200">
+                      <h3 className="text-sm font-semibold text-[#273140] mb-3 flex items-center">
+                        <Sparkles className="w-4 h-4 mr-2" />
+                        Interior Features
+                      </h3>
+                      <div className="flex flex-wrap gap-2">
+                        {listing.interior_features.map((feature: string) => (
+                          <span key={feature} className="bg-white px-3 py-1 rounded-full text-sm border border-gray-200">
+                            {formatInteriorFeature(feature)}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Basement Notes */}
+                  {listing.basement_notes && (
+                    <div className="mt-5 pt-4 border-t border-gray-200">
+                      <h3 className="text-sm font-semibold text-[#273140] mb-2">Basement Details</h3>
+                      <p className="text-gray-700 text-sm">{listing.basement_notes}</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Rent Roll Information - For Multi-Family */}
+                {(listing.rent_roll_total || (listing.rent_roll_data && listing.rent_roll_data.length > 0)) && (
+                  <div className="bg-gray-50 rounded-lg p-5">
+                    <h2 className="text-xl font-bold text-[#273140] mb-4 flex items-center">
+                      <Users className="w-5 h-5 mr-2" />
+                      Rent Roll Information
+                    </h2>
+                    {listing.rent_roll_total && (
+                      <div className="bg-white rounded-lg p-4 border border-gray-100 mb-4">
+                        <div className="text-xs text-gray-500 uppercase tracking-wide mb-1">Total Monthly Rent Roll</div>
+                        <div className="text-2xl font-bold text-[#273140]">${listing.rent_roll_total.toLocaleString()}/mo</div>
+                      </div>
+                    )}
+                    {listing.rent_roll_data && listing.rent_roll_data.length > 0 && (
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="border-b border-gray-200">
+                              <th className="text-left py-2 px-3 font-semibold text-[#273140]">Unit</th>
+                              <th className="text-left py-2 px-3 font-semibold text-[#273140]">Bedrooms</th>
+                              <th className="text-right py-2 px-3 font-semibold text-[#273140]">Rent</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {listing.rent_roll_data.map((unit: any, index: number) => (
+                              <tr key={index} className="border-b border-gray-100">
+                                <td className="py-2 px-3">{unit.unit || `Unit ${index + 1}`}</td>
+                                <td className="py-2 px-3">{unit.bedrooms}</td>
+                                <td className="py-2 px-3 text-right">${(unit.rent || 0).toLocaleString()}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                    {listing.utilities_included && listing.utilities_included.length > 0 && (
+                      <div className="mt-4 pt-4 border-t border-gray-200">
+                        <h3 className="text-sm font-semibold text-[#273140] mb-2">Utilities Included</h3>
+                        <div className="flex flex-wrap gap-2">
+                          {listing.utilities_included.map((utility: string) => (
+                            <span key={utility} className="bg-white px-3 py-1 rounded-full text-sm border border-gray-200 capitalize">
+                              {utility.replace(/_/g, ' ')}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {listing.tenant_notes && (
+                      <div className="mt-4 pt-4 border-t border-gray-200">
+                        <h3 className="text-sm font-semibold text-[#273140] mb-2">Tenant Notes</h3>
+                        <p className="text-gray-700 text-sm">{listing.tenant_notes}</p>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
-
-              {/* Apartment Conditions */}
-              {listing.apartment_conditions && listing.apartment_conditions.length > 0 && (
-                <div className="mt-6">
-                  <h3 className="text-lg font-semibold text-[#273140] mb-3">
-                    Apartment Features
-                  </h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {listing.apartment_conditions.includes('modern') && (
-                      <div className="flex items-center">
-                        <Sparkles className="w-5 h-5 text-[#273140] mr-3" />
-                        <span>Modern</span>
-                      </div>
-                    )}
-                    {listing.apartment_conditions.includes('renovated') && (
-                      <div className="flex items-center">
-                        <Wrench className="w-5 h-5 text-[#273140] mr-3" />
-                        <span>Renovated</span>
-                      </div>
-                    )}
-                    {listing.apartment_conditions.includes('large_rooms') && (
-                      <div className="flex items-center">
-                        <Maximize2 className="w-5 h-5 text-[#273140] mr-3" />
-                        <span>Large Rooms</span>
-                      </div>
-                    )}
-                    {listing.apartment_conditions.includes('high_ceilings') && (
-                      <div className="flex items-center">
-                        <ArrowUpFromLine className="w-5 h-5 text-[#273140] mr-3" />
-                        <span>High Ceilings</span>
-                      </div>
-                    )}
-                    {listing.apartment_conditions.includes('large_closets') && (
-                      <div className="flex items-center">
-                        <Package className="w-5 h-5 text-[#273140] mr-3" />
-                        <span>Large Closets</span>
-                      </div>
-                    )}
+            ) : (
+              <div className="mb-8">
+                <h2 className="text-2xl font-bold text-[#273140] mb-4">
+                  Features & Amenities
+                </h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="flex items-center">
+                    <DollarSign className="w-5 h-5 text-[#273140] mr-3" />
+                    <span>
+                      {listing.broker_fee ? "Broker Fee Applies" : "No Broker Fee"}
+                    </span>
                   </div>
-                </div>
-              )}
 
-            </div>
+                  {listing.parking !== "no" && (
+                    <div className="flex items-center">
+                      <Car className="w-5 h-5 text-[#273140] mr-3" />
+                      <span className="capitalize">
+                        {listing.parking.replace("_", " ")}
+                      </span>
+                    </div>
+                  )}
+
+                  {listing.washer_dryer_hookup && (
+                    <div className="flex items-center">
+                      <WashingMachine className="w-5 h-5 text-[#273140] mr-3" />
+                      <span>Washer/Dryer Hookup</span>
+                    </div>
+                  )}
+
+                  {listing.dishwasher && (
+                    <div className="flex items-center">
+                      <Droplets className="w-5 h-5 text-[#273140] mr-3" />
+                      <span>Dishwasher</span>
+                    </div>
+                  )}
+
+                  <div className="flex items-center">
+                    <Flame className="w-5 h-5 text-[#273140] mr-3" />
+                    <span>
+                      {listing.heat === "included" ? "Heat Included" : "Tenant Pays Heat"}
+                    </span>
+                  </div>
+
+                  {listing.floor && (
+                    <div className="flex items-center">
+                      <div className="w-5 h-5 bg-accent-500 rounded mr-3 flex items-center justify-center">
+                        <span className="text-white text-xs font-bold">
+                          {listing.floor}
+                        </span>
+                      </div>
+                      <span>{getOrdinalWordText(listing.floor)} Floor</span>
+                    </div>
+                  )}
+
+                  {listing.lease_length && (
+                    <div className="flex items-center">
+                      <Calendar className="w-5 h-5 text-[#273140] mr-3" />
+                      <span>Lease: {formatLeaseLength(listing.lease_length)}</span>
+                    </div>
+                  )}
+
+                  {listing.ac_type && (
+                    <div className="flex items-center">
+                      <Wind className="w-5 h-5 text-[#273140] mr-3" />
+                      <span>
+                        {listing.ac_type === 'central' && 'Central AC'}
+                        {listing.ac_type === 'split_unit' && 'Split Unit AC'}
+                        {listing.ac_type === 'window' && 'Window AC'}
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Apartment Conditions */}
+                {listing.apartment_conditions && listing.apartment_conditions.length > 0 && (
+                  <div className="mt-6">
+                    <h3 className="text-lg font-semibold text-[#273140] mb-3">
+                      Apartment Features
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {listing.apartment_conditions.includes('modern') && (
+                        <div className="flex items-center">
+                          <Sparkles className="w-5 h-5 text-[#273140] mr-3" />
+                          <span>Modern</span>
+                        </div>
+                      )}
+                      {listing.apartment_conditions.includes('renovated') && (
+                        <div className="flex items-center">
+                          <Wrench className="w-5 h-5 text-[#273140] mr-3" />
+                          <span>Renovated</span>
+                        </div>
+                      )}
+                      {listing.apartment_conditions.includes('large_rooms') && (
+                        <div className="flex items-center">
+                          <Maximize2 className="w-5 h-5 text-[#273140] mr-3" />
+                          <span>Large Rooms</span>
+                        </div>
+                      )}
+                      {listing.apartment_conditions.includes('high_ceilings') && (
+                        <div className="flex items-center">
+                          <ArrowUpFromLine className="w-5 h-5 text-[#273140] mr-3" />
+                          <span>High Ceilings</span>
+                        </div>
+                      )}
+                      {listing.apartment_conditions.includes('large_closets') && (
+                        <div className="flex items-center">
+                          <Package className="w-5 h-5 text-[#273140] mr-3" />
+                          <span>Large Closets</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </section>
           {/* Mobile Description - Eighth on mobile (after features) */}
           {listing.description && (

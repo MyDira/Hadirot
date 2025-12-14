@@ -112,11 +112,15 @@ export function ListingCard({
       full_house: "Full House",
       duplex: "Duplex",
       basement: "Basement",
-      detached_house: "Single-Family",
-      semi_attached_house: "Two-Family",
-      fully_attached_townhouse: "Three-Family",
-      condo: "Four-Family",
-      co_op: "Condo",
+      single_family: "Single-Family",
+      two_family: "Two-Family",
+      three_family: "Three-Family",
+      four_family: "Four-Family",
+      condo: "Condo",
+      co_op: "Co-op",
+      detached_house: "Detached House",
+      semi_attached_house: "Semi-Attached House",
+      fully_attached_townhouse: "Townhouse",
     };
     return labels[type] || type;
   };
@@ -159,7 +163,7 @@ export function ListingCard({
         <div className="absolute bottom-3 right-3 flex flex-col gap-2">
           {isSaleListing ? (
             <>
-              {["detached_house", "semi_attached_house", "fully_attached_townhouse", "condo", "co_op"].includes(listing.property_type) && (
+              {["single_family", "two_family", "three_family", "four_family", "condo", "co_op"].includes(listing.property_type) && (
                 <div className="rounded-full bg-black/35 px-3 py-1 text-xs font-medium text-white backdrop-blur-sm">
                   {getPropertyTypeLabel(listing.property_type)}
                 </div>

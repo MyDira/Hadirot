@@ -735,8 +735,8 @@ export function PostListing() {
     const error = validatePrice(
       formData.listing_type,
       formData.call_for_price,
-      isSale ? f.price : numValue,
-      isSale ? numValue : f.asking_price
+      isSale ? formData.price : numValue,
+      isSale ? numValue : formData.asking_price
     );
     setPriceError(error);
   };
@@ -1641,12 +1641,12 @@ export function PostListing() {
                 <option value="">Select Property Type</option>
                 {formData.listing_type === 'sale' ? (
                   <>
-                    <option value="detached_house">Single-Family</option>
-                    <option value="semi_attached_house">Two-Family</option>
-                    <option value="fully_attached_townhouse">Three-Family</option>
-                    <option value="condo">Four-Family</option>
-                    <option value="co_op">Condo</option>
-                    <option value="apartment_building">Co-op</option>
+                    <option value="single_family">Single-Family</option>
+                    <option value="two_family">Two-Family</option>
+                    <option value="three_family">Three-Family</option>
+                    <option value="four_family">Four-Family</option>
+                    <option value="condo">Condo</option>
+                    <option value="co_op">Co-op</option>
                   </>
                 ) : (
                   <>

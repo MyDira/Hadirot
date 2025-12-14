@@ -42,7 +42,7 @@ export function SalesListingFields({
   handleBuildingSizeModeChange,
   calculateBuildingSize,
 }: SalesListingFieldsProps) {
-  const isMultiFamily = ['semi_attached_house', 'fully_attached_townhouse', 'condo'].includes(formData.property_type);
+  const isMultiFamily = ['two_family', 'three_family', 'four_family'].includes(formData.property_type);
 
   return (
     <>

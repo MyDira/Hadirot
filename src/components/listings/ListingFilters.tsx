@@ -378,7 +378,7 @@ export function ListingFilters({
         {/* Property Type */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
-            Rental Type
+            {listingType === 'sale' ? 'Property Type' : 'Rental Type'}
           </label>
           <select
             value={filters.property_type || ""}
@@ -388,10 +388,24 @@ export function ListingFilters({
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
           >
             <option value="">All Types</option>
-            <option value="apartment_building">Apartment in Building</option>
-            <option value="apartment_house">Apartment in House</option>
-            <option value="duplex">Duplex</option>
-            <option value="full_house">Full House</option>
+            {listingType === 'sale' ? (
+              <>
+                <option value="single_family">Single-Family</option>
+                <option value="two_family">Two-Family</option>
+                <option value="three_family">Three-Family</option>
+                <option value="four_family">Four-Family</option>
+                <option value="condo">Condo</option>
+                <option value="co_op">Co-op</option>
+              </>
+            ) : (
+              <>
+                <option value="apartment_building">Apartment in Building</option>
+                <option value="apartment_house">Apartment in House</option>
+                <option value="duplex">Duplex</option>
+                <option value="full_house">Full House</option>
+                <option value="basement">Basement</option>
+              </>
+            )}
           </select>
         </div>
 

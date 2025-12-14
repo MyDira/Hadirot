@@ -17,7 +17,16 @@ import {
   ListingImage,
   TempListingImage,
   ACType,
+  PropertyCondition,
+  OccupancyStatus,
+  DeliveryCondition,
+  BasementType,
+  LaundryType,
+  HeatingType,
+  BuildingType,
+  RentRollUnit,
 } from "../config/supabase";
+import { SalesListingFields } from "../components/listing/SalesListingFields";
 import { compressImage } from "../utils/imageUtils";
 
 interface ListingFormData {
@@ -45,6 +54,41 @@ interface ListingFormData {
   additional_rooms: number;
   latitude: number | null;
   longitude: number | null;
+  listing_type: 'rental' | 'sale';
+  asking_price: number | null;
+  building_type?: BuildingType | null;
+  property_condition?: PropertyCondition | null;
+  occupancy_status?: OccupancyStatus | null;
+  delivery_condition?: DeliveryCondition | null;
+  lot_size_sqft?: number | null;
+  lot_size_input_mode: 'sqft' | 'dimensions';
+  property_length_ft?: number | null;
+  property_width_ft?: number | null;
+  building_size_sqft?: number | null;
+  building_size_input_mode: 'sqft' | 'dimensions';
+  building_length_ft?: number | null;
+  building_width_ft?: number | null;
+  number_of_floors?: number | null;
+  year_built?: number | null;
+  year_renovated?: number | null;
+  hoa_fees?: number | null;
+  property_taxes?: number | null;
+  outdoor_space?: string[];
+  interior_features?: string[];
+  laundry_type?: LaundryType | null;
+  basement_type?: BasementType | null;
+  basement_notes?: string | null;
+  heating_type?: HeatingType | null;
+  rent_roll_total?: number | null;
+  rent_roll_data?: RentRollUnit[];
+  utilities_included?: string[];
+  tenant_notes?: string | null;
+  street_address?: string | null;
+  unit_number?: string | null;
+  city?: string | null;
+  state?: string | null;
+  zip_code?: string | null;
+  unit_count?: number | null;
 }
 
 interface ProcessedImage {
@@ -96,7 +140,44 @@ export function EditListing() {
     additional_rooms: 0,
     latitude: null,
     longitude: null,
+    listing_type: 'rental',
+    asking_price: null,
+    building_type: null,
+    property_condition: null,
+    occupancy_status: null,
+    delivery_condition: null,
+    lot_size_sqft: null,
+    lot_size_input_mode: 'sqft',
+    property_length_ft: null,
+    property_width_ft: null,
+    building_size_sqft: null,
+    building_size_input_mode: 'sqft',
+    building_length_ft: null,
+    building_width_ft: null,
+    number_of_floors: null,
+    year_built: null,
+    year_renovated: null,
+    hoa_fees: null,
+    property_taxes: null,
+    outdoor_space: [],
+    interior_features: [],
+    laundry_type: null,
+    basement_type: null,
+    basement_notes: null,
+    heating_type: null,
+    rent_roll_total: null,
+    rent_roll_data: [],
+    utilities_included: [],
+    tenant_notes: null,
+    street_address: null,
+    unit_number: null,
+    city: null,
+    state: null,
+    zip_code: null,
+    unit_count: null,
   });
+
+  const isSaleListing = formData.listing_type === 'sale';
 
   useEffect(() => {
     if (id) {
@@ -181,6 +262,41 @@ export function EditListing() {
         additional_rooms: data.additional_rooms || 0,
         latitude: data.latitude || null,
         longitude: data.longitude || null,
+        listing_type: data.listing_type || 'rental',
+        asking_price: data.asking_price || null,
+        building_type: data.building_type || null,
+        property_condition: data.property_condition || null,
+        occupancy_status: data.occupancy_status || null,
+        delivery_condition: data.delivery_condition || null,
+        lot_size_sqft: data.lot_size_sqft || null,
+        lot_size_input_mode: 'sqft',
+        property_length_ft: null,
+        property_width_ft: null,
+        building_size_sqft: data.building_size_sqft || null,
+        building_size_input_mode: 'sqft',
+        building_length_ft: null,
+        building_width_ft: null,
+        number_of_floors: data.number_of_floors || null,
+        year_built: data.year_built || null,
+        year_renovated: data.year_renovated || null,
+        hoa_fees: data.hoa_fees || null,
+        property_taxes: data.property_taxes || null,
+        outdoor_space: data.outdoor_space || [],
+        interior_features: data.interior_features || [],
+        laundry_type: data.laundry_type || null,
+        basement_type: data.basement_type || null,
+        basement_notes: data.basement_notes || null,
+        heating_type: data.heating_type || null,
+        rent_roll_total: data.rent_roll_total || null,
+        rent_roll_data: data.rent_roll_data || [],
+        utilities_included: data.utilities_included || [],
+        tenant_notes: data.tenant_notes || null,
+        street_address: data.street_address || null,
+        unit_number: data.unit_number || null,
+        city: data.city || null,
+        state: data.state || null,
+        zip_code: data.zip_code || null,
+        unit_count: data.unit_count || null,
       });
       // Check if using custom neighborhood
       const standardNeighborhoods = [
@@ -293,6 +409,98 @@ export function EditListing() {
         };
       }
     });
+  };
+
+  const handleOutdoorSpaceToggle = (space: string) => {
+    setFormData((prev) => {
+      const current = prev.outdoor_space || [];
+      const isSelected = current.includes(space);
+      if (isSelected) {
+        return { ...prev, outdoor_space: current.filter(s => s !== space) };
+      } else {
+        return { ...prev, outdoor_space: [...current, space] };
+      }
+    });
+  };
+
+  const handleInteriorFeatureToggle = (feature: string) => {
+    setFormData((prev) => {
+      const current = prev.interior_features || [];
+      const isSelected = current.includes(feature);
+      if (isSelected) {
+        return { ...prev, interior_features: current.filter(f => f !== feature) };
+      } else {
+        return { ...prev, interior_features: [...current, feature] };
+      }
+    });
+  };
+
+  const handleApplianceToggle = (appliance: string) => {
+    setFormData((prev) => {
+      const current = prev.apartment_conditions || [];
+      const isSelected = current.includes(appliance);
+      if (isSelected) {
+        return { ...prev, apartment_conditions: current.filter(a => a !== appliance) };
+      } else {
+        return { ...prev, apartment_conditions: [...current, appliance] };
+      }
+    });
+  };
+
+  const handleUtilityToggle = (utility: string) => {
+    setFormData((prev) => {
+      const current = prev.utilities_included || [];
+      const isSelected = current.includes(utility);
+      if (isSelected) {
+        return { ...prev, utilities_included: current.filter(u => u !== utility) };
+      } else {
+        return { ...prev, utilities_included: [...current, utility] };
+      }
+    });
+  };
+
+  const handleRentRollUnitChange = (index: number, field: keyof RentRollUnit, value: string | number) => {
+    setFormData((prev) => {
+      const newData = [...(prev.rent_roll_data || [])];
+      newData[index] = { ...newData[index], [field]: value };
+      return { ...prev, rent_roll_data: newData };
+    });
+  };
+
+  const addRentRollUnit = () => {
+    setFormData((prev) => ({
+      ...prev,
+      rent_roll_data: [...(prev.rent_roll_data || []), { unit: '', bedrooms: 0, rent: 0 }]
+    }));
+  };
+
+  const removeRentRollUnit = (index: number) => {
+    setFormData((prev) => ({
+      ...prev,
+      rent_roll_data: (prev.rent_roll_data || []).filter((_, i) => i !== index)
+    }));
+  };
+
+  const handleLotSizeModeChange = (mode: 'sqft' | 'dimensions') => {
+    setFormData((prev) => ({ ...prev, lot_size_input_mode: mode }));
+  };
+
+  const calculateLotSize = (): number | null => {
+    if (formData.lot_size_input_mode === 'dimensions' && formData.property_length_ft && formData.property_width_ft) {
+      return Math.round(formData.property_length_ft * formData.property_width_ft);
+    }
+    return formData.lot_size_sqft || null;
+  };
+
+  const handleBuildingSizeModeChange = (mode: 'sqft' | 'dimensions') => {
+    setFormData((prev) => ({ ...prev, building_size_input_mode: mode }));
+  };
+
+  const calculateBuildingSize = (): number | null => {
+    if (formData.building_size_input_mode === 'dimensions' && formData.building_length_ft && formData.building_width_ft) {
+      return Math.round(formData.building_length_ft * formData.building_width_ft);
+    }
+    return formData.building_size_sqft || null;
   };
 
   const handleLocationCoordinatesChange = (lat: number | null, lng: number | null) => {
@@ -537,18 +745,71 @@ export function EditListing() {
 
       // Prepare update payload
       const updatePayload: any = {
-        ...formData,
-        broker_fee: false,
+        title: formData.title,
+        description: formData.description,
+        location: formData.location,
         neighborhood,
+        bedrooms: formData.bedrooms,
+        bathrooms: formData.bathrooms,
+        floor: formData.floor,
+        parking: formData.parking,
+        washer_dryer_hookup: formData.washer_dryer_hookup,
+        dishwasher: formData.dishwasher,
+        heat: formData.heat,
+        property_type: formData.property_type,
+        contact_name: formData.contact_name,
+        contact_phone: formData.contact_phone,
+        broker_fee: false,
         updated_at: new Date().toISOString(),
-        price: formData.call_for_price ? null : formData.price,
-        call_for_price: !!formData.call_for_price,
         ac_type: formData.ac_type || null,
         apartment_conditions: formData.apartment_conditions.length > 0 ? formData.apartment_conditions : null,
         additional_rooms: formData.additional_rooms > 0 ? formData.additional_rooms : null,
         latitude: formData.latitude,
         longitude: formData.longitude,
       };
+
+      if (isSaleListing) {
+        const calculatedLotSize = calculateLotSize();
+        const calculatedBuildingSize = calculateBuildingSize();
+        Object.assign(updatePayload, {
+          asking_price: formData.call_for_price ? null : formData.asking_price,
+          call_for_price: !!formData.call_for_price,
+          building_type: formData.building_type || null,
+          property_condition: formData.property_condition || null,
+          occupancy_status: formData.occupancy_status || null,
+          delivery_condition: formData.delivery_condition || null,
+          lot_size_sqft: calculatedLotSize,
+          building_size_sqft: calculatedBuildingSize,
+          number_of_floors: formData.number_of_floors || null,
+          year_built: formData.year_built || null,
+          year_renovated: formData.year_renovated || null,
+          hoa_fees: formData.hoa_fees || null,
+          property_taxes: formData.property_taxes || null,
+          outdoor_space: formData.outdoor_space && formData.outdoor_space.length > 0 ? formData.outdoor_space : null,
+          interior_features: formData.interior_features && formData.interior_features.length > 0 ? formData.interior_features : null,
+          laundry_type: formData.laundry_type || null,
+          basement_type: formData.basement_type || null,
+          basement_notes: formData.basement_notes || null,
+          heating_type: formData.heating_type || null,
+          rent_roll_total: formData.rent_roll_total || null,
+          rent_roll_data: formData.rent_roll_data && formData.rent_roll_data.length > 0 ? formData.rent_roll_data : null,
+          utilities_included: formData.utilities_included && formData.utilities_included.length > 0 ? formData.utilities_included : null,
+          tenant_notes: formData.tenant_notes || null,
+          street_address: formData.street_address || null,
+          unit_number: formData.unit_number || null,
+          city: formData.city || null,
+          state: formData.state || null,
+          zip_code: formData.zip_code || null,
+          unit_count: formData.unit_count || null,
+        });
+      } else {
+        Object.assign(updatePayload, {
+          price: formData.call_for_price ? null : formData.price,
+          call_for_price: !!formData.call_for_price,
+          lease_length: formData.lease_length || null,
+          square_footage: formData.square_footage || null,
+        });
+      }
 
       // Update the listing
       await listingsService.updateListing(id, updatePayload);
@@ -878,13 +1139,24 @@ export function EditListing() {
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
               >
                 <option value="">Select Property Type</option>
-                <option value="apartment_building">
-                  Apartment in a building
-                </option>
-                <option value="apartment_house">Apartment in a house</option>
-                <option value="basement">Basement</option>
-                <option value="duplex">Duplex</option>
-                <option value="full_house">Full house</option>
+                {isSaleListing ? (
+                  <>
+                    <option value="single_family">Single-Family</option>
+                    <option value="two_family">Two-Family</option>
+                    <option value="three_family">Three-Family</option>
+                    <option value="four_family">Four-Family</option>
+                    <option value="condo">Condo</option>
+                    <option value="co_op">Co-op</option>
+                  </>
+                ) : (
+                  <>
+                    <option value="apartment_building">Apartment in a building</option>
+                    <option value="apartment_house">Apartment in a house</option>
+                    <option value="basement">Basement</option>
+                    <option value="duplex">Duplex</option>
+                    <option value="full_house">Full house</option>
+                  </>
+                )}
               </select>
             </div>
           </div>
@@ -973,23 +1245,25 @@ export function EditListing() {
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Monthly Rent ($) *
+                {isSaleListing ? 'Asking Price ($) *' : 'Monthly Rent ($) *'}
               </label>
               <input
                 type="number"
                 min={1}
                 step={1}
-                value={formData.price ?? ''}
+                value={isSaleListing ? (formData.asking_price ?? '') : (formData.price ?? '')}
                 onChange={(e) =>
                   setFormData((f) => ({
                     ...f,
-                    price: e.target.value ? Number(e.target.value) : null,
+                    ...(isSaleListing
+                      ? { asking_price: e.target.value ? Number(e.target.value) : null }
+                      : { price: e.target.value ? Number(e.target.value) : null }),
                   }))
                 }
                 disabled={formData.call_for_price}
                 required={!formData.call_for_price}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
-                placeholder="2500"
+                placeholder={isSaleListing ? "950000" : "2500"}
               />
               <label className="flex items-center gap-2 mt-2">
                 <input
@@ -999,7 +1273,9 @@ export function EditListing() {
                     setFormData((f) => ({
                       ...f,
                       call_for_price: e.target.checked,
-                      price: e.target.checked ? null : f.price,
+                      ...(isSaleListing
+                        ? { asking_price: e.target.checked ? null : f.asking_price }
+                        : { price: e.target.checked ? null : f.price }),
                     }))
                   }
                 />
@@ -1022,23 +1298,46 @@ export function EditListing() {
               />
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Lease Length
-              </label>
-              <select
-                name="lease_length"
-                value={formData.lease_length || ""}
-                onChange={handleInputChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
-              >
-                <option value="">Select lease length (optional)</option>
-                <option value="short_term">Short Term</option>
-                <option value="1_year">1 Year</option>
-                <option value="18_months">18 Months</option>
-                <option value="2_years">2 Years</option>
-              </select>
-            </div>
+            {!isSaleListing && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Lease Length
+                </label>
+                <select
+                  name="lease_length"
+                  value={formData.lease_length || ""}
+                  onChange={handleInputChange}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
+                >
+                  <option value="">Select lease length (optional)</option>
+                  <option value="short_term">Short Term</option>
+                  <option value="1_year">1 Year</option>
+                  <option value="18_months">18 Months</option>
+                  <option value="2_years">2 Years</option>
+                </select>
+              </div>
+            )}
+
+            {isSaleListing && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Building Type *
+                </label>
+                <select
+                  name="building_type"
+                  value={formData.building_type || ""}
+                  onChange={(e) => setFormData(prev => ({ ...prev, building_type: e.target.value as BuildingType || null }))}
+                  required
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
+                >
+                  <option value="">Select Building Type</option>
+                  <option value="detached">Detached</option>
+                  <option value="semi_attached">Semi-Attached</option>
+                  <option value="fully_attached">Fully Attached</option>
+                  <option value="apartment">Apartment</option>
+                </select>
+              </div>
+            )}
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -1057,143 +1356,171 @@ export function EditListing() {
               </select>
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Heat
-              </label>
-              <select
-                name="heat"
-                value={formData.heat}
-                onChange={handleInputChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
-              >
-                <option value="tenant_pays">Tenant Pays</option>
-                <option value="included">Heat Included</option>
-              </select>
-            </div>
+            {!isSaleListing && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Heat
+                </label>
+                <select
+                  name="heat"
+                  value={formData.heat}
+                  onChange={handleInputChange}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
+                >
+                  <option value="tenant_pays">Tenant Pays</option>
+                  <option value="included">Heat Included</option>
+                </select>
+              </div>
+            )}
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                AC Type
-              </label>
-              <select
-                name="ac_type"
-                value={formData.ac_type || ""}
-                onChange={(e) => setFormData(prev => ({ ...prev, ac_type: e.target.value as ACType || null }))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
-              >
-                <option value="">Select AC Type (optional)</option>
-                <option value="central">Central AC</option>
-                <option value="split_unit">Split Unit AC</option>
-                <option value="window">Window AC</option>
-              </select>
-            </div>
+            {!isSaleListing && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  AC Type
+                </label>
+                <select
+                  name="ac_type"
+                  value={formData.ac_type || ""}
+                  onChange={(e) => setFormData(prev => ({ ...prev, ac_type: e.target.value as ACType || null }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
+                >
+                  <option value="">Select AC Type (optional)</option>
+                  <option value="central">Central AC</option>
+                  <option value="split_unit">Split Unit AC</option>
+                  <option value="window">Window AC</option>
+                </select>
+              </div>
+            )}
           </div>
 
-          {/* Apartment Conditions */}
-          <div className="mt-6">
-            <label className="block text-sm font-medium text-gray-700 mb-3">
-              Apartment Conditions
-            </label>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <label className="flex items-center">
-                <input
-                  type="checkbox"
-                  checked={formData.apartment_conditions.includes('modern')}
-                  onChange={() => handleApartmentConditionToggle('modern')}
-                  className="h-4 w-4 text-[#273140] focus:ring-[#273140] border-gray-300 rounded"
-                />
-                <span className="ml-2 text-sm font-medium text-gray-700">Modern</span>
+          {/* Apartment Conditions - Rental Only */}
+          {!isSaleListing && (
+            <div className="mt-6">
+              <label className="block text-sm font-medium text-gray-700 mb-3">
+                Apartment Conditions
               </label>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <label className="flex items-center">
+                  <input
+                    type="checkbox"
+                    checked={formData.apartment_conditions.includes('modern')}
+                    onChange={() => handleApartmentConditionToggle('modern')}
+                    className="h-4 w-4 text-[#273140] focus:ring-[#273140] border-gray-300 rounded"
+                  />
+                  <span className="ml-2 text-sm font-medium text-gray-700">Modern</span>
+                </label>
 
-              <label className="flex items-center">
-                <input
-                  type="checkbox"
-                  checked={formData.apartment_conditions.includes('renovated')}
-                  onChange={() => handleApartmentConditionToggle('renovated')}
-                  className="h-4 w-4 text-[#273140] focus:ring-[#273140] border-gray-300 rounded"
-                />
-                <span className="ml-2 text-sm font-medium text-gray-700">Renovated</span>
-              </label>
+                <label className="flex items-center">
+                  <input
+                    type="checkbox"
+                    checked={formData.apartment_conditions.includes('renovated')}
+                    onChange={() => handleApartmentConditionToggle('renovated')}
+                    className="h-4 w-4 text-[#273140] focus:ring-[#273140] border-gray-300 rounded"
+                  />
+                  <span className="ml-2 text-sm font-medium text-gray-700">Renovated</span>
+                </label>
 
-              <label className="flex items-center">
-                <input
-                  type="checkbox"
-                  checked={formData.apartment_conditions.includes('large_rooms')}
-                  onChange={() => handleApartmentConditionToggle('large_rooms')}
-                  className="h-4 w-4 text-[#273140] focus:ring-[#273140] border-gray-300 rounded"
-                />
-                <span className="ml-2 text-sm font-medium text-gray-700">Large Rooms</span>
-              </label>
+                <label className="flex items-center">
+                  <input
+                    type="checkbox"
+                    checked={formData.apartment_conditions.includes('large_rooms')}
+                    onChange={() => handleApartmentConditionToggle('large_rooms')}
+                    className="h-4 w-4 text-[#273140] focus:ring-[#273140] border-gray-300 rounded"
+                  />
+                  <span className="ml-2 text-sm font-medium text-gray-700">Large Rooms</span>
+                </label>
 
-              <label className="flex items-center">
-                <input
-                  type="checkbox"
-                  checked={formData.apartment_conditions.includes('high_ceilings')}
-                  onChange={() => handleApartmentConditionToggle('high_ceilings')}
-                  className="h-4 w-4 text-[#273140] focus:ring-[#273140] border-gray-300 rounded"
-                />
-                <span className="ml-2 text-sm font-medium text-gray-700">High Ceilings</span>
-              </label>
+                <label className="flex items-center">
+                  <input
+                    type="checkbox"
+                    checked={formData.apartment_conditions.includes('high_ceilings')}
+                    onChange={() => handleApartmentConditionToggle('high_ceilings')}
+                    className="h-4 w-4 text-[#273140] focus:ring-[#273140] border-gray-300 rounded"
+                  />
+                  <span className="ml-2 text-sm font-medium text-gray-700">High Ceilings</span>
+                </label>
 
-              <label className="flex items-center">
-                <input
-                  type="checkbox"
-                  checked={formData.apartment_conditions.includes('large_closets')}
-                  onChange={() => handleApartmentConditionToggle('large_closets')}
-                  className="h-4 w-4 text-[#273140] focus:ring-[#273140] border-gray-300 rounded"
-                />
-                <span className="ml-2 text-sm font-medium text-gray-700">Large Closets</span>
-              </label>
+                <label className="flex items-center">
+                  <input
+                    type="checkbox"
+                    checked={formData.apartment_conditions.includes('large_closets')}
+                    onChange={() => handleApartmentConditionToggle('large_closets')}
+                    className="h-4 w-4 text-[#273140] focus:ring-[#273140] border-gray-300 rounded"
+                  />
+                  <span className="ml-2 text-sm font-medium text-gray-700">Large Closets</span>
+                </label>
+              </div>
             </div>
-          </div>
+          )}
 
-          <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="flex items-center">
-              <input
-                type="checkbox"
-                name="washer_dryer_hookup"
-                checked={formData.washer_dryer_hookup}
-                onChange={handleInputChange}
-                className="h-4 w-4 text-[#273140] focus:ring-[#273140] border-gray-300 rounded"
-              />
-              <label className="ml-2 text-sm font-medium text-gray-700">
-                Washer/Dryer Hookup
-              </label>
-            </div>
-
-            <div className="flex items-center">
-              <input
-                type="checkbox"
-                name="dishwasher"
-                checked={formData.dishwasher}
-                onChange={handleInputChange}
-                className="h-4 w-4 text-[#273140] focus:ring-[#273140] border-gray-300 rounded"
-              />
-              <label className="ml-2 text-sm font-medium text-gray-700">
-                Dishwasher
-              </label>
-            </div>
-
-            <div>
-              <label className="flex items-center gap-2">
+          {/* Additional Rental Features */}
+          {!isSaleListing && (
+            <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="flex items-center">
                 <input
                   type="checkbox"
-                  name="broker_fee"
-                  checked={formData.broker_fee}
+                  name="washer_dryer_hookup"
+                  checked={formData.washer_dryer_hookup}
                   onChange={handleInputChange}
                   className="h-4 w-4 text-[#273140] focus:ring-[#273140] border-gray-300 rounded"
                 />
-                <span className="text-sm font-medium text-gray-700">
-                  Broker Fee
-                </span>
-              </label>
+                <label className="ml-2 text-sm font-medium text-gray-700">
+                  Washer/Dryer Hookup
+                </label>
+              </div>
+
+              <div className="flex items-center">
+                <input
+                  type="checkbox"
+                  name="dishwasher"
+                  checked={formData.dishwasher}
+                  onChange={handleInputChange}
+                  className="h-4 w-4 text-[#273140] focus:ring-[#273140] border-gray-300 rounded"
+                />
+                <label className="ml-2 text-sm font-medium text-gray-700">
+                  Dishwasher
+                </label>
+              </div>
+
+              <div>
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    name="broker_fee"
+                    checked={formData.broker_fee}
+                    onChange={handleInputChange}
+                    className="h-4 w-4 text-[#273140] focus:ring-[#273140] border-gray-300 rounded"
+                  />
+                  <span className="text-sm font-medium text-gray-700">
+                    Broker Fee
+                  </span>
+                </label>
               <p className="text-xs text-gray-500">
                 Check this if a broker fee applies.
               </p>
             </div>
           </div>
+          )}
         </div>
+
+        {/* Sales Listing Fields */}
+        {isSaleListing && (
+          <SalesListingFields
+            formData={formData}
+            handleInputChange={handleInputChange}
+            handleOutdoorSpaceToggle={handleOutdoorSpaceToggle}
+            handleInteriorFeatureToggle={handleInteriorFeatureToggle}
+            handleApplianceToggle={handleApplianceToggle}
+            handleUtilityToggle={handleUtilityToggle}
+            handleRentRollUnitChange={handleRentRollUnitChange}
+            addRentRollUnit={addRentRollUnit}
+            removeRentRollUnit={removeRentRollUnit}
+            handleLotSizeModeChange={handleLotSizeModeChange}
+            calculateLotSize={calculateLotSize}
+            handleBuildingSizeModeChange={handleBuildingSizeModeChange}
+            calculateBuildingSize={calculateBuildingSize}
+          />
+        )}
 
         {/* Media Upload (Images & Videos) */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
