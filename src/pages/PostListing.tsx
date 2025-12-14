@@ -1074,6 +1074,8 @@ export function PostListing() {
         latitude: formData.latitude,
         longitude: formData.longitude,
         terms_agreed: undefined,
+        building_size_input_mode: undefined,
+        lot_size_input_mode: undefined,
       } as any;
       const listing = await listingsService.createListing(payload);
 
