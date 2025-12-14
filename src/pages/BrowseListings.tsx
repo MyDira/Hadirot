@@ -425,7 +425,7 @@ export function BrowseListings() {
   );
 
   const renderListingCards = () => (
-    <div className="grid grid-cols-1 gap-4">
+    <div className="grid grid-cols-2 gap-3">
       {displayListings.map((listing, idx) => (
         <div
           key={listing.key}
@@ -542,16 +542,14 @@ export function BrowseListings() {
   };
 
   const renderLoadingState = () => (
-    <div className="space-y-4">
+    <div className="grid grid-cols-2 gap-3">
       {[1, 2, 3, 4, 5, 6].map((i) => (
         <div key={i} className="bg-white rounded-lg shadow-sm animate-pulse border border-gray-100">
-          <div className="flex">
-            <div className="w-48 h-36 bg-gray-200 rounded-l-lg flex-shrink-0"></div>
-            <div className="p-4 flex-1">
-              <div className="h-5 bg-gray-200 rounded w-24 mb-2"></div>
-              <div className="h-4 bg-gray-200 rounded w-32 mb-2"></div>
-              <div className="h-4 bg-gray-200 rounded w-48"></div>
-            </div>
+          <div className="h-32 bg-gray-200 rounded-t-lg"></div>
+          <div className="p-3">
+            <div className="h-4 bg-gray-200 rounded w-20 mb-2"></div>
+            <div className="h-3 bg-gray-200 rounded w-28 mb-2"></div>
+            <div className="h-3 bg-gray-200 rounded w-24"></div>
           </div>
         </div>
       ))}
@@ -584,7 +582,7 @@ export function BrowseListings() {
           <div className="flex items-center justify-between mb-3">
             <div>
               <h1 className="text-xl font-bold text-brand-900">
-                Brooklyn Rentals
+                Browse Properties for Rent
               </h1>
               <p className="text-sm text-gray-500">
                 {loading ? "Loading..." : `${totalCount.toLocaleString()} properties available`}
@@ -671,10 +669,10 @@ export function BrowseListings() {
         {viewMode === 'split' ? (
           /* Split View */
           <div className="h-full flex">
-            {/* Listings Panel */}
+            {/* Listings Panel - Wider for 2 columns */}
             <div
               ref={listingsContainerRef}
-              className="w-full lg:w-[420px] xl:w-[480px] h-full overflow-y-auto border-r border-gray-200 bg-white"
+              className="w-full lg:w-[520px] xl:w-[620px] h-full overflow-y-auto border-r border-gray-200 bg-white"
             >
               <div className="p-4">
                 {loading ? (
