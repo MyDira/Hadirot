@@ -656,59 +656,43 @@ export function ListingDetail() {
 
           {/* Location + Tag (mobile-safe truncation) - Third on mobile */}
           <section id="ld-location-and-tag" className="order-3 lg:order-none">
-            <div className="flex items-center gap-2">
-              {/* LEFT: Location (flexible, truncates first) */}
-              <div className="flex-1 min-w-0">
-                <div
-                  className="truncate"
-                  title={`${listing?.location ?? ""}${listing?.location && listing?.neighborhood ? " • " : ""}${listing?.neighborhood ?? ""}`}
-                >
-                  {/* EXISTING LOCATION JSX HERE (icons/text unchanged) */}
-                  <div className="flex items-center text-gray-600">
-                    <MapPin className="w-5 h-5 mr-2" />
-                    <NumericText
-                      className="text-lg"
-                      text={`${listing.location}${listing.neighborhood ? `, ${listing.neighborhood}` : ""}`}
-                    />
-                  </div>
-                </div>
+            <div className="flex items-center justify-between gap-3">
+              {/* LEFT: Location */}
+              <div className="flex items-center text-gray-600 flex-1 min-w-0">
+                <MapPin className="w-5 h-5 mr-2 flex-shrink-0" />
+                <NumericText
+                  className="text-lg truncate"
+                  text={`${listing.location}${listing.neighborhood ? `, ${listing.neighborhood}` : ""}`}
+                />
               </div>
-              {listing.is_featured && (
-                <span className="inline-flex items-center bg-accent-500 text-white text-xs px-2 py-0.5 rounded">
-                  <Star className="w-3 h-3 mr-1" />
-                  Featured
-                </span>
-              )}
-              {/* RIGHT: Poster tag (landlord/agency) — fixed size, truncates if too long */}
-              <div className="ml-2 flex-shrink-0 min-w-0 max-w-[50%] sm:max-w-none text-right overflow-hidden">
-                {/* A single-line, no-wrap container so the badge/text truncates cleanly */}
-                <div
-                  className="inline-flex items-center gap-1 whitespace-nowrap truncate"
-                  title={
-                    listing.owner?.role === "agent" && listing.owner?.agency
+
+              {/* RIGHT: Badges */}
+              <div className="flex items-center gap-2 flex-shrink-0">
+                {listing.is_featured && (
+                  <span className="inline-flex items-center bg-accent-500 text-white text-xs px-2 py-0.5 rounded whitespace-nowrap">
+                    <Star className="w-3 h-3 mr-1" />
+                    Featured
+                  </span>
+                )}
+
+                {/* Poster tag (landlord/agency) */}
+                {listing.owner?.role === "agent" && listing.owner?.agency && agencyPageExists ? (
+                  <Link
+                    to={`/agencies/${agencyNameToSlug(listing.owner.agency)}`}
+                    className="bg-[#667B9A] text-white px-3 py-1 rounded-full text-sm font-medium hover:bg-[#566886] transition-colors whitespace-nowrap"
+                    onClick={() => {
+                      gaListing("listing_agency_click", listing.id, { agency_name: listing.owner?.agency });
+                    }}
+                  >
+                    {listing.owner.agency}
+                  </Link>
+                ) : (
+                  <span className="bg-[#667B9A] text-white px-3 py-1 rounded-full text-sm font-medium whitespace-nowrap">
+                    {listing.owner?.role === "agent" && listing.owner?.agency
                       ? listing.owner.agency
-                      : getRoleLabel()
-                  }
-                >
-                  {/* Agency badge - clickable if agency page exists */}
-                  {listing.owner?.role === "agent" && listing.owner?.agency && agencyPageExists ? (
-                    <Link
-                      to={`/agencies/${agencyNameToSlug(listing.owner.agency)}`}
-                      className="bg-[#667B9A] text-white px-3 py-1 rounded-full text-sm font-medium hover:bg-[#566886] transition-colors cursor-pointer"
-                      onClick={() => {
-                        gaListing("listing_agency_click", listing.id, { agency_name: listing.owner?.agency });
-                      }}
-                    >
-                      {listing.owner.agency}
-                    </Link>
-                  ) : (
-                    <span className="bg-[#667B9A] text-white px-3 py-1 rounded-full text-sm font-medium">
-                      {listing.owner?.role === "agent" && listing.owner?.agency
-                        ? listing.owner.agency
-                        : getRoleLabel()}
-                    </span>
-                  )}
-                </div>
+                      : getRoleLabel()}
+                  </span>
+                )}
               </div>
             </div>
           </section>

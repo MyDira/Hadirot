@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { DollarSign, Home, Filter, ChevronLeft, ChevronRight, List, Map as MapIcon } from 'lucide-react';
+import { Home, Filter, ChevronLeft, ChevronRight, List, Map as MapIcon } from 'lucide-react';
 import { listingsService } from '../services/listings';
 import { Listing } from '../config/supabase';
 import { ListingCard } from '../components/listings/ListingCard';
@@ -93,18 +93,15 @@ export function BrowseSales() {
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <div className="mb-8">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div className="flex items-center">
-            <DollarSign className="w-10 h-10 text-[#4E4B43] mr-3" />
-            <div>
-              <h1 className="text-3xl font-bold text-[#4E4B43]">Properties for Sale</h1>
-              <p className="text-gray-600">
-                {loading
-                  ? 'Loading...'
-                  : viewMode === 'list'
-                    ? `Showing ${totalCount > 0 ? (currentPage - 1) * ITEMS_PER_PAGE + 1 : 0}-${Math.min(currentPage * ITEMS_PER_PAGE, totalCount)} of ${totalCount} properties`
-                    : `${totalCount} properties available`}
-              </p>
-            </div>
+          <div>
+            <h1 className="text-3xl font-bold text-[#4E4B43]">Browse properties for Sale</h1>
+            <p className="text-gray-600">
+              {loading
+                ? 'Loading...'
+                : viewMode === 'list'
+                  ? `Showing ${totalCount > 0 ? (currentPage - 1) * ITEMS_PER_PAGE + 1 : 0}-${Math.min(currentPage * ITEMS_PER_PAGE, totalCount)} of ${totalCount} properties`
+                  : `${totalCount} properties available`}
+            </p>
           </div>
 
           <div className="flex items-center bg-gray-100 rounded-lg p-1">
