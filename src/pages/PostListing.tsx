@@ -127,6 +127,7 @@ export function PostListing() {
   const [showPermissionModal, setShowPermissionModal] = useState(false);
   const [permissionRequestMessage, setPermissionRequestMessage] = useState('');
   const [requestingPermission, setRequestingPermission] = useState(false);
+  const [priceError, setPriceError] = useState<string | null>(null);
   const [formData, setFormData] = useState<ListingFormData>({
     listing_type: "",
     title: "",
@@ -287,6 +288,26 @@ export function PostListing() {
     salesService.canUserPostSales(user.id).then(setCanPostSales);
   }, [user?.id]);
 
+  // Validate price when listing type changes
+  useEffect(() => {
+    if (formData.listing_type && !formData.call_for_price) {
+      if (formData.listing_type === 'rental') {
+        if (!formData.price || formData.price <= 0) {
+          setPriceError("Please enter a valid monthly rent greater than $0");
+        } else {
+          setPriceError(null);
+        }
+      } else if (formData.listing_type === 'sale') {
+        if (!formData.asking_price || formData.asking_price <= 0) {
+          setPriceError("Please enter a valid asking price greater than $0");
+        } else {
+          setPriceError(null);
+        }
+      }
+    } else {
+      setPriceError(null);
+    }
+  }, [formData.listing_type]);
 
   const loadDraftData = async (): Promise<boolean> => {
     try {
@@ -429,6 +450,20 @@ export function PostListing() {
         }
 
         console.log("✅ Draft data loaded successfully");
+
+        const restoredListingType = (draftData as any).listing_type || "rental";
+        const restoredCallForPrice = draftData.call_for_price ?? false;
+        const restoredPrice = draftData.call_for_price ? null : draftData.price ?? null;
+        const restoredAskingPrice = (draftData as any).asking_price || null;
+
+        if (restoredListingType && !restoredCallForPrice) {
+          if (restoredListingType === 'rental' && (!restoredPrice || restoredPrice <= 0)) {
+            setPriceError("Please enter a valid monthly rent greater than $0");
+          } else if (restoredListingType === 'sale' && (!restoredAskingPrice || restoredAskingPrice <= 0)) {
+            setPriceError("Please enter a valid asking price greater than $0");
+          }
+        }
+
         return true;
       }
     } catch (error) {
@@ -665,6 +700,72 @@ export function PostListing() {
     return null;
   };
 
+  const validatePrice = (
+    listingType: string,
+    callForPrice: boolean,
+    price: number | null,
+    askingPrice: number | null
+  ): string | null => {
+    if (callForPrice) {
+      return null;
+    }
+
+    if (listingType === 'rental') {
+      if (price === null || price === undefined || price <= 0) {
+        return "Please enter a valid monthly rent greater than $0";
+      }
+    } else if (listingType === 'sale') {
+      if (askingPrice === null || askingPrice === undefined || askingPrice <= 0) {
+        return "Please enter a valid asking price greater than $0";
+      }
+    }
+
+    return null;
+  };
+
+  const handlePriceChange = (value: string) => {
+    const numValue = value ? Number(value) : null;
+    const isSale = formData.listing_type === 'sale';
+
+    setFormData((f) => ({
+      ...f,
+      ...(isSale ? { asking_price: numValue } : { price: numValue }),
+    }));
+
+    const error = validatePrice(
+      formData.listing_type,
+      formData.call_for_price,
+      isSale ? f.price : numValue,
+      isSale ? numValue : f.asking_price
+    );
+    setPriceError(error);
+  };
+
+  const handleCallForPriceChange = (checked: boolean) => {
+    const isSale = formData.listing_type === 'sale';
+
+    setFormData((f) => ({
+      ...f,
+      call_for_price: checked,
+      ...(isSale
+        ? { asking_price: checked ? null : f.asking_price }
+        : { price: checked ? null : f.price }
+      ),
+    }));
+
+    if (checked) {
+      setPriceError(null);
+    } else {
+      const error = validatePrice(
+        formData.listing_type,
+        false,
+        formData.price,
+        formData.asking_price
+      );
+      setPriceError(error);
+    }
+  };
+
   const handlePermissionRequest = async () => {
     if (!user?.id) {
       alert('Please sign in to request permission');
@@ -883,6 +984,19 @@ export function PostListing() {
         alert(
           "Listings with a tenant broker fee are not permitted on HaDirot. Please remove the fee to proceed.",
         );
+        setLoading(false);
+        return;
+      }
+
+      const priceValidationError = validatePrice(
+        formData.listing_type,
+        formData.call_for_price,
+        formData.price,
+        formData.asking_price
+      );
+      if (priceValidationError) {
+        setPriceError(priceValidationError);
+        alert(priceValidationError);
         setLoading(false);
         return;
       }
@@ -1661,34 +1775,22 @@ export function PostListing() {
                 min={1}
                 step={1}
                 value={formData.listing_type === 'sale' ? (formData.asking_price ?? '') : (formData.price ?? '')}
-                onChange={(e) =>
-                  setFormData((f) => ({
-                    ...f,
-                    ...(formData.listing_type === 'sale'
-                      ? { asking_price: e.target.value ? Number(e.target.value) : null }
-                      : { price: e.target.value ? Number(e.target.value) : null }
-                    ),
-                  }))
-                }
+                onChange={(e) => handlePriceChange(e.target.value)}
                 disabled={formData.call_for_price}
                 required={!formData.call_for_price}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-brand-700 focus:border-brand-700"
+                className={`w-full px-3 py-2 border rounded-md focus:ring-brand-700 focus:border-brand-700 ${
+                  priceError && !formData.call_for_price ? 'border-red-500' : 'border-gray-300'
+                }`}
                 placeholder={formData.listing_type === 'sale' ? '450000' : '2500'}
               />
+              {priceError && !formData.call_for_price && (
+                <p className="text-red-600 text-sm mt-1">{priceError}</p>
+              )}
               <label className="flex items-center gap-2 mt-2">
                 <input
                   type="checkbox"
                   checked={formData.call_for_price}
-                  onChange={(e) =>
-                    setFormData((f) => ({
-                      ...f,
-                      call_for_price: e.target.checked,
-                      ...(formData.listing_type === 'sale'
-                        ? { asking_price: e.target.checked ? null : f.asking_price }
-                        : { price: e.target.checked ? null : f.price }
-                      ),
-                    }))
-                  }
+                  onChange={(e) => handleCallForPriceChange(e.target.checked)}
                 />
                 <span>Call for Price</span>
               </label>
