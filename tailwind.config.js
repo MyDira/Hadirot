@@ -23,7 +23,10 @@ export default {
           600: "#689F38",
         },
       },
-      fontFamily: { brand: ["var(--brand-serif)"] },
+      fontFamily: {
+        brand: ["var(--brand-serif)"],
+        logo: ["var(--logo-font)"]
+      },
     },
   },
   plugins: [],
