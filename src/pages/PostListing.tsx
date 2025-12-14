@@ -1076,6 +1076,11 @@ export function PostListing() {
         terms_agreed: undefined,
         building_size_input_mode: undefined,
         lot_size_input_mode: undefined,
+        street_address: undefined,
+        unit_number: undefined,
+        city: undefined,
+        state: undefined,
+        zip_code: undefined,
       } as any;
       const listing = await listingsService.createListing(payload);
 
