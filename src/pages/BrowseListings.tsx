@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { ChevronLeft, ChevronRight, Filter, X, List, Map as MapIcon, Locate, RotateCcw } from "lucide-react";
+import { ChevronLeft, ChevronRight, Filter, X, List, Map as MapIcon, Locate, RotateCcw, LayoutGrid } from "lucide-react";
 import { ListingCard } from "../components/listings/ListingCard";
 import { ListingFiltersHorizontal } from "../components/listings/ListingFiltersHorizontal";
 import { ListingsMapEnhanced } from "../components/listings/ListingsMapEnhanced";
+import { SmartSearchBar } from "../components/listings/SmartSearchBar";
 import { Listing } from "../config/supabase";
 import { listingsService } from "../services/listings";
 import { useAuth } from "@/hooks/useAuth";
@@ -11,6 +12,8 @@ import { gaEvent, gaListing } from "@/lib/ga";
 import { trackFilterApply } from "../lib/analytics";
 import { useListingImpressions } from "../hooks/useListingImpressions";
 import { useBrowseFilters } from "../hooks/useBrowseFilters";
+import { ParsedSearchQuery } from "../utils/searchQueryParser";
+import { LocationResult } from "../services/locationSearch";
 
 export type SortOption = 'newest' | 'oldest' | 'price_asc' | 'price_desc' | 'bedrooms_asc' | 'bedrooms_desc' | 'bathrooms_asc' | 'bathrooms_desc';
 
@@ -36,6 +39,8 @@ interface MapBounds {
 
 type ViewMode = 'split' | 'list' | 'map';
 
+const isMobileDevice = () => window.innerWidth < 768;
+
 export function BrowseListings() {
   const navigate = useNavigate();
   const [displayListings, setDisplayListings] = useState<
@@ -48,7 +53,7 @@ export function BrowseListings() {
   const [agencies, setAgencies] = useState<string[]>([]);
   const [allNeighborhoods, setAllNeighborhoods] = useState<string[]>([]);
   const [showFiltersMobile, setShowFiltersMobile] = useState(false);
-  const [viewMode, setViewMode] = useState<ViewMode>('split');
+  const [viewMode, setViewMode] = useState<ViewMode>(() => isMobileDevice() ? 'list' : 'split');
   const [hoveredListingId, setHoveredListingId] = useState<string | null>(null);
   const [selectedListingId, setSelectedListingId] = useState<string | null>(null);
   const [mapBounds, setMapBounds] = useState<MapBounds | null>(null);
@@ -56,6 +61,8 @@ export function BrowseListings() {
   const [isSearchingArea, setIsSearchingArea] = useState(false);
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [isLocating, setIsLocating] = useState(false);
+  const [searchLocation, setSearchLocation] = useState<LocationResult | null>(null);
+  const [searchBounds, setSearchBounds] = useState<MapBounds | null>(null);
   const listingsContainerRef = useRef<HTMLDivElement>(null);
   const { user } = useAuth();
   const { filters, currentPage, updateFilters, updatePage, markNavigatingToDetail, isReady } = useBrowseFilters();
@@ -383,22 +390,71 @@ export function BrowseListings() {
     loadUserFavorites();
   };
 
-  const renderViewModeToggle = () => (
+  const handleSmartSearch = useCallback((parsed: ParsedSearchQuery, location: LocationResult | null) => {
+    const newFilters: FilterState = { ...filters };
+
+    if (parsed.bedrooms !== undefined) {
+      newFilters.bedrooms = [parsed.bedrooms];
+    }
+
+    if (parsed.minPrice !== undefined) {
+      newFilters.min_price = parsed.minPrice;
+    }
+
+    if (parsed.maxPrice !== undefined) {
+      newFilters.max_price = parsed.maxPrice;
+    }
+
+    if (parsed.propertyType) {
+      newFilters.property_type = parsed.propertyType;
+    }
+
+    if (location) {
+      setSearchLocation(location);
+      if (location.bounds) {
+        setSearchBounds(location.bounds);
+      }
+      if (location.type === 'neighborhood' || location.zipCodes.length > 0) {
+        newFilters.neighborhoods = [location.name];
+      }
+    }
+
+    gaEvent("smart_search", {
+      query: parsed.locationQuery,
+      bedrooms: parsed.bedrooms,
+      min_price: parsed.minPrice,
+      max_price: parsed.maxPrice,
+      property_type: parsed.propertyType,
+      location_name: location?.name,
+      location_type: location?.type,
+    });
+
+    updateFilters(newFilters);
+  }, [filters, updateFilters]);
+
+  const handleSearchClear = useCallback(() => {
+    setSearchLocation(null);
+    setSearchBounds(null);
+    updateFilters({});
+  }, [updateFilters]);
+
+  const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
+
+  const renderViewModeToggle = (showSplit = true) => (
     <div className="flex items-center bg-gray-100 rounded-lg p-1">
-      <button
-        onClick={() => setViewMode('split')}
-        className={`flex items-center px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
-          viewMode === 'split'
-            ? 'bg-white text-brand-800 shadow-sm'
-            : 'text-gray-600 hover:text-gray-900'
-        }`}
-      >
-        <div className="flex items-center gap-0.5 mr-1.5">
-          <div className="w-2 h-3 bg-current rounded-sm opacity-60"></div>
-          <div className="w-3 h-3 bg-current rounded-sm"></div>
-        </div>
-        Split
-      </button>
+      {showSplit && (
+        <button
+          onClick={() => setViewMode('split')}
+          className={`flex items-center px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+            viewMode === 'split'
+              ? 'bg-white text-brand-800 shadow-sm'
+              : 'text-gray-600 hover:text-gray-900'
+          }`}
+        >
+          <LayoutGrid className="w-4 h-4 mr-1.5" />
+          Split
+        </button>
+      )}
       <button
         onClick={() => setViewMode('list')}
         className={`flex items-center px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
@@ -568,8 +624,28 @@ export function BrowseListings() {
           />
         </svg>
       </div>
-      <h3 className="text-lg font-medium text-gray-900 mb-2">No listings found</h3>
-      <p className="text-gray-500">Try adjusting your filters to see more results.</p>
+      {searchLocation ? (
+        <>
+          <h3 className="text-lg font-medium text-gray-900 mb-2">
+            No listings in {searchLocation.name}
+          </h3>
+          <p className="text-gray-500 mb-4">
+            We don't have any listings in this area yet. Try expanding your search or adjusting filters.
+          </p>
+          <button
+            onClick={handleSearchClear}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-brand-700 text-white rounded-lg text-sm font-medium hover:bg-brand-800 transition-colors"
+          >
+            <RotateCcw className="w-4 h-4" />
+            Clear search
+          </button>
+        </>
+      ) : (
+        <>
+          <h3 className="text-lg font-medium text-gray-900 mb-2">No listings found</h3>
+          <p className="text-gray-500">Try adjusting your filters to see more results.</p>
+        </>
+      )}
     </div>
   );
 
@@ -578,55 +654,86 @@ export function BrowseListings() {
       {/* Header with Filters */}
       <div className="bg-white border-b border-gray-200 px-4 py-3 flex-shrink-0">
         <div className="max-w-[1800px] mx-auto">
-          {/* Top row: Title and view toggle */}
-          <div className="flex items-center justify-between mb-3">
+          {/* Top row: Search, Filters, and View Toggle */}
+          <div className="hidden md:flex items-center gap-4 mb-3">
+            <div className="w-80 flex-shrink-0">
+              <SmartSearchBar
+                onSearch={handleSmartSearch}
+                onClear={handleSearchClear}
+                placeholder="Try: Williamsburg 2 bed under 3k"
+              />
+            </div>
+            <div className="flex-1">
+              <ListingFiltersHorizontal
+                filters={filters}
+                onFiltersChange={handleFiltersChange}
+                agencies={agencies}
+                allNeighborhoods={allNeighborhoods}
+              />
+            </div>
+            <div className="flex-shrink-0">
+              {renderViewModeToggle(true)}
+            </div>
+          </div>
+
+          {/* Title and count row - Desktop */}
+          <div className="hidden md:flex items-center justify-between">
             <div>
-              <h1 className="text-xl font-bold text-brand-900">
+              <h1 className="text-lg font-bold text-brand-900">
                 Browse Properties for Rent
               </h1>
               <p className="text-sm text-gray-500">
                 {loading ? "Loading..." : `${totalCount.toLocaleString()} properties available`}
+                {searchLocation && ` in ${searchLocation.name}`}
               </p>
             </div>
-            <div className="hidden md:block">
-              {renderViewModeToggle()}
-            </div>
           </div>
 
-          {/* Filters row - Desktop */}
-          <div className="hidden md:block">
-            <ListingFiltersHorizontal
-              filters={filters}
-              onFiltersChange={handleFiltersChange}
-              agencies={agencies}
-              allNeighborhoods={allNeighborhoods}
+          {/* Mobile Layout */}
+          <div className="md:hidden space-y-3">
+            {/* Search bar */}
+            <SmartSearchBar
+              onSearch={handleSmartSearch}
+              onClear={handleSearchClear}
+              placeholder="Search location, beds, price..."
             />
-          </div>
 
-          {/* Mobile: View toggle and filter button */}
-          <div className="md:hidden flex items-center gap-3">
-            <div className="flex-1">
-              {renderViewModeToggle()}
+            {/* Title and count */}
+            <div>
+              <h1 className="text-lg font-bold text-brand-900">
+                Browse Properties for Rent
+              </h1>
+              <p className="text-sm text-gray-500">
+                {loading ? "Loading..." : `${totalCount.toLocaleString()} available`}
+                {searchLocation && ` in ${searchLocation.name}`}
+              </p>
             </div>
-            <button
-              onClick={() => setShowFiltersMobile(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-gray-100 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-200 transition-colors"
-            >
-              <Filter className="w-4 h-4" />
-              Filters
-              {((filters.bedrooms && filters.bedrooms.length > 0) ||
-                filters.poster_type ||
-                filters.property_type ||
-                filters.min_price ||
-                filters.max_price ||
-                filters.parking_included ||
-                filters.no_fee_only ||
-                (filters.neighborhoods && filters.neighborhoods.length > 0)) && (
-                <span className="bg-brand-600 text-white text-xs px-1.5 py-0.5 rounded-full">
-                  Active
-                </span>
-              )}
-            </button>
+
+            {/* View toggle and filter button */}
+            <div className="flex items-center gap-3">
+              <div className="flex-1">
+                {renderViewModeToggle(false)}
+              </div>
+              <button
+                onClick={() => setShowFiltersMobile(true)}
+                className="flex items-center gap-2 px-4 py-2 bg-gray-100 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-200 transition-colors"
+              >
+                <Filter className="w-4 h-4" />
+                Filters
+                {((filters.bedrooms && filters.bedrooms.length > 0) ||
+                  filters.poster_type ||
+                  filters.property_type ||
+                  filters.min_price ||
+                  filters.max_price ||
+                  filters.parking_included ||
+                  filters.no_fee_only ||
+                  (filters.neighborhoods && filters.neighborhoods.length > 0)) && (
+                  <span className="bg-brand-600 text-white text-xs px-1.5 py-0.5 rounded-full">
+                    Active
+                  </span>
+                )}
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -669,10 +776,10 @@ export function BrowseListings() {
         {viewMode === 'split' ? (
           /* Split View */
           <div className="h-full flex">
-            {/* Listings Panel - Wider for 2 columns */}
+            {/* Listings Panel - Wider for larger cards */}
             <div
               ref={listingsContainerRef}
-              className="w-full lg:w-[520px] xl:w-[620px] h-full overflow-y-auto border-r border-gray-200 bg-white"
+              className="w-full lg:w-[680px] xl:w-[780px] h-full overflow-y-auto border-r border-gray-200 bg-white"
             >
               <div className="p-4">
                 {loading ? (
@@ -739,11 +846,14 @@ export function BrowseListings() {
                 onMarkerClick={handleMarkerClick}
                 onBoundsChange={handleMapBoundsChange}
                 userLocation={userLocation}
+                searchBounds={searchBounds}
+                searchLocationName={searchLocation?.name}
               />
 
               {/* Listing count badge */}
               <div className="absolute bottom-4 left-4 bg-white px-3 py-1.5 rounded-full shadow-md text-sm text-gray-600 border border-gray-200">
                 {allListingsForMap.filter(l => l.latitude && l.longitude).length} listing{allListingsForMap.filter(l => l.latitude && l.longitude).length !== 1 ? "s" : ""} on map
+                {searchLocation && ` in ${searchLocation.name}`}
               </div>
             </div>
           </div>
@@ -858,11 +968,14 @@ export function BrowseListings() {
                 onMarkerClick={handleMarkerClick}
                 onBoundsChange={handleMapBoundsChange}
                 userLocation={userLocation}
+                searchBounds={searchBounds}
+                searchLocationName={searchLocation?.name}
               />
             )}
 
             <div className="absolute bottom-4 left-4 bg-white px-3 py-1.5 rounded-full shadow-md text-sm text-gray-600 border border-gray-200">
               {allListingsForMap.filter(l => l.latitude && l.longitude).length} listing{allListingsForMap.filter(l => l.latitude && l.longitude).length !== 1 ? "s" : ""} on map
+              {searchLocation && ` in ${searchLocation.name}`}
             </div>
           </div>
         )}

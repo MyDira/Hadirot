@@ -25,6 +25,8 @@ interface ListingsMapEnhancedProps {
   onMarkerClick?: (listingId: string) => void;
   onBoundsChange?: (bounds: MapBounds, zoomLevel: number) => void;
   userLocation?: { lat: number; lng: number } | null;
+  searchBounds?: MapBounds | null;
+  searchLocationName?: string;
 }
 
 export function ListingsMapEnhanced({
@@ -35,6 +37,8 @@ export function ListingsMapEnhanced({
   onMarkerClick,
   onBoundsChange,
   userLocation,
+  searchBounds,
+  searchLocationName,
 }: ListingsMapEnhancedProps) {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
@@ -373,6 +377,84 @@ export function ListingsMapEnhanced({
       }
     }
   }, [hoveredListingId, listingsWithCoords, mapLoaded]);
+
+  useEffect(() => {
+    if (!map.current || !mapLoaded) return;
+
+    const sourceId = 'search-area';
+    const layerId = 'search-area-fill';
+    const outlineLayerId = 'search-area-outline';
+
+    if (!searchBounds) {
+      if (map.current.getLayer(layerId)) {
+        map.current.removeLayer(layerId);
+      }
+      if (map.current.getLayer(outlineLayerId)) {
+        map.current.removeLayer(outlineLayerId);
+      }
+      if (map.current.getSource(sourceId)) {
+        map.current.removeSource(sourceId);
+      }
+      return;
+    }
+
+    const coordinates = [
+      [searchBounds.west, searchBounds.north],
+      [searchBounds.east, searchBounds.north],
+      [searchBounds.east, searchBounds.south],
+      [searchBounds.west, searchBounds.south],
+      [searchBounds.west, searchBounds.north],
+    ];
+
+    const geoJsonData: GeoJSON.Feature<GeoJSON.Polygon> = {
+      type: 'Feature',
+      properties: {},
+      geometry: {
+        type: 'Polygon',
+        coordinates: [coordinates],
+      },
+    };
+
+    if (map.current.getSource(sourceId)) {
+      (map.current.getSource(sourceId) as mapboxgl.GeoJSONSource).setData(geoJsonData);
+    } else {
+      map.current.addSource(sourceId, {
+        type: 'geojson',
+        data: geoJsonData,
+      });
+
+      map.current.addLayer({
+        id: layerId,
+        type: 'fill',
+        source: sourceId,
+        paint: {
+          'fill-color': '#1E4A74',
+          'fill-opacity': 0.08,
+        },
+      });
+
+      map.current.addLayer({
+        id: outlineLayerId,
+        type: 'line',
+        source: sourceId,
+        paint: {
+          'line-color': '#1E4A74',
+          'line-width': 2,
+          'line-dasharray': [3, 2],
+          'line-opacity': 0.5,
+        },
+      });
+    }
+
+    const centerLng = (searchBounds.west + searchBounds.east) / 2;
+    const centerLat = (searchBounds.north + searchBounds.south) / 2;
+
+    map.current.flyTo({
+      center: [centerLng, centerLat],
+      zoom: 13,
+      duration: 1200,
+    });
+  }, [searchBounds, mapLoaded]);
 
   if (!MAPBOX_ACCESS_TOKEN) {
     return (

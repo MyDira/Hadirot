@@ -1,0 +1,178 @@
+/*
+  # Seed Location Search Data
+
+  1. Data Population
+    - Brooklyn neighborhoods with coordinates and ZIP codes
+    - Manhattan neighborhoods with coordinates and ZIP codes
+    - Queens neighborhoods with coordinates and ZIP codes
+    - Bronx neighborhoods with coordinates and ZIP codes
+    - Staten Island neighborhoods with coordinates and ZIP codes
+    - All NYC ZIP codes with geographic data
+
+  2. Notes
+    - Aliases include common variations, abbreviations, and misspellings
+    - Bounds are approximate and cover main area of each neighborhood
+    - ZIP codes are associated with their primary neighborhoods
+*/
+
+INSERT INTO location_search_index (name, type, aliases, zip_codes, bounds_north, bounds_south, bounds_east, bounds_west, center_lat, center_lng) VALUES
+-- Brooklyn Neighborhoods
+('Williamsburg', 'neighborhood', ARRAY['Wburg', 'W-burg', 'Wiliamsburg', 'Williamsburgh'], ARRAY['11211', '11206', '11249'], 40.7230, 40.6990, -73.9340, -73.9720, 40.7081, -73.9571),
+('Greenpoint', 'neighborhood', ARRAY['Green Point', 'GP'], ARRAY['11222'], 40.7370, 40.7170, -73.9340, -73.9620, 40.7282, -73.9517),
+('Bushwick', 'neighborhood', ARRAY['Bushwik', 'Bwick'], ARRAY['11206', '11221', '11237'], 40.7040, 40.6780, -73.9060, -73.9380, 40.6944, -73.9213),
+('Bedford-Stuyvesant', 'neighborhood', ARRAY['Bed-Stuy', 'Bed Stuy', 'Bedstuy', 'Bedsty', 'BedStuy', 'Bedford Stuyvesant'], ARRAY['11216', '11221', '11233'], 40.6930, 40.6630, -73.9160, -73.9630, 40.6824, -73.9416),
+('Crown Heights', 'neighborhood', ARRAY['Crown Hts', 'CrownHeights', 'CH'], ARRAY['11213', '11225', '11238'], 40.6780, 40.6530, -73.9230, -73.9680, 40.6694, -73.9422),
+('Park Slope', 'neighborhood', ARRAY['Parkslope', 'Pk Slope', 'PS'], ARRAY['11215', '11217'], 40.6820, 40.6550, -73.9680, -73.9950, 40.6710, -73.9772),
+('Prospect Heights', 'neighborhood', ARRAY['Prospect Hts', 'ProspectHeights', 'PH'], ARRAY['11238'], 40.6830, 40.6690, -73.9560, -73.9770, 40.6775, -73.9667),
+('Flatbush', 'neighborhood', ARRAY['Flat Bush', 'FB'], ARRAY['11226', '11210'], 40.6560, 40.6200, -73.9490, -73.9810, 40.6390, -73.9620),
+('East Flatbush', 'neighborhood', ARRAY['E Flatbush', 'East FB', 'EFlatbush'], ARRAY['11203', '11236'], 40.6560, 40.6280, -73.9180, -73.9580, 40.6417, -73.9365),
+('Sunset Park', 'neighborhood', ARRAY['SunsetPk', 'Sunset Pk'], ARRAY['11220', '11232'], 40.6600, 40.6270, -73.9880, -74.0200, 40.6454, -74.0102),
+('Bay Ridge', 'neighborhood', ARRAY['Bayridge', 'BR'], ARRAY['11209', '11220'], 40.6420, 40.6100, -74.0120, -74.0450, 40.6264, -74.0282),
+('Bensonhurst', 'neighborhood', ARRAY['Benson Hurst', 'BH'], ARRAY['11214', '11204'], 40.6130, 40.5900, -73.9780, -74.0200, 40.6036, -73.9935),
+('Borough Park', 'neighborhood', ARRAY['Boro Park', 'BoroPark', 'BP'], ARRAY['11219', '11218', '11204'], 40.6440, 40.6140, -73.9700, -74.0050, 40.6338, -73.9908),
+('Dyker Heights', 'neighborhood', ARRAY['Dyker Hts', 'DykerHeights', 'DH'], ARRAY['11228'], 40.6270, 40.6050, -74.0050, -74.0350, 40.6183, -74.0175),
+('Sheepshead Bay', 'neighborhood', ARRAY['Sheepshead', 'SheepsheadBay', 'SB'], ARRAY['11235', '11229'], 40.6000, 40.5750, -73.9280, -73.9720, 40.5860, -73.9440),
+('Brighton Beach', 'neighborhood', ARRAY['Brighton', 'BrightonBeach', 'BB'], ARRAY['11235'], 40.5830, 40.5700, -73.9450, -73.9700, 40.5777, -73.9597),
+('Coney Island', 'neighborhood', ARRAY['Coney', 'ConeyIsland', 'CI'], ARRAY['11224'], 40.5800, 40.5660, -73.9700, -74.0100, 40.5749, -73.9859),
+('Gravesend', 'neighborhood', ARRAY['Graves End'], ARRAY['11223', '11229'], 40.6020, 40.5780, -73.9540, -73.9870, 40.5927, -73.9726),
+('Midwood', 'neighborhood', ARRAY['Mid Wood', 'MW'], ARRAY['11230', '11210'], 40.6290, 40.6040, -73.9520, -73.9870, 40.6175, -73.9714),
+('Kensington', 'neighborhood', ARRAY['Ken', 'Kensingtn'], ARRAY['11218'], 40.6470, 40.6290, -73.9670, -73.9950, 40.6387, -73.9791),
+('Prospect Lefferts Gardens', 'neighborhood', ARRAY['PLG', 'Prospect Lefferts', 'Lefferts Gardens', 'Lefferts'], ARRAY['11225', '11226'], 40.6650, 40.6490, -73.9450, -73.9670, 40.6578, -73.9551),
+('DUMBO', 'neighborhood', ARRAY['Dumbo', 'D.U.M.B.O.', 'Down Under Manhattan Bridge Overpass'], ARRAY['11201'], 40.7050, 40.6980, -73.9830, -73.9940, 40.7033, -73.9882),
+('Brooklyn Heights', 'neighborhood', ARRAY['BK Heights', 'Bklyn Heights', 'BH'], ARRAY['11201'], 40.7010, 40.6880, -73.9890, -74.0050, 40.6959, -73.9934),
+('Cobble Hill', 'neighborhood', ARRAY['CobbleHill', 'Cobble'], ARRAY['11201'], 40.6900, 40.6800, -73.9900, -74.0000, 40.6859, -73.9963),
+('Carroll Gardens', 'neighborhood', ARRAY['CarrollGardens', 'Carroll', 'CG'], ARRAY['11231'], 40.6820, 40.6700, -73.9900, -74.0050, 40.6773, -73.9985),
+('Red Hook', 'neighborhood', ARRAY['Redhook', 'RH'], ARRAY['11231'], 40.6790, 40.6620, -74.0000, -74.0250, 40.6722, -74.0111),
+('Gowanus', 'neighborhood', ARRAY['Gownas', 'GW'], ARRAY['11217', '11215'], 40.6820, 40.6700, -73.9780, -73.9920, 40.6760, -73.9854),
+('Fort Greene', 'neighborhood', ARRAY['FortGreene', 'Ft Greene', 'FG'], ARRAY['11205', '11217'], 40.6950, 40.6830, -73.9680, -73.9870, 40.6893, -73.9754),
+('Clinton Hill', 'neighborhood', ARRAY['ClintonHill', 'CH'], ARRAY['11205', '11238'], 40.6930, 40.6800, -73.9550, -73.9750, 40.6865, -73.9658),
+('Canarsie', 'neighborhood', ARRAY['Canarise', 'Canarsy'], ARRAY['11236'], 40.6490, 40.6200, -73.8800, -73.9200, 40.6337, -73.9004),
+('East New York', 'neighborhood', ARRAY['ENY', 'E New York', 'EastNY'], ARRAY['11207', '11208', '11239'], 40.6780, 40.6380, -73.8600, -73.9100, 40.6590, -73.8808),
+('Brownsville', 'neighborhood', ARRAY['BV', 'Browns Ville'], ARRAY['11212'], 40.6680, 40.6440, -73.8940, -73.9230, 40.6571, -73.9075),
+('Ocean Hill', 'neighborhood', ARRAY['OceanHill', 'OH'], ARRAY['11212', '11233'], 40.6790, 40.6620, -73.9060, -73.9280, 40.6705, -73.9150),
+('Cypress Hills', 'neighborhood', ARRAY['CypressHills', 'Cypress'], ARRAY['11208'], 40.6880, 40.6700, -73.8600, -73.8900, 40.6793, -73.8755),
+('Boerum Hill', 'neighborhood', ARRAY['BoerumHill', 'Boerum'], ARRAY['11201', '11217'], 40.6890, 40.6790, -73.9800, -73.9940, 40.6846, -73.9876),
+('Vinegar Hill', 'neighborhood', ARRAY['VinegarHill', 'VH'], ARRAY['11201'], 40.7050, 40.6990, -73.9800, -73.9890, 40.7031, -73.9839),
+('Navy Yard', 'neighborhood', ARRAY['Brooklyn Navy Yard', 'NavyYard', 'BNY'], ARRAY['11205'], 40.7040, 40.6940, -73.9600, -73.9800, 40.6994, -73.9710),
+('Marine Park', 'neighborhood', ARRAY['MarinePark', 'MP'], ARRAY['11234'], 40.6100, 40.5880, -73.9100, -73.9450, 40.5993, -73.9276),
+('Mill Basin', 'neighborhood', ARRAY['MillBasin', 'MB'], ARRAY['11234'], 40.6130, 40.5900, -73.8940, -73.9280, 40.6012, -73.9109),
+('Bergen Beach', 'neighborhood', ARRAY['BergenBeach', 'BB'], ARRAY['11234'], 40.6200, 40.6020, -73.8880, -73.9100, 40.6113, -73.8993),
+('Gerritsen Beach', 'neighborhood', ARRAY['GerritsenBeach', 'GB'], ARRAY['11229'], 40.5920, 40.5780, -73.9180, -73.9400, 40.5853, -73.9293),
+('Manhattan Beach', 'neighborhood', ARRAY['ManhattanBeach', 'Man Beach'], ARRAY['11235'], 40.5850, 40.5720, -73.9280, -73.9500, 40.5782, -73.9398),
+('Ditmas Park', 'neighborhood', ARRAY['DitmasPark', 'Ditmas', 'DP'], ARRAY['11218', '11226'], 40.6420, 40.6270, -73.9580, -73.9780, 40.6352, -73.9679),
+('Fiske Terrace', 'neighborhood', ARRAY['FiskeTerrace', 'Fiske'], ARRAY['11218'], 40.6400, 40.6300, -73.9620, -73.9750, 40.6351, -73.9682),
+('Windsor Terrace', 'neighborhood', ARRAY['WindsorTerrace', 'WT'], ARRAY['11215', '11218'], 40.6570, 40.6430, -73.9720, -73.9900, 40.6508, -73.9806),
+
+-- Manhattan Neighborhoods
+('Manhattan', 'borough', ARRAY['NYC', 'New York City', 'New York', 'NY'], ARRAY[]::text[], 40.8820, 40.6990, -73.9070, -74.0470, 40.7831, -73.9712),
+('Lower East Side', 'neighborhood', ARRAY['LES', 'Lower ES', 'LowerEastSide'], ARRAY['10002', '10003'], 40.7230, 40.7100, -73.9770, -73.9970, 40.7150, -73.9843),
+('East Village', 'neighborhood', ARRAY['EV', 'E Village', 'EastVillage'], ARRAY['10003', '10009'], 40.7340, 40.7210, -73.9780, -73.9970, 40.7265, -73.9838),
+('Greenwich Village', 'neighborhood', ARRAY['The Village', 'West Village', 'GV', 'Gwich Village'], ARRAY['10011', '10012', '10014'], 40.7400, 40.7250, -73.9900, -74.0100, 40.7336, -73.9991),
+('SoHo', 'neighborhood', ARRAY['Soho', 'So Ho', 'South of Houston'], ARRAY['10012', '10013'], 40.7280, 40.7170, -73.9930, -74.0070, 40.7233, -74.0010),
+('Tribeca', 'neighborhood', ARRAY['TriBeCa', 'Triangle Below Canal'], ARRAY['10007', '10013'], 40.7230, 40.7090, -74.0000, -74.0170, 40.7163, -74.0086),
+('Chinatown', 'neighborhood', ARRAY['China Town'], ARRAY['10002', '10013'], 40.7200, 40.7100, -73.9920, -74.0050, 40.7158, -73.9970),
+('Little Italy', 'neighborhood', ARRAY['LittleItaly', 'Little Italy NY'], ARRAY['10012', '10013'], 40.7220, 40.7160, -73.9940, -74.0020, 40.7192, -73.9975),
+('Financial District', 'neighborhood', ARRAY['FiDi', 'Wall Street', 'Downtown Manhattan'], ARRAY['10004', '10005', '10006', '10007', '10038'], 40.7130, 40.6990, -74.0020, -74.0230, 40.7075, -74.0113),
+('Battery Park City', 'neighborhood', ARRAY['BPC', 'BatteryPark', 'Battery Park'], ARRAY['10280', '10282'], 40.7180, 40.7060, -74.0130, -74.0240, 40.7117, -74.0161),
+('Chelsea', 'neighborhood', ARRAY['Chels'], ARRAY['10001', '10011'], 40.7550, 40.7370, -73.9890, -74.0080, 40.7465, -73.9971),
+('Flatiron', 'neighborhood', ARRAY['Flatiron District', 'FlatIron', 'NoMad'], ARRAY['10010', '10016'], 40.7450, 40.7350, -73.9820, -73.9950, 40.7399, -73.9892),
+('Gramercy Park', 'neighborhood', ARRAY['Gramercy', 'GramercyPark', 'GP'], ARRAY['10003', '10010'], 40.7420, 40.7330, -73.9780, -73.9900, 40.7375, -73.9840),
+('Murray Hill', 'neighborhood', ARRAY['MurrayHill', 'MH'], ARRAY['10016', '10017'], 40.7510, 40.7420, -73.9720, -73.9850, 40.7470, -73.9785),
+('Midtown', 'neighborhood', ARRAY['Midtown Manhattan', 'Mid Town', 'Times Square Area'], ARRAY['10017', '10018', '10019', '10036'], 40.7620, 40.7480, -73.9720, -73.9950, 40.7549, -73.9840),
+('Hells Kitchen', 'neighborhood', ARRAY['Hell''s Kitchen', 'HK', 'Clinton', 'Midtown West'], ARRAY['10019', '10036'], 40.7700, 40.7540, -73.9850, -74.0030, 40.7623, -73.9927),
+('Upper West Side', 'neighborhood', ARRAY['UWS', 'Upper WS', 'UpperWestSide'], ARRAY['10023', '10024', '10025'], 40.8020, 40.7700, -73.9590, -73.9850, 40.7870, -73.9754),
+('Upper East Side', 'neighborhood', ARRAY['UES', 'Upper ES', 'UpperEastSide'], ARRAY['10021', '10028', '10065', '10075'], 40.7850, 40.7620, -73.9430, -73.9680, 40.7736, -73.9566),
+('Harlem', 'neighborhood', ARRAY['Central Harlem', 'Harlm'], ARRAY['10026', '10027', '10030', '10037'], 40.8180, 40.8000, -73.9350, -73.9600, 40.8116, -73.9465),
+('East Harlem', 'neighborhood', ARRAY['Spanish Harlem', 'El Barrio', 'E Harlem'], ARRAY['10029', '10035'], 40.8050, 40.7900, -73.9280, -73.9500, 40.7967, -73.9420),
+('Washington Heights', 'neighborhood', ARRAY['Wash Heights', 'WashingtonHeights', 'WaHi'], ARRAY['10032', '10033', '10040'], 40.8520, 40.8280, -73.9200, -73.9500, 40.8400, -73.9350),
+('Inwood', 'neighborhood', ARRAY['InWood'], ARRAY['10034', '10040'], 40.8750, 40.8500, -73.9100, -73.9350, 40.8679, -73.9212),
+('Morningside Heights', 'neighborhood', ARRAY['MorningsideHeights', 'Morningside', 'MH'], ARRAY['10025', '10027'], 40.8120, 40.7980, -73.9520, -73.9700, 40.8070, -73.9622),
+
+-- Queens Neighborhoods
+('Queens', 'borough', ARRAY['Qns'], ARRAY[]::text[], 40.7680, 40.5420, -73.7000, -73.9620, 40.6501, -73.7949),
+('Astoria', 'neighborhood', ARRAY['Astoria Queens', 'Astor'], ARRAY['11102', '11103', '11105', '11106'], 40.7800, 40.7530, -73.8900, -73.9400, 40.7693, -73.9127),
+('Long Island City', 'neighborhood', ARRAY['LIC', 'LongIslandCity', 'LI City'], ARRAY['11101', '11109'], 40.7550, 40.7320, -73.9200, -73.9650, 40.7447, -73.9485),
+('Sunnyside', 'neighborhood', ARRAY['Sunny Side', 'SS'], ARRAY['11104'], 40.7500, 40.7350, -73.9000, -73.9300, 40.7430, -73.9158),
+('Woodside', 'neighborhood', ARRAY['Wood Side', 'WS'], ARRAY['11377'], 40.7600, 40.7400, -73.8800, -73.9150, 40.7489, -73.9046),
+('Jackson Heights', 'neighborhood', ARRAY['JacksonHeights', 'JH'], ARRAY['11372'], 40.7600, 40.7420, -73.8650, -73.8950, 40.7515, -73.8831),
+('Flushing', 'neighborhood', ARRAY['Downtown Flushing', 'Flush'], ARRAY['11354', '11355', '11358'], 40.7750, 40.7500, -73.8050, -73.8450, 40.7654, -73.8318),
+('Forest Hills', 'neighborhood', ARRAY['ForestHills', 'FH'], ARRAY['11375'], 40.7250, 40.7000, -73.8300, -73.8650, 40.7135, -73.8456),
+('Jamaica', 'neighborhood', ARRAY['Jamaica Queens', 'Jam'], ARRAY['11432', '11433', '11434', '11435'], 40.7100, 40.6800, -73.7700, -73.8200, 40.6920, -73.7889),
+('Ridgewood', 'neighborhood', ARRAY['Ridge Wood', 'RW'], ARRAY['11385'], 40.7150, 40.6900, -73.8800, -73.9150, 40.7043, -73.8963),
+('Elmhurst', 'neighborhood', ARRAY['Elm Hurst', 'EH'], ARRAY['11373'], 40.7450, 40.7250, -73.8600, -73.8950, 40.7356, -73.8787),
+('Corona', 'neighborhood', ARRAY['Corona Queens', 'Cor'], ARRAY['11368'], 40.7550, 40.7350, -73.8400, -73.8700, 40.7465, -73.8608),
+('Rego Park', 'neighborhood', ARRAY['RegoPark', 'RP'], ARRAY['11374'], 40.7300, 40.7100, -73.8450, -73.8750, 40.7214, -73.8565),
+('Kew Gardens', 'neighborhood', ARRAY['KewGardens', 'KG'], ARRAY['11415', '11418'], 40.7150, 40.6950, -73.8150, -73.8450, 40.7047, -73.8313),
+('Bayside', 'neighborhood', ARRAY['Bay Side', 'BS'], ARRAY['11359', '11360', '11361'], 40.7800, 40.7550, -73.7500, -73.7950, 40.7681, -73.7713),
+('Whitestone', 'neighborhood', ARRAY['White Stone', 'WS'], ARRAY['11357'], 40.8000, 40.7750, -73.8000, -73.8350, 40.7908, -73.8195),
+('College Point', 'neighborhood', ARRAY['CollegePoint', 'CP'], ARRAY['11356'], 40.7950, 40.7700, -73.8250, -73.8600, 40.7839, -73.8437),
+
+-- Bronx Neighborhoods
+('Bronx', 'borough', ARRAY['The Bronx', 'BX'], ARRAY[]::text[], 40.9180, 40.7850, -73.7650, -73.9330, 40.8448, -73.8648),
+('South Bronx', 'neighborhood', ARRAY['SoBro', 'S Bronx', 'SouthBronx'], ARRAY['10451', '10454', '10455', '10459'], 40.8200, 40.7950, -73.8900, -73.9350, 40.8090, -73.9180),
+('Mott Haven', 'neighborhood', ARRAY['MottHaven', 'MH'], ARRAY['10454', '10455'], 40.8150, 40.7950, -73.9050, -73.9300, 40.8079, -73.9176),
+('Hunts Point', 'neighborhood', ARRAY['HuntsPoint', 'HP'], ARRAY['10474'], 40.8200, 40.8000, -73.8700, -73.8950, 40.8089, -73.8831),
+('Fordham', 'neighborhood', ARRAY['Ford Ham'], ARRAY['10458', '10468'], 40.8700, 40.8500, -73.8800, -73.9150, 40.8596, -73.8984),
+('Riverdale', 'neighborhood', ARRAY['River Dale', 'RD'], ARRAY['10463', '10471'], 40.9100, 40.8750, -73.8850, -73.9250, 40.8921, -73.9059),
+('Kingsbridge', 'neighborhood', ARRAY['Kings Bridge', 'KB'], ARRAY['10463', '10468'], 40.8850, 40.8650, -73.8850, -73.9150, 40.8756, -73.9010),
+('Pelham Bay', 'neighborhood', ARRAY['PelhamBay', 'PB'], ARRAY['10461', '10462', '10464'], 40.8650, 40.8400, -73.8050, -73.8550, 40.8505, -73.8290),
+('Throgs Neck', 'neighborhood', ARRAY['ThrogsNeck', 'TN'], ARRAY['10465'], 40.8350, 40.8100, -73.8000, -73.8350, 40.8224, -73.8193),
+('Morris Park', 'neighborhood', ARRAY['MorrisPark', 'MP'], ARRAY['10461', '10462'], 40.8600, 40.8350, -73.8400, -73.8750, 40.8476, -73.8560),
+('Parkchester', 'neighborhood', ARRAY['Park Chester', 'PC'], ARRAY['10462'], 40.8450, 40.8250, -73.8450, -73.8700, 40.8343, -73.8568),
+
+-- Staten Island Neighborhoods
+('Staten Island', 'borough', ARRAY['SI', 'Richmond'], ARRAY[]::text[], 40.6500, 40.4960, -74.0560, -74.2550, 40.5795, -74.1502),
+('St. George', 'neighborhood', ARRAY['StGeorge', 'Saint George', 'SG'], ARRAY['10301'], 40.6450, 40.6300, -74.0700, -74.0950, 40.6370, -74.0773),
+('Stapleton', 'neighborhood', ARRAY['Staple Ton', 'ST'], ARRAY['10304'], 40.6350, 40.6150, -74.0650, -74.0900, 40.6260, -74.0769),
+('Tompkinsville', 'neighborhood', ARRAY['Tompkins Ville', 'TV'], ARRAY['10304'], 40.6400, 40.6250, -74.0700, -74.0900, 40.6335, -74.0788),
+('Tottenville', 'neighborhood', ARRAY['Totten Ville', 'TTV'], ARRAY['10307'], 40.5150, 40.4960, -74.2200, -74.2550, 40.5044, -74.2380),
+('New Dorp', 'neighborhood', ARRAY['NewDorp', 'ND'], ARRAY['10306'], 40.5800, 40.5550, -74.0950, -74.1350, 40.5674, -74.1169),
+('Midland Beach', 'neighborhood', ARRAY['MidlandBeach', 'MB'], ARRAY['10306'], 40.5700, 40.5500, -74.0800, -74.1050, 40.5605, -74.0921),
+('Great Kills', 'neighborhood', ARRAY['GreatKills', 'GK'], ARRAY['10308'], 40.5600, 40.5350, -74.1250, -74.1650, 40.5469, -74.1431),
+('Port Richmond', 'neighborhood', ARRAY['PortRichmond', 'PR'], ARRAY['10302', '10303'], 40.6400, 40.6200, -74.1200, -74.1500, 40.6318, -74.1374),
+('Willowbrook', 'neighborhood', ARRAY['Willow Brook', 'WB'], ARRAY['10314'], 40.6100, 40.5850, -74.1350, -74.1700, 40.5971, -74.1537),
+
+-- Brooklyn ZIP Codes
+('11201', 'zip', ARRAY[]::text[], ARRAY[]::text[], 40.6960, 40.6820, -73.9800, -74.0050, 40.6937, -73.9897),
+('11203', 'zip', ARRAY[]::text[], ARRAY[]::text[], 40.6560, 40.6280, -73.9180, -73.9500, 40.6493, -73.9340),
+('11204', 'zip', ARRAY[]::text[], ARRAY[]::text[], 40.6250, 40.5950, -73.9700, -74.0100, 40.6186, -73.9846),
+('11205', 'zip', ARRAY[]::text[], ARRAY[]::text[], 40.6980, 40.6820, -73.9550, -73.9780, 40.6927, -73.9662),
+('11206', 'zip', ARRAY[]::text[], ARRAY[]::text[], 40.7100, 40.6900, -73.9280, -73.9580, 40.7014, -73.9424),
+('11207', 'zip', ARRAY[]::text[], ARRAY[]::text[], 40.6800, 40.6500, -73.8700, -73.9050, 40.6651, -73.8938),
+('11208', 'zip', ARRAY[]::text[], ARRAY[]::text[], 40.6850, 40.6500, -73.8550, -73.8900, 40.6698, -73.8715),
+('11209', 'zip', ARRAY[]::text[], ARRAY[]::text[], 40.6400, 40.6100, -74.0100, -74.0450, 40.6262, -74.0285),
+('11210', 'zip', ARRAY[]::text[], ARRAY[]::text[], 40.6350, 40.6050, -73.9400, -73.9700, 40.6247, -73.9544),
+('11211', 'zip', ARRAY[]::text[], ARRAY[]::text[], 40.7200, 40.7000, -73.9400, -73.9700, 40.7103, -73.9565),
+('11212', 'zip', ARRAY[]::text[], ARRAY[]::text[], 40.6700, 40.6400, -73.8950, -73.9250, 40.6604, -73.9097),
+('11213', 'zip', ARRAY[]::text[], ARRAY[]::text[], 40.6750, 40.6550, -73.9250, -73.9550, 40.6673, -73.9358),
+('11214', 'zip', ARRAY[]::text[], ARRAY[]::text[], 40.6100, 40.5800, -73.9750, -74.0100, 40.5980, -73.9953),
+('11215', 'zip', ARRAY[]::text[], ARRAY[]::text[], 40.6750, 40.6500, -73.9700, -73.9950, 40.6635, -73.9858),
+('11216', 'zip', ARRAY[]::text[], ARRAY[]::text[], 40.6850, 40.6650, -73.9350, -73.9580, 40.6772, -73.9490),
+('11217', 'zip', ARRAY[]::text[], ARRAY[]::text[], 40.6850, 40.6680, -73.9700, -73.9920, 40.6785, -73.9798),
+('11218', 'zip', ARRAY[]::text[], ARRAY[]::text[], 40.6500, 40.6250, -73.9650, -73.9950, 40.6393, -73.9778),
+('11219', 'zip', ARRAY[]::text[], ARRAY[]::text[], 40.6400, 40.6150, -73.9750, -74.0000, 40.6280, -73.9956),
+('11220', 'zip', ARRAY[]::text[], ARRAY[]::text[], 40.6550, 40.6300, -74.0000, -74.0300, 40.6412, -74.0159),
+('11221', 'zip', ARRAY[]::text[], ARRAY[]::text[], 40.6950, 40.6700, -73.9100, -73.9450, 40.6865, -73.9268),
+('11222', 'zip', ARRAY[]::text[], ARRAY[]::text[], 40.7350, 40.7150, -73.9350, -73.9600, 40.7275, -73.9485),
+('11223', 'zip', ARRAY[]::text[], ARRAY[]::text[], 40.6000, 40.5750, -73.9500, -73.9850, 40.5914, -73.9719),
+('11224', 'zip', ARRAY[]::text[], ARRAY[]::text[], 40.5850, 40.5650, -73.9700, -74.0100, 40.5766, -73.9881),
+('11225', 'zip', ARRAY[]::text[], ARRAY[]::text[], 40.6700, 40.6500, -73.9450, -73.9700, 40.6612, -73.9563),
+('11226', 'zip', ARRAY[]::text[], ARRAY[]::text[], 40.6550, 40.6250, -73.9500, -73.9800, 40.6443, -73.9576),
+('11228', 'zip', ARRAY[]::text[], ARRAY[]::text[], 40.6300, 40.6050, -74.0050, -74.0350, 40.6177, -74.0162),
+('11229', 'zip', ARRAY[]::text[], ARRAY[]::text[], 40.6050, 40.5750, -73.9200, -73.9600, 40.5985, -73.9398),
+('11230', 'zip', ARRAY[]::text[], ARRAY[]::text[], 40.6300, 40.6050, -73.9550, -73.9800, 40.6192, -73.9650),
+('11231', 'zip', ARRAY[]::text[], ARRAY[]::text[], 40.6850, 40.6650, -73.9950, -74.0200, 40.6766, -74.0020),
+('11232', 'zip', ARRAY[]::text[], ARRAY[]::text[], 40.6650, 40.6400, -73.9950, -74.0200, 40.6547, -74.0049),
+('11233', 'zip', ARRAY[]::text[], ARRAY[]::text[], 40.6850, 40.6600, -73.9100, -73.9350, 40.6734, -73.9221),
+('11234', 'zip', ARRAY[]::text[], ARRAY[]::text[], 40.6200, 40.5900, -73.8900, -73.9350, 40.6059, -73.9129),
+('11235', 'zip', ARRAY[]::text[], ARRAY[]::text[], 40.5900, 40.5700, -73.9300, -73.9700, 40.5794, -73.9489),
+('11236', 'zip', ARRAY[]::text[], ARRAY[]::text[], 40.6550, 40.6250, -73.8800, -73.9200, 40.6402, -73.9008),
+('11237', 'zip', ARRAY[]::text[], ARRAY[]::text[], 40.7100, 40.6900, -73.9050, -73.9350, 40.7006, -73.9195),
+('11238', 'zip', ARRAY[]::text[], ARRAY[]::text[], 40.6850, 40.6650, -73.9500, -73.9750, 40.6776, -73.9638),
+('11239', 'zip', ARRAY[]::text[], ARRAY[]::text[], 40.6550, 40.6350, -73.8550, -73.8800, 40.6454, -73.8701),
+('11249', 'zip', ARRAY[]::text[], ARRAY[]::text[], 40.7200, 40.6980, -73.9550, -73.9750, 40.7098, -73.9639),
+
+-- Brooklyn borough entry
+('Brooklyn', 'borough', ARRAY['BK', 'Bklyn', 'Kings County'], ARRAY[]::text[], 40.7400, 40.5660, -73.8500, -74.0450, 40.6782, -73.9442)
+
+ON CONFLICT DO NOTHING;
