@@ -269,7 +269,6 @@ export function SmartSearchBar({
     <div ref={containerRef} className={`relative ${className}`}>
       <form onSubmit={handleSubmit} className="relative">
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
           <input
             ref={inputRef}
             type="text"
@@ -278,20 +277,22 @@ export function SmartSearchBar({
             onFocus={() => inputValue.length >= 2 && setShowSuggestions(true)}
             onKeyDown={handleKeyDown}
             placeholder={placeholder}
-            className="w-full pl-10 pr-10 py-2.5 bg-white border border-gray-300 rounded-lg text-sm
+            className="w-full pl-4 pr-20 py-2.5 bg-white border border-gray-300 rounded-lg text-sm
                      focus:ring-2 focus:ring-brand-500 focus:border-brand-500
                      placeholder-gray-400 transition-all"
           />
-          {(inputValue || activeFilters.length > 0) && (
-            <button
-              type="button"
-              onClick={handleClear}
-              className="absolute right-3 top-1/2 -translate-y-1/2 p-0.5 text-gray-400
-                       hover:text-gray-600 transition-colors"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          )}
+          <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-2">
+            {(inputValue || activeFilters.length > 0) && (
+              <button
+                type="button"
+                onClick={handleClear}
+                className="p-0.5 text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
+            <Search className="w-5 h-5 text-gray-400" />
+          </div>
         </div>
       </form>
 

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { ChevronLeft, ChevronRight, Filter, X, List, Map as MapIcon, Locate, RotateCcw, LayoutGrid } from "lucide-react";
+import { ChevronLeft, ChevronRight, Filter, X, List, Map as MapIcon, Locate, RotateCcw, LayoutGrid, ArrowUpDown } from "lucide-react";
 import { ListingCard } from "../components/listings/ListingCard";
 import { ListingFiltersHorizontal } from "../components/listings/ListingFiltersHorizontal";
 import { ListingsMapEnhanced } from "../components/listings/ListingsMapEnhanced";
@@ -61,6 +61,8 @@ export function BrowseSales() {
   const [isLocating, setIsLocating] = useState(false);
   const [searchLocation, setSearchLocation] = useState<LocationResult | null>(null);
   const [searchBounds, setSearchBounds] = useState<MapBounds | null>(null);
+  const [showSortDropdown, setShowSortDropdown] = useState(false);
+  const sortDropdownRef = useRef<HTMLDivElement>(null);
   const listingsContainerRef = useRef<HTMLDivElement>(null);
   const { user } = useAuth();
   const { filters, currentPage, updateFilters, updatePage, markNavigatingToDetail, isReady } = useBrowseFilters('sales');
@@ -438,6 +440,38 @@ export function BrowseSales() {
     updateFilters({});
   }, [updateFilters]);
 
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (sortDropdownRef.current && !sortDropdownRef.current.contains(event.target as Node)) {
+        setShowSortDropdown(false);
+      }
+    };
+
+    if (showSortDropdown) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [showSortDropdown]);
+
+  const handleSortChange = (sortValue: SortOption) => {
+    updateFilters({ ...filters, sort: sortValue });
+    setShowSortDropdown(false);
+  };
+
+  const getSortLabel = () => {
+    const labels: Record<string, string> = {
+      newest: 'Newest',
+      oldest: 'Oldest',
+      price_asc: 'Price: Low-High',
+      price_desc: 'Price: High-Low',
+      bedrooms_asc: 'Beds: Low-High',
+      bedrooms_desc: 'Beds: High-Low',
+      bathrooms_asc: 'Baths: Low-High',
+      bathrooms_desc: 'Baths: High-Low',
+    };
+    return labels[filters.sort || 'newest'] || 'Sort';
+  };
+
   const renderViewModeToggle = (showSplit = true) => (
     <div className="flex items-center bg-gray-100 rounded-lg p-1">
       {showSplit && (
@@ -681,6 +715,40 @@ export function BrowseSales() {
                 {loading ? "Loading..." : `${totalCount.toLocaleString()} properties available`}
                 {searchLocation && ` in ${searchLocation.name}`}
               </p>
+            </div>
+
+            {/* Sort Control */}
+            <div className="relative" ref={sortDropdownRef}>
+              <button
+                onClick={() => setShowSortDropdown(!showSortDropdown)}
+                className="flex items-center gap-2 text-gray-700 hover:text-gray-900 transition-colors"
+              >
+                <ArrowUpDown className="w-4 h-4" />
+                <span className="text-sm font-medium">Sort</span>
+              </button>
+
+              {showSortDropdown && (
+                <div className="absolute right-0 top-full mt-2 bg-white rounded-lg shadow-xl border border-gray-200 z-50 min-w-[200px] py-1">
+                  {[
+                    { value: 'newest', label: 'Newest First' },
+                    { value: 'oldest', label: 'Oldest First' },
+                    { value: 'price_asc', label: 'Price: Low to High' },
+                    { value: 'price_desc', label: 'Price: High to Low' },
+                    { value: 'bedrooms_asc', label: 'Bedrooms: Low to High' },
+                    { value: 'bedrooms_desc', label: 'Bedrooms: High to Low' },
+                  ].map((option) => (
+                    <button
+                      key={option.value}
+                      onClick={() => handleSortChange(option.value as SortOption)}
+                      className={`w-full px-4 py-2 text-left text-sm hover:bg-gray-50 transition-colors ${
+                        (filters.sort || 'newest') === option.value ? 'text-brand-700 font-medium bg-brand-50' : 'text-gray-700'
+                      }`}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
 

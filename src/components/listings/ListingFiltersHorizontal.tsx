@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
-import { ChevronDown, X, ArrowUpDown } from "lucide-react";
+import { ChevronDown, X, ArrowUpDown, SlidersHorizontal } from "lucide-react";
 import { listingsService } from "../../services/listings";
+import { MoreFiltersModal } from "./MoreFiltersModal";
 
 export type SortOption = 'newest' | 'oldest' | 'price_asc' | 'price_desc' | 'bedrooms_asc' | 'bedrooms_desc' | 'bathrooms_asc' | 'bathrooms_desc';
 
@@ -42,12 +43,12 @@ function FilterDropdown({ label, value, isActive, isOpen, onToggle, children }: 
     <div className="relative" ref={dropdownRef}>
       <button
         onClick={onToggle}
-        className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+        className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-all border ${
           isActive
-            ? 'bg-brand-700 text-white'
+            ? 'bg-green-50 text-green-700 border-green-200'
             : isOpen
-              ? 'bg-gray-200 text-gray-900'
-              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              ? 'bg-gray-100 text-gray-900 border-gray-300'
+              : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
         }`}
       >
         <span className="whitespace-nowrap">{value || label}</span>
@@ -76,6 +77,7 @@ export function ListingFiltersHorizontal({
   const [loadingBedrooms, setLoadingBedrooms] = useState(false);
   const [tempPriceMin, setTempPriceMin] = useState<string>('');
   const [tempPriceMax, setTempPriceMax] = useState<string>('');
+  const [showMoreFilters, setShowMoreFilters] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -510,8 +512,16 @@ export function ListingFiltersHorizontal({
     );
   }
 
+  const hasOtherActiveFilters = !!(
+    filters.property_type ||
+    (filters.neighborhoods && filters.neighborhoods.length > 0) ||
+    filters.poster_type ||
+    filters.parking_included ||
+    filters.no_fee_only
+  );
+
   return (
-    <div ref={containerRef} className="space-y-3">
+    <div ref={containerRef}>
       {/* Filter Pills Row */}
       <div className="flex items-center gap-2 flex-wrap">
         {/* Bedrooms */}
@@ -599,230 +609,20 @@ export function ListingFiltersHorizontal({
           </div>
         </FilterDropdown>
 
-        {/* Property Type */}
-        <FilterDropdown
-          label="Type"
-          value={getPropertyTypeLabel()}
-          isActive={!!filters.property_type}
-          isOpen={openDropdown === 'type'}
-          onToggle={() => toggleDropdown('type')}
-        >
-          <div className="py-1">
-            <button
-              onClick={() => {
-                handleFilterChange('property_type', undefined);
-                setOpenDropdown(null);
-              }}
-              className={`w-full px-4 py-2 text-left text-sm hover:bg-gray-50 ${!filters.property_type ? 'text-brand-700 font-medium' : 'text-gray-700'}`}
-            >
-              All Types
-            </button>
-            {listingType === 'sale' ? (
-              <>
-                {['single_family', 'two_family', 'three_family', 'four_family', 'condo', 'co_op'].map((type) => {
-                  const labels: Record<string, string> = {
-                    single_family: 'Single-Family',
-                    two_family: 'Two-Family',
-                    three_family: 'Three-Family',
-                    four_family: 'Four-Family',
-                    condo: 'Condo',
-                    co_op: 'Co-op',
-                  };
-                  return (
-                    <button
-                      key={type}
-                      onClick={() => {
-                        handleFilterChange('property_type', type);
-                        setOpenDropdown(null);
-                      }}
-                      className={`w-full px-4 py-2 text-left text-sm hover:bg-gray-50 ${filters.property_type === type ? 'text-brand-700 font-medium' : 'text-gray-700'}`}
-                    >
-                      {labels[type]}
-                    </button>
-                  );
-                })}
-              </>
-            ) : (
-              <>
-                {['apartment_building', 'apartment_house', 'duplex', 'full_house', 'basement'].map((type) => {
-                  const labels: Record<string, string> = {
-                    apartment_building: 'Apartment in Building',
-                    apartment_house: 'Apartment in House',
-                    duplex: 'Duplex',
-                    full_house: 'Full House',
-                    basement: 'Basement',
-                  };
-                  return (
-                    <button
-                      key={type}
-                      onClick={() => {
-                        handleFilterChange('property_type', type);
-                        setOpenDropdown(null);
-                      }}
-                      className={`w-full px-4 py-2 text-left text-sm hover:bg-gray-50 ${filters.property_type === type ? 'text-brand-700 font-medium' : 'text-gray-700'}`}
-                    >
-                      {labels[type]}
-                    </button>
-                  );
-                })}
-              </>
-            )}
-          </div>
-        </FilterDropdown>
-
-        {/* Neighborhoods */}
-        <FilterDropdown
-          label="Neighborhoods"
-          value={getNeighborhoodsLabel()}
-          isActive={!!filters.neighborhoods && filters.neighborhoods.length > 0}
-          isOpen={openDropdown === 'neighborhoods'}
-          onToggle={() => toggleDropdown('neighborhoods')}
-        >
-          <div className="p-3 w-72">
-            <div className="text-sm font-semibold text-gray-900 mb-2">Neighborhoods</div>
-            <div className="max-h-64 overflow-y-auto space-y-1">
-              {allNeighborhoods.map((neighborhood) => {
-                const isSelected = filters.neighborhoods?.includes(neighborhood) || false;
-                return (
-                  <label
-                    key={neighborhood}
-                    className="flex items-center px-2 py-2 hover:bg-gray-50 rounded cursor-pointer"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={isSelected}
-                      onChange={() => {
-                        const current = filters.neighborhoods || [];
-                        const newNeighborhoods = isSelected
-                          ? current.filter(n => n !== neighborhood)
-                          : [...current, neighborhood];
-                        handleFilterChange('neighborhoods', newNeighborhoods.length > 0 ? newNeighborhoods : undefined);
-                      }}
-                      className="h-4 w-4 text-brand-700 focus:ring-brand-500 border-gray-300 rounded"
-                    />
-                    <span className="ml-2 text-sm text-gray-700">{neighborhood}</span>
-                  </label>
-                );
-              })}
-            </div>
-          </div>
-        </FilterDropdown>
-
-        {/* Listed By */}
-        <FilterDropdown
-          label="Listed By"
-          value={getPosterLabel()}
-          isActive={!!filters.poster_type}
-          isOpen={openDropdown === 'poster'}
-          onToggle={() => toggleDropdown('poster')}
-        >
-          <div className="py-1 w-56">
-            <button
-              onClick={() => {
-                onFiltersChange({ ...filters, poster_type: undefined, agency_name: undefined });
-                setOpenDropdown(null);
-              }}
-              className={`w-full px-4 py-2 text-left text-sm hover:bg-gray-50 ${!filters.poster_type ? 'text-brand-700 font-medium' : 'text-gray-700'}`}
-            >
-              All Posters
-            </button>
-            <button
-              onClick={() => {
-                onFiltersChange({ ...filters, poster_type: 'owner', agency_name: undefined });
-                setOpenDropdown(null);
-              }}
-              className={`w-full px-4 py-2 text-left text-sm hover:bg-gray-50 ${filters.poster_type === 'owner' ? 'text-brand-700 font-medium' : 'text-gray-700'}`}
-            >
-              By Owner
-            </button>
-            <button
-              onClick={() => {
-                onFiltersChange({ ...filters, poster_type: 'agent', agency_name: undefined });
-                setOpenDropdown(null);
-              }}
-              className={`w-full px-4 py-2 text-left text-sm hover:bg-gray-50 ${filters.poster_type === 'agent' && !filters.agency_name ? 'text-brand-700 font-medium' : 'text-gray-700'}`}
-            >
-              All Agencies
-            </button>
-            {agencies.length > 0 && (
-              <>
-                <div className="border-t border-gray-100 my-1"></div>
-                <div className="px-4 py-1 text-xs font-medium text-gray-500 uppercase">Specific Agency</div>
-                {agencies.map((agency) => (
-                  <button
-                    key={agency}
-                    onClick={() => {
-                      onFiltersChange({ ...filters, poster_type: 'agent', agency_name: agency });
-                      setOpenDropdown(null);
-                    }}
-                    className={`w-full px-4 py-2 text-left text-sm hover:bg-gray-50 ${filters.agency_name === agency ? 'text-brand-700 font-medium' : 'text-gray-700'}`}
-                  >
-                    {agency}
-                  </button>
-                ))}
-              </>
-            )}
-          </div>
-        </FilterDropdown>
-
-        {/* Quick Filters */}
+        {/* More Filters Button */}
         <button
-          onClick={() => handleFilterChange('parking_included', !filters.parking_included)}
-          className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
-            filters.parking_included
-              ? 'bg-brand-700 text-white'
-              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+          onClick={() => setShowMoreFilters(true)}
+          className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-all border ${
+            hasOtherActiveFilters
+              ? 'bg-green-50 text-green-700 border-green-200'
+              : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
           }`}
         >
-          Parking
+          <SlidersHorizontal className="w-4 h-4" />
+          {hasOtherActiveFilters && (
+            <span className="flex h-2 w-2 rounded-full bg-green-600"></span>
+          )}
         </button>
-
-        {listingType === 'rental' && (
-          <button
-            onClick={() => handleFilterChange('no_fee_only', !filters.no_fee_only)}
-            className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
-              filters.no_fee_only
-                ? 'bg-brand-700 text-white'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-            }`}
-          >
-            No Fee
-          </button>
-        )}
-
-        {/* Sort */}
-        <FilterDropdown
-          label="Sort"
-          value={getSortLabel()}
-          isActive={!!filters.sort && filters.sort !== 'newest'}
-          isOpen={openDropdown === 'sort'}
-          onToggle={() => toggleDropdown('sort')}
-        >
-          <div className="py-1">
-            {[
-              { value: 'newest', label: 'Newest First' },
-              { value: 'oldest', label: 'Oldest First' },
-              { value: 'price_asc', label: 'Price: Low to High' },
-              { value: 'price_desc', label: 'Price: High to Low' },
-              { value: 'bedrooms_asc', label: 'Bedrooms: Low to High' },
-              { value: 'bedrooms_desc', label: 'Bedrooms: High to Low' },
-            ].map((option) => (
-              <button
-                key={option.value}
-                onClick={() => {
-                  handleFilterChange('sort', option.value);
-                  setOpenDropdown(null);
-                }}
-                className={`w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2 ${
-                  (filters.sort || 'newest') === option.value ? 'text-brand-700 font-medium' : 'text-gray-700'
-                }`}
-              >
-                <ArrowUpDown className="w-3.5 h-3.5" />
-                {option.label}
-              </button>
-            ))}
-          </div>
-        </FilterDropdown>
 
         {/* Clear All */}
         {hasActiveFilters && (
@@ -835,25 +635,16 @@ export function ListingFiltersHorizontal({
         )}
       </div>
 
-      {/* Active Filter Tags */}
-      {activeFilterTags.length > 0 && (
-        <div className="flex items-center gap-2 flex-wrap">
-          {activeFilterTags.map((tag) => (
-            <span
-              key={tag.key}
-              className="inline-flex items-center gap-1 px-2.5 py-1 bg-brand-100 text-brand-800 rounded-full text-sm font-medium"
-            >
-              {tag.label}
-              <button
-                onClick={tag.onRemove}
-                className="hover:bg-brand-200 rounded-full p-0.5 transition-colors"
-              >
-                <X className="w-3 h-3" />
-              </button>
-            </span>
-          ))}
-        </div>
-      )}
+      {/* More Filters Modal */}
+      <MoreFiltersModal
+        isOpen={showMoreFilters}
+        onClose={() => setShowMoreFilters(false)}
+        filters={filters}
+        onFiltersChange={onFiltersChange}
+        agencies={agencies}
+        allNeighborhoods={allNeighborhoods}
+        listingType={listingType}
+      />
     </div>
   );
 }

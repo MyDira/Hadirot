@@ -267,7 +267,7 @@ export function Layout({ children }: LayoutProps) {
                     }`}
                   >
                     <Search className="w-4 h-4 mr-2" />
-                    Rentals
+                    Rent
                   </Link>
                   <Link
                     to="/browse-sales"
@@ -276,7 +276,7 @@ export function Layout({ children }: LayoutProps) {
                     }`}
                   >
                     <Search className="w-4 h-4 mr-2" />
-                    Sales
+                    Buy
                   </Link>
                 </>
               ) : (
@@ -471,7 +471,7 @@ export function Layout({ children }: LayoutProps) {
                         }`}
                       >
                         <Search className="w-5 h-5 mr-3" />
-                        Browse Rentals
+                        Rent
                       </Link>
                       <Link
                         to="/browse-sales"
@@ -483,7 +483,7 @@ export function Layout({ children }: LayoutProps) {
                         }`}
                       >
                         <Search className="w-5 h-5 mr-3" />
-                        Browse Sales
+                        Buy
                       </Link>
                     </>
                   ) : (
