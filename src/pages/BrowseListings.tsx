@@ -710,52 +710,6 @@ export function BrowseListings() {
             </div>
           </div>
 
-          {/* Title and count row - Desktop */}
-          <div className="hidden md:flex items-center justify-between">
-            <div>
-              <h1 className="text-lg font-bold text-brand-900">
-                Browse Properties for Rent
-              </h1>
-              <p className="text-sm text-gray-500">
-                {loading ? "Loading..." : `${totalCount.toLocaleString()} properties available`}
-                {searchLocation && ` in ${searchLocation.name}`}
-              </p>
-            </div>
-
-            {/* Sort Control */}
-            <div className="relative" ref={sortDropdownRef}>
-              <button
-                onClick={() => setShowSortDropdown(!showSortDropdown)}
-                className="flex items-center gap-2 text-gray-700 hover:text-gray-900 transition-colors"
-              >
-                <ArrowUpDown className="w-4 h-4" />
-                <span className="text-sm font-medium">Sort</span>
-              </button>
-
-              {showSortDropdown && (
-                <div className="absolute right-0 top-full mt-2 bg-white rounded-lg shadow-xl border border-gray-200 z-50 min-w-[200px] py-1">
-                  {[
-                    { value: 'newest', label: 'Newest First' },
-                    { value: 'oldest', label: 'Oldest First' },
-                    { value: 'price_asc', label: 'Price: Low to High' },
-                    { value: 'price_desc', label: 'Price: High to Low' },
-                    { value: 'bedrooms_asc', label: 'Bedrooms: Low to High' },
-                    { value: 'bedrooms_desc', label: 'Bedrooms: High to Low' },
-                  ].map((option) => (
-                    <button
-                      key={option.value}
-                      onClick={() => handleSortChange(option.value as SortOption)}
-                      className={`w-full px-4 py-2 text-left text-sm hover:bg-gray-50 transition-colors ${
-                        (filters.sort || 'newest') === option.value ? 'text-brand-700 font-medium bg-brand-50' : 'text-gray-700'
-                      }`}
-                    >
-                      {option.label}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
 
           {/* Mobile Layout */}
           <div className="md:hidden space-y-3">
@@ -850,6 +804,52 @@ export function BrowseListings() {
               className="w-full lg:w-[680px] xl:w-[780px] h-full overflow-y-auto border-r border-gray-200 bg-white"
             >
               <div className="p-4">
+                {/* Title and Sort - Scrolls with content */}
+                <div className="hidden md:flex items-center justify-between mb-4 pb-4 border-b border-gray-200">
+                  <div>
+                    <h1 className="text-lg font-bold text-brand-900">
+                      {searchLocation ? `Rentals in ${searchLocation.name}` : 'Rentals'}
+                    </h1>
+                    <p className="text-sm text-gray-500">
+                      {loading ? "Loading..." : `${totalCount.toLocaleString()} properties available`}
+                    </p>
+                  </div>
+
+                  {/* Sort Control */}
+                  <div className="relative" ref={sortDropdownRef}>
+                    <button
+                      onClick={() => setShowSortDropdown(!showSortDropdown)}
+                      className="flex items-center gap-2 text-gray-700 hover:text-gray-900 transition-colors"
+                    >
+                      <ArrowUpDown className="w-4 h-4" />
+                      <span className="text-sm font-medium">Sort</span>
+                    </button>
+
+                    {showSortDropdown && (
+                      <div className="absolute right-0 top-full mt-2 bg-white rounded-lg shadow-xl border border-gray-200 z-50 min-w-[200px] py-1">
+                        {[
+                          { value: 'newest', label: 'Newest First' },
+                          { value: 'oldest', label: 'Oldest First' },
+                          { value: 'price_asc', label: 'Price: Low to High' },
+                          { value: 'price_desc', label: 'Price: High to Low' },
+                          { value: 'bedrooms_asc', label: 'Bedrooms: Low to High' },
+                          { value: 'bedrooms_desc', label: 'Bedrooms: High to Low' },
+                        ].map((option) => (
+                          <button
+                            key={option.value}
+                            onClick={() => handleSortChange(option.value as SortOption)}
+                            className={`w-full px-4 py-2 text-left text-sm hover:bg-gray-50 transition-colors ${
+                              (filters.sort || 'newest') === option.value ? 'text-brand-700 font-medium bg-brand-50' : 'text-gray-700'
+                            }`}
+                          >
+                            {option.label}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
                 {loading ? (
                   renderLoadingState()
                 ) : displayListings.length === 0 ? (
