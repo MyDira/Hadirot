@@ -1,10 +1,11 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { ChevronLeft, ChevronRight, Filter, X, List, Map as MapIcon, Locate, RotateCcw, LayoutGrid, ArrowUpDown, Pencil, Trash2 } from "lucide-react";
 import { ListingCard } from "../components/listings/ListingCard";
 import { ListingFiltersHorizontal } from "../components/listings/ListingFiltersHorizontal";
 import { ListingsMapEnhanced, DrawnPolygon } from "../components/listings/ListingsMapEnhanced";
 import { SmartSearchBar } from "../components/listings/SmartSearchBar";
+import { MobileListingCarousel } from "../components/listings/MobileListingCarousel";
 import { Listing } from "../config/supabase";
 import { listingsService } from "../services/listings";
 import { useAuth } from "@/hooks/useAuth";
@@ -14,6 +15,7 @@ import { useListingImpressions } from "../hooks/useListingImpressions";
 import { useBrowseFilters } from "../hooks/useBrowseFilters";
 import { ParsedSearchQuery } from "../utils/searchQueryParser";
 import { LocationResult, fetchZipCodePolygon, PolygonGeometry } from "../services/locationSearch";
+import { filterListingsByPolygon, getAdjacentZipCodes } from "../utils/geoUtils";
 
 export type SortOption = 'newest' | 'oldest' | 'price_asc' | 'price_desc' | 'bedrooms_asc' | 'bedrooms_desc' | 'bathrooms_asc' | 'bathrooms_desc';
 
@@ -22,6 +24,8 @@ interface FilterState {
   poster_type?: string;
   agency_name?: string;
   property_type?: string;
+  property_types?: string[];
+  building_types?: string[];
   min_price?: number;
   max_price?: number;
   parking_included?: boolean;
@@ -67,6 +71,8 @@ export function BrowseListings() {
   const [isDrawingMode, setIsDrawingMode] = useState(false);
   const [drawnPolygon, setDrawnPolygon] = useState<DrawnPolygon | null>(null);
   const [showSortDropdown, setShowSortDropdown] = useState(false);
+  const [nearbyListings, setNearbyListings] = useState<Listing[]>([]);
+  const [showingNearby, setShowingNearby] = useState(false);
   const sortDropdownRef = useRef<HTMLDivElement>(null);
   const listingsContainerRef = useRef<HTMLDivElement>(null);
   const { user } = useAuth();
@@ -90,14 +96,7 @@ export function BrowseListings() {
   }, [user]);
 
   useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      const names = await listingsService.getActiveAgencies();
-      if (!cancelled) setAgencies(names);
-    })();
-    return () => {
-      cancelled = true;
-    };
+    loadAgencies();
   }, []);
 
   const loadUserFavorites = async () => {
@@ -260,10 +259,19 @@ export function BrowseListings() {
 
   const loadNeighborhoods = async () => {
     try {
-      const neighborhoods = await listingsService.getUniqueNeighborhoods();
+      const neighborhoods = await listingsService.getActiveRentalNeighborhoods();
       setAllNeighborhoods(neighborhoods);
     } catch (error) {
       console.error("Error loading neighborhoods:", error);
+    }
+  };
+
+  const loadAgencies = async () => {
+    try {
+      const names = await listingsService.getActiveRentalAgencies();
+      setAgencies(names);
+    } catch (error) {
+      console.error("Error loading agencies:", error);
     }
   };
 
@@ -455,6 +463,10 @@ export function BrowseListings() {
     setSearchPolygon(null);
     setIsDrawingMode(false);
     setDrawnPolygon(null);
+    setNearbyListings([]);
+    setShowingNearby(false);
+    setMapBounds(null);
+    setShowSearchAreaButton(false);
     updateFilters({});
   }, [updateFilters]);
 
@@ -997,9 +1009,39 @@ export function BrowseListings() {
         ) : viewMode === 'list' ? (
           /* List Only View */
           <div className="h-full overflow-y-auto">
-            <div className="max-w-7xl mx-auto px-4 py-6">
+            {/* Mobile Carousel View */}
+            <div className="md:hidden py-4">
               {loading ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                <div className="px-6">
+                  <div className="bg-white rounded-lg shadow-sm animate-pulse">
+                    <div className="h-48 bg-gray-200 rounded-t-lg"></div>
+                    <div className="p-4">
+                      <div className="h-4 bg-gray-200 rounded mb-2"></div>
+                      <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
+                      <div className="h-4 bg-gray-200 rounded w-1/2"></div>
+                    </div>
+                  </div>
+                </div>
+              ) : displayListings.length === 0 ? (
+                <div className="px-6">{renderEmptyState()}</div>
+              ) : (
+                <MobileListingCarousel
+                  listings={displayListings}
+                  favoriteIds={new Set(userFavorites)}
+                  onFavoriteChange={handleFavoriteChange}
+                  onCardClick={(listing) => {
+                    const idx = displayListings.findIndex(l => l.id === listing.id);
+                    handleCardClick(listing, idx);
+                    markNavigatingToDetail();
+                  }}
+                />
+              )}
+            </div>
+
+            {/* Desktop Grid View */}
+            <div className="hidden md:block max-w-7xl mx-auto px-4 py-6">
+              {loading ? (
+                <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                   {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
                     <div key={i} className="bg-white rounded-lg shadow-sm animate-pulse">
                       <div className="h-48 bg-gray-200 rounded-t-lg"></div>
@@ -1015,7 +1057,7 @@ export function BrowseListings() {
                 renderEmptyState()
               ) : (
                 <>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                  <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                     {displayListings.map((listing, idx) => (
                       <div
                         key={listing.key}

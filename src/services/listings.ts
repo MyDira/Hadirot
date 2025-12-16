@@ -7,6 +7,8 @@ export type SortOption = 'newest' | 'oldest' | 'price_asc' | 'price_desc' | 'bed
 interface GetListingsFilters {
   bedrooms?: number[];
   property_type?: string;
+  property_types?: string[];
+  building_types?: string[];
   min_price?: number;
   max_price?: number;
   parking_included?: boolean;
@@ -1215,6 +1217,104 @@ async getUniqueNeighborhoods(): Promise<string[]> {
   return this.getActiveNeighborhoods();
 },
 
+async getActiveSalesNeighborhoods(): Promise<string[]> {
+  const { data, error } = await supabase
+    .from('listings')
+    .select('neighborhood')
+    .eq('is_active', true)
+    .eq('approved', true)
+    .eq('listing_type', 'sale');
+
+  if (error) {
+    console.error('Error fetching sales neighborhoods:', error);
+    return [];
+  }
+
+  const neighborhoods = [...new Set(
+    (data || [])
+      .map((item) => (item.neighborhood || '').trim())
+      .filter(
+        (n) =>
+          n &&
+          n !== '-' &&
+          n.replace(/\s/g, '') !== '' &&
+          n.length > 0,
+      ),
+  )].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+
+  return neighborhoods;
+},
+
+async getActiveSalesAgencies(): Promise<string[]> {
+  const { data, error } = await supabase
+    .from('listings')
+    .select('owner:profiles!inner(role,agency)')
+    .eq('is_active', true)
+    .eq('approved', true)
+    .eq('listing_type', 'sale')
+    .eq('owner.role', 'agent');
+
+  if (error) {
+    console.error('[svc] getActiveSalesAgencies error', error);
+    return [];
+  }
+
+  const names = (data ?? [])
+    .map((r: any) => r?.owner?.agency)
+    .filter((x: any) => typeof x === 'string' && x.trim().length > 0);
+
+  return Array.from(new Set(names)).sort((a, b) => a.localeCompare(b));
+},
+
+async getActiveRentalNeighborhoods(): Promise<string[]> {
+  const { data, error } = await supabase
+    .from('listings')
+    .select('neighborhood')
+    .eq('is_active', true)
+    .eq('approved', true)
+    .or('listing_type.eq.rental,listing_type.is.null');
+
+  if (error) {
+    console.error('Error fetching rental neighborhoods:', error);
+    return [];
+  }
+
+  const neighborhoods = [...new Set(
+    (data || [])
+      .map((item) => (item.neighborhood || '').trim())
+      .filter(
+        (n) =>
+          n &&
+          n !== '-' &&
+          n.replace(/\s/g, '') !== '' &&
+          n.length > 0,
+      ),
+  )].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+
+  return neighborhoods;
+},
+
+async getActiveRentalAgencies(): Promise<string[]> {
+  const { data, error } = await supabase
+    .from('listings')
+    .select('owner:profiles!inner(role,agency)')
+    .eq('is_active', true)
+    .eq('approved', true)
+    .or('listing_type.eq.rental,listing_type.is.null')
+    .eq('owner.role', 'agent');
+
+  if (error) {
+    console.error('[svc] getActiveRentalAgencies error', error);
+    return [];
+  }
+
+  const names = (data ?? [])
+    .map((r: any) => r?.owner?.agency)
+    .filter((x: any) => typeof x === 'string' && x.trim().length > 0);
+
+  return Array.from(new Set(names)).sort((a, b) => a.localeCompare(b));
+},
+
   async getGlobalFeaturedCount(): Promise<number> {
     const { count, error } = await supabase
       .from('listings')
@@ -1318,8 +1418,13 @@ async getUniqueNeighborhoods(): Promise<string[]> {
     if (filters.bedrooms !== undefined && filters.bedrooms.length > 0) {
       query = query.in('bedrooms', filters.bedrooms);
     }
-    if (filters.property_type) {
+    if (filters.property_types && filters.property_types.length > 0) {
+      query = query.in('property_type', filters.property_types);
+    } else if (filters.property_type) {
       query = query.eq('property_type', filters.property_type);
+    }
+    if (filters.building_types && filters.building_types.length > 0) {
+      query = query.in('building_type', filters.building_types);
     }
     if (filters.min_price) {
       query = query.gte('asking_price', filters.min_price);
