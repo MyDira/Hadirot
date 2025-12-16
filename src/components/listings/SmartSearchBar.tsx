@@ -268,19 +268,34 @@ export function SmartSearchBar({
   return (
     <div ref={containerRef} className={`relative ${className}`}>
       <form onSubmit={handleSubmit} className="relative">
-        <div className="relative">
-          <input
-            ref={inputRef}
-            type="text"
-            value={inputValue}
-            onChange={handleInputChange}
-            onFocus={() => inputValue.length >= 2 && setShowSuggestions(true)}
-            onKeyDown={handleKeyDown}
-            placeholder={placeholder}
-            className="w-full pl-4 pr-20 py-2.5 bg-white border border-gray-300 rounded-lg text-sm
-                     focus:ring-2 focus:ring-brand-500 focus:border-brand-500
-                     placeholder-gray-400 transition-all"
-          />
+        <div className="relative min-h-[42px] bg-white border border-gray-300 rounded-lg focus-within:ring-2 focus-within:ring-brand-500 focus-within:border-brand-500 transition-all">
+          <div className="flex flex-wrap items-center gap-1.5 pl-3 pr-20 py-1.5">
+            {activeFilters.map((filter) => (
+              <span
+                key={filter.key}
+                className="inline-flex items-center gap-1 px-2.5 py-1 bg-green-100 text-green-800 rounded-full text-sm font-medium"
+              >
+                {filter.label}
+                <button
+                  type="button"
+                  onClick={() => removeFilter(filter.key)}
+                  className="hover:bg-green-200 rounded-full p-0.5 transition-colors"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            ))}
+            <input
+              ref={inputRef}
+              type="text"
+              value={inputValue}
+              onChange={handleInputChange}
+              onFocus={() => inputValue.length >= 2 && setShowSuggestions(true)}
+              onKeyDown={handleKeyDown}
+              placeholder={placeholder}
+              className="flex-1 min-w-[120px] outline-none bg-transparent text-sm placeholder-gray-400 py-1"
+            />
+          </div>
           <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-2">
             {(inputValue || activeFilters.length > 0) && (
               <button
@@ -348,26 +363,6 @@ export function SmartSearchBar({
             <div className="w-4 h-4 border-2 border-brand-600 border-t-transparent rounded-full animate-spin"></div>
             Searching...
           </div>
-        </div>
-      )}
-
-      {activeFilters.length > 0 && (
-        <div className="flex flex-wrap gap-2 mt-2">
-          {activeFilters.map((filter) => (
-            <span
-              key={filter.key}
-              className="inline-flex items-center gap-1 px-2.5 py-1 bg-brand-100
-                       text-brand-800 rounded-full text-sm font-medium"
-            >
-              {filter.label}
-              <button
-                onClick={() => removeFilter(filter.key)}
-                className="hover:bg-brand-200 rounded-full p-0.5 transition-colors"
-              >
-                <X className="w-3 h-3" />
-              </button>
-            </span>
-          ))}
         </div>
       )}
     </div>
