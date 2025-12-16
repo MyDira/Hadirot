@@ -8,6 +8,9 @@ if (!supabaseUrl || !supabaseAnonKey) {
   throw new Error('Missing Supabase environment variables');
 }
 
+export const SUPABASE_URL = supabaseUrl;
+export const SUPABASE_ANON_KEY = supabaseAnonKey;
+
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   functions: supabaseFunctionDomain && supabaseFunctionDomain.trim() ? {
     url: `https://${supabaseFunctionDomain}`

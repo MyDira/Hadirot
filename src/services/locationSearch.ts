@@ -1,4 +1,9 @@
-import { supabase } from "../config/supabase";
+import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from "../config/supabase";
+
+export interface PolygonGeometry {
+  type: 'Polygon' | 'MultiPolygon';
+  coordinates: number[][][] | number[][][][];
+}
 
 export interface LocationResult {
   id: string;
@@ -17,6 +22,7 @@ export interface LocationResult {
     lng: number;
   };
   matchScore: number;
+  polygon?: PolygonGeometry | null;
 }
 
 function levenshteinDistance(a: string, b: string): number {
@@ -243,4 +249,50 @@ export async function getLocationByZipCode(zipCode: string): Promise<LocationRes
     console.error('Get location by zip code error:', err);
     return null;
   }
+}
+
+export async function fetchZipCodePolygon(zipCode: string): Promise<PolygonGeometry | null> {
+  if (!zipCode || !/^\d{5}$/.test(zipCode)) {
+    return null;
+  }
+
+  try {
+    const response = await fetch(
+      `${SUPABASE_URL}/functions/v1/get-zipcode-polygon?zip=${zipCode}`,
+      {
+        headers: {
+          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+          'Content-Type': 'application/json',
+        },
+      }
+    );
+
+    if (!response.ok) {
+      console.error('Failed to fetch zip code polygon:', response.status);
+      return null;
+    }
+
+    const data = await response.json();
+
+    if (data.polygon) {
+      return data.polygon as PolygonGeometry;
+    }
+
+    return null;
+  } catch (err) {
+    console.error('Error fetching zip code polygon:', err);
+    return null;
+  }
+}
+
+export async function getLocationWithPolygon(location: LocationResult): Promise<LocationResult> {
+  if (location.type !== 'zip') {
+    return location;
+  }
+
+  const polygon = await fetchZipCodePolygon(location.name);
+  return {
+    ...location,
+    polygon,
+  };
 }

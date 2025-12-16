@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { ChevronLeft, ChevronRight, Filter, X, List, Map as MapIcon, Locate, RotateCcw, LayoutGrid, ArrowUpDown } from "lucide-react";
+import { ChevronLeft, ChevronRight, Filter, X, List, Map as MapIcon, Locate, RotateCcw, LayoutGrid, ArrowUpDown, Pencil, Trash2 } from "lucide-react";
 import { ListingCard } from "../components/listings/ListingCard";
 import { ListingFiltersHorizontal } from "../components/listings/ListingFiltersHorizontal";
-import { ListingsMapEnhanced } from "../components/listings/ListingsMapEnhanced";
+import { ListingsMapEnhanced, DrawnPolygon } from "../components/listings/ListingsMapEnhanced";
 import { SmartSearchBar } from "../components/listings/SmartSearchBar";
 import { Listing } from "../config/supabase";
 import { listingsService } from "../services/listings";
@@ -13,7 +13,7 @@ import { trackFilterApply } from "../lib/analytics";
 import { useListingImpressions } from "../hooks/useListingImpressions";
 import { useBrowseFilters } from "../hooks/useBrowseFilters";
 import { ParsedSearchQuery } from "../utils/searchQueryParser";
-import { LocationResult } from "../services/locationSearch";
+import { LocationResult, fetchZipCodePolygon, PolygonGeometry } from "../services/locationSearch";
 
 export type SortOption = 'newest' | 'oldest' | 'price_asc' | 'price_desc' | 'bedrooms_asc' | 'bedrooms_desc' | 'bathrooms_asc' | 'bathrooms_desc';
 
@@ -63,6 +63,9 @@ export function BrowseListings() {
   const [isLocating, setIsLocating] = useState(false);
   const [searchLocation, setSearchLocation] = useState<LocationResult | null>(null);
   const [searchBounds, setSearchBounds] = useState<MapBounds | null>(null);
+  const [searchPolygon, setSearchPolygon] = useState<PolygonGeometry | null>(null);
+  const [isDrawingMode, setIsDrawingMode] = useState(false);
+  const [drawnPolygon, setDrawnPolygon] = useState<DrawnPolygon | null>(null);
   const [showSortDropdown, setShowSortDropdown] = useState(false);
   const sortDropdownRef = useRef<HTMLDivElement>(null);
   const listingsContainerRef = useRef<HTMLDivElement>(null);
@@ -392,7 +395,7 @@ export function BrowseListings() {
     loadUserFavorites();
   };
 
-  const handleSmartSearch = useCallback((parsed: ParsedSearchQuery, location: LocationResult | null) => {
+  const handleSmartSearch = useCallback(async (parsed: ParsedSearchQuery, location: LocationResult | null) => {
     const newFilters: FilterState = { ...filters };
 
     if (parsed.bedrooms !== undefined) {
@@ -411,6 +414,9 @@ export function BrowseListings() {
       newFilters.property_type = parsed.propertyType;
     }
 
+    setIsDrawingMode(false);
+    setDrawnPolygon(null);
+
     if (location) {
       setSearchLocation(location);
       if (location.bounds) {
@@ -419,6 +425,15 @@ export function BrowseListings() {
       if (location.type === 'neighborhood' || location.zipCodes.length > 0) {
         newFilters.neighborhoods = [location.name];
       }
+
+      if (location.type === 'zip') {
+        const polygon = await fetchZipCodePolygon(location.name);
+        setSearchPolygon(polygon);
+      } else {
+        setSearchPolygon(null);
+      }
+    } else {
+      setSearchPolygon(null);
     }
 
     gaEvent("smart_search", {
@@ -437,8 +452,36 @@ export function BrowseListings() {
   const handleSearchClear = useCallback(() => {
     setSearchLocation(null);
     setSearchBounds(null);
+    setSearchPolygon(null);
+    setIsDrawingMode(false);
+    setDrawnPolygon(null);
     updateFilters({});
   }, [updateFilters]);
+
+  const handleDrawComplete = useCallback((polygon: DrawnPolygon) => {
+    setDrawnPolygon(polygon);
+    setIsDrawingMode(false);
+    setSearchLocation(null);
+    setSearchBounds(null);
+    setSearchPolygon(null);
+  }, []);
+
+  const handleClearDrawing = useCallback(() => {
+    setDrawnPolygon(null);
+    setIsDrawingMode(false);
+  }, []);
+
+  const handleToggleDrawingMode = useCallback(() => {
+    if (isDrawingMode) {
+      setIsDrawingMode(false);
+    } else {
+      setIsDrawingMode(true);
+      setSearchLocation(null);
+      setSearchBounds(null);
+      setSearchPolygon(null);
+      setDrawnPolygon(null);
+    }
+  }, [isDrawingMode]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -886,6 +929,26 @@ export function BrowseListings() {
 
               <div className="absolute top-4 right-4 z-10 flex flex-col gap-2">
                 <button
+                  onClick={handleToggleDrawingMode}
+                  className={`flex items-center justify-center w-10 h-10 rounded-lg shadow-lg transition-colors border ${
+                    isDrawingMode
+                      ? 'bg-brand-600 text-white border-brand-600'
+                      : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
+                  }`}
+                  title={isDrawingMode ? "Cancel drawing" : "Draw search area"}
+                >
+                  <Pencil className="w-5 h-5" />
+                </button>
+                {drawnPolygon && !isDrawingMode && (
+                  <button
+                    onClick={handleClearDrawing}
+                    className="flex items-center justify-center w-10 h-10 bg-white rounded-lg shadow-lg hover:bg-red-50 transition-colors border border-gray-200"
+                    title="Clear drawn area"
+                  >
+                    <Trash2 className="w-5 h-5 text-red-500" />
+                  </button>
+                )}
+                <button
                   onClick={handleGetUserLocation}
                   disabled={isLocating}
                   className="flex items-center justify-center w-10 h-10 bg-white rounded-lg shadow-lg hover:bg-gray-50 transition-colors border border-gray-200 disabled:opacity-50"
@@ -915,13 +978,19 @@ export function BrowseListings() {
                 onBoundsChange={handleMapBoundsChange}
                 userLocation={userLocation}
                 searchBounds={searchBounds}
+                searchPolygon={searchPolygon}
                 searchLocationName={searchLocation?.name}
+                isDrawingMode={isDrawingMode}
+                drawnPolygon={drawnPolygon}
+                onDrawComplete={handleDrawComplete}
+                onDrawClear={handleClearDrawing}
               />
 
               {/* Listing count badge */}
               <div className="absolute bottom-4 left-4 bg-white px-3 py-1.5 rounded-full shadow-md text-sm text-gray-600 border border-gray-200">
                 {allListingsForMap.filter(l => l.latitude && l.longitude).length} listing{allListingsForMap.filter(l => l.latitude && l.longitude).length !== 1 ? "s" : ""} on map
                 {searchLocation && ` in ${searchLocation.name}`}
+                {drawnPolygon && " in custom area"}
               </div>
             </div>
           </div>
@@ -1000,6 +1069,26 @@ export function BrowseListings() {
 
             <div className="absolute top-4 right-4 z-10 flex flex-col gap-2">
               <button
+                onClick={handleToggleDrawingMode}
+                className={`flex items-center justify-center w-10 h-10 rounded-lg shadow-lg transition-colors border ${
+                  isDrawingMode
+                    ? 'bg-brand-600 text-white border-brand-600'
+                    : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
+                }`}
+                title={isDrawingMode ? "Cancel drawing" : "Draw search area"}
+              >
+                <Pencil className="w-5 h-5" />
+              </button>
+              {drawnPolygon && !isDrawingMode && (
+                <button
+                  onClick={handleClearDrawing}
+                  className="flex items-center justify-center w-10 h-10 bg-white rounded-lg shadow-lg hover:bg-red-50 transition-colors border border-gray-200"
+                  title="Clear drawn area"
+                >
+                  <Trash2 className="w-5 h-5 text-red-500" />
+                </button>
+              )}
+              <button
                 onClick={handleGetUserLocation}
                 disabled={isLocating}
                 className="flex items-center justify-center w-10 h-10 bg-white rounded-lg shadow-lg hover:bg-gray-50 transition-colors border border-gray-200 disabled:opacity-50"
@@ -1037,13 +1126,19 @@ export function BrowseListings() {
                 onBoundsChange={handleMapBoundsChange}
                 userLocation={userLocation}
                 searchBounds={searchBounds}
+                searchPolygon={searchPolygon}
                 searchLocationName={searchLocation?.name}
+                isDrawingMode={isDrawingMode}
+                drawnPolygon={drawnPolygon}
+                onDrawComplete={handleDrawComplete}
+                onDrawClear={handleClearDrawing}
               />
             )}
 
             <div className="absolute bottom-4 left-4 bg-white px-3 py-1.5 rounded-full shadow-md text-sm text-gray-600 border border-gray-200">
               {allListingsForMap.filter(l => l.latitude && l.longitude).length} listing{allListingsForMap.filter(l => l.latitude && l.longitude).length !== 1 ? "s" : ""} on map
               {searchLocation && ` in ${searchLocation.name}`}
+              {drawnPolygon && " in custom area"}
             </div>
           </div>
         )}
