@@ -51,6 +51,7 @@ import { agencyNameToSlug } from "../utils/agency";
 import { ReportRentedButton } from "../components/listing/ReportRentedButton";
 import { ImageZoomModal } from "../components/listing/ImageZoomModal";
 import { ListingContactForm } from "../components/listing/ListingContactForm";
+import { AdminListingBanner } from "../components/listing/AdminListingBanner";
 
 const SCROLL_THRESHOLDS = [25, 50, 75, 100] as const;
 
@@ -512,6 +513,15 @@ export function ListingDetail() {
     }
   };
 
+  const handleUnpublish = () => {
+    // Update local state to reflect unpublished status
+    setListing((prev) => prev ? { ...prev, is_active: false } : null);
+    // Navigate to dashboard after a short delay
+    setTimeout(() => {
+      navigate('/dashboard');
+    }, 1500);
+  };
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       {/* Back Button */}
@@ -523,6 +533,15 @@ export function ListingDetail() {
         <ArrowLeft className="w-4 h-4 mr-2" />
         Back to Browse
       </Link>
+
+      {/* Admin Banner */}
+      {user && (
+        <AdminListingBanner
+          listing={listing}
+          userId={user.id}
+          onUnpublish={handleUnpublish}
+        />
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-10">
         {/* LEFT: Images - Desktop only */}
