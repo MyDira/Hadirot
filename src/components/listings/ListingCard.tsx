@@ -85,6 +85,12 @@ export function ListingCard({
   };
 
   const getPosterLabel = () => {
+    if (listing.admin_custom_agency_name) {
+      return listing.admin_custom_agency_name;
+    }
+    if (listing.admin_listing_type_display === 'owner') {
+      return "Owner";
+    }
     if (listing.owner?.role === "agent" && listing.owner?.agency) {
       return capitalizeName(listing.owner?.agency || "");
     }

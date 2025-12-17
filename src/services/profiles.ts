@@ -142,5 +142,28 @@ export const profilesService = {
       console.error('Error deleting profile:', error);
       throw error;
     }
+  },
+
+  async searchProfiles(query: string, limit: number = 10): Promise<Profile[]> {
+    if (!query || query.trim().length < 2) {
+      return [];
+    }
+
+    const searchTerm = query.trim().toLowerCase();
+
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('id, full_name, role, phone, agency, is_admin, created_at, updated_at, is_banned, email, can_feature_listings, max_featured_listings_per_user, can_manage_agency')
+      .or(`full_name.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%,agency.ilike.%${searchTerm}%`)
+      .eq('is_banned', false)
+      .order('full_name', { ascending: true })
+      .limit(limit);
+
+    if (error) {
+      console.error('Error searching profiles:', error);
+      throw error;
+    }
+
+    return data || [];
   }
 };

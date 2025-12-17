@@ -15,6 +15,8 @@ import { generateVideoThumbnail } from "../utils/videoUtils";
 import { MediaUploader, MediaFile } from "../components/shared/MediaUploader";
 import { SalesListingFields } from "../components/listing/SalesListingFields";
 import { LocationPicker } from "../components/listing/LocationPicker";
+import { UserSearchSelect } from "../components/admin/UserSearchSelect";
+import type { Profile } from "../config/supabase";
 import { gaEvent } from "@/lib/ga";
 import {
   ensurePostAttempt,
@@ -128,6 +130,9 @@ export function PostListing() {
   const [permissionRequestMessage, setPermissionRequestMessage] = useState('');
   const [requestingPermission, setRequestingPermission] = useState(false);
   const [priceError, setPriceError] = useState<string | null>(null);
+  const [adminAssignUser, setAdminAssignUser] = useState<Profile | null>(null);
+  const [adminCustomAgencyName, setAdminCustomAgencyName] = useState('');
+  const [adminListingTypeDisplay, setAdminListingTypeDisplay] = useState<'agent' | 'owner' | ''>('');
   const [formData, setFormData] = useState<ListingFormData>({
     listing_type: "",
     title: "",
@@ -1031,6 +1036,9 @@ export function PostListing() {
         ? Math.round(formData.building_length_ft * formData.building_width_ft)
         : formData.building_size_sqft;
 
+      // Determine the user_id for the listing
+      const listingUserId = (profile?.is_admin && adminAssignUser) ? adminAssignUser.id : user.id;
+
       // Create the listing first
       const payload = {
         ...formData,
@@ -1038,8 +1046,14 @@ export function PostListing() {
         neighborhood,
         location: finalLocation,
         full_address: fullAddress,
-        user_id: user.id,
+        user_id: listingUserId,
         agency_id: ownedAgencyId || null,
+        admin_custom_agency_name: (profile?.is_admin && !adminAssignUser && adminCustomAgencyName.trim())
+          ? adminCustomAgencyName.trim()
+          : null,
+        admin_listing_type_display: (profile?.is_admin && !adminAssignUser && adminListingTypeDisplay)
+          ? adminListingTypeDisplay
+          : null,
         is_active: false,
         approved: false,
         // For rental listings: use price field
@@ -1211,13 +1225,36 @@ export function PostListing() {
 
       navigate(`/listing/${listing.id}`);
 
-      // Send email notification to user
+      // Send email notifications
       try {
         const siteUrl = window.location.origin;
+
+        // If admin assigned listing to another user, send notification to that user
+        if (profile?.is_admin && adminAssignUser && adminAssignUser.email) {
+          const assignedHtml = renderBrandEmail({
+            title: "New Listing Assigned to You",
+            intro: `A listing has been created and assigned to your account by an administrator.`,
+            bodyHtml: `<p><strong>Listing:</strong> ${formData.title}</p><p>You can view and manage this listing from your dashboard.</p>`,
+            ctaLabel: "View Listing",
+            ctaHref: `${siteUrl}/listing/${listing.id}`,
+          });
+
+          await emailService.sendEmail({
+            to: adminAssignUser.email,
+            subject: `Listing Assigned: ${formData.title} - HaDirot`,
+            html: assignedHtml,
+          });
+
+          console.log("✅ Listing assignment email sent to user:", adminAssignUser.email);
+        }
+
+        // Send confirmation email to the current user (admin or regular user)
         const userName = profile?.full_name || "A user";
         const html = renderBrandEmail({
           title: "New Listing Posted",
-          intro: `${userName} has posted a new listing.`,
+          intro: adminAssignUser
+            ? `You have created a listing and assigned it to ${adminAssignUser.full_name}.`
+            : `${userName} has posted a new listing.`,
           bodyHtml: `<p>View the listing here:</p>`,
           ctaLabel: "View Listing",
           ctaHref: `${siteUrl}/listing/${listing.id}`,
@@ -1433,6 +1470,70 @@ export function PostListing() {
             )}
           </div>
         </div>
+
+        {/* Admin Listing Assignment - Only visible to admins */}
+        {profile?.is_admin && (
+          <div className="bg-amber-50 rounded-lg shadow-sm border-2 border-amber-400 p-6">
+            <h2 className="text-xl font-semibold text-amber-800 mb-2">
+              Admin: Listing Assignment
+            </h2>
+            <p className="text-sm text-amber-700 mb-4">
+              As an admin, you can assign this listing to another user or customize the display settings.
+            </p>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Assign to User (optional)
+                </label>
+                <UserSearchSelect
+                  selectedUser={adminAssignUser}
+                  onSelect={setAdminAssignUser}
+                  placeholder="Search users by name, email, or agency..."
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Leave empty to keep the listing under your admin account with custom display settings below.
+                </p>
+              </div>
+
+              {!adminAssignUser && (
+                <>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Custom Agency/Poster Name
+                    </label>
+                    <input
+                      type="text"
+                      value={adminCustomAgencyName}
+                      onChange={(e) => setAdminCustomAgencyName(e.target.value.slice(0, 100))}
+                      maxLength={100}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-brand-700 focus:border-brand-700"
+                      placeholder="Enter agency or poster name to display"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      This name will appear on listing cards. Max 100 characters.
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Listing Type Display
+                    </label>
+                    <select
+                      value={adminListingTypeDisplay}
+                      onChange={(e) => setAdminListingTypeDisplay(e.target.value as 'agent' | 'owner' | '')}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-brand-700 focus:border-brand-700"
+                    >
+                      <option value="">Select display type</option>
+                      <option value="agent">Real Estate Agent</option>
+                      <option value="owner">By Owner</option>
+                    </select>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Basic Information */}
         <div className={`bg-white rounded-lg shadow-sm border border-gray-200 p-6 relative transition-all ${

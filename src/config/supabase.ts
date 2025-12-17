@@ -129,6 +129,8 @@ export interface Listing {
   full_address?: string | null;
   latitude?: number | null;
   longitude?: number | null;
+  admin_custom_agency_name?: string | null;
+  admin_listing_type_display?: 'agent' | 'owner' | null;
   owner?: Profile;
   listing_images?: ListingImage[];
   is_favorited?: boolean;

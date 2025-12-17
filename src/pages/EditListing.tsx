@@ -8,7 +8,10 @@ import { emailService } from "../services/email";
 import { generateVideoThumbnail } from "../utils/videoUtils";
 import { MediaUploader, MediaFile } from "../components/shared/MediaUploader";
 import { LocationPicker } from "../components/listing/LocationPicker";
+import { UserSearchSelect } from "../components/admin/UserSearchSelect";
+import { profilesService } from "../services/profiles";
 import {
+  Profile,
   PropertyType,
   ParkingType,
   HeatType,
@@ -115,6 +118,9 @@ export function EditListing() {
   const [neighborhoodSelectValue, setNeighborhoodSelectValue] = useState<string>("");
   const [showCustomNeighborhood, setShowCustomNeighborhood] = useState(false);
   const [customNeighborhoodInput, setCustomNeighborhoodInput] = useState("");
+  const [adminAssignUser, setAdminAssignUser] = useState<Profile | null>(null);
+  const [adminCustomAgencyName, setAdminCustomAgencyName] = useState('');
+  const [adminListingTypeDisplay, setAdminListingTypeDisplay] = useState<'agent' | 'owner' | ''>('');
   const [formData, setFormData] = useState<ListingFormData>({
     title: "",
     description: "",
@@ -185,14 +191,32 @@ export function EditListing() {
     }
   }, [id]);
 
-  // Ownership check
+  // Ownership check - allow admins to bypass
   useEffect(() => {
-    if (!authLoading && !loading && user && listing) {
-      if (user.id !== listing.user_id) {
+    if (!authLoading && !loading && user && listing && profile) {
+      const isOwner = user.id === listing.user_id;
+      const isAdmin = profile.is_admin;
+      if (!isOwner && !isAdmin) {
         navigate("/dashboard");
       }
     }
-  }, [authLoading, loading, user, listing, navigate]);
+  }, [authLoading, loading, user, listing, profile, navigate]);
+
+  // Load admin fields when editing as admin
+  useEffect(() => {
+    if (profile?.is_admin && listing) {
+      setAdminCustomAgencyName(listing.admin_custom_agency_name || '');
+      setAdminListingTypeDisplay(listing.admin_listing_type_display || '');
+      // Load the assigned user if it's different from current user
+      if (listing.user_id && listing.user_id !== user?.id) {
+        profilesService.getProfile(listing.user_id).then((assignedProfile) => {
+          if (assignedProfile) {
+            setAdminAssignUser(assignedProfile);
+          }
+        });
+      }
+    }
+  }, [profile?.is_admin, listing, user?.id]);
 
   const loadListing = async () => {
     if (!id) return;
@@ -743,6 +767,11 @@ export function EditListing() {
         });
       }
 
+      // Handle admin assignment - determine new user_id if changed
+      const previousUserId = listing?.user_id;
+      const newUserId = (profile?.is_admin && adminAssignUser) ? adminAssignUser.id : previousUserId;
+      const userIdChanged = previousUserId !== newUserId;
+
       // Prepare update payload
       const updatePayload: any = {
         title: formData.title,
@@ -767,6 +796,18 @@ export function EditListing() {
         latitude: formData.latitude,
         longitude: formData.longitude,
       };
+
+      // Add admin fields if user is admin
+      if (profile?.is_admin) {
+        if (adminAssignUser) {
+          updatePayload.user_id = adminAssignUser.id;
+          updatePayload.admin_custom_agency_name = null;
+          updatePayload.admin_listing_type_display = null;
+        } else {
+          updatePayload.admin_custom_agency_name = adminCustomAgencyName.trim() || null;
+          updatePayload.admin_listing_type_display = adminListingTypeDisplay || null;
+        }
+      }
 
       if (isSaleListing) {
         const calculatedLotSize = calculateLotSize();
@@ -918,8 +959,30 @@ export function EditListing() {
 
       navigate(`/listing/${id}`);
 
-      // Send email notification to user
+      // Send email notifications
       try {
+        // If admin reassigned listing to another user, notify them
+        if (profile?.is_admin && userIdChanged && adminAssignUser?.email) {
+          const { renderBrandEmail, emailService: es } = await import('../services/email');
+          const siteUrl = window.location.origin;
+          const assignedHtml = renderBrandEmail({
+            title: "Listing Assigned to You",
+            intro: `A listing has been assigned to your account by an administrator.`,
+            bodyHtml: `<p><strong>Listing:</strong> ${formData.title}</p><p>You can view and manage this listing from your dashboard.</p>`,
+            ctaLabel: "View Listing",
+            ctaHref: `${siteUrl}/listing/${id}`,
+          });
+
+          await es.sendEmail({
+            to: adminAssignUser.email,
+            subject: `Listing Assigned: ${formData.title} - HaDirot`,
+            html: assignedHtml,
+          });
+
+          console.log("✅ Listing assignment email sent to user:", adminAssignUser.email);
+        }
+
+        // Send regular update notification to current user
         if (user?.email && profile?.full_name) {
           await emailService.sendListingUpdatedEmail(
             user.email,
@@ -928,8 +991,8 @@ export function EditListing() {
           );
           console.log("✅ Email sent: listing update to", user.email);
         }
-      } catch (emailError) {
-        console.error("❌ Email failed: listing update -", emailError.message);
+      } catch (emailError: any) {
+        console.error("❌ Email failed: listing update -", emailError?.message);
         // Don't block the user flow if email fails
       }
     } catch (error) {
@@ -1029,6 +1092,70 @@ export function EditListing() {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-8">
+        {/* Admin Listing Assignment - Only visible to admins */}
+        {profile?.is_admin && (
+          <div className="bg-amber-50 rounded-lg shadow-sm border-2 border-amber-400 p-6">
+            <h2 className="text-xl font-semibold text-amber-800 mb-2">
+              Admin: Listing Assignment
+            </h2>
+            <p className="text-sm text-amber-700 mb-4">
+              As an admin, you can reassign this listing to another user or customize the display settings.
+            </p>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Assign to User
+                </label>
+                <UserSearchSelect
+                  selectedUser={adminAssignUser}
+                  onSelect={setAdminAssignUser}
+                  placeholder="Search users by name, email, or agency..."
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Leave empty to keep the listing under your admin account with custom display settings below.
+                </p>
+              </div>
+
+              {!adminAssignUser && (
+                <>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Custom Agency/Poster Name
+                    </label>
+                    <input
+                      type="text"
+                      value={adminCustomAgencyName}
+                      onChange={(e) => setAdminCustomAgencyName(e.target.value.slice(0, 100))}
+                      maxLength={100}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-brand-700 focus:border-brand-700"
+                      placeholder="Enter agency or poster name to display"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      This name will appear on listing cards. Max 100 characters.
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Listing Type Display
+                    </label>
+                    <select
+                      value={adminListingTypeDisplay}
+                      onChange={(e) => setAdminListingTypeDisplay(e.target.value as 'agent' | 'owner' | '')}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-brand-700 focus:border-brand-700"
+                    >
+                      <option value="">Select display type</option>
+                      <option value="agent">Real Estate Agent</option>
+                      <option value="owner">By Owner</option>
+                    </select>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Basic Information */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
           <h2 className="text-xl font-semibold text-[#273140] mb-4">

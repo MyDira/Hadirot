@@ -8,17 +8,19 @@ import { ConfirmDialog } from '@/components/shared/ConfirmDialog';
 interface AdminListingBannerProps {
   listing: Listing;
   userId: string;
+  isAdmin?: boolean;
   onUnpublish?: () => void;
 }
 
-export function AdminListingBanner({ listing, userId, onUnpublish }: AdminListingBannerProps) {
+export function AdminListingBanner({ listing, userId, isAdmin = false, onUnpublish }: AdminListingBannerProps) {
   const navigate = useNavigate();
   const [showUnpublishDialog, setShowUnpublishDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  if (listing.user_id !== userId) {
+  const isOwner = listing.user_id === userId;
+  if (!isOwner && !isAdmin) {
     return null;
   }
 

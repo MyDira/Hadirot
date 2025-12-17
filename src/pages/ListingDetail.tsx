@@ -534,11 +534,12 @@ export function ListingDetail() {
         Back to Browse
       </Link>
 
-      {/* Admin Banner */}
+      {/* Admin Banner - Shows for owners and admins */}
       {user && (
         <AdminListingBanner
           listing={listing}
           userId={user.id}
+          isAdmin={profile?.is_admin}
           onUnpublish={handleUnpublish}
         />
       )}
@@ -714,8 +715,12 @@ export function ListingDetail() {
                   </span>
                 )}
 
-                {/* Poster tag (landlord/agency) */}
-                {listing.owner?.role === "agent" && listing.owner?.agency && agencyPageExists ? (
+                {/* Poster tag (landlord/agency/admin custom) */}
+                {listing.admin_custom_agency_name ? (
+                  <span className="bg-[#667B9A] text-white px-3 py-1 rounded-full text-sm font-medium whitespace-nowrap">
+                    {listing.admin_custom_agency_name}
+                  </span>
+                ) : listing.owner?.role === "agent" && listing.owner?.agency && agencyPageExists ? (
                   <Link
                     to={`/agencies/${agencyNameToSlug(listing.owner.agency)}`}
                     className="bg-[#667B9A] text-white px-3 py-1 rounded-full text-sm font-medium hover:bg-[#566886] transition-colors whitespace-nowrap"
