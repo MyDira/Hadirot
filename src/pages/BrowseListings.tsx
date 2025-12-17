@@ -530,14 +530,14 @@ export function BrowseListings() {
   const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
 
   const renderViewModeToggle = (showSplit = true) => (
-    <div className="flex items-center bg-gray-100 rounded-lg p-1">
+    <div className="flex items-center gap-1">
       {showSplit && (
         <button
           onClick={() => setViewMode('split')}
-          className={`flex items-center px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+          className={`flex items-center px-3 py-2 rounded-full text-sm font-medium transition-all border ${
             viewMode === 'split'
-              ? 'bg-white text-brand-800 shadow-sm'
-              : 'text-gray-600 hover:text-gray-900'
+              ? 'bg-green-50 text-green-700 border-green-300'
+              : 'bg-white text-gray-600 border-gray-300 hover:border-gray-400'
           }`}
         >
           <LayoutGrid className="w-4 h-4 mr-1.5" />
@@ -546,10 +546,10 @@ export function BrowseListings() {
       )}
       <button
         onClick={() => setViewMode('list')}
-        className={`flex items-center px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+        className={`flex items-center px-3 py-2 rounded-full text-sm font-medium transition-all border ${
           viewMode === 'list'
-            ? 'bg-white text-brand-800 shadow-sm'
-            : 'text-gray-600 hover:text-gray-900'
+            ? 'bg-green-50 text-green-700 border-green-300'
+            : 'bg-white text-gray-600 border-gray-300 hover:border-gray-400'
         }`}
       >
         <List className="w-4 h-4 mr-1.5" />
@@ -557,10 +557,10 @@ export function BrowseListings() {
       </button>
       <button
         onClick={() => setViewMode('map')}
-        className={`flex items-center px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+        className={`flex items-center px-3 py-2 rounded-full text-sm font-medium transition-all border ${
           viewMode === 'map'
-            ? 'bg-white text-brand-800 shadow-sm'
-            : 'text-gray-600 hover:text-gray-900'
+            ? 'bg-green-50 text-green-700 border-green-300'
+            : 'bg-white text-gray-600 border-gray-300 hover:border-gray-400'
         }`}
       >
         <MapIcon className="w-4 h-4 mr-1.5" />
