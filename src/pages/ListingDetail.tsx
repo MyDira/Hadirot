@@ -66,7 +66,7 @@ function getScrollPercent(): number {
 
 export function ListingDetail() {
   const { id } = useParams<{ id: string }>();
-  const { user, loading: authLoading } = useAuth();
+  const { user, profile, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const [listing, setListing] = useState<Listing | null>(null);
   const [loading, setLoading] = useState(true);
