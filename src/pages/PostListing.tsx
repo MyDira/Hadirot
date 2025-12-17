@@ -1473,13 +1473,22 @@ export function PostListing() {
 
         {/* Admin Listing Assignment - Only visible to admins */}
         {profile?.is_admin && (
-          <div className="bg-amber-50 rounded-lg shadow-sm border-2 border-amber-400 p-6">
-            <h2 className="text-xl font-semibold text-amber-800 mb-2">
-              Admin: Listing Assignment
-            </h2>
-            <p className="text-sm text-amber-700 mb-4">
-              As an admin, you can assign this listing to another user or customize the display settings.
-            </p>
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 border-l-4 border-l-brand-600 p-6">
+            <div className="flex items-start gap-3 mb-4">
+              <div className="flex-shrink-0">
+                <div className="inline-flex items-center px-2.5 py-0.5 rounded-md bg-brand-50 text-brand-700 text-xs font-medium">
+                  Admin Only
+                </div>
+              </div>
+              <div className="flex-1">
+                <h2 className="text-xl font-semibold text-brand-700 mb-1">
+                  Listing Assignment
+                </h2>
+                <p className="text-sm text-gray-600">
+                  Assign this listing to another user or customize display settings
+                </p>
+              </div>
+            </div>
 
             <div className="space-y-4">
               <div>
