@@ -1598,7 +1598,7 @@ export function AdminPanel() {
                                 <Eye className="w-5 h-5" />
                               </Link>
                               <Link
-                                to={`/edit-listing/${listing.id}`}
+                                to={`/edit/${listing.id}`}
                                 className="text-green-600 hover:text-green-800 transition-colors"
                                 title="Edit Listing"
                               >
