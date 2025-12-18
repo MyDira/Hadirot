@@ -380,6 +380,15 @@ export function AuthForm({ onAuthSuccess }: AuthFormProps = {}) {
                   >
                     Privacy Policy
                   </a>
+                  {" "}and{" "}
+                  <a
+                    href="/terms"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-[#273140] underline hover:text-[#1e252f] transition-colors"
+                  >
+                    Terms of Use
+                  </a>
                 </div>
               )}
 

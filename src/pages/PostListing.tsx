@@ -980,7 +980,7 @@ export function PostListing() {
     }
 
     if (!formData.terms_agreed) {
-      alert("Please agree to the Terms and Conditions and Privacy Policy before posting");
+      alert("Please agree to receive SMS messages before posting");
       setLoading(false);
       return;
     }
@@ -2286,7 +2286,7 @@ export function PostListing() {
               className="mt-1 h-4 w-4 text-accent-600 focus:ring-accent-500 border-gray-300 rounded"
             />
             <span className="text-sm text-gray-700">
-              By posting this listing, I agree to the <a href="/terms" target="_blank" rel="noopener noreferrer" className="text-brand-700 font-semibold hover:underline">Terms and Conditions</a> and <a href="/privacy" target="_blank" rel="noopener noreferrer" className="text-brand-700 font-semibold hover:underline">Privacy Policy</a>.
+              I agree to receive SMS messages about my listing and inquiries. Message and data rates may apply. See <a href="/privacy" target="_blank" rel="noopener noreferrer" className="text-brand-700 font-semibold hover:underline">Privacy Policy</a> and <a href="/terms" target="_blank" rel="noopener noreferrer" className="text-brand-700 font-semibold hover:underline">Terms of Use</a> for more information.
             </span>
           </label>
         </div>
