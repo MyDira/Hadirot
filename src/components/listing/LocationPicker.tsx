@@ -1,11 +1,12 @@
 import React, { useRef, useEffect, useState, useCallback } from "react";
 import mapboxgl from "mapbox-gl";
-import { MapPin, Search, Loader2, Crosshair, CheckCircle } from "lucide-react";
+import { MapPin, Search, Loader2, CheckCircle, Maximize2 } from "lucide-react";
 import { MAPBOX_ACCESS_TOKEN } from "@/config/env";
 import { geocodeCrossStreets, formatCorrectionMessage } from "@/services/geocoding";
+import { MapModal } from "./MapModal";
 
 const DEFAULT_CENTER: [number, number] = [-73.9442, 40.6782];
-const DEFAULT_ZOOM = 13;
+const PREVIEW_ZOOM = 15;
 
 interface LocationPickerProps {
   crossStreets: string;
@@ -34,8 +35,7 @@ export function LocationPicker({
   const [geocodeSuccess, setGeocodeSuccess] = useState<string | null>(null);
   const [mapLoaded, setMapLoaded] = useState(false);
   const [isLocationSet, setIsLocationSet] = useState(false);
-  const [isDragging, setIsDragging] = useState(false);
-  const moveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [showMapModal, setShowMapModal] = useState(false);
 
   const reverseGeocode = useCallback(
     async (lat: number, lng: number) => {
@@ -81,10 +81,9 @@ export function LocationPicker({
       container: mapContainer.current,
       style: "mapbox://styles/mapbox/streets-v12",
       center: initialCenter,
-      zoom: hasInitialLocation ? 16 : DEFAULT_ZOOM,
+      zoom: hasInitialLocation ? 16 : PREVIEW_ZOOM,
+      interactive: false,
     });
-
-    map.current.addControl(new mapboxgl.NavigationControl(), "top-right");
 
     map.current.on("load", () => {
       setMapLoaded(true);
@@ -93,36 +92,7 @@ export function LocationPicker({
       }
     });
 
-    map.current.on("dragstart", () => {
-      if (isLocationSet && !disabled) {
-        setIsDragging(true);
-      }
-    });
-
-    map.current.on("dragend", () => {
-      setIsDragging(false);
-    });
-
-    map.current.on("moveend", () => {
-      if (!isLocationSet || disabled) return;
-
-      if (moveTimeoutRef.current) {
-        clearTimeout(moveTimeoutRef.current);
-      }
-
-      moveTimeoutRef.current = setTimeout(() => {
-        if (map.current) {
-          const center = map.current.getCenter();
-          onLocationChange(center.lat, center.lng);
-          reverseGeocode(center.lat, center.lng);
-        }
-      }, 300);
-    });
-
     return () => {
-      if (moveTimeoutRef.current) {
-        clearTimeout(moveTimeoutRef.current);
-      }
       if (map.current) {
         map.current.remove();
         map.current = null;
@@ -133,7 +103,7 @@ export function LocationPicker({
   useEffect(() => {
     if (!mapLoaded || !map.current) return;
 
-    if (latitude && longitude && !isLocationSet) {
+    if (latitude && longitude) {
       map.current.flyTo({
         center: [longitude, latitude],
         zoom: 16,
@@ -141,7 +111,7 @@ export function LocationPicker({
       });
       setIsLocationSet(true);
     }
-  }, [latitude, longitude, mapLoaded, isLocationSet]);
+  }, [latitude, longitude, mapLoaded]);
 
   const handleFindOnMap = async () => {
     if (!crossStreets.trim()) {
@@ -198,13 +168,17 @@ export function LocationPicker({
     }
   };
 
-  const handleSetCurrentCenter = () => {
-    if (!map.current || disabled) return;
-
-    const center = map.current.getCenter();
+  const handleLocationConfirm = (lat: number, lng: number) => {
     setIsLocationSet(true);
-    onLocationChange(center.lat, center.lng);
-    reverseGeocode(center.lat, center.lng);
+    onLocationChange(lat, lng);
+
+    if (map.current) {
+      map.current.flyTo({
+        center: [lng, lat],
+        zoom: 16,
+        duration: 1000,
+      });
+    }
   };
 
   const handleClearLocation = () => {
@@ -215,7 +189,7 @@ export function LocationPicker({
     if (map.current) {
       map.current.flyTo({
         center: DEFAULT_CENTER,
-        zoom: DEFAULT_ZOOM,
+        zoom: PREVIEW_ZOOM,
         duration: 1000,
       });
     }
@@ -231,106 +205,125 @@ export function LocationPicker({
   }
 
   return (
-    <div className="space-y-3">
-      <div className="flex flex-wrap items-center gap-2">
-        <button
-          type="button"
-          onClick={handleFindOnMap}
-          disabled={disabled || isGeocoding || !crossStreets.trim()}
-          className="inline-flex items-center px-4 py-2 bg-accent-500 text-white text-sm font-medium rounded-md hover:bg-accent-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-        >
-          {isGeocoding ? (
-            <>
-              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              Finding...
-            </>
-          ) : (
-            <>
-              <Search className="w-4 h-4 mr-2" />
-              Find on Map
-            </>
-          )}
-        </button>
-
-        {!isLocationSet && (
+    <>
+      <div className="space-y-3">
+        <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
-            onClick={handleSetCurrentCenter}
+            onClick={handleFindOnMap}
+            disabled={disabled || isGeocoding || !crossStreets.trim()}
+            className="inline-flex items-center px-4 py-2 bg-accent-500 text-white text-sm font-medium rounded-md hover:bg-accent-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            {isGeocoding ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                Finding...
+              </>
+            ) : (
+              <>
+                <Search className="w-4 h-4 mr-2" />
+                Find on Map
+              </>
+            )}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setShowMapModal(true)}
             disabled={disabled}
             className="inline-flex items-center px-4 py-2 border border-[#273140] text-[#273140] text-sm font-medium rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
-            <Crosshair className="w-4 h-4 mr-2" />
+            <MapPin className="w-4 h-4 mr-2" />
             Set Pin Location
           </button>
-        )}
 
-        {isLocationSet && (
-          <button
-            type="button"
-            onClick={handleClearLocation}
-            disabled={disabled}
-            className="inline-flex items-center px-3 py-2 text-sm text-gray-600 hover:text-gray-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-          >
-            Clear Location
-          </button>
-        )}
-      </div>
-
-      {geocodeError && (
-        <p className="text-sm text-red-600">{geocodeError}</p>
-      )}
-
-      {geocodeSuccess && !geocodeError && (
-        <div className="flex items-center gap-2 text-sm text-green-600">
-          <CheckCircle className="w-4 h-4 flex-shrink-0" />
-          <span>{geocodeSuccess}</span>
+          {isLocationSet && (
+            <button
+              type="button"
+              onClick={handleClearLocation}
+              disabled={disabled}
+              className="inline-flex items-center px-3 py-2 text-sm text-gray-600 hover:text-gray-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              Clear Location
+            </button>
+          )}
         </div>
-      )}
 
-      <div className="relative">
+        {geocodeError && (
+          <p className="text-sm text-red-600">{geocodeError}</p>
+        )}
+
+        {geocodeSuccess && !geocodeError && (
+          <div className="flex items-center gap-2 text-sm text-green-600">
+            <CheckCircle className="w-4 h-4 flex-shrink-0" />
+            <span>{geocodeSuccess}</span>
+          </div>
+        )}
+
         <div
-          ref={mapContainer}
-          className="w-full h-72 rounded-lg border border-gray-300 overflow-hidden"
-        />
+          className="relative cursor-pointer group"
+          onClick={() => setShowMapModal(true)}
+        >
+          <div
+            ref={mapContainer}
+            className="w-full h-56 rounded-lg border-2 border-gray-300 overflow-hidden shadow-sm transition-all group-hover:border-accent-400 group-hover:shadow-md"
+          />
 
-        {isLocationSet && (
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-full pointer-events-none z-10">
-            <div className={`transition-transform duration-150 ${isDragging ? "scale-125" : "scale-100"}`}>
+          {isLocationSet && (
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-full pointer-events-none z-10">
               <MapPin
-                className="w-10 h-10 text-[#273140] drop-shadow-lg"
+                className="w-8 h-8 text-[#273140] drop-shadow-lg"
                 fill="#273140"
                 strokeWidth={1}
                 stroke="white"
               />
             </div>
-          </div>
-        )}
+          )}
 
-        {!isLocationSet && (
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none z-10">
-            <div className="w-8 h-8 border-2 border-dashed border-gray-400 rounded-full flex items-center justify-center">
-              <div className="w-2 h-2 bg-gray-400 rounded-full" />
+          {!isLocationSet && (
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none z-10">
+              <div className="w-8 h-8 border-2 border-dashed border-gray-400 rounded-full flex items-center justify-center">
+                <div className="w-2 h-2 bg-gray-400 rounded-full" />
+              </div>
+            </div>
+          )}
+
+          <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-10 transition-all flex items-center justify-center pointer-events-none">
+            <div className="bg-white px-4 py-2 rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-2">
+              <Maximize2 className="w-4 h-4 text-[#273140]" />
+              <span className="text-sm font-medium text-[#273140]">Click to expand</span>
             </div>
           </div>
-        )}
+        </div>
+
+        <div className="flex items-center gap-2 text-sm text-gray-600">
+          <MapPin className="w-4 h-4 flex-shrink-0" />
+          {isLocationSet ? (
+            <span>
+              {isReverseGeocoding ? (
+                "Detecting neighborhood..."
+              ) : (
+                "Location set. Click map to adjust or use 'Set Pin Location' button."
+              )}
+            </span>
+          ) : (
+            <span>
+              Use "Find on Map" to geocode address, or click "Set Pin Location" to manually position.
+            </span>
+          )}
+        </div>
       </div>
 
-      <div className="flex items-center gap-2 text-sm text-gray-600">
-        <MapPin className="w-4 h-4 flex-shrink-0" />
-        {isLocationSet ? (
-          <span>
-            {isReverseGeocoding ? (
-              "Detecting neighborhood..."
-            ) : (
-              "Move the map to adjust the pin location."
-            )}
-          </span>
-        ) : (
-          <span>
-            Use "Find on Map" or navigate to location and click "Set Pin Location".
-          </span>
-        )}
-      </div>
-    </div>
+      <MapModal
+        isOpen={showMapModal}
+        onClose={() => setShowMapModal(false)}
+        crossStreets={crossStreets}
+        neighborhood={neighborhood}
+        initialLatitude={latitude}
+        initialLongitude={longitude}
+        onLocationConfirm={handleLocationConfirm}
+        onNeighborhoodChange={onNeighborhoodChange}
+      />
+    </>
   );
 }
