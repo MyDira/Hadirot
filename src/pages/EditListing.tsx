@@ -799,6 +799,8 @@ export function EditListing() {
 
       // Add admin fields if user is admin
       if (profile?.is_admin) {
+        // Ensure listing remains approved when admin edits
+        updatePayload.approved = true;
         if (adminAssignUser) {
           updatePayload.user_id = adminAssignUser.id;
           updatePayload.admin_custom_agency_name = null;

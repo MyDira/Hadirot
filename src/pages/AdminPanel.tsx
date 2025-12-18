@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useSearchParams, useNavigate } from 'react-router-dom';
-import { Users, FileText, Eye, Trash2, Shield, TrendingUp, Home, Star, Power, ChevronDown, Search, ChevronRight, ChevronLeft, BarChart3, MessageSquare, UserCheck, ArrowRight, Mail, DollarSign, X } from 'lucide-react';
+import { Users, FileText, Eye, Trash2, Shield, TrendingUp, Home, Star, Power, ChevronDown, Search, ChevronRight, ChevronLeft, BarChart3, MessageSquare, UserCheck, ArrowRight, Mail, DollarSign, X, Edit } from 'lucide-react';
 import { listingsService } from '../services/listings';
 import { agenciesService } from '../services/agencies';
 import { salesService } from '../services/sales';
@@ -113,7 +113,6 @@ export function AdminPanel() {
   const [updatingAgencyAccessId, setUpdatingAgencyAccessId] = useState<string | null>(null);
   const [updatingSalesAccessId, setUpdatingSalesAccessId] = useState<string | null>(null);
   const [salesFeatureEnabled, setSalesFeatureEnabled] = useState(false);
-  const [sendingEmailListingId, setSendingEmailListingId] = useState<string | null>(null);
   const [impersonatingUserId, setImpersonatingUserId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -670,42 +669,6 @@ export function AdminPanel() {
     } catch (error) {
       console.error('Error rejecting listing:', error);
       alert('Failed to reject listing. Please try again.');
-    }
-  };
-
-  const sendListingEmail = async (listingId: string, listingTitle: string) => {
-    setSendingEmailListingId(listingId);
-    try {
-      console.log('📧 Sending email for listing:', listingId);
-
-      const { data: { session } } = await supabase.auth.getSession();
-
-      if (!session) {
-        console.error('No active session');
-        setToast({ message: 'Authentication error. Please refresh and try again.', tone: 'error' });
-        return;
-      }
-
-      const { data, error } = await supabase.functions.invoke('send-listing-email-manual', {
-        body: { listingId },
-        headers: {
-          Authorization: `Bearer ${session.access_token}`,
-        },
-      });
-
-      if (error) {
-        console.error('Error sending listing email:', error);
-        setToast({ message: 'Failed to send email. Please try again.', tone: 'error' });
-        return;
-      }
-
-      console.log('✅ Email sent successfully:', data);
-      setToast({ message: `Email sent successfully to ${data.adminCount} admin(s)!`, tone: 'success' });
-    } catch (error) {
-      console.error('Error sending listing email:', error);
-      setToast({ message: 'Failed to send email. Please try again.', tone: 'error' });
-    } finally {
-      setSendingEmailListingId(null);
     }
   };
 
@@ -1634,24 +1597,13 @@ export function AdminPanel() {
                               >
                                 <Eye className="w-5 h-5" />
                               </Link>
-                              {listing.approved && (
-                                <button
-                                  onClick={() => sendListingEmail(listing.id, listing.title)}
-                                  disabled={sendingEmailListingId === listing.id}
-                                  className={`transition-colors ${
-                                    sendingEmailListingId === listing.id
-                                      ? 'text-gray-400 cursor-wait'
-                                      : 'text-purple-600 hover:text-purple-800'
-                                  }`}
-                                  title="Send email to admins"
-                                >
-                                  {sendingEmailListingId === listing.id ? (
-                                    <div className="w-5 h-5 border-2 border-purple-600 border-t-transparent rounded-full animate-spin" />
-                                  ) : (
-                                    <Mail className="w-5 h-5" />
-                                  )}
-                                </button>
-                              )}
+                              <Link
+                                to={`/edit-listing/${listing.id}`}
+                                className="text-green-600 hover:text-green-800 transition-colors"
+                                title="Edit Listing"
+                              >
+                                <Edit className="w-5 h-5" />
+                              </Link>
                               <button
                                 onClick={() => toggleListingFeatured(listing.id, listing.is_featured)}
                                 className={`transition-colors ${
