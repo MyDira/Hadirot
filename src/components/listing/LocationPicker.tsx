@@ -15,6 +15,7 @@ interface LocationPickerProps {
   longitude: number | null;
   onLocationChange: (lat: number | null, lng: number | null) => void;
   onNeighborhoodChange?: (neighborhood: string) => void;
+  onGeocodeStatusChange?: (error: string | null, success: string | null) => void;
   disabled?: boolean;
 }
 
@@ -25,6 +26,7 @@ export function LocationPicker({
   longitude,
   onLocationChange,
   onNeighborhoodChange,
+  onGeocodeStatusChange,
   disabled = false,
 }: LocationPickerProps) {
   const mapContainer = useRef<HTMLDivElement>(null);
@@ -115,14 +117,17 @@ export function LocationPicker({
 
   const handleFindOnMap = async () => {
     if (!crossStreets.trim()) {
-      setGeocodeError("Please enter cross streets first");
+      const errorMsg = "Please enter cross streets first";
+      setGeocodeError(errorMsg);
       setGeocodeSuccess(null);
+      if (onGeocodeStatusChange) onGeocodeStatusChange(errorMsg, null);
       return;
     }
 
     setIsGeocoding(true);
     setGeocodeError(null);
     setGeocodeSuccess(null);
+    if (onGeocodeStatusChange) onGeocodeStatusChange(null, null);
 
     try {
       const result = await geocodeCrossStreets({
@@ -144,11 +149,15 @@ export function LocationPicker({
         }
 
         const correctionMessage = formatCorrectionMessage(result);
+        let successMsg = null;
         if (correctionMessage) {
+          successMsg = correctionMessage;
           setGeocodeSuccess(correctionMessage);
         } else if (result.normalizedQuery && result.normalizedQuery !== crossStreets.trim()) {
-          setGeocodeSuccess(`Found: ${result.normalizedQuery}`);
+          successMsg = `Found: ${result.normalizedQuery}`;
+          setGeocodeSuccess(successMsg);
         }
+        if (onGeocodeStatusChange) onGeocodeStatusChange(null, successMsg);
 
         if (result.neighborhood && onNeighborhoodChange) {
           onNeighborhoodChange(result.neighborhood);
@@ -156,13 +165,15 @@ export function LocationPicker({
           reverseGeocode(lat, lng);
         }
       } else {
-        setGeocodeError(
-          result.error || "Location not found. Try a different format (e.g., 'Avenue J & East 15th Street')"
-        );
+        const errorMsg = result.error || "Location not found. Try a different format (e.g., 'Avenue J & East 15th Street')";
+        setGeocodeError(errorMsg);
+        if (onGeocodeStatusChange) onGeocodeStatusChange(errorMsg, null);
       }
     } catch (error) {
       console.error("Geocoding error:", error);
-      setGeocodeError("Failed to find location. Please try again.");
+      const errorMsg = "Failed to find location. Please try again.";
+      setGeocodeError(errorMsg);
+      if (onGeocodeStatusChange) onGeocodeStatusChange(errorMsg, null);
     } finally {
       setIsGeocoding(false);
     }
@@ -248,17 +259,6 @@ export function LocationPicker({
             </button>
           )}
         </div>
-
-        {geocodeError && (
-          <p className="text-sm text-red-600">{geocodeError}</p>
-        )}
-
-        {geocodeSuccess && !geocodeError && (
-          <div className="flex items-center gap-2 text-sm text-green-600">
-            <CheckCircle className="w-4 h-4 flex-shrink-0" />
-            <span>{geocodeSuccess}</span>
-          </div>
-        )}
 
         <div
           className="relative cursor-pointer group"

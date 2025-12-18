@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { Upload, X, Star } from "lucide-react";
+import { Upload, X, Star, CheckCircle } from "lucide-react";
 import * as Sentry from "@sentry/react";
 import { useAuth } from "@/hooks/useAuth";
 import { listingsService } from "../services/listings";
@@ -130,6 +130,8 @@ export function PostListing() {
   const [permissionRequestMessage, setPermissionRequestMessage] = useState('');
   const [requestingPermission, setRequestingPermission] = useState(false);
   const [priceError, setPriceError] = useState<string | null>(null);
+  const [geocodeError, setGeocodeError] = useState<string | null>(null);
+  const [geocodeSuccess, setGeocodeSuccess] = useState<string | null>(null);
   const [adminAssignUser, setAdminAssignUser] = useState<Profile | null>(null);
   const [adminCustomAgencyName, setAdminCustomAgencyName] = useState('');
   const [adminListingTypeDisplay, setAdminListingTypeDisplay] = useState<'agent' | 'owner' | ''>('');
@@ -696,6 +698,11 @@ export function PostListing() {
       setCustomNeighborhoodInput(detectedNeighborhood);
       setFormData((prev) => ({ ...prev, neighborhood: detectedNeighborhood }));
     }
+  };
+
+  const handleGeocodeStatusChange = (error: string | null, success: string | null) => {
+    setGeocodeError(error);
+    setGeocodeSuccess(success);
   };
 
   const calculateBuildingSize = () => {
@@ -1678,6 +1685,7 @@ export function PostListing() {
                         longitude={formData.longitude}
                         onLocationChange={handleLocationCoordinatesChange}
                         onNeighborhoodChange={handleNeighborhoodFromMap}
+                        onGeocodeStatusChange={handleGeocodeStatusChange}
                       />
                     </div>
                   </div>
@@ -1700,6 +1708,15 @@ export function PostListing() {
                         className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-brand-700 focus:border-brand-700"
                         placeholder="Avenue J & East 15th Street"
                       />
+                      {geocodeError && (
+                        <p className="text-sm text-red-600 mt-1">{geocodeError}</p>
+                      )}
+                      {geocodeSuccess && !geocodeError && (
+                        <div className="flex items-center gap-2 text-sm text-green-600 mt-1">
+                          <CheckCircle className="w-4 h-4 flex-shrink-0" />
+                          <span>{geocodeSuccess}</span>
+                        </div>
+                      )}
                     </div>
                   </div>
                   <div>
@@ -1716,12 +1733,24 @@ export function PostListing() {
                       longitude={formData.longitude}
                       onLocationChange={handleLocationCoordinatesChange}
                       onNeighborhoodChange={handleNeighborhoodFromMap}
+                      onGeocodeStatusChange={handleGeocodeStatusChange}
                     />
                   </div>
                 </div>
               </div>
             )}
+          </div>
+        </div>
 
+        {/* Property Details */}
+        <div className={`bg-white rounded-lg shadow-sm border border-gray-200 p-6 relative transition-all ${
+          !formData.listing_type ? 'opacity-40 pointer-events-none' : ''
+        }`}>
+          <h2 className="text-xl font-semibold text-brand-700 mb-4">
+            Property Details
+          </h2>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Neighborhood *
@@ -1806,18 +1835,26 @@ export function PostListing() {
                 </select>
               </div>
             )}
-          </div>
-        </div>
 
-        {/* Property Details */}
-        <div className={`bg-white rounded-lg shadow-sm border border-gray-200 p-6 relative transition-all ${
-          !formData.listing_type ? 'opacity-40 pointer-events-none' : ''
-        }`}>
-          <h2 className="text-xl font-semibold text-brand-700 mb-4">
-            Property Details
-          </h2>
+            {formData.listing_type === 'rental' && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Air Conditioning
+                </label>
+                <select
+                  name="ac_type"
+                  value={formData.ac_type || ''}
+                  onChange={handleInputChange}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-brand-700 focus:border-brand-700"
+                >
+                  <option value="">Select AC type (optional)</option>
+                  <option value="central">Central Air</option>
+                  <option value="wall_unit">Wall Unit</option>
+                  <option value="none">No AC</option>
+                </select>
+              </div>
+            )}
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Bedrooms *
