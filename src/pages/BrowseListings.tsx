@@ -14,8 +14,8 @@ import { trackFilterApply } from "../lib/analytics";
 import { useListingImpressions } from "../hooks/useListingImpressions";
 import { useBrowseFilters } from "../hooks/useBrowseFilters";
 import { ParsedSearchQuery } from "../utils/searchQueryParser";
-import { LocationResult, fetchZipCodePolygon, PolygonGeometry } from "../services/locationSearch";
-import { filterListingsByPolygon, getAdjacentZipCodes } from "../utils/geoUtils";
+import { LocationResult, fetchZipCodePolygon, fetchNeighborhoodPolygon, PolygonGeometry } from "../services/locationSearch";
+import { filterListingsByPolygon } from "../utils/geoUtils";
 
 export type SortOption = 'newest' | 'oldest' | 'price_asc' | 'price_desc' | 'bedrooms_asc' | 'bedrooms_desc' | 'bathrooms_asc' | 'bathrooms_desc';
 
@@ -113,14 +113,15 @@ export function BrowseListings() {
     if (!isReady) return;
     loadListings();
     loadNeighborhoods();
-  }, [filters, currentPage, user, isReady]);
+  }, [filters, currentPage, user, isReady, searchPolygon, drawnPolygon]);
 
-  const loadListings = async (boundsFilter?: MapBounds) => {
+  const loadListings = async (boundsFilter?: MapBounds, activePolygon?: PolygonGeometry | null) => {
     try {
       setLoading(true);
 
       const { no_fee_only, ...restFilters } = filters;
       const serviceFilters = { ...restFilters, noFeeOnly: no_fee_only };
+      const polygonToUse = activePolygon ?? searchPolygon ?? (drawnPolygon?.geometry as PolygonGeometry | undefined) ?? null;
 
       const { totalCount: actualTotalCount } = await listingsService.getListings(
         serviceFilters,
@@ -225,7 +226,10 @@ export function BrowseListings() {
         }
       }
 
-      setDisplayListings(finalListings);
+      const filteredDisplayListings = polygonToUse
+        ? filterListingsByPolygon(finalListings, polygonToUse)
+        : finalListings;
+      setDisplayListings(filteredDisplayListings as typeof finalListings);
 
       const { data: allData } = await listingsService.getListings(
         serviceFilters,
@@ -236,7 +240,9 @@ export function BrowseListings() {
       );
 
       let filteredMapListings = allData || [];
-      if (boundsFilter) {
+      if (polygonToUse) {
+        filteredMapListings = filterListingsByPolygon(filteredMapListings, polygonToUse);
+      } else if (boundsFilter) {
         filteredMapListings = filteredMapListings.filter(listing => {
           if (listing.latitude == null || listing.longitude == null) return false;
           return (
@@ -436,6 +442,9 @@ export function BrowseListings() {
 
       if (location.type === 'zip') {
         const polygon = await fetchZipCodePolygon(location.name);
+        setSearchPolygon(polygon);
+      } else if (location.type === 'neighborhood' || location.type === 'borough') {
+        const polygon = await fetchNeighborhoodPolygon(location.name);
         setSearchPolygon(polygon);
       } else {
         setSearchPolygon(null);
