@@ -5,22 +5,15 @@ import { Listing } from "../../config/supabase";
 import { MAPBOX_ACCESS_TOKEN } from "@/config/env";
 import { computePrimaryListingImage } from "../../utils/stockImage";
 import { formatPrice, capitalizeName } from "../../utils/formatters";
-import { PolygonGeometry } from "../../services/locationSearch";
 
 const BROOKLYN_CENTER: [number, number] = [-73.9442, 40.6782];
 const DEFAULT_ZOOM = 12;
-const AUTO_SEARCH_ZOOM_THRESHOLD = 14;
 
 interface MapBounds {
   north: number;
   south: number;
   east: number;
   west: number;
-}
-
-export interface DrawnPolygon {
-  type: 'Polygon';
-  coordinates: number[][][];
 }
 
 interface ListingsMapEnhancedProps {
@@ -32,12 +25,7 @@ interface ListingsMapEnhancedProps {
   onBoundsChange?: (bounds: MapBounds, zoomLevel: number) => void;
   userLocation?: { lat: number; lng: number } | null;
   searchBounds?: MapBounds | null;
-  searchPolygon?: PolygonGeometry | null;
   searchLocationName?: string;
-  isDrawingMode?: boolean;
-  drawnPolygon?: DrawnPolygon | null;
-  onDrawComplete?: (polygon: DrawnPolygon) => void;
-  onDrawClear?: () => void;
 }
 
 export function ListingsMapEnhanced({
@@ -49,23 +37,15 @@ export function ListingsMapEnhanced({
   onBoundsChange,
   userLocation,
   searchBounds,
-  searchPolygon,
   searchLocationName,
-  isDrawingMode = false,
-  drawnPolygon,
-  onDrawComplete,
-  onDrawClear,
 }: ListingsMapEnhancedProps) {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
   const markers = useRef<Map<string, { marker: mapboxgl.Marker; element: HTMLDivElement }>>(new Map());
   const popup = useRef<mapboxgl.Popup | null>(null);
   const userLocationMarker = useRef<mapboxgl.Marker | null>(null);
-  const drawingPoints = useRef<number[][]>([]);
-  const drawingMarkers = useRef<mapboxgl.Marker[]>([]);
   const navigate = useNavigate();
   const [mapLoaded, setMapLoaded] = useState(false);
-  const [currentDrawingPoints, setCurrentDrawingPoints] = useState<number[][]>([]);
   const boundsChangeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const listingsWithCoords = listings.filter(
@@ -397,394 +377,20 @@ export function ListingsMapEnhanced({
     }
   }, [hoveredListingId, listingsWithCoords, mapLoaded]);
 
-  const createInvertedMaskGeoJSON = useCallback((innerPolygon: number[][][] | number[][][][], geometryType: 'Polygon' | 'MultiPolygon'): GeoJSON.Feature<GeoJSON.Polygon> => {
-    const outerRing: number[][] = [
-      [-180, 90],
-      [180, 90],
-      [180, -90],
-      [-180, -90],
-      [-180, 90],
-    ];
-
-    let innerRing: number[][];
-    if (geometryType === 'Polygon') {
-      innerRing = (innerPolygon as number[][][])[0];
-    } else {
-      innerRing = (innerPolygon as number[][][][])[0][0];
-    }
-
-    const reversedInnerRing = [...innerRing].reverse();
-
-    return {
-      type: 'Feature',
-      properties: {},
-      geometry: {
-        type: 'Polygon',
-        coordinates: [outerRing, reversedInnerRing],
-      },
-    };
-  }, []);
-
-  const calculatePolygonCenter = useCallback((coordinates: number[][][] | number[][][][], geometryType: 'Polygon' | 'MultiPolygon'): { lat: number; lng: number } => {
-    let sumLat = 0;
-    let sumLng = 0;
-    let count = 0;
-
-    if (geometryType === 'Polygon') {
-      const ring = (coordinates as number[][][])[0];
-      for (const coord of ring) {
-        sumLng += coord[0];
-        sumLat += coord[1];
-        count++;
-      }
-    } else {
-      for (const polygon of coordinates as number[][][][]) {
-        for (const ring of polygon) {
-          for (const coord of ring) {
-            sumLng += coord[0];
-            sumLat += coord[1];
-            count++;
-          }
-        }
-      }
-    }
-
-    return {
-      lat: count > 0 ? sumLat / count : 0,
-      lng: count > 0 ? sumLng / count : 0,
-    };
-  }, []);
-
-  const calculatePolygonBounds = useCallback((coordinates: number[][][] | number[][][][], geometryType: 'Polygon' | 'MultiPolygon'): mapboxgl.LngLatBounds => {
-    const bounds = new mapboxgl.LngLatBounds();
-
-    if (geometryType === 'Polygon') {
-      const ring = (coordinates as number[][][])[0];
-      for (const coord of ring) {
-        bounds.extend([coord[0], coord[1]] as [number, number]);
-      }
-    } else {
-      for (const polygon of coordinates as number[][][][]) {
-        for (const ring of polygon) {
-          for (const coord of ring) {
-            bounds.extend([coord[0], coord[1]] as [number, number]);
-          }
-        }
-      }
-    }
-
-    return bounds;
-  }, []);
-
   useEffect(() => {
-    if (!map.current || !mapLoaded) return;
+    if (!map.current || !mapLoaded || !searchBounds) return;
 
-    const maskSourceId = 'search-area-mask';
-    const maskLayerId = 'search-area-mask-fill';
-    const outlineSourceId = 'search-area-outline-source';
-    const outlineLayerId = 'search-area-outline';
-
-    const clearLayers = () => {
-      if (map.current?.getLayer(maskLayerId)) {
-        map.current.removeLayer(maskLayerId);
-      }
-      if (map.current?.getLayer(outlineLayerId)) {
-        map.current.removeLayer(outlineLayerId);
-      }
-      if (map.current?.getSource(maskSourceId)) {
-        map.current.removeSource(maskSourceId);
-      }
-      if (map.current?.getSource(outlineSourceId)) {
-        map.current.removeSource(outlineSourceId);
-      }
-    };
-
-    const activePolygon = drawnPolygon || searchPolygon;
-
-    if (!activePolygon && !searchBounds) {
-      clearLayers();
-      return;
-    }
-
-    let innerCoordinates: number[][][] | number[][][][];
-    let geometryType: 'Polygon' | 'MultiPolygon';
-
-    if (activePolygon) {
-      innerCoordinates = activePolygon.coordinates;
-      geometryType = activePolygon.type;
-    } else if (searchBounds) {
-      innerCoordinates = [[
-        [searchBounds.west, searchBounds.north],
-        [searchBounds.east, searchBounds.north],
-        [searchBounds.east, searchBounds.south],
-        [searchBounds.west, searchBounds.south],
-        [searchBounds.west, searchBounds.north],
-      ]];
-      geometryType = 'Polygon';
-    } else {
-      clearLayers();
-      return;
-    }
-
-    const maskGeoJson = createInvertedMaskGeoJSON(innerCoordinates, geometryType);
-
-    let outlineGeoJson: GeoJSON.Feature<GeoJSON.Polygon | GeoJSON.MultiPolygon>;
-    if (geometryType === 'Polygon') {
-      outlineGeoJson = {
-        type: 'Feature',
-        properties: {},
-        geometry: {
-          type: 'Polygon',
-          coordinates: innerCoordinates as number[][][],
-        },
-      };
-    } else {
-      outlineGeoJson = {
-        type: 'Feature',
-        properties: {},
-        geometry: {
-          type: 'MultiPolygon',
-          coordinates: innerCoordinates as number[][][][],
-        },
-      };
-    }
-
-    clearLayers();
-
-    map.current.addSource(maskSourceId, {
-      type: 'geojson',
-      data: maskGeoJson,
-    });
-
-    map.current.addSource(outlineSourceId, {
-      type: 'geojson',
-      data: outlineGeoJson,
-    });
-
-    map.current.addLayer({
-      id: maskLayerId,
-      type: 'fill',
-      source: maskSourceId,
-      paint: {
-        'fill-color': '#374151',
-        'fill-opacity': 0.4,
-      },
-    });
-
-    map.current.addLayer({
-      id: outlineLayerId,
-      type: 'line',
-      source: outlineSourceId,
-      paint: {
-        'line-color': '#1E4A74',
-        'line-width': 3,
-        'line-opacity': 0.8,
-      },
-    });
-
-    const center = calculatePolygonCenter(innerCoordinates, geometryType);
-    const bounds = calculatePolygonBounds(innerCoordinates, geometryType);
+    const bounds = new mapboxgl.LngLatBounds(
+      [searchBounds.west, searchBounds.south],
+      [searchBounds.east, searchBounds.north]
+    );
 
     map.current.fitBounds(bounds, {
       padding: 50,
       duration: 1200,
       maxZoom: 15,
     });
-  }, [searchBounds, searchPolygon, drawnPolygon, mapLoaded, createInvertedMaskGeoJSON, calculatePolygonCenter, calculatePolygonBounds]);
-
-  const clearDrawing = useCallback(() => {
-    drawingMarkers.current.forEach(marker => marker.remove());
-    drawingMarkers.current = [];
-    drawingPoints.current = [];
-    setCurrentDrawingPoints([]);
-
-    if (map.current) {
-      const drawingSourceId = 'drawing-line';
-      const drawingLayerId = 'drawing-line-layer';
-      const drawingPolygonSourceId = 'drawing-polygon-preview';
-      const drawingPolygonLayerId = 'drawing-polygon-preview-layer';
-
-      if (map.current.getLayer(drawingLayerId)) {
-        map.current.removeLayer(drawingLayerId);
-      }
-      if (map.current.getSource(drawingSourceId)) {
-        map.current.removeSource(drawingSourceId);
-      }
-      if (map.current.getLayer(drawingPolygonLayerId)) {
-        map.current.removeLayer(drawingPolygonLayerId);
-      }
-      if (map.current.getSource(drawingPolygonSourceId)) {
-        map.current.removeSource(drawingPolygonSourceId);
-      }
-    }
-  }, []);
-
-  const updateDrawingPreview = useCallback(() => {
-    if (!map.current || drawingPoints.current.length < 2) return;
-
-    const drawingSourceId = 'drawing-line';
-    const drawingLayerId = 'drawing-line-layer';
-    const drawingPolygonSourceId = 'drawing-polygon-preview';
-    const drawingPolygonLayerId = 'drawing-polygon-preview-layer';
-
-    const lineCoords = [...drawingPoints.current];
-    const lineGeoJson: GeoJSON.Feature<GeoJSON.LineString> = {
-      type: 'Feature',
-      properties: {},
-      geometry: {
-        type: 'LineString',
-        coordinates: lineCoords,
-      },
-    };
-
-    if (map.current.getSource(drawingSourceId)) {
-      (map.current.getSource(drawingSourceId) as mapboxgl.GeoJSONSource).setData(lineGeoJson);
-    } else {
-      map.current.addSource(drawingSourceId, {
-        type: 'geojson',
-        data: lineGeoJson,
-      });
-
-      map.current.addLayer({
-        id: drawingLayerId,
-        type: 'line',
-        source: drawingSourceId,
-        paint: {
-          'line-color': '#1E4A74',
-          'line-width': 2,
-          'line-dasharray': [2, 2],
-        },
-      });
-    }
-
-    if (drawingPoints.current.length >= 3) {
-      const polygonCoords = [...drawingPoints.current, drawingPoints.current[0]];
-      const polygonGeoJson: GeoJSON.Feature<GeoJSON.Polygon> = {
-        type: 'Feature',
-        properties: {},
-        geometry: {
-          type: 'Polygon',
-          coordinates: [polygonCoords],
-        },
-      };
-
-      if (map.current.getSource(drawingPolygonSourceId)) {
-        (map.current.getSource(drawingPolygonSourceId) as mapboxgl.GeoJSONSource).setData(polygonGeoJson);
-      } else {
-        map.current.addSource(drawingPolygonSourceId, {
-          type: 'geojson',
-          data: polygonGeoJson,
-        });
-
-        map.current.addLayer({
-          id: drawingPolygonLayerId,
-          type: 'fill',
-          source: drawingPolygonSourceId,
-          paint: {
-            'fill-color': '#1E4A74',
-            'fill-opacity': 0.1,
-          },
-        });
-      }
-    }
-  }, []);
-
-  const finishDrawing = useCallback(() => {
-    if (drawingPoints.current.length < 3) return;
-
-    const closedPolygon: number[][] = [...drawingPoints.current, drawingPoints.current[0]];
-    const drawnPoly: DrawnPolygon = {
-      type: 'Polygon',
-      coordinates: [closedPolygon],
-    };
-
-    clearDrawing();
-
-    if (onDrawComplete) {
-      onDrawComplete(drawnPoly);
-    }
-  }, [onDrawComplete, clearDrawing]);
-
-  useEffect(() => {
-    if (!map.current || !mapLoaded) return;
-
-    const handleMapClick = (e: mapboxgl.MapMouseEvent) => {
-      if (!isDrawingMode) return;
-
-      const lngLat = e.lngLat;
-      const point: number[] = [lngLat.lng, lngLat.lat];
-
-      drawingPoints.current.push(point);
-      setCurrentDrawingPoints([...drawingPoints.current]);
-
-      const el = document.createElement('div');
-      el.className = 'drawing-point-marker';
-      el.style.cssText = `
-        width: 12px;
-        height: 12px;
-        background: #1E4A74;
-        border: 2px solid white;
-        border-radius: 50%;
-        cursor: pointer;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-      `;
-
-      if (drawingPoints.current.length === 1) {
-        el.style.width = '16px';
-        el.style.height = '16px';
-        el.style.background = '#22c55e';
-        el.title = 'Click to close polygon';
-      }
-
-      const marker = new mapboxgl.Marker({ element: el })
-        .setLngLat([lngLat.lng, lngLat.lat])
-        .addTo(map.current!);
-
-      if (drawingPoints.current.length === 1) {
-        el.addEventListener('click', (evt) => {
-          evt.stopPropagation();
-          if (drawingPoints.current.length >= 3) {
-            finishDrawing();
-          }
-        });
-      }
-
-      drawingMarkers.current.push(marker);
-      updateDrawingPreview();
-    };
-
-    const handleDblClick = (e: mapboxgl.MapMouseEvent) => {
-      if (!isDrawingMode) return;
-      e.preventDefault();
-
-      if (drawingPoints.current.length >= 3) {
-        finishDrawing();
-      }
-    };
-
-    map.current.on('click', handleMapClick);
-    map.current.on('dblclick', handleDblClick);
-
-    if (isDrawingMode) {
-      map.current.getCanvas().style.cursor = 'crosshair';
-    } else {
-      map.current.getCanvas().style.cursor = '';
-      clearDrawing();
-    }
-
-    return () => {
-      if (map.current) {
-        map.current.off('click', handleMapClick);
-        map.current.off('dblclick', handleDblClick);
-      }
-    };
-  }, [isDrawingMode, mapLoaded, finishDrawing, clearDrawing, updateDrawingPreview]);
-
-  useEffect(() => {
-    if (!isDrawingMode && onDrawClear) {
-      clearDrawing();
-    }
-  }, [isDrawingMode, onDrawClear, clearDrawing]);
+  }, [searchBounds, mapLoaded]);
 
   if (!MAPBOX_ACCESS_TOKEN) {
     return (
@@ -804,19 +410,6 @@ export function ListingsMapEnhanced({
   return (
     <div className="relative h-full w-full">
       <div ref={mapContainer} className="h-full w-full" />
-
-      {isDrawingMode && (
-        <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-white/95 backdrop-blur-sm px-4 py-2 rounded-lg shadow-lg border border-gray-200 z-10">
-          <p className="text-sm text-gray-700 font-medium">
-            {currentDrawingPoints.length === 0 && "Click on the map to start drawing your search area"}
-            {currentDrawingPoints.length === 1 && "Click to add more points"}
-            {currentDrawingPoints.length === 2 && "Add at least one more point"}
-            {currentDrawingPoints.length >= 3 && (
-              <>Double-click or click the <span className="text-green-600 font-semibold">green dot</span> to finish</>
-            )}
-          </p>
-        </div>
-      )}
 
       <style>{`
         .mapboxgl-popup-content {

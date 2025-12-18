@@ -1,9 +1,4 @@
-import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from "../config/supabase";
-
-export interface PolygonGeometry {
-  type: 'Polygon' | 'MultiPolygon';
-  coordinates: number[][][] | number[][][][];
-}
+import { supabase } from "../config/supabase";
 
 export interface LocationResult {
   id: string;
@@ -22,7 +17,6 @@ export interface LocationResult {
     lng: number;
   };
   matchScore: number;
-  polygon?: PolygonGeometry | null;
 }
 
 function levenshteinDistance(a: string, b: string): number {
@@ -251,85 +245,3 @@ export async function getLocationByZipCode(zipCode: string): Promise<LocationRes
   }
 }
 
-export async function fetchZipCodePolygon(zipCode: string): Promise<PolygonGeometry | null> {
-  if (!zipCode || !/^\d{5}$/.test(zipCode)) {
-    return null;
-  }
-
-  try {
-    const response = await fetch(
-      `${SUPABASE_URL}/functions/v1/get-zipcode-polygon?zip=${zipCode}`,
-      {
-        headers: {
-          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-          'Content-Type': 'application/json',
-        },
-      }
-    );
-
-    if (!response.ok) {
-      console.error('Failed to fetch zip code polygon:', response.status);
-      return null;
-    }
-
-    const data = await response.json();
-
-    if (data.polygon) {
-      return data.polygon as PolygonGeometry;
-    }
-
-    return null;
-  } catch (err) {
-    console.error('Error fetching zip code polygon:', err);
-    return null;
-  }
-}
-
-export async function fetchNeighborhoodPolygon(neighborhoodName: string): Promise<PolygonGeometry | null> {
-  if (!neighborhoodName || neighborhoodName.trim().length === 0) {
-    return null;
-  }
-
-  try {
-    const response = await fetch(
-      `${SUPABASE_URL}/functions/v1/get-neighborhood-polygon?name=${encodeURIComponent(neighborhoodName)}`,
-      {
-        headers: {
-          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-          'Content-Type': 'application/json',
-        },
-      }
-    );
-
-    if (!response.ok) {
-      console.error('Failed to fetch neighborhood polygon:', response.status);
-      return null;
-    }
-
-    const data = await response.json();
-
-    if (data.polygon) {
-      return data.polygon as PolygonGeometry;
-    }
-
-    return null;
-  } catch (err) {
-    console.error('Error fetching neighborhood polygon:', err);
-    return null;
-  }
-}
-
-export async function getLocationWithPolygon(location: LocationResult): Promise<LocationResult> {
-  let polygon: PolygonGeometry | null = null;
-
-  if (location.type === 'zip') {
-    polygon = await fetchZipCodePolygon(location.name);
-  } else if (location.type === 'neighborhood' || location.type === 'borough') {
-    polygon = await fetchNeighborhoodPolygon(location.name);
-  }
-
-  return {
-    ...location,
-    polygon,
-  };
-}

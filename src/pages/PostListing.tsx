@@ -700,6 +700,14 @@ export function PostListing() {
     }
   };
 
+  const handleZipCodeFromMap = (zipCode: string) => {
+    setFormData((prev) => ({ ...prev, zip_code: zipCode }));
+  };
+
+  const handleCityFromMap = (city: string) => {
+    setFormData((prev) => ({ ...prev, city: city }));
+  };
+
   const handleGeocodeStatusChange = (error: string | null, success: string | null) => {
     setGeocodeError(error);
     setGeocodeSuccess(success);
@@ -1685,6 +1693,8 @@ export function PostListing() {
                         longitude={formData.longitude}
                         onLocationChange={handleLocationCoordinatesChange}
                         onNeighborhoodChange={handleNeighborhoodFromMap}
+                        onZipCodeChange={handleZipCodeFromMap}
+                        onCityChange={handleCityFromMap}
                         onGeocodeStatusChange={handleGeocodeStatusChange}
                       />
                     </div>
@@ -1733,6 +1743,8 @@ export function PostListing() {
                       longitude={formData.longitude}
                       onLocationChange={handleLocationCoordinatesChange}
                       onNeighborhoodChange={handleNeighborhoodFromMap}
+                      onZipCodeChange={handleZipCodeFromMap}
+                      onCityChange={handleCityFromMap}
                       onGeocodeStatusChange={handleGeocodeStatusChange}
                     />
                   </div>

@@ -3,6 +3,7 @@ import mapboxgl from "mapbox-gl";
 import { X, MapPin, Search, Loader2, CheckCircle } from "lucide-react";
 import { MAPBOX_ACCESS_TOKEN } from "@/config/env";
 import { geocodeCrossStreets, formatCorrectionMessage } from "@/services/geocoding";
+import { reverseGeocode } from "@/services/reverseGeocode";
 
 const DEFAULT_CENTER: [number, number] = [-73.9442, 40.6782];
 const DEFAULT_ZOOM = 13;
@@ -16,6 +17,8 @@ interface MapModalProps {
   initialLongitude: number | null;
   onLocationConfirm: (lat: number, lng: number) => void;
   onNeighborhoodChange?: (neighborhood: string) => void;
+  onZipCodeChange?: (zipCode: string) => void;
+  onCityChange?: (city: string) => void;
 }
 
 export function MapModal({
@@ -27,6 +30,8 @@ export function MapModal({
   initialLongitude,
   onLocationConfirm,
   onNeighborhoodChange,
+  onZipCodeChange,
+  onCityChange,
 }: MapModalProps) {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
@@ -38,26 +43,19 @@ export function MapModal({
   const [hasMovedMap, setHasMovedMap] = useState(false);
   const [currentCenter, setCurrentCenter] = useState<{ lat: number; lng: number } | null>(null);
 
-  const reverseGeocode = useCallback(
+  const performReverseGeocode = useCallback(
     async (lat: number, lng: number) => {
-      if (!onNeighborhoodChange) return;
-
       setIsReverseGeocoding(true);
       try {
-        const response = await fetch(
-          `https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?access_token=${MAPBOX_ACCESS_TOKEN}&types=neighborhood,locality,place`
-        );
-
-        if (!response.ok) return;
-
-        const data = await response.json();
-        if (data.features && data.features.length > 0) {
-          const neighborhoodFeature = data.features.find(
-            (f: any) => f.place_type.includes("neighborhood") || f.place_type.includes("locality")
-          );
-          if (neighborhoodFeature) {
-            onNeighborhoodChange(neighborhoodFeature.text);
-          }
+        const result = await reverseGeocode(lat, lng);
+        if (result.neighborhood && onNeighborhoodChange) {
+          onNeighborhoodChange(result.neighborhood);
+        }
+        if (result.zipCode && onZipCodeChange) {
+          onZipCodeChange(result.zipCode);
+        }
+        if (result.city && onCityChange) {
+          onCityChange(result.city);
         }
       } catch (error) {
         console.error("Reverse geocoding error:", error);
@@ -65,7 +63,7 @@ export function MapModal({
         setIsReverseGeocoding(false);
       }
     },
-    [onNeighborhoodChange]
+    [onNeighborhoodChange, onZipCodeChange, onCityChange]
   );
 
   useEffect(() => {
@@ -150,7 +148,7 @@ export function MapModal({
         if (result.neighborhood && onNeighborhoodChange) {
           onNeighborhoodChange(result.neighborhood);
         } else {
-          reverseGeocode(lat, lng);
+          performReverseGeocode(lat, lng);
         }
       } else {
         setGeocodeError(
@@ -168,7 +166,7 @@ export function MapModal({
   const handleFreezeLocation = () => {
     if (!currentCenter) return;
 
-    reverseGeocode(currentCenter.lat, currentCenter.lng);
+    performReverseGeocode(currentCenter.lat, currentCenter.lng);
     onLocationConfirm(currentCenter.lat, currentCenter.lng);
     onClose();
   };
