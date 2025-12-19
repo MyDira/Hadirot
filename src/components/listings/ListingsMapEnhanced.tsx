@@ -455,6 +455,12 @@ export function ListingsMapEnhanced({
   useEffect(() => {
     if (!map.current || !mapLoaded || !centerOnListings || shouldPreservePosition) return;
 
+    // Validate coordinates before flying to them
+    if (!isFinite(centerOnListings.lat) || !isFinite(centerOnListings.lng) || !isFinite(centerOnListings.zoom)) {
+      console.error('Invalid centerOnListings coordinates:', centerOnListings);
+      return;
+    }
+
     map.current.flyTo({
       center: [centerOnListings.lng, centerOnListings.lat],
       zoom: centerOnListings.zoom,

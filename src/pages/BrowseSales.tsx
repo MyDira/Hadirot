@@ -258,6 +258,10 @@ export function BrowseSales() {
         const geoCenter = calculateGeographicCenter(filteredMapListings);
         if (geoCenter) {
           setCenterOnListings(geoCenter);
+          // Clear after use to prevent stale values
+          setTimeout(() => {
+            setCenterOnListings(null);
+          }, 1500);
         }
       }
 
@@ -283,6 +287,7 @@ export function BrowseSales() {
 
     setIsFilterClearing(isClearing);
     setShouldPreserveMapPosition(isClearing);
+    setCenterOnListings(null); // Clear to prevent stale values
 
     gaEvent("filter_apply", {
       price_min: newFilters.min_price ?? null,

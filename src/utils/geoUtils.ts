@@ -44,11 +44,17 @@ export function calculateGeographicCenter(
   }
 
   if (listingsWithCoords.length === 1) {
+    const lat = listingsWithCoords[0].latitude;
+    const lng = listingsWithCoords[0].longitude;
+
+    // Validate single listing coordinates
+    if (!isFinite(lat) || !isFinite(lng)) {
+      console.error('Invalid single listing coordinates:', { lat, lng });
+      return null;
+    }
+
     return {
-      center: {
-        lat: listingsWithCoords[0].latitude,
-        lng: listingsWithCoords[0].longitude,
-      },
+      center: { lat, lng },
       zoom: 15,
     };
   }
@@ -63,6 +69,16 @@ export function calculateGeographicCenter(
 
   const centerLat = (minLat + maxLat) / 2;
   const centerLng = (minLng + maxLng) / 2;
+
+  // Validate that coordinates are finite numbers
+  if (!isFinite(centerLat) || !isFinite(centerLng) ||
+      !isFinite(minLat) || !isFinite(maxLat) ||
+      !isFinite(minLng) || !isFinite(maxLng)) {
+    console.error('Invalid coordinates detected in calculateGeographicCenter', {
+      centerLat, centerLng, minLat, maxLat, minLng, maxLng
+    });
+    return null;
+  }
 
   const latSpread = maxLat - minLat;
   const lngSpread = maxLng - minLng;
