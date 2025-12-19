@@ -14,6 +14,7 @@ import { useListingImpressions } from "../hooks/useListingImpressions";
 import { useBrowseFilters } from "../hooks/useBrowseFilters";
 import { ParsedSearchQuery } from "../utils/searchQueryParser";
 import { LocationResult } from "../services/locationSearch";
+import { calculateGeographicCenter } from "../utils/geoUtils";
 
 export type SortOption = 'newest' | 'oldest' | 'price_asc' | 'price_desc' | 'bedrooms_asc' | 'bedrooms_desc' | 'bathrooms_asc' | 'bathrooms_desc';
 
@@ -67,6 +68,9 @@ export function BrowseSales() {
   const [showSortDropdown, setShowSortDropdown] = useState(false);
   const sortDropdownRef = useRef<HTMLDivElement>(null);
   const listingsContainerRef = useRef<HTMLDivElement>(null);
+  const [centerOnListings, setCenterOnListings] = useState<{ lat: number; lng: number; zoom: number } | null>(null);
+  const [shouldPreserveMapPosition, setShouldPreserveMapPosition] = useState(false);
+  const [isFilterClearing, setIsFilterClearing] = useState(false);
   const { user } = useAuth();
   const { filters, currentPage, updateFilters, updatePage, markNavigatingToDetail, isReady } = useBrowseFilters('sales');
 
@@ -250,6 +254,13 @@ export function BrowseSales() {
       }
       setAllListingsForMap(filteredMapListings);
 
+      if (!shouldPreserveMapPosition && !searchBounds && !boundsFilter) {
+        const geoCenter = calculateGeographicCenter(filteredMapListings);
+        if (geoCenter) {
+          setCenterOnListings(geoCenter);
+        }
+      }
+
     } catch (error) {
       console.error("Error loading listings:", error);
     } finally {
@@ -268,6 +279,11 @@ export function BrowseSales() {
   };
 
   const handleFiltersChange = (newFilters: FilterState) => {
+    const isClearing = Object.keys(newFilters).length < Object.keys(filters).length;
+
+    setIsFilterClearing(isClearing);
+    setShouldPreserveMapPosition(isClearing);
+
     gaEvent("filter_apply", {
       price_min: newFilters.min_price ?? null,
       price_max: newFilters.max_price ?? null,
@@ -279,6 +295,13 @@ export function BrowseSales() {
     trackFilterApply(newFilters);
     updateFilters(newFilters);
     setShowSearchAreaButton(false);
+
+    if (isClearing) {
+      setTimeout(() => {
+        setShouldPreserveMapPosition(false);
+        setIsFilterClearing(false);
+      }, 500);
+    }
   };
 
   const handlePageChange = (page: number) => {
@@ -345,8 +368,24 @@ export function BrowseSales() {
     setSelectedListingId(listingId);
     const element = document.getElementById(`listing-card-${listingId}`);
     if (element && listingsContainerRef.current) {
-      element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      const container = listingsContainerRef.current;
+      const rect = element.getBoundingClientRect();
+      const containerRect = container.getBoundingClientRect();
+
+      const isFullyVisible =
+        rect.top >= containerRect.top &&
+        rect.bottom <= containerRect.bottom &&
+        rect.left >= containerRect.left &&
+        rect.right <= containerRect.right;
+
+      if (!isFullyVisible) {
+        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
     }
+  }, []);
+
+  const handleMapClick = useCallback(() => {
+    setSelectedListingId(null);
   }, []);
 
   useEffect(() => {
@@ -437,11 +476,16 @@ export function BrowseSales() {
   }, [filters, updateFilters]);
 
   const handleSearchClear = useCallback(() => {
+    setShouldPreserveMapPosition(true);
     setSearchLocation(null);
     setSearchBounds(null);
     setMapBounds(null);
     setShowSearchAreaButton(false);
     updateFilters({});
+
+    setTimeout(() => {
+      setShouldPreserveMapPosition(false);
+    }, 500);
   }, [updateFilters]);
 
   useEffect(() => {
@@ -911,10 +955,13 @@ export function BrowseSales() {
                 selectedListingId={selectedListingId}
                 onMarkerHover={handleListingHover}
                 onMarkerClick={handleMarkerClick}
+                onMapClick={handleMapClick}
                 onBoundsChange={handleMapBoundsChange}
                 userLocation={userLocation}
                 searchBounds={searchBounds}
                 searchLocationName={searchLocation?.name}
+                centerOnListings={centerOnListings}
+                shouldPreservePosition={shouldPreserveMapPosition}
               />
 
               {/* Listing count badge */}
@@ -1063,10 +1110,13 @@ export function BrowseSales() {
                 selectedListingId={selectedListingId}
                 onMarkerHover={handleListingHover}
                 onMarkerClick={handleMarkerClick}
+                onMapClick={handleMapClick}
                 onBoundsChange={handleMapBoundsChange}
                 userLocation={userLocation}
                 searchBounds={searchBounds}
                 searchLocationName={searchLocation?.name}
+                centerOnListings={centerOnListings}
+                shouldPreservePosition={shouldPreserveMapPosition}
               />
             )}
 

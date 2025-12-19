@@ -26,3 +26,65 @@ export function isPointInBounds(
     lng <= bounds.east
   );
 }
+
+export interface GeographicCenter {
+  center: { lat: number; lng: number };
+  zoom: number;
+}
+
+export function calculateGeographicCenter(
+  listings: Array<{ latitude: number | null; longitude: number | null }>
+): GeographicCenter | null {
+  const listingsWithCoords = listings.filter(
+    (l) => l.latitude != null && l.longitude != null
+  ) as Array<{ latitude: number; longitude: number }>;
+
+  if (listingsWithCoords.length === 0) {
+    return null;
+  }
+
+  if (listingsWithCoords.length === 1) {
+    return {
+      center: {
+        lat: listingsWithCoords[0].latitude,
+        lng: listingsWithCoords[0].longitude,
+      },
+      zoom: 15,
+    };
+  }
+
+  const lats = listingsWithCoords.map((l) => l.latitude);
+  const lngs = listingsWithCoords.map((l) => l.longitude);
+
+  const minLat = Math.min(...lats);
+  const maxLat = Math.max(...lats);
+  const minLng = Math.min(...lngs);
+  const maxLng = Math.max(...lngs);
+
+  const centerLat = (minLat + maxLat) / 2;
+  const centerLng = (minLng + maxLng) / 2;
+
+  const latSpread = maxLat - minLat;
+  const lngSpread = maxLng - minLng;
+  const maxSpread = Math.max(latSpread, lngSpread);
+
+  let zoom = 12;
+  if (maxSpread < 0.01) {
+    zoom = 15;
+  } else if (maxSpread < 0.02) {
+    zoom = 14;
+  } else if (maxSpread < 0.05) {
+    zoom = 13;
+  } else if (maxSpread < 0.1) {
+    zoom = 12;
+  } else if (maxSpread < 0.2) {
+    zoom = 11;
+  } else {
+    zoom = 10;
+  }
+
+  return {
+    center: { lat: centerLat, lng: centerLng },
+    zoom,
+  };
+}

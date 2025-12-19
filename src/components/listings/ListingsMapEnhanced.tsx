@@ -23,9 +23,12 @@ interface ListingsMapEnhancedProps {
   onMarkerHover?: (listingId: string | null) => void;
   onMarkerClick?: (listingId: string) => void;
   onBoundsChange?: (bounds: MapBounds, zoomLevel: number) => void;
+  onMapClick?: () => void;
   userLocation?: { lat: number; lng: number } | null;
   searchBounds?: MapBounds | null;
   searchLocationName?: string;
+  centerOnListings?: { lat: number; lng: number; zoom: number } | null;
+  shouldPreservePosition?: boolean;
 }
 
 export function ListingsMapEnhanced({
@@ -35,9 +38,12 @@ export function ListingsMapEnhanced({
   onMarkerHover,
   onMarkerClick,
   onBoundsChange,
+  onMapClick,
   userLocation,
   searchBounds,
   searchLocationName,
+  centerOnListings,
+  shouldPreservePosition = false,
 }: ListingsMapEnhancedProps) {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
@@ -239,6 +245,21 @@ export function ListingsMapEnhanced({
       }, 300);
     });
 
+    map.current.on("click", (e) => {
+      const features = map.current!.queryRenderedFeatures(e.point);
+      const clickedOnMarker = features.some(f => f.layer.id?.includes('marker'));
+
+      if (!clickedOnMarker) {
+        if (popup.current) {
+          popup.current.remove();
+          popup.current = null;
+        }
+        if (onMapClick) {
+          onMapClick();
+        }
+      }
+    });
+
     return () => {
       if (boundsChangeTimeoutRef.current) {
         clearTimeout(boundsChangeTimeoutRef.current);
@@ -333,9 +354,12 @@ export function ListingsMapEnhanced({
           }
         });
 
-        el.addEventListener("click", () => {
+        el.addEventListener("click", (e) => {
+          e.stopPropagation();
+
           if (popup.current) {
             popup.current.remove();
+            popup.current = null;
           }
 
           popup.current = new mapboxgl.Popup({
@@ -347,6 +371,12 @@ export function ListingsMapEnhanced({
             .setLngLat([listing.longitude!, listing.latitude!])
             .setHTML(createPopupContent(listing))
             .addTo(map.current!);
+
+          popup.current.on('close', () => {
+            if (onMapClick) {
+              onMapClick();
+            }
+          });
 
           if (onMarkerClick) {
             onMarkerClick(listing.id);
@@ -408,7 +438,7 @@ export function ListingsMapEnhanced({
   }, [hoveredListingId, listingsWithCoords, mapLoaded]);
 
   useEffect(() => {
-    if (!map.current || !mapLoaded || !searchBounds) return;
+    if (!map.current || !mapLoaded || !searchBounds || shouldPreservePosition) return;
 
     const bounds = new mapboxgl.LngLatBounds(
       [searchBounds.west, searchBounds.south],
@@ -420,7 +450,17 @@ export function ListingsMapEnhanced({
       duration: 1200,
       maxZoom: 15,
     });
-  }, [searchBounds, mapLoaded]);
+  }, [searchBounds, mapLoaded, shouldPreservePosition]);
+
+  useEffect(() => {
+    if (!map.current || !mapLoaded || !centerOnListings || shouldPreservePosition) return;
+
+    map.current.flyTo({
+      center: [centerOnListings.lng, centerOnListings.lat],
+      zoom: centerOnListings.zoom,
+      duration: 1200,
+    });
+  }, [centerOnListings, mapLoaded, shouldPreservePosition]);
 
   if (!MAPBOX_ACCESS_TOKEN) {
     return (
