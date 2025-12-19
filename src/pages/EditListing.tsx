@@ -1024,7 +1024,8 @@ export function EditListing() {
             has_apartment_conditions: formData.apartment_conditions.length > 0,
           },
           user_context: {
-            user_role: userRole,
+            user_role: profile?.role || 'unknown',
+            is_admin: profile?.is_admin || false,
             is_owner: listing?.user_id === user?.id,
           },
         },
