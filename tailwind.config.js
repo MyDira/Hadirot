@@ -1,6 +1,22 @@
 /** @type {import('tailwindcss').Config} */
 export default {
   content: ["./index.html", "./src/**/*.{js,ts,jsx,tsx}"],
+  safelist: [
+    'scale-105',
+    'scale-110',
+    'shadow-sm',
+    'shadow-lg',
+    'bg-brand-600',
+    'border-t-brand-600',
+    'border-t-white',
+    'hover:scale-105',
+    'hover:shadow-lg',
+    'border-l-4',
+    'border-r-4',
+    'border-t-4',
+    'border-l-transparent',
+    'border-r-transparent',
+  ],
   theme: {
     extend: {
       colors: {

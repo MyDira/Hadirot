@@ -74,14 +74,14 @@ export function ListingsMapEnhanced({
     const colorClasses = isHovered || isSelected
       ? "bg-brand-600 text-white"
       : "bg-white text-brand-800 border border-gray-300";
-    const scaleClass = isHovered || isSelected ? "scale-110 z-50" : "hover:scale-102";
+    const scaleClass = isHovered || isSelected ? "scale-110 z-50" : "hover:scale-105";
     const shadowClass = isHovered || isSelected ? "shadow-lg" : "shadow-sm hover:shadow-lg";
 
     el.innerHTML = `
       <div class="${baseClasses} ${colorClasses} ${scaleClass} ${shadowClass} px-2 py-0.5 rounded-full text-xs font-semibold whitespace-nowrap" style="font-family: var(--num-font);">
         ${priceText}
       </div>
-      <div class="absolute left-1/2 -translate-x-1/2 -bottom-1 w-0 h-0 border-l-[3px] border-r-[3px] border-t-[3px] ${isHovered || isSelected ? 'border-t-brand-600' : 'border-t-white'} border-l-transparent border-r-transparent"></div>
+      <div class="absolute left-1/2 -translate-x-1/2 -bottom-1 w-0 h-0 border-l-4 border-r-4 border-t-4 ${isHovered || isSelected ? 'border-t-brand-600' : 'border-t-white'} border-l-transparent border-r-transparent"></div>
     `;
 
     return el;
@@ -285,11 +285,41 @@ export function ListingsMapEnhanced({
       const existingItem = markers.current.get(listing.id);
 
       if (existingItem) {
-        const newElement = createPriceMarkerElement(listing, isHovered, isSelected);
-        existingItem.element.innerHTML = newElement.innerHTML;
-        existingItem.element.className = newElement.className;
+        // Only update if state actually changed
+        const currentlyHovered = existingItem.element.dataset.isHovered === 'true';
+        const currentlySelected = existingItem.element.dataset.isSelected === 'true';
+
+        if (currentlyHovered !== isHovered || currentlySelected !== isSelected) {
+          // Update data attributes to track state
+          existingItem.element.dataset.isHovered = String(isHovered);
+          existingItem.element.dataset.isSelected = String(isSelected);
+
+          // Update only the classes, not the entire innerHTML
+          const innerDiv = existingItem.element.querySelector('div:first-child');
+          const triangle = existingItem.element.querySelector('div:last-child');
+
+          if (innerDiv) {
+            const baseClasses = "relative cursor-pointer transition-all duration-150";
+            const colorClasses = isHovered || isSelected
+              ? "bg-brand-600 text-white"
+              : "bg-white text-brand-800 border border-gray-300";
+            const scaleClass = isHovered || isSelected ? "scale-110 z-50" : "hover:scale-105";
+            const shadowClass = isHovered || isSelected ? "shadow-lg" : "shadow-sm hover:shadow-lg";
+
+            innerDiv.className = `${baseClasses} ${colorClasses} ${scaleClass} ${shadowClass} px-2 py-0.5 rounded-full text-xs font-semibold whitespace-nowrap`;
+          }
+
+          if (triangle) {
+            const triangleColor = isHovered || isSelected ? 'border-t-brand-600' : 'border-t-white';
+            triangle.className = `absolute left-1/2 -translate-x-1/2 -bottom-1 w-0 h-0 border-l-4 border-r-4 border-t-4 ${triangleColor} border-l-transparent border-r-transparent`;
+          }
+        }
       } else {
         const el = createPriceMarkerElement(listing, isHovered, isSelected);
+
+        // Initialize state tracking attributes
+        el.dataset.isHovered = String(isHovered);
+        el.dataset.isSelected = String(isSelected);
 
         el.addEventListener("mouseenter", () => {
           if (onMarkerHover) {
