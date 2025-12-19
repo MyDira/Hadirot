@@ -93,6 +93,44 @@ export function ListingsMapEnhanced({
     return el;
   }, []);
 
+  // Calculate optimal popup anchor position based on marker location
+  const calculatePopupAnchor = useCallback((markerLngLat: [number, number]): string => {
+    if (!map.current) return "bottom";
+
+    const mapCanvas = map.current.getCanvas();
+    const mapWidth = mapCanvas.width;
+    const mapHeight = mapCanvas.height;
+
+    // Convert lat/lng to pixel coordinates
+    const markerPoint = map.current.project(markerLngLat);
+
+    // Define popup dimensions (approximate)
+    const isMobile = window.innerWidth < 768;
+    const popupWidth = isMobile ? Math.min(window.innerWidth * 0.85, 300) : 280;
+    const popupHeight = isMobile ? 200 : 280;
+
+    // Calculate available space in each direction
+    const spaceTop = markerPoint.y;
+    const spaceBottom = mapHeight - markerPoint.y;
+    const spaceLeft = markerPoint.x;
+    const spaceRight = mapWidth - markerPoint.x;
+
+    // Determine best anchor position
+    // Priority: bottom > top > left > right for better UX
+    if (spaceBottom >= popupHeight + 60) {
+      return "top"; // Popup below marker
+    } else if (spaceTop >= popupHeight + 60) {
+      return "bottom"; // Popup above marker
+    } else if (spaceRight >= popupWidth + 40) {
+      return "left"; // Popup to the right
+    } else if (spaceLeft >= popupWidth + 40) {
+      return "right"; // Popup to the left
+    } else {
+      // Not enough space, use bottom-left as fallback
+      return "bottom-left";
+    }
+  }, []);
+
   const createPopupContent = useCallback((listing: Listing): string => {
     const sortedImages = listing.listing_images?.sort((a, b) => {
       if (a.is_featured && !b.is_featured) return -1;
@@ -135,8 +173,12 @@ export function ListingsMapEnhanced({
           ? `${listing.bedrooms}+${listing.additional_rooms}`
           : `${listing.bedrooms}`;
 
+    // Responsive width based on viewport
+    const isMobile = window.innerWidth < 768;
+    const popupWidth = isMobile ? "min(85vw, 300px)" : "280px";
+
     return `
-      <div class="listing-popup" style="width: 280px; font-family: system-ui, -apple-system, sans-serif;">
+      <div class="listing-popup" style="width: ${popupWidth}; font-family: system-ui, -apple-system, sans-serif;">
         <div style="position: relative; aspect-ratio: 3/2; overflow: hidden; border-radius: 8px 8px 0 0;">
           <img
             src="${imageUrl}"
@@ -150,10 +192,10 @@ export function ListingsMapEnhanced({
           ` : ''}
         </div>
         <div style="padding: 12px;">
-          <div style="font-size: 20px; font-weight: 700; color: #1E4A74; margin-bottom: 8px; font-family: var(--num-font);">
+          <div style="font-size: ${isMobile ? '18px' : '20px'}; font-weight: 700; color: #1E4A74; margin-bottom: 8px; font-family: var(--num-font);">
             ${priceDisplay}
           </div>
-          <div style="display: flex; align-items: center; gap: 12px; color: #6b7280; font-size: 13px; margin-bottom: 8px;">
+          <div style="display: flex; align-items: center; gap: ${isMobile ? '8px' : '12px'}; color: #6b7280; font-size: ${isMobile ? '12px' : '13px'}; margin-bottom: 8px; flex-wrap: wrap;">
             <span>${bedroomDisplay} bed</span>
             <span>${listing.bathrooms} bath</span>
             ${!isSaleListing && hasParking ? '<span>Parking</span>' : ''}
@@ -163,7 +205,7 @@ export function ListingsMapEnhanced({
               </span>
             ` : ''}
           </div>
-          <div style="display: flex; align-items: center; color: #6b7280; font-size: 13px; margin-bottom: 10px;">
+          <div style="display: flex; align-items: center; color: #6b7280; font-size: ${isMobile ? '12px' : '13px'}; margin-bottom: 10px;">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 6px; flex-shrink: 0;">
               <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
               <circle cx="12" cy="10" r="3"></circle>
@@ -176,7 +218,7 @@ export function ListingsMapEnhanced({
             <span style="font-size: 12px; color: #6b7280;">by ${getPosterLabel()}</span>
             <button
               onclick="window.__mapPopupClick__('${listing.id}')"
-              style="display: inline-flex; align-items: center; gap: 4px; background: #1E4A74; color: white; padding: 6px 12px; border-radius: 6px; font-size: 12px; font-weight: 500; border: none; cursor: pointer;"
+              style="display: inline-flex; align-items: center; gap: 4px; background: #1E4A74; color: white; padding: ${isMobile ? '8px 12px' : '6px 12px'}; border-radius: 6px; font-size: 12px; font-weight: 500; border: none; cursor: pointer; min-height: ${isMobile ? '44px' : 'auto'};"
             >
               View Listing
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -220,6 +262,22 @@ export function ListingsMapEnhanced({
 
     map.current.on("load", () => {
       setMapLoaded(true);
+    });
+
+    // Close popup when map starts moving (drag/pan)
+    map.current.on("movestart", () => {
+      if (popup.current) {
+        popup.current.remove();
+        popup.current = null;
+      }
+    });
+
+    // Close popup when map starts zooming
+    map.current.on("zoomstart", () => {
+      if (popup.current) {
+        popup.current.remove();
+        popup.current = null;
+      }
     });
 
     map.current.on("moveend", () => {
@@ -362,11 +420,30 @@ export function ListingsMapEnhanced({
             popup.current = null;
           }
 
+          // Calculate optimal anchor position
+          const anchor = calculatePopupAnchor([listing.longitude!, listing.latitude!]);
+
+          // Responsive max width
+          const isMobile = window.innerWidth < 768;
+          const maxWidth = isMobile ? "90vw" : "320px";
+
+          // Dynamic offset based on anchor position
+          let offset: number | mapboxgl.Offset = 15;
+          if (anchor === "top") {
+            offset = 20; // More space below marker
+          } else if (anchor === "bottom") {
+            offset = 20; // More space above marker
+          } else if (anchor === "left" || anchor === "right") {
+            offset = 25; // More space to the side
+          }
+
           popup.current = new mapboxgl.Popup({
             closeButton: true,
             closeOnClick: false,
-            maxWidth: "320px",
-            offset: 15,
+            maxWidth: maxWidth,
+            offset: offset,
+            anchor: anchor as any,
+            className: "listing-map-popup",
           })
             .setLngLat([listing.longitude!, listing.latitude!])
             .setHTML(createPopupContent(listing))
@@ -493,10 +570,14 @@ export function ListingsMapEnhanced({
           border-radius: 8px !important;
           box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15) !important;
           overflow: hidden;
+          max-height: 85vh;
         }
+
+        /* Fix close button centering */
         .mapboxgl-popup-close-button {
-          font-size: 20px;
-          padding: 4px 8px;
+          font-size: 18px;
+          line-height: 1;
+          padding: 0 !important;
           color: #6b7280;
           right: 4px;
           top: 4px;
@@ -504,25 +585,68 @@ export function ListingsMapEnhanced({
           border-radius: 50%;
           width: 28px;
           height: 28px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
+          display: flex !important;
+          align-items: center !important;
+          justify-content: center !important;
           box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+          cursor: pointer;
+          transition: all 0.15s ease;
         }
+
         .mapboxgl-popup-close-button:hover {
           background: #f3f4f6;
           color: #1f2937;
+          transform: scale(1.05);
         }
+
+        .mapboxgl-popup-close-button:active {
+          transform: scale(0.95);
+        }
+
+        /* Mobile-specific close button */
+        @media (max-width: 767px) {
+          .mapboxgl-popup-close-button {
+            width: 36px;
+            height: 36px;
+            font-size: 20px;
+            right: 6px;
+            top: 6px;
+          }
+        }
+
+        /* Popup tip styling */
+        .mapboxgl-popup-tip {
+          border-width: 8px;
+        }
+
         .mapboxgl-ctrl-group {
           border-radius: 8px !important;
           box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1) !important;
         }
+
         .mapboxgl-ctrl-group button {
           width: 36px !important;
           height: 36px !important;
         }
+
         .price-marker {
           transform: translateY(-50%);
+        }
+
+        /* Ensure popup stays within viewport */
+        .listing-map-popup .mapboxgl-popup-content {
+          max-width: min(90vw, 320px);
+        }
+
+        @media (max-width: 767px) {
+          .listing-map-popup .mapboxgl-popup-content {
+            max-width: 85vw;
+          }
+        }
+
+        /* Smooth popup transitions */
+        .mapboxgl-popup {
+          will-change: transform;
         }
       `}</style>
     </div>
