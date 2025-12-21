@@ -96,7 +96,7 @@ export function ListingsMapEnhanced({
     const colorClasses = isHovered || isSelected
       ? "bg-brand-600 text-white"
       : "bg-white text-brand-800 border border-gray-300";
-    const scaleClass = isHovered || isSelected ? "scale-110 z-50" : "hover:scale-105";
+    const scaleClass = isHovered || isSelected ? "scale-110 z-30" : "hover:scale-105";
     const shadowClass = isHovered || isSelected ? "shadow-lg" : "shadow-sm hover:shadow-lg";
 
     el.innerHTML = `
@@ -402,7 +402,7 @@ export function ListingsMapEnhanced({
             const colorClasses = isHovered || isSelected
               ? "bg-brand-600 text-white"
               : "bg-white text-brand-800 border border-gray-300";
-            const scaleClass = isHovered || isSelected ? "scale-110 z-50" : "hover:scale-105";
+            const scaleClass = isHovered || isSelected ? "scale-110 z-30" : "hover:scale-105";
             const shadowClass = isHovered || isSelected ? "shadow-lg" : "shadow-sm hover:shadow-lg";
 
             innerDiv.className = `${baseClasses} ${colorClasses} ${scaleClass} ${shadowClass} px-2 py-0.5 rounded-full text-xs font-semibold whitespace-nowrap`;
@@ -659,7 +659,7 @@ export function ListingsMapEnhanced({
           box-shadow: 0 2px 4px rgba(0,0,0,0.1);
           cursor: pointer;
           transition: all 0.15s ease;
-          z-index: 10;
+          z-index: 30;
         }
 
         .mapboxgl-popup-close-button:hover {
@@ -713,7 +713,10 @@ export function ListingsMapEnhanced({
           }
         }
 
+        /* Z-index hierarchy: markers (z-1 to z-30) → map controls (z-10) → popup (z-1000) */
         .mapboxgl-popup {
+          z-index: 1000 !important;
+          position: relative;
           will-change: transform;
           max-width: none !important;
         }
