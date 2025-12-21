@@ -107,6 +107,107 @@ export function ListingsMapEnhanced({
     return el;
   }, []);
 
+  const createPopupContent = useCallback((listing: Listing): string => {
+    const sortedImages = listing.listing_images?.sort((a, b) => {
+      if (a.is_featured && !b.is_featured) return -1;
+      if (!a.is_featured && b.is_featured) return 1;
+      return a.sort_order - b.sort_order;
+    });
+
+    const { url: imageUrl, isStock } = computePrimaryListingImage(
+      sortedImages,
+      {
+        id: listing.id,
+        addressLine: listing.location,
+        city: listing.neighborhood,
+        price: listing.price,
+      },
+      listing.video_thumbnail_url
+    );
+
+    const isSaleListing = listing.listing_type === "sale";
+    const price = isSaleListing ? listing.asking_price : listing.price;
+    const priceDisplay = listing.call_for_price
+      ? "Call for Price"
+      : price != null
+        ? formatPrice(price)
+        : "";
+
+    const hasParking = listing.parking === "yes" || listing.parking === "included";
+
+    const getPosterLabel = () => {
+      if (listing.owner?.role === "agent" && listing.owner?.agency) {
+        return capitalizeName(listing.owner?.agency || "");
+      }
+      return "Owner";
+    };
+
+    const bedroomDisplay =
+      listing.bedrooms === 0
+        ? "Studio"
+        : listing.additional_rooms && listing.additional_rooms > 0
+          ? `${listing.bedrooms}+${listing.additional_rooms}`
+          : `${listing.bedrooms}`;
+
+    const isMobile = window.innerWidth < 768;
+    const popupWidth = isMobile ? "min(85vw, 300px)" : "280px";
+
+    return `
+      <div class="listing-popup" style="width: ${popupWidth}; font-family: system-ui, -apple-system, sans-serif;">
+        <div style="position: relative; aspect-ratio: 3/2; overflow: hidden; border-radius: 8px 8px 0 0;">
+          <img
+            src="${imageUrl}"
+            alt="${isStock ? 'Stock photo' : listing.title}"
+            style="width: 100%; height: 100%; object-fit: cover;"
+          />
+          ${isStock ? `
+            <div style="position: absolute; bottom: 8px; left: 8px; background: rgba(0,0,0,0.35); color: white; padding: 4px 10px; border-radius: 999px; font-size: 11px; backdrop-filter: blur(4px);">
+              Stock photo
+            </div>
+          ` : ''}
+        </div>
+        <div style="padding: 12px;">
+          <div style="font-size: ${isMobile ? '18px' : '20px'}; font-weight: 700; color: #1E4A74; margin-bottom: 8px; font-family: var(--num-font);">
+            ${priceDisplay}
+          </div>
+          <div style="display: flex; align-items: center; gap: ${isMobile ? '8px' : '12px'}; color: #6b7280; font-size: ${isMobile ? '12px' : '13px'}; margin-bottom: 8px; flex-wrap: wrap;">
+            <span>${bedroomDisplay} bed</span>
+            <span>${listing.bathrooms} bath</span>
+            ${!isSaleListing && hasParking ? '<span>Parking</span>' : ''}
+            ${!isSaleListing ? `
+              <span style="background: #f3f4f6; padding: 2px 8px; border-radius: 4px; font-size: 11px;">
+                ${listing.broker_fee ? 'Broker Fee' : 'No Fee'}
+              </span>
+            ` : ''}
+          </div>
+          <div style="display: flex; align-items: center; color: #6b7280; font-size: ${isMobile ? '12px' : '13px'}; margin-bottom: 10px;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 6px; flex-shrink: 0;">
+              <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+              <circle cx="12" cy="10" r="3"></circle>
+            </svg>
+            <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+              ${isSaleListing ? (listing.full_address || listing.location || '') : (listing.cross_streets ?? listing.location) || ''}
+            </span>
+          </div>
+          <div style="display: flex; align-items: center; justify-content: space-between; padding-top: 10px; border-top: 1px solid #f3f4f6;">
+            <span style="font-size: 12px; color: #6b7280;">by ${getPosterLabel()}</span>
+            <button
+              onclick="window.__mapPopupClick__('${listing.id}')"
+              style="display: inline-flex; align-items: center; gap: 4px; background: #1E4A74; color: white; padding: ${isMobile ? '8px 12px' : '6px 12px'}; border-radius: 6px; font-size: 12px; font-weight: 500; border: none; cursor: pointer; min-height: ${isMobile ? '44px' : 'auto'};"
+            >
+              View Listing
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                <polyline points="15 3 21 3 21 9"></polyline>
+                <line x1="10" y1="14" x2="21" y2="3"></line>
+              </svg>
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+  }, []);
+
   const removeCustomPopup = useCallback(() => {
     if (popupContainer.current && mapContainer.current) {
       popupContainer.current.classList.add('popup-exit');
@@ -250,108 +351,6 @@ export function ListingsMapEnhanced({
       arrow.className = position.anchor === 'bottom' ? 'popup-arrow-bottom' : 'popup-arrow-top';
     }
   }, [listingsWithCoords]);
-
-  const createPopupContent = useCallback((listing: Listing): string => {
-    const sortedImages = listing.listing_images?.sort((a, b) => {
-      if (a.is_featured && !b.is_featured) return -1;
-      if (!a.is_featured && b.is_featured) return 1;
-      return a.sort_order - b.sort_order;
-    });
-
-    const { url: imageUrl, isStock } = computePrimaryListingImage(
-      sortedImages,
-      {
-        id: listing.id,
-        addressLine: listing.location,
-        city: listing.neighborhood,
-        price: listing.price,
-      },
-      listing.video_thumbnail_url
-    );
-
-    const isSaleListing = listing.listing_type === "sale";
-    const price = isSaleListing ? listing.asking_price : listing.price;
-    const priceDisplay = listing.call_for_price
-      ? "Call for Price"
-      : price != null
-        ? formatPrice(price)
-        : "";
-
-    const hasParking = listing.parking === "yes" || listing.parking === "included";
-
-    const getPosterLabel = () => {
-      if (listing.owner?.role === "agent" && listing.owner?.agency) {
-        return capitalizeName(listing.owner?.agency || "");
-      }
-      return "Owner";
-    };
-
-    const bedroomDisplay =
-      listing.bedrooms === 0
-        ? "Studio"
-        : listing.additional_rooms && listing.additional_rooms > 0
-          ? `${listing.bedrooms}+${listing.additional_rooms}`
-          : `${listing.bedrooms}`;
-
-    // Responsive width based on viewport
-    const isMobile = window.innerWidth < 768;
-    const popupWidth = isMobile ? "min(85vw, 300px)" : "280px";
-
-    return `
-      <div class="listing-popup" style="width: ${popupWidth}; font-family: system-ui, -apple-system, sans-serif;">
-        <div style="position: relative; aspect-ratio: 3/2; overflow: hidden; border-radius: 8px 8px 0 0;">
-          <img
-            src="${imageUrl}"
-            alt="${isStock ? 'Stock photo' : listing.title}"
-            style="width: 100%; height: 100%; object-fit: cover;"
-          />
-          ${isStock ? `
-            <div style="position: absolute; bottom: 8px; left: 8px; background: rgba(0,0,0,0.35); color: white; padding: 4px 10px; border-radius: 999px; font-size: 11px; backdrop-filter: blur(4px);">
-              Stock photo
-            </div>
-          ` : ''}
-        </div>
-        <div style="padding: 12px;">
-          <div style="font-size: ${isMobile ? '18px' : '20px'}; font-weight: 700; color: #1E4A74; margin-bottom: 8px; font-family: var(--num-font);">
-            ${priceDisplay}
-          </div>
-          <div style="display: flex; align-items: center; gap: ${isMobile ? '8px' : '12px'}; color: #6b7280; font-size: ${isMobile ? '12px' : '13px'}; margin-bottom: 8px; flex-wrap: wrap;">
-            <span>${bedroomDisplay} bed</span>
-            <span>${listing.bathrooms} bath</span>
-            ${!isSaleListing && hasParking ? '<span>Parking</span>' : ''}
-            ${!isSaleListing ? `
-              <span style="background: #f3f4f6; padding: 2px 8px; border-radius: 4px; font-size: 11px;">
-                ${listing.broker_fee ? 'Broker Fee' : 'No Fee'}
-              </span>
-            ` : ''}
-          </div>
-          <div style="display: flex; align-items: center; color: #6b7280; font-size: ${isMobile ? '12px' : '13px'}; margin-bottom: 10px;">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 6px; flex-shrink: 0;">
-              <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
-              <circle cx="12" cy="10" r="3"></circle>
-            </svg>
-            <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
-              ${isSaleListing ? (listing.full_address || listing.location || '') : (listing.cross_streets ?? listing.location) || ''}
-            </span>
-          </div>
-          <div style="display: flex; align-items: center; justify-content: space-between; padding-top: 10px; border-top: 1px solid #f3f4f6;">
-            <span style="font-size: 12px; color: #6b7280;">by ${getPosterLabel()}</span>
-            <button
-              onclick="window.__mapPopupClick__('${listing.id}')"
-              style="display: inline-flex; align-items: center; gap: 4px; background: #1E4A74; color: white; padding: ${isMobile ? '8px 12px' : '6px 12px'}; border-radius: 6px; font-size: 12px; font-weight: 500; border: none; cursor: pointer; min-height: ${isMobile ? '44px' : 'auto'};"
-            >
-              View Listing
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
-                <polyline points="15 3 21 3 21 9"></polyline>
-                <line x1="10" y1="14" x2="21" y2="3"></line>
-              </svg>
-            </button>
-          </div>
-        </div>
-      </div>
-    `;
-  }, []);
 
   useEffect(() => {
     (window as any).__mapPopupClick__ = (listingId: string) => {
