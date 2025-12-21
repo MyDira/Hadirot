@@ -59,6 +59,8 @@ export function ListingsMapEnhanced({
   const navigate = useNavigate();
   const [mapLoaded, setMapLoaded] = useState(false);
   const boundsChangeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const updatePopupPositionRef = useRef<() => void>(() => {});
+  const removePopupRef = useRef<() => void>(() => {});
 
   const listingsWithCoords = listings.filter(
     (l) => l.latitude != null && l.longitude != null
@@ -353,6 +355,14 @@ export function ListingsMapEnhanced({
   }, [listingsWithCoords]);
 
   useEffect(() => {
+    updatePopupPositionRef.current = updatePopupPosition;
+  }, [updatePopupPosition]);
+
+  useEffect(() => {
+    removePopupRef.current = removeCustomPopup;
+  }, [removeCustomPopup]);
+
+  useEffect(() => {
     (window as any).__mapPopupClick__ = (listingId: string) => {
       if (onMarkerClick) {
         onMarkerClick(listingId);
@@ -384,11 +394,11 @@ export function ListingsMapEnhanced({
     });
 
     map.current.on("move", () => {
-      updatePopupPosition();
+      updatePopupPositionRef.current();
     });
 
     map.current.on("zoom", () => {
-      updatePopupPosition();
+      updatePopupPositionRef.current();
     });
 
     map.current.on("moveend", () => {
@@ -419,7 +429,7 @@ export function ListingsMapEnhanced({
       const clickedOnMarker = features.some(f => f.layer.id?.includes('marker'));
 
       if (!clickedOnMarker) {
-        removeCustomPopup();
+        removePopupRef.current();
         if (onMapClick) {
           onMapClick();
         }
@@ -445,7 +455,7 @@ export function ListingsMapEnhanced({
         map.current = null;
       }
     };
-  }, [removeCustomPopup, updatePopupPosition]);
+  }, [onBoundsChange, onMapClick]);
 
   useEffect(() => {
     if (!mapLoaded || !map.current) return;
