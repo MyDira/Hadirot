@@ -6,10 +6,12 @@ import { MAPBOX_ACCESS_TOKEN } from "@/config/env";
 import { computePrimaryListingImage } from "../../utils/stockImage";
 import { formatPrice, capitalizeName } from "../../utils/formatters";
 import {
-  getViewportBounds,
   calculateAvailableSpace,
   getPopupDimensions,
   determineOptimalAnchor,
+  getContainerBounds,
+  checkEdgeProximity,
+  calculatePanOffset,
 } from "../../utils/viewportUtils";
 
 const BROOKLYN_CENTER: [number, number] = [-73.9442, 40.6782];
@@ -108,26 +110,45 @@ export function ListingsMapEnhanced({
   }, []);
 
   const calculatePopupAnchor = useCallback((markerLngLat: [number, number]): string => {
-    if (!map.current) return "bottom";
+    if (!map.current || !mapContainer.current) return "bottom";
 
-    const mapCanvas = map.current.getCanvas();
     const markerPoint = map.current.project(markerLngLat);
-
     const isMobile = window.innerWidth < 768;
     const dimensions = getPopupDimensions(isMobile);
-
-    const viewport = {
-      top: 0,
-      left: 0,
-      right: mapCanvas.width,
-      bottom: mapCanvas.height,
-      width: mapCanvas.width,
-      height: mapCanvas.height,
-    };
-
+    const viewport = getContainerBounds(mapContainer.current);
     const available = calculateAvailableSpace(markerPoint.x, markerPoint.y, viewport);
 
-    return determineOptimalAnchor(available, dimensions);
+    return determineOptimalAnchor(available, dimensions, isMobile);
+  }, []);
+
+  const shouldPanForEdgePin = useCallback((markerLngLat: [number, number]): { x: number; y: number } | null => {
+    if (!map.current || !mapContainer.current) return null;
+
+    const markerPoint = map.current.project(markerLngLat);
+    const isMobile = window.innerWidth < 768;
+    const dimensions = getPopupDimensions(isMobile);
+    const viewport = getContainerBounds(mapContainer.current);
+    const edgeThreshold = isMobile ? 100 : 120;
+
+    return calculatePanOffset(markerPoint.x, markerPoint.y, viewport, dimensions, edgeThreshold);
+  }, []);
+
+  const getAnchorOffset = useCallback((anchor: string, isMobile: boolean): mapboxgl.Offset => {
+    const baseOffset = isMobile ? 20 : 15;
+    const largeOffset = isMobile ? 30 : 25;
+
+    const offsets: Record<string, [number, number]> = {
+      'top': [0, largeOffset],
+      'bottom': [0, -largeOffset],
+      'left': [largeOffset, 0],
+      'right': [-largeOffset, 0],
+      'top-left': [baseOffset, largeOffset],
+      'top-right': [-baseOffset, largeOffset],
+      'bottom-left': [baseOffset, -largeOffset],
+      'bottom-right': [-baseOffset, -largeOffset],
+    };
+
+    return offsets[anchor] || [0, baseOffset];
   }, []);
 
   const createPopupContent = useCallback((listing: Listing): string => {
@@ -419,39 +440,89 @@ export function ListingsMapEnhanced({
             popup.current = null;
           }
 
-          const anchor = calculatePopupAnchor([listing.longitude!, listing.latitude!]);
-
+          const lngLat: [number, number] = [listing.longitude!, listing.latitude!];
           const isMobile = window.innerWidth < 768;
           const maxWidth = isMobile ? "90vw" : "320px";
 
-          let offset: number | mapboxgl.Offset = 15;
-          if (anchor === "top") {
-            offset = 25;
-          } else if (anchor === "bottom") {
-            offset = 25;
-          } else if (anchor === "left" || anchor === "right") {
-            offset = 30;
-          } else if (anchor === "bottom-left" || anchor === "bottom-right") {
-            offset = 20;
+          const panOffset = shouldPanForEdgePin(lngLat);
+
+          const showPopup = () => {
+            if (!map.current) return;
+
+            const anchor = calculatePopupAnchor(lngLat);
+            const offset = getAnchorOffset(anchor, isMobile);
+
+            popup.current = new mapboxgl.Popup({
+              closeButton: true,
+              closeOnClick: false,
+              maxWidth: maxWidth,
+              offset: offset,
+              anchor: anchor as mapboxgl.Anchor,
+              className: "listing-map-popup",
+            })
+              .setLngLat(lngLat)
+              .setHTML(createPopupContent(listing))
+              .addTo(map.current);
+
+            requestAnimationFrame(() => {
+              if (!popup.current || !mapContainer.current) return;
+
+              const popupEl = popup.current.getElement();
+              if (!popupEl) return;
+
+              const popupRect = popupEl.getBoundingClientRect();
+              const containerRect = mapContainer.current.getBoundingClientRect();
+
+              const isClippedLeft = popupRect.left < containerRect.left;
+              const isClippedRight = popupRect.right > containerRect.right;
+              const isClippedTop = popupRect.top < containerRect.top;
+              const isClippedBottom = popupRect.bottom > containerRect.bottom;
+
+              if (isClippedLeft || isClippedRight || isClippedTop || isClippedBottom) {
+                let translateX = 0;
+                let translateY = 0;
+
+                if (isClippedLeft) {
+                  translateX = containerRect.left - popupRect.left + 10;
+                } else if (isClippedRight) {
+                  translateX = containerRect.right - popupRect.right - 10;
+                }
+
+                if (isClippedTop) {
+                  translateY = containerRect.top - popupRect.top + 10;
+                } else if (isClippedBottom) {
+                  translateY = containerRect.bottom - popupRect.bottom - 10;
+                }
+
+                if (translateX !== 0 || translateY !== 0) {
+                  const currentTransform = popupEl.style.transform || '';
+                  popupEl.style.transform = `${currentTransform} translate(${translateX}px, ${translateY}px)`;
+                }
+              }
+            });
+
+            popup.current.on('close', () => {
+              if (onMapClick) {
+                onMapClick();
+              }
+            });
+          };
+
+          if (panOffset && map.current) {
+            const center = map.current.getCenter();
+            const zoom = map.current.getZoom();
+            const metersPerPixel = 156543.03392 * Math.cos(center.lat * Math.PI / 180) / Math.pow(2, zoom);
+            const lngOffset = (panOffset.x * metersPerPixel) / (111320 * Math.cos(center.lat * Math.PI / 180));
+            const latOffset = (panOffset.y * metersPerPixel) / 110540;
+
+            map.current.once('moveend', showPopup);
+            map.current.panTo(
+              [center.lng - lngOffset, center.lat - latOffset],
+              { duration: 300 }
+            );
+          } else {
+            showPopup();
           }
-
-          popup.current = new mapboxgl.Popup({
-            closeButton: true,
-            closeOnClick: false,
-            maxWidth: maxWidth,
-            offset: offset,
-            anchor: anchor as any,
-            className: "listing-map-popup",
-          })
-            .setLngLat([listing.longitude!, listing.latitude!])
-            .setHTML(createPopupContent(listing))
-            .addTo(map.current!);
-
-          popup.current.on('close', () => {
-            if (onMapClick) {
-              onMapClick();
-            }
-          });
 
           if (onMarkerClick) {
             onMarkerClick(listing.id);
@@ -465,7 +536,7 @@ export function ListingsMapEnhanced({
         markers.current.set(listing.id, { marker, element: el });
       }
     });
-  }, [listingsWithCoords, mapLoaded, hoveredListingId, selectedListingId, createPriceMarkerElement, createPopupContent, onMarkerHover, onMarkerClick]);
+  }, [listingsWithCoords, mapLoaded, hoveredListingId, selectedListingId, createPriceMarkerElement, createPopupContent, onMarkerHover, onMarkerClick, calculatePopupAnchor, shouldPanForEdgePin, getAnchorOffset]);
 
   useEffect(() => {
     if (!map.current || !mapLoaded || !userLocation) return;
