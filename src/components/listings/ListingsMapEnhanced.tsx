@@ -5,6 +5,12 @@ import { Listing } from "../../config/supabase";
 import { MAPBOX_ACCESS_TOKEN } from "@/config/env";
 import { computePrimaryListingImage } from "../../utils/stockImage";
 import { formatPrice, capitalizeName } from "../../utils/formatters";
+import {
+  getViewportBounds,
+  calculateAvailableSpace,
+  getPopupDimensions,
+  determineOptimalAnchor,
+} from "../../utils/viewportUtils";
 
 const BROOKLYN_CENTER: [number, number] = [-73.9442, 40.6782];
 const DEFAULT_ZOOM = 12;
@@ -101,42 +107,27 @@ export function ListingsMapEnhanced({
     return el;
   }, []);
 
-  // Calculate optimal popup anchor position based on marker location
   const calculatePopupAnchor = useCallback((markerLngLat: [number, number]): string => {
     if (!map.current) return "bottom";
 
     const mapCanvas = map.current.getCanvas();
-    const mapWidth = mapCanvas.width;
-    const mapHeight = mapCanvas.height;
-
-    // Convert lat/lng to pixel coordinates
     const markerPoint = map.current.project(markerLngLat);
 
-    // Define popup dimensions (approximate)
     const isMobile = window.innerWidth < 768;
-    const popupWidth = isMobile ? Math.min(window.innerWidth * 0.85, 300) : 280;
-    const popupHeight = isMobile ? 200 : 280;
+    const dimensions = getPopupDimensions(isMobile);
 
-    // Calculate available space in each direction
-    const spaceTop = markerPoint.y;
-    const spaceBottom = mapHeight - markerPoint.y;
-    const spaceLeft = markerPoint.x;
-    const spaceRight = mapWidth - markerPoint.x;
+    const viewport = {
+      top: 0,
+      left: 0,
+      right: mapCanvas.width,
+      bottom: mapCanvas.height,
+      width: mapCanvas.width,
+      height: mapCanvas.height,
+    };
 
-    // Determine best anchor position
-    // Priority: bottom > top > left > right for better UX
-    if (spaceBottom >= popupHeight + 60) {
-      return "top"; // Popup below marker
-    } else if (spaceTop >= popupHeight + 60) {
-      return "bottom"; // Popup above marker
-    } else if (spaceRight >= popupWidth + 40) {
-      return "left"; // Popup to the right
-    } else if (spaceLeft >= popupWidth + 40) {
-      return "right"; // Popup to the left
-    } else {
-      // Not enough space, use bottom-left as fallback
-      return "bottom-left";
-    }
+    const available = calculateAvailableSpace(markerPoint.x, markerPoint.y, viewport);
+
+    return determineOptimalAnchor(available, dimensions);
   }, []);
 
   const createPopupContent = useCallback((listing: Listing): string => {
@@ -428,21 +419,20 @@ export function ListingsMapEnhanced({
             popup.current = null;
           }
 
-          // Calculate optimal anchor position
           const anchor = calculatePopupAnchor([listing.longitude!, listing.latitude!]);
 
-          // Responsive max width
           const isMobile = window.innerWidth < 768;
           const maxWidth = isMobile ? "90vw" : "320px";
 
-          // Dynamic offset based on anchor position
           let offset: number | mapboxgl.Offset = 15;
           if (anchor === "top") {
-            offset = 20; // More space below marker
+            offset = 25;
           } else if (anchor === "bottom") {
-            offset = 20; // More space above marker
+            offset = 25;
           } else if (anchor === "left" || anchor === "right") {
-            offset = 25; // More space to the side
+            offset = 30;
+          } else if (anchor === "bottom-left" || anchor === "bottom-right") {
+            offset = 20;
           }
 
           popup.current = new mapboxgl.Popup({
@@ -581,7 +571,6 @@ export function ListingsMapEnhanced({
           max-height: 85vh;
         }
 
-        /* Fix close button centering */
         .mapboxgl-popup-close-button {
           font-size: 18px;
           line-height: 1;
@@ -599,6 +588,7 @@ export function ListingsMapEnhanced({
           box-shadow: 0 2px 4px rgba(0,0,0,0.1);
           cursor: pointer;
           transition: all 0.15s ease;
+          z-index: 10;
         }
 
         .mapboxgl-popup-close-button:hover {
@@ -611,7 +601,6 @@ export function ListingsMapEnhanced({
           transform: scale(0.95);
         }
 
-        /* Mobile-specific close button */
         @media (max-width: 767px) {
           .mapboxgl-popup-close-button {
             width: 36px;
@@ -622,7 +611,6 @@ export function ListingsMapEnhanced({
           }
         }
 
-        /* Popup tip styling */
         .mapboxgl-popup-tip {
           border-width: 8px;
         }
@@ -639,22 +627,42 @@ export function ListingsMapEnhanced({
 
         .price-marker {
           transform: translateY(-50%);
+          z-index: 1;
         }
 
-        /* Ensure popup stays within viewport */
         .listing-map-popup .mapboxgl-popup-content {
           max-width: min(90vw, 320px);
+          position: relative;
         }
 
         @media (max-width: 767px) {
           .listing-map-popup .mapboxgl-popup-content {
             max-width: 85vw;
+            max-height: 80vh;
           }
         }
 
-        /* Smooth popup transitions */
         .mapboxgl-popup {
           will-change: transform;
+          max-width: none !important;
+        }
+
+        .mapboxgl-popup-anchor-top .mapboxgl-popup-tip,
+        .mapboxgl-popup-anchor-bottom .mapboxgl-popup-tip,
+        .mapboxgl-popup-anchor-left .mapboxgl-popup-tip,
+        .mapboxgl-popup-anchor-right .mapboxgl-popup-tip {
+          border-width: 10px;
+        }
+
+        .mapboxgl-popup-anchor-top-left .mapboxgl-popup-tip,
+        .mapboxgl-popup-anchor-top-right .mapboxgl-popup-tip,
+        .mapboxgl-popup-anchor-bottom-left .mapboxgl-popup-tip,
+        .mapboxgl-popup-anchor-bottom-right .mapboxgl-popup-tip {
+          border-width: 8px;
+        }
+
+        .listing-popup img {
+          display: block;
         }
       `}</style>
     </div>

@@ -16,6 +16,7 @@ import { useBrowseFilters } from "../hooks/useBrowseFilters";
 import { ParsedSearchQuery } from "../utils/searchQueryParser";
 import { LocationResult } from "../services/locationSearch";
 import { calculateGeographicCenter } from "../utils/geoUtils";
+import { isElementFullyVisible, scrollElementIntoView } from "../utils/viewportUtils";
 
 export type SortOption = 'newest' | 'oldest' | 'price_asc' | 'price_desc' | 'bedrooms_asc' | 'bedrooms_desc' | 'bathrooms_asc' | 'bathrooms_desc';
 
@@ -373,22 +374,17 @@ export function BrowseListings() {
 
   const handleMarkerClick = useCallback((listingId: string) => {
     setSelectedListingId(listingId);
-    const element = document.getElementById(`listing-card-${listingId}`);
-    if (element && listingsContainerRef.current) {
-      const container = listingsContainerRef.current;
-      const rect = element.getBoundingClientRect();
-      const containerRect = container.getBoundingClientRect();
 
-      const isFullyVisible =
-        rect.top >= containerRect.top &&
-        rect.bottom <= containerRect.bottom &&
-        rect.left >= containerRect.left &&
-        rect.right <= containerRect.right;
+    setTimeout(() => {
+      const element = document.getElementById(`listing-card-${listingId}`);
+      if (element && listingsContainerRef.current) {
+        const container = listingsContainerRef.current;
 
-      if (!isFullyVisible) {
-        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        if (!isElementFullyVisible(element, container)) {
+          scrollElementIntoView(element, container, 'smooth');
+        }
       }
-    }
+    }, 100);
   }, []);
 
   const handleMapClick = useCallback(() => {
