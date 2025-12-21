@@ -6,12 +6,9 @@ import { MAPBOX_ACCESS_TOKEN } from "@/config/env";
 import { computePrimaryListingImage } from "../../utils/stockImage";
 import { formatPrice, capitalizeName } from "../../utils/formatters";
 import {
-  calculateAvailableSpace,
-  getPopupDimensions,
-  determineOptimalAnchor,
   getContainerBounds,
-  checkEdgeProximity,
-  calculatePanOffset,
+  calculateTooltipPosition,
+  type TooltipPosition,
 } from "../../utils/viewportUtils";
 
 const BROOKLYN_CENTER: [number, number] = [-73.9442, 40.6782];
@@ -56,7 +53,8 @@ export function ListingsMapEnhanced({
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
   const markers = useRef<Map<string, { marker: mapboxgl.Marker; element: HTMLDivElement }>>(new Map());
-  const popup = useRef<mapboxgl.Popup | null>(null);
+  const popupContainer = useRef<HTMLDivElement | null>(null);
+  const activeListingId = useRef<string | null>(null);
   const userLocationMarker = useRef<mapboxgl.Marker | null>(null);
   const navigate = useNavigate();
   const [mapLoaded, setMapLoaded] = useState(false);
@@ -109,47 +107,149 @@ export function ListingsMapEnhanced({
     return el;
   }, []);
 
-  const calculatePopupAnchor = useCallback((markerLngLat: [number, number]): string => {
-    if (!map.current || !mapContainer.current) return "bottom";
+  const removeCustomPopup = useCallback(() => {
+    if (popupContainer.current && mapContainer.current) {
+      popupContainer.current.classList.add('popup-exit');
+      setTimeout(() => {
+        if (popupContainer.current && popupContainer.current.parentNode) {
+          popupContainer.current.parentNode.removeChild(popupContainer.current);
+        }
+        popupContainer.current = null;
+        activeListingId.current = null;
+      }, 150);
+    }
+  }, []);
+
+  const createCustomPopup = useCallback((
+    listing: Listing,
+    markerLngLat: [number, number]
+  ) => {
+    if (!map.current || !mapContainer.current) return;
+
+    removeCustomPopup();
+
+    const isMobile = window.innerWidth < 768;
+    const popupWidth = isMobile ? Math.min(window.innerWidth * 0.85, 300) : 280;
+    const popupHeight = isMobile ? 320 : 340;
+    const markerHeight = 30;
 
     const markerPoint = map.current.project(markerLngLat);
-    const isMobile = window.innerWidth < 768;
-    const dimensions = getPopupDimensions(isMobile);
     const viewport = getContainerBounds(mapContainer.current);
-    const available = calculateAvailableSpace(markerPoint.x, markerPoint.y, viewport);
 
-    return determineOptimalAnchor(available, dimensions, isMobile);
-  }, []);
+    const position = calculateTooltipPosition(
+      markerPoint.x,
+      markerPoint.y,
+      viewport,
+      popupWidth,
+      popupHeight,
+      markerHeight
+    );
 
-  const shouldPanForEdgePin = useCallback((markerLngLat: [number, number]): { x: number; y: number } | null => {
-    if (!map.current || !mapContainer.current) return null;
+    const popup = document.createElement('div');
+    popup.className = `custom-map-popup popup-${position.anchor}`;
+    popup.style.cssText = `
+      position: absolute;
+      width: ${popupWidth}px;
+      z-index: 1000;
+      pointer-events: auto;
+    `;
 
+    let popupX = markerPoint.x - (popupWidth / 2) + position.offsetX;
+    let popupY: number;
+
+    if (position.anchor === 'bottom') {
+      popupY = markerPoint.y - popupHeight - 18;
+    } else {
+      popupY = markerPoint.y + markerHeight + 8;
+    }
+
+    popup.style.left = `${popupX}px`;
+    popup.style.top = `${popupY}px`;
+
+    const arrowOffset = (popupWidth / 2) - position.offsetX;
+    const arrowClass = position.anchor === 'bottom' ? 'popup-arrow-bottom' : 'popup-arrow-top';
+
+    popup.innerHTML = `
+      <div class="${arrowClass}" style="left: ${arrowOffset}px;"></div>
+      <div class="popup-content-wrapper">
+        <button class="popup-close-btn" aria-label="Close popup">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M18 6L6 18M6 6l12 12"/>
+          </svg>
+        </button>
+        ${createPopupContent(listing)}
+      </div>
+    `;
+
+    mapContainer.current.appendChild(popup);
+    popupContainer.current = popup;
+    activeListingId.current = listing.id;
+
+    requestAnimationFrame(() => {
+      popup.classList.add('popup-enter');
+    });
+
+    const closeBtn = popup.querySelector('.popup-close-btn');
+    if (closeBtn) {
+      closeBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        removeCustomPopup();
+        if (onMapClick) onMapClick();
+      });
+    }
+
+    popup.addEventListener('click', (e) => {
+      e.stopPropagation();
+    });
+  }, [createPopupContent, onMapClick, removeCustomPopup]);
+
+  const updatePopupPosition = useCallback(() => {
+    if (!popupContainer.current || !map.current || !mapContainer.current || !activeListingId.current) return;
+
+    const listing = listingsWithCoords.find(l => l.id === activeListingId.current);
+    if (!listing || listing.latitude == null || listing.longitude == null) return;
+
+    const markerLngLat: [number, number] = [listing.longitude, listing.latitude];
     const markerPoint = map.current.project(markerLngLat);
-    const isMobile = window.innerWidth < 768;
-    const dimensions = getPopupDimensions(isMobile);
     const viewport = getContainerBounds(mapContainer.current);
-    const edgeThreshold = isMobile ? 100 : 120;
 
-    return calculatePanOffset(markerPoint.x, markerPoint.y, viewport, dimensions, edgeThreshold);
-  }, []);
+    const isMobile = window.innerWidth < 768;
+    const popupWidth = isMobile ? Math.min(window.innerWidth * 0.85, 300) : 280;
+    const popupHeight = isMobile ? 320 : 340;
+    const markerHeight = 30;
 
-  const getAnchorOffset = useCallback((anchor: string, isMobile: boolean): mapboxgl.Offset => {
-    const baseOffset = isMobile ? 20 : 15;
-    const largeOffset = isMobile ? 30 : 25;
+    const position = calculateTooltipPosition(
+      markerPoint.x,
+      markerPoint.y,
+      viewport,
+      popupWidth,
+      popupHeight,
+      markerHeight
+    );
 
-    const offsets: Record<string, [number, number]> = {
-      'top': [0, largeOffset],
-      'bottom': [0, -largeOffset],
-      'left': [largeOffset, 0],
-      'right': [-largeOffset, 0],
-      'top-left': [baseOffset, largeOffset],
-      'top-right': [-baseOffset, largeOffset],
-      'bottom-left': [baseOffset, -largeOffset],
-      'bottom-right': [-baseOffset, -largeOffset],
-    };
+    let popupX = markerPoint.x - (popupWidth / 2) + position.offsetX;
+    let popupY: number;
 
-    return offsets[anchor] || [0, baseOffset];
-  }, []);
+    if (position.anchor === 'bottom') {
+      popupY = markerPoint.y - popupHeight - 18;
+    } else {
+      popupY = markerPoint.y + markerHeight + 8;
+    }
+
+    popupContainer.current.style.left = `${popupX}px`;
+    popupContainer.current.style.top = `${popupY}px`;
+
+    const currentAnchorClass = position.anchor === 'bottom' ? 'popup-bottom' : 'popup-top';
+    popupContainer.current.classList.remove('popup-top', 'popup-bottom');
+    popupContainer.current.classList.add(currentAnchorClass);
+
+    const arrow = popupContainer.current.querySelector('.popup-arrow-top, .popup-arrow-bottom');
+    if (arrow) {
+      const arrowOffset = (popupWidth / 2) - position.offsetX;
+      (arrow as HTMLElement).style.left = `${arrowOffset}px`;
+      arrow.className = position.anchor === 'bottom' ? 'popup-arrow-bottom' : 'popup-arrow-top';
+    }
+  }, [listingsWithCoords]);
 
   const createPopupContent = useCallback((listing: Listing): string => {
     const sortedImages = listing.listing_images?.sort((a, b) => {
@@ -284,20 +384,12 @@ export function ListingsMapEnhanced({
       setMapLoaded(true);
     });
 
-    // Close popup when map starts moving (drag/pan)
-    map.current.on("movestart", () => {
-      if (popup.current) {
-        popup.current.remove();
-        popup.current = null;
-      }
+    map.current.on("move", () => {
+      updatePopupPosition();
     });
 
-    // Close popup when map starts zooming
-    map.current.on("zoomstart", () => {
-      if (popup.current) {
-        popup.current.remove();
-        popup.current = null;
-      }
+    map.current.on("zoom", () => {
+      updatePopupPosition();
     });
 
     map.current.on("moveend", () => {
@@ -328,10 +420,7 @@ export function ListingsMapEnhanced({
       const clickedOnMarker = features.some(f => f.layer.id?.includes('marker'));
 
       if (!clickedOnMarker) {
-        if (popup.current) {
-          popup.current.remove();
-          popup.current = null;
-        }
+        removeCustomPopup();
         if (onMapClick) {
           onMapClick();
         }
@@ -344,9 +433,9 @@ export function ListingsMapEnhanced({
       }
       markers.current.forEach(({ marker }) => marker.remove());
       markers.current.clear();
-      if (popup.current) {
-        popup.current.remove();
-        popup.current = null;
+      if (popupContainer.current && popupContainer.current.parentNode) {
+        popupContainer.current.parentNode.removeChild(popupContainer.current);
+        popupContainer.current = null;
       }
       if (userLocationMarker.current) {
         userLocationMarker.current.remove();
@@ -357,7 +446,7 @@ export function ListingsMapEnhanced({
         map.current = null;
       }
     };
-  }, []);
+  }, [removeCustomPopup, updatePopupPosition]);
 
   useEffect(() => {
     if (!mapLoaded || !map.current) return;
@@ -435,94 +524,8 @@ export function ListingsMapEnhanced({
         el.addEventListener("click", (e) => {
           e.stopPropagation();
 
-          if (popup.current) {
-            popup.current.remove();
-            popup.current = null;
-          }
-
           const lngLat: [number, number] = [listing.longitude!, listing.latitude!];
-          const isMobile = window.innerWidth < 768;
-          const maxWidth = isMobile ? "90vw" : "320px";
-
-          const panOffset = shouldPanForEdgePin(lngLat);
-
-          const showPopup = () => {
-            if (!map.current) return;
-
-            const anchor = calculatePopupAnchor(lngLat);
-            const offset = getAnchorOffset(anchor, isMobile);
-
-            popup.current = new mapboxgl.Popup({
-              closeButton: true,
-              closeOnClick: false,
-              maxWidth: maxWidth,
-              offset: offset,
-              anchor: anchor as mapboxgl.Anchor,
-              className: "listing-map-popup",
-            })
-              .setLngLat(lngLat)
-              .setHTML(createPopupContent(listing))
-              .addTo(map.current);
-
-            requestAnimationFrame(() => {
-              if (!popup.current || !mapContainer.current) return;
-
-              const popupEl = popup.current.getElement();
-              if (!popupEl) return;
-
-              const popupRect = popupEl.getBoundingClientRect();
-              const containerRect = mapContainer.current.getBoundingClientRect();
-
-              const isClippedLeft = popupRect.left < containerRect.left;
-              const isClippedRight = popupRect.right > containerRect.right;
-              const isClippedTop = popupRect.top < containerRect.top;
-              const isClippedBottom = popupRect.bottom > containerRect.bottom;
-
-              if (isClippedLeft || isClippedRight || isClippedTop || isClippedBottom) {
-                let translateX = 0;
-                let translateY = 0;
-
-                if (isClippedLeft) {
-                  translateX = containerRect.left - popupRect.left + 10;
-                } else if (isClippedRight) {
-                  translateX = containerRect.right - popupRect.right - 10;
-                }
-
-                if (isClippedTop) {
-                  translateY = containerRect.top - popupRect.top + 10;
-                } else if (isClippedBottom) {
-                  translateY = containerRect.bottom - popupRect.bottom - 10;
-                }
-
-                if (translateX !== 0 || translateY !== 0) {
-                  const currentTransform = popupEl.style.transform || '';
-                  popupEl.style.transform = `${currentTransform} translate(${translateX}px, ${translateY}px)`;
-                }
-              }
-            });
-
-            popup.current.on('close', () => {
-              if (onMapClick) {
-                onMapClick();
-              }
-            });
-          };
-
-          if (panOffset && map.current) {
-            const center = map.current.getCenter();
-            const zoom = map.current.getZoom();
-            const metersPerPixel = 156543.03392 * Math.cos(center.lat * Math.PI / 180) / Math.pow(2, zoom);
-            const lngOffset = (panOffset.x * metersPerPixel) / (111320 * Math.cos(center.lat * Math.PI / 180));
-            const latOffset = (panOffset.y * metersPerPixel) / 110540;
-
-            map.current.once('moveend', showPopup);
-            map.current.panTo(
-              [center.lng - lngOffset, center.lat - latOffset],
-              { duration: 300 }
-            );
-          } else {
-            showPopup();
-          }
+          createCustomPopup(listing, lngLat);
 
           if (onMarkerClick) {
             onMarkerClick(listing.id);
@@ -536,7 +539,7 @@ export function ListingsMapEnhanced({
         markers.current.set(listing.id, { marker, element: el });
       }
     });
-  }, [listingsWithCoords, mapLoaded, hoveredListingId, selectedListingId, createPriceMarkerElement, createPopupContent, onMarkerHover, onMarkerClick, calculatePopupAnchor, shouldPanForEdgePin, getAnchorOffset]);
+  }, [listingsWithCoords, mapLoaded, hoveredListingId, selectedListingId, createPriceMarkerElement, createPopupContent, onMarkerHover, onMarkerClick, createCustomPopup]);
 
   useEffect(() => {
     if (!map.current || !mapLoaded || !userLocation) return;
@@ -634,58 +637,6 @@ export function ListingsMapEnhanced({
       <div ref={mapContainer} className="h-full w-full" />
 
       <style>{`
-        .mapboxgl-popup-content {
-          padding: 0 !important;
-          border-radius: 8px !important;
-          box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15) !important;
-          overflow: hidden;
-          max-height: 85vh;
-        }
-
-        .mapboxgl-popup-close-button {
-          font-size: 18px;
-          line-height: 1;
-          padding: 0 !important;
-          color: #6b7280;
-          right: 4px;
-          top: 4px;
-          background: white;
-          border-radius: 50%;
-          width: 28px;
-          height: 28px;
-          display: flex !important;
-          align-items: center !important;
-          justify-content: center !important;
-          box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-          cursor: pointer;
-          transition: all 0.15s ease;
-          z-index: 30;
-        }
-
-        .mapboxgl-popup-close-button:hover {
-          background: #f3f4f6;
-          color: #1f2937;
-          transform: scale(1.05);
-        }
-
-        .mapboxgl-popup-close-button:active {
-          transform: scale(0.95);
-        }
-
-        @media (max-width: 767px) {
-          .mapboxgl-popup-close-button {
-            width: 36px;
-            height: 36px;
-            font-size: 20px;
-            right: 6px;
-            top: 6px;
-          }
-        }
-
-        .mapboxgl-popup-tip {
-          border-width: 8px;
-        }
-
         .mapboxgl-ctrl-group {
           border-radius: 8px !important;
           box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1) !important;
@@ -701,38 +652,104 @@ export function ListingsMapEnhanced({
           z-index: 1;
         }
 
-        .listing-map-popup .mapboxgl-popup-content {
-          max-width: min(90vw, 320px);
+        .custom-map-popup {
+          position: absolute;
+          z-index: 1000;
+          opacity: 0;
+          transform: translateY(8px);
+          transition: opacity 0.2s ease, transform 0.2s ease;
+          will-change: opacity, transform;
+          filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.15)) drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1));
+        }
+
+        .custom-map-popup.popup-top {
+          transform-origin: top center;
+        }
+
+        .custom-map-popup.popup-bottom {
+          transform-origin: bottom center;
+        }
+
+        .custom-map-popup.popup-top.popup-enter {
+          opacity: 1;
+          transform: translateY(0);
+        }
+
+        .custom-map-popup.popup-bottom.popup-enter {
+          opacity: 1;
+          transform: translateY(0);
+        }
+
+        .custom-map-popup.popup-exit {
+          opacity: 0;
+          transform: translateY(8px);
+          transition: opacity 0.15s ease, transform 0.15s ease;
+        }
+
+        .popup-content-wrapper {
+          background: white;
+          border-radius: 12px;
+          overflow: hidden;
           position: relative;
+        }
+
+        .popup-arrow-top,
+        .popup-arrow-bottom {
+          position: absolute;
+          width: 0;
+          height: 0;
+          border-left: 10px solid transparent;
+          border-right: 10px solid transparent;
+          transform: translateX(-50%);
+          z-index: 1001;
+        }
+
+        .popup-arrow-top {
+          top: -10px;
+          border-bottom: 10px solid white;
+        }
+
+        .popup-arrow-bottom {
+          bottom: -10px;
+          border-top: 10px solid white;
+        }
+
+        .popup-close-btn {
+          position: absolute;
+          top: 8px;
+          right: 8px;
+          width: 28px;
+          height: 28px;
+          border-radius: 50%;
+          background: white;
+          border: none;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          color: #6b7280;
+          box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+          transition: all 0.15s ease;
+          z-index: 10;
+        }
+
+        .popup-close-btn:hover {
+          background: #f3f4f6;
+          color: #1f2937;
+          transform: scale(1.05);
+        }
+
+        .popup-close-btn:active {
+          transform: scale(0.95);
         }
 
         @media (max-width: 767px) {
-          .listing-map-popup .mapboxgl-popup-content {
-            max-width: 85vw;
-            max-height: 80vh;
+          .popup-close-btn {
+            width: 36px;
+            height: 36px;
+            top: 10px;
+            right: 10px;
           }
-        }
-
-        /* Z-index hierarchy: markers (z-1 to z-30) → map controls (z-10) → popup (z-1000) */
-        .mapboxgl-popup {
-          z-index: 1000 !important;
-          position: relative;
-          will-change: transform;
-          max-width: none !important;
-        }
-
-        .mapboxgl-popup-anchor-top .mapboxgl-popup-tip,
-        .mapboxgl-popup-anchor-bottom .mapboxgl-popup-tip,
-        .mapboxgl-popup-anchor-left .mapboxgl-popup-tip,
-        .mapboxgl-popup-anchor-right .mapboxgl-popup-tip {
-          border-width: 10px;
-        }
-
-        .mapboxgl-popup-anchor-top-left .mapboxgl-popup-tip,
-        .mapboxgl-popup-anchor-top-right .mapboxgl-popup-tip,
-        .mapboxgl-popup-anchor-bottom-left .mapboxgl-popup-tip,
-        .mapboxgl-popup-anchor-bottom-right .mapboxgl-popup-tip {
-          border-width: 8px;
         }
 
         .listing-popup img {

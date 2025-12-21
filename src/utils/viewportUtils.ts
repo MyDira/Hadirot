@@ -261,3 +261,69 @@ export function scrollElementIntoView(
     });
   }
 }
+
+export interface TooltipPosition {
+  anchor: 'top' | 'bottom';
+  offsetX: number;
+  offsetY: number;
+  arrowPosition: 'top' | 'bottom';
+}
+
+export function calculateTooltipPosition(
+  markerX: number,
+  markerY: number,
+  viewport: ViewportBounds,
+  popupWidth: number,
+  popupHeight: number,
+  markerHeight: number = 30
+): TooltipPosition {
+  const arrowHeight = 10;
+  const verticalGap = 8;
+  const horizontalPadding = 12;
+
+  const spaceAbove = markerY - viewport.top;
+  const spaceBelow = viewport.bottom - markerY - markerHeight;
+  const requiredVerticalSpace = popupHeight + arrowHeight + verticalGap;
+
+  let anchor: 'top' | 'bottom';
+  let offsetY: number;
+  let arrowPosition: 'top' | 'bottom';
+
+  if (spaceAbove >= requiredVerticalSpace) {
+    anchor = 'bottom';
+    offsetY = -(verticalGap + arrowHeight);
+    arrowPosition = 'bottom';
+  } else if (spaceBelow >= requiredVerticalSpace) {
+    anchor = 'top';
+    offsetY = markerHeight + verticalGap + arrowHeight;
+    arrowPosition = 'top';
+  } else {
+    if (spaceAbove >= spaceBelow) {
+      anchor = 'bottom';
+      offsetY = -(verticalGap + arrowHeight);
+      arrowPosition = 'bottom';
+    } else {
+      anchor = 'top';
+      offsetY = markerHeight + verticalGap + arrowHeight;
+      arrowPosition = 'top';
+    }
+  }
+
+  let offsetX = 0;
+  const halfPopupWidth = popupWidth / 2;
+  const popupLeft = markerX - halfPopupWidth;
+  const popupRight = markerX + halfPopupWidth;
+
+  if (popupLeft < viewport.left + horizontalPadding) {
+    offsetX = (viewport.left + horizontalPadding) - popupLeft;
+  } else if (popupRight > viewport.right - horizontalPadding) {
+    offsetX = (viewport.right - horizontalPadding) - popupRight;
+  }
+
+  return {
+    anchor,
+    offsetX,
+    offsetY,
+    arrowPosition
+  };
+}
