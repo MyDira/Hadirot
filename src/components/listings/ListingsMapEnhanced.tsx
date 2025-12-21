@@ -58,7 +58,11 @@ export function ListingsMapEnhanced({
     (l) => l.latitude != null && l.longitude != null
   );
 
-  const formatPriceShort = (price: number): string => {
+  const formatRentalPrice = (price: number): string => {
+    return formatPrice(price);
+  };
+
+  const formatSalePrice = (price: number): string => {
     if (price >= 1000000) {
       return `$${(price / 1000000).toFixed(1)}M`;
     }
@@ -74,7 +78,11 @@ export function ListingsMapEnhanced({
 
     const isSaleListing = listing.listing_type === "sale";
     const price = isSaleListing ? listing.asking_price : listing.price;
-    const priceText = listing.call_for_price ? "Call" : price != null ? formatPriceShort(price) : "N/A";
+    const priceText = listing.call_for_price
+      ? "Call"
+      : price != null
+        ? (isSaleListing ? formatSalePrice(price) : formatRentalPrice(price))
+        : "N/A";
 
     const baseClasses = "relative cursor-pointer transition-all duration-150";
     const colorClasses = isHovered || isSelected
