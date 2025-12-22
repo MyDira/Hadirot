@@ -109,10 +109,8 @@ export function MoreFiltersModal({
         <div className="flex-1 overflow-y-auto px-6 py-6">
           <div className="space-y-8">
             <div>
-              <h3 className="text-base font-semibold text-gray-900 mb-4">
-                Property Type
-              </h3>
               <IconSelectGrid
+                header="Property Type"
                 options={propertyTypeOptions}
                 selected={localFilters.property_types || []}
                 onChange={(selected) =>
@@ -127,10 +125,8 @@ export function MoreFiltersModal({
 
             {listingType === "sale" && (
               <div>
-                <h3 className="text-base font-semibold text-gray-900 mb-4">
-                  Building Type
-                </h3>
                 <IconSelectGrid
+                  header="Building Type"
                   options={BUILDING_TYPES}
                   selected={localFilters.building_types || []}
                   onChange={(selected) =>
@@ -194,56 +190,77 @@ export function MoreFiltersModal({
               <h3 className="text-base font-semibold text-gray-900 mb-4">
                 Listed By
               </h3>
-              <select
-                value={
-                  localFilters.poster_type === "owner"
-                    ? "owner"
-                    : localFilters.poster_type === "agent"
-                    ? localFilters.agency_name
-                      ? `agent:${localFilters.agency_name}`
-                      : "agent:any"
-                    : ""
-                }
-                onChange={(e) => {
-                  const value = e.target.value;
-                  if (value === "owner") {
-                    setLocalFilters({
-                      ...localFilters,
-                      poster_type: "owner",
-                      agency_name: undefined,
-                    });
-                  } else if (value === "agent:any") {
-                    setLocalFilters({
-                      ...localFilters,
-                      poster_type: "agent",
-                      agency_name: undefined,
-                    });
-                  } else if (value.startsWith("agent:")) {
-                    setLocalFilters({
-                      ...localFilters,
-                      poster_type: "agent",
-                      agency_name: value.slice("agent:".length),
-                    });
-                  } else {
-                    setLocalFilters({
-                      ...localFilters,
-                      poster_type: undefined,
-                      agency_name: undefined,
-                    });
-                  }
-                }}
-                className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500 bg-white"
-              >
-                <option value="">All Posters</option>
-                <option value="owner">By Owner</option>
-                <option value="agent:any">By Agency</option>
+              <div className="max-h-56 overflow-y-auto border border-gray-200 rounded-xl">
+                <label className="flex items-center px-4 py-3 hover:bg-gray-50 cursor-pointer border-b border-gray-100">
+                  <input
+                    type="radio"
+                    checked={!localFilters.poster_type}
+                    onChange={() => {
+                      setLocalFilters({
+                        ...localFilters,
+                        poster_type: undefined,
+                        agency_name: undefined,
+                      });
+                    }}
+                    className="h-5 w-5 text-green-600 focus:ring-green-500 border-gray-300"
+                  />
+                  <span className="ml-3 text-sm text-gray-700">All Posters</span>
+                </label>
+                <label className="flex items-center px-4 py-3 hover:bg-gray-50 cursor-pointer border-b border-gray-100">
+                  <input
+                    type="radio"
+                    checked={localFilters.poster_type === "owner"}
+                    onChange={() => {
+                      setLocalFilters({
+                        ...localFilters,
+                        poster_type: "owner",
+                        agency_name: undefined,
+                      });
+                    }}
+                    className="h-5 w-5 text-green-600 focus:ring-green-500 border-gray-300"
+                  />
+                  <span className="ml-3 text-sm text-gray-700">By Owner</span>
+                </label>
+                <label className="flex items-center px-4 py-3 hover:bg-gray-50 cursor-pointer border-b border-gray-100">
+                  <input
+                    type="radio"
+                    checked={localFilters.poster_type === "agent" && !localFilters.agency_name}
+                    onChange={() => {
+                      setLocalFilters({
+                        ...localFilters,
+                        poster_type: "agent",
+                        agency_name: undefined,
+                      });
+                    }}
+                    className="h-5 w-5 text-green-600 focus:ring-green-500 border-gray-300"
+                  />
+                  <span className="ml-3 text-sm text-gray-700">By Agency (All)</span>
+                </label>
                 {agencies.length > 0 &&
                   agencies.map((agency) => (
-                    <option key={agency} value={`agent:${agency}`}>
-                      {agency}
-                    </option>
+                    <label
+                      key={agency}
+                      className="flex items-center px-4 py-3 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-b-0"
+                    >
+                      <input
+                        type="radio"
+                        checked={
+                          localFilters.poster_type === "agent" &&
+                          localFilters.agency_name === agency
+                        }
+                        onChange={() => {
+                          setLocalFilters({
+                            ...localFilters,
+                            poster_type: "agent",
+                            agency_name: agency,
+                          });
+                        }}
+                        className="h-5 w-5 text-green-600 focus:ring-green-500 border-gray-300"
+                      />
+                      <span className="ml-3 text-sm text-gray-700">{agency}</span>
+                    </label>
                   ))}
-              </select>
+              </div>
             </div>
 
             <div>

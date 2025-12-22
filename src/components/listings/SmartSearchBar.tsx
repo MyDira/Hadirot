@@ -269,11 +269,11 @@ export function SmartSearchBar({
     <div ref={containerRef} className={`relative ${className}`}>
       <form onSubmit={handleSubmit} className="relative">
         <div className="relative min-h-[42px] bg-white border border-gray-300 rounded-lg focus-within:ring-2 focus-within:ring-brand-500 focus-within:border-brand-500 transition-all">
-          <div className="flex flex-wrap items-center gap-1.5 pl-3 pr-20 py-1.5">
+          <div className="flex items-center gap-1.5 pl-3 pr-20 py-1.5 overflow-x-auto scrollbar-hide">
             {activeFilters.map((filter) => (
               <span
                 key={filter.key}
-                className="inline-flex items-center gap-1 px-2.5 py-1 bg-green-100 text-green-800 rounded-full text-sm font-medium"
+                className="inline-flex items-center gap-1 px-2.5 py-1 bg-green-100 text-green-800 rounded-full text-sm font-medium whitespace-nowrap flex-shrink-0"
               >
                 {filter.label}
                 <button
@@ -288,11 +288,11 @@ export function SmartSearchBar({
             <input
               ref={inputRef}
               type="text"
-              value={inputValue}
+              value={selectedLocation ? "" : inputValue}
               onChange={handleInputChange}
               onFocus={() => inputValue.length >= 2 && setShowSuggestions(true)}
               onKeyDown={handleKeyDown}
-              placeholder={placeholder}
+              placeholder={activeFilters.length > 0 ? "" : placeholder}
               className="flex-1 min-w-[120px] outline-none bg-transparent text-sm placeholder-gray-400 py-1"
             />
           </div>

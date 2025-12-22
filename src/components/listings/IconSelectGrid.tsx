@@ -20,11 +20,12 @@ interface IconSelectGridProps {
   selected: string[];
   onChange: (selected: string[]) => void;
   columns?: 2 | 3 | 4;
+  header?: string;
 }
 
 export const RENTAL_PROPERTY_TYPES: IconOption[] = [
-  { value: "apartment_building", label: "Apartment", icon: Building2 },
-  { value: "apartment_house", label: "In House", icon: Home },
+  { value: "apartment_building", label: "Apartment in Building", icon: Building2 },
+  { value: "apartment_house", label: "Apartment in House", icon: Home },
   { value: "full_house", label: "Full House", icon: Castle },
   { value: "duplex", label: "Duplex", icon: Building },
   { value: "basement", label: "Basement", icon: Warehouse },
@@ -51,6 +52,7 @@ export function IconSelectGrid({
   selected,
   onChange,
   columns = 3,
+  header,
 }: IconSelectGridProps) {
   const toggleOption = (value: string) => {
     if (selected.includes(value)) {
@@ -76,25 +78,49 @@ export function IconSelectGrid({
 
   return (
     <div>
-      <div className="flex items-center justify-end mb-3">
-        {selected.length === options.length ? (
-          <button
-            type="button"
-            onClick={clearAll}
-            className="text-sm font-medium text-green-600 hover:text-green-700"
-          >
-            Clear All
-          </button>
-        ) : (
-          <button
-            type="button"
-            onClick={selectAll}
-            className="text-sm font-medium text-green-600 hover:text-green-700"
-          >
-            Select All
-          </button>
-        )}
-      </div>
+      {header && (
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-base font-semibold text-gray-900">{header}</h3>
+          {selected.length === options.length ? (
+            <button
+              type="button"
+              onClick={clearAll}
+              className="text-sm font-medium text-green-600 hover:text-green-700"
+            >
+              Clear All
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={selectAll}
+              className="text-sm font-medium text-green-600 hover:text-green-700"
+            >
+              Select All
+            </button>
+          )}
+        </div>
+      )}
+      {!header && (
+        <div className="flex items-center justify-end mb-3">
+          {selected.length === options.length ? (
+            <button
+              type="button"
+              onClick={clearAll}
+              className="text-sm font-medium text-green-600 hover:text-green-700"
+            >
+              Clear All
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={selectAll}
+              className="text-sm font-medium text-green-600 hover:text-green-700"
+            >
+              Select All
+            </button>
+          )}
+        </div>
+      )}
       <div className={`grid ${gridCols[columns]} gap-3`}>
         {options.map((option) => {
           const isSelected = selected.includes(option.value);

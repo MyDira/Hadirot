@@ -522,14 +522,14 @@ export function BrowseSales() {
   };
 
   const renderViewModeToggle = (showSplit = true) => (
-    <div className="flex items-center gap-1">
+    <div className="inline-flex items-center bg-white border border-gray-300 rounded-lg overflow-hidden">
       {showSplit && (
         <button
           onClick={() => setViewMode('split')}
-          className={`flex items-center px-3 py-2 rounded-full text-sm font-medium transition-all border ${
+          className={`flex items-center px-3 py-2 text-sm font-medium transition-all border-r border-gray-300 ${
             viewMode === 'split'
-              ? 'bg-green-50 text-green-700 border-green-300'
-              : 'bg-white text-gray-600 border-gray-300 hover:border-gray-400'
+              ? 'bg-green-50 text-green-700'
+              : 'text-gray-600 hover:bg-gray-50'
           }`}
         >
           <LayoutGrid className="w-4 h-4 mr-1.5" />
@@ -538,10 +538,10 @@ export function BrowseSales() {
       )}
       <button
         onClick={() => setViewMode('list')}
-        className={`flex items-center px-3 py-2 rounded-full text-sm font-medium transition-all border ${
+        className={`flex items-center px-3 py-2 text-sm font-medium transition-all ${showSplit ? 'border-r border-gray-300' : ''} ${
           viewMode === 'list'
-            ? 'bg-green-50 text-green-700 border-green-300'
-            : 'bg-white text-gray-600 border-gray-300 hover:border-gray-400'
+            ? 'bg-green-50 text-green-700'
+            : 'text-gray-600 hover:bg-gray-50'
         }`}
       >
         <List className="w-4 h-4 mr-1.5" />
@@ -549,10 +549,10 @@ export function BrowseSales() {
       </button>
       <button
         onClick={() => setViewMode('map')}
-        className={`flex items-center px-3 py-2 rounded-full text-sm font-medium transition-all border ${
+        className={`flex items-center px-3 py-2 text-sm font-medium transition-all ${
           viewMode === 'map'
-            ? 'bg-green-50 text-green-700 border-green-300'
-            : 'bg-white text-gray-600 border-gray-300 hover:border-gray-400'
+            ? 'bg-green-50 text-green-700'
+            : 'text-gray-600 hover:bg-gray-50'
         }`}
       >
         <MapIcon className="w-4 h-4 mr-1.5" />
@@ -733,7 +733,7 @@ export function BrowseSales() {
         <div className="max-w-[1800px] mx-auto">
           {/* Top row: Search, Filters, and View Toggle */}
           <div className="hidden md:flex items-center gap-4 mb-3">
-            <div className="w-80 flex-shrink-0">
+            <div className="w-[400px] flex-shrink-0">
               <SmartSearchBar
                 onSearch={handleSmartSearch}
                 onClear={handleSearchClear}
