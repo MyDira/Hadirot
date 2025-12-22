@@ -212,13 +212,21 @@ export function ListingsMapEnhanced({
 
   const removeCustomPopup = useCallback(() => {
     if (popupContainer.current && mapContainer.current) {
-      popupContainer.current.classList.add('popup-exit');
+      // Capture the specific popup element to avoid race condition
+      const popupToRemove = popupContainer.current;
+
+      // Immediately clear refs to prevent new popup from being affected
+      popupContainer.current = null;
+      activeListingId.current = null;
+
+      // Start exit animation
+      popupToRemove.classList.add('popup-exit');
+
+      // Remove from DOM after animation completes
       setTimeout(() => {
-        if (popupContainer.current && popupContainer.current.parentNode) {
-          popupContainer.current.parentNode.removeChild(popupContainer.current);
+        if (popupToRemove && popupToRemove.parentNode) {
+          popupToRemove.parentNode.removeChild(popupToRemove);
         }
-        popupContainer.current = null;
-        activeListingId.current = null;
       }, 150);
     }
   }, []);
@@ -229,7 +237,18 @@ export function ListingsMapEnhanced({
   ) => {
     if (!map.current || !mapContainer.current) return;
 
+    // Remove any existing popup
     removeCustomPopup();
+
+    // Defensive cleanup: remove any orphaned popup elements from the DOM
+    if (mapContainer.current) {
+      const orphanedPopups = mapContainer.current.querySelectorAll('.custom-map-popup');
+      orphanedPopups.forEach(popup => {
+        if (popup.parentNode) {
+          popup.parentNode.removeChild(popup);
+        }
+      });
+    }
 
     const isMobile = window.innerWidth < 768;
     const popupWidth = isMobile ? Math.min(window.innerWidth * 0.85, 300) : 280;
@@ -594,6 +613,14 @@ export function ListingsMapEnhanced({
       }
     }
   }, [hoveredListingId, listingsWithCoords, mapLoaded]);
+
+  useEffect(() => {
+    // Sync popup state with parent's selectedListingId
+    if (!selectedListingId && popupContainer.current) {
+      // Parent cleared selection, so remove popup
+      removeCustomPopup();
+    }
+  }, [selectedListingId, removeCustomPopup]);
 
   useEffect(() => {
     if (!map.current || !mapLoaded || !searchBounds || shouldPreservePosition) return;
