@@ -74,6 +74,8 @@ export function BrowseListings() {
   const [centerOnListings, setCenterOnListings] = useState<{ lat: number; lng: number; zoom: number } | null>(null);
   const [shouldPreserveMapPosition, setShouldPreserveMapPosition] = useState(false);
   const [isFilterClearing, setIsFilterClearing] = useState(false);
+  const [previousListingIds, setPreviousListingIds] = useState<Set<string>>(new Set());
+  const [showCardAnimations, setShowCardAnimations] = useState(false);
   const { user } = useAuth();
   const { filters, currentPage, updateFilters, updatePage, markNavigatingToDetail, isReady } = useBrowseFilters();
 
@@ -116,6 +118,10 @@ export function BrowseListings() {
 
   const loadListings = async (boundsFilter?: MapBounds) => {
     try {
+      // Store previous listing IDs before loading new ones
+      const currentIds = new Set(displayListings.map(l => l.id));
+      setPreviousListingIds(currentIds);
+
       setLoading(true);
 
       const { no_fee_only, ...restFilters } = filters;
@@ -264,6 +270,15 @@ export function BrowseListings() {
     } finally {
       setLoading(false);
       setIsSearchingArea(false);
+
+      // Trigger animations after data loads
+      if (isFilterClearing) {
+        setShowCardAnimations(true);
+        setTimeout(() => {
+          setShowCardAnimations(false);
+          setIsFilterClearing(false);
+        }, 1600); // Duration of highlight animation + buffer
+      }
     }
   };
 
@@ -304,11 +319,11 @@ export function BrowseListings() {
     updateFilters(newFilters);
     setShowSearchAreaButton(false);
 
+    // Keep preserve flag active until animations complete
     if (isClearing) {
       setTimeout(() => {
         setShouldPreserveMapPosition(false);
-        setIsFilterClearing(false);
-      }, 500);
+      }, 2000);
     }
   };
 
@@ -565,38 +580,41 @@ export function BrowseListings() {
 
   const renderListingCards = () => (
     <div className="grid grid-cols-2 gap-3">
-      {displayListings.map((listing, idx) => (
-        <div
-          key={listing.key}
-          id={`listing-card-${listing.id}`}
-          className={`transition-all duration-200 ${
-            hoveredListingId === listing.id || selectedListingId === listing.id
-              ? 'ring-2 ring-brand-500 rounded-lg'
-              : ''
-          }`}
-          onMouseEnter={() => handleListingHover(listing.id)}
-          onMouseLeave={() => handleListingHover(null)}
-          ref={(el) => {
-            if (el) {
-              observeElement(el, listing.id);
-            } else {
-              const existingEl = document.querySelector(`[data-listing-id="${listing.id}"]`);
-              if (existingEl) {
-                unobserveElement(existingEl);
+      {displayListings.map((listing, idx) => {
+        const isNewListing = showCardAnimations && !previousListingIds.has(listing.id);
+        return (
+          <div
+            key={listing.key}
+            id={`listing-card-${listing.id}`}
+            className={`transition-all duration-200 ${
+              hoveredListingId === listing.id || selectedListingId === listing.id
+                ? 'ring-2 ring-brand-500 rounded-lg'
+                : ''
+            } ${isNewListing ? 'animate-new-card' : ''}`}
+            onMouseEnter={() => handleListingHover(listing.id)}
+            onMouseLeave={() => handleListingHover(null)}
+            ref={(el) => {
+              if (el) {
+                observeElement(el, listing.id);
+              } else {
+                const existingEl = document.querySelector(`[data-listing-id="${listing.id}"]`);
+                if (existingEl) {
+                  unobserveElement(existingEl);
+                }
               }
-            }
-          }}
-        >
-          <ListingCard
-            listing={listing}
-            isFavorited={userFavorites.includes(listing.id)}
-            onFavoriteChange={handleFavoriteChange}
-            showFeaturedBadge={listing.showFeaturedBadge}
-            onClick={() => handleCardClick(listing, idx)}
-            onNavigateToDetail={markNavigatingToDetail}
-          />
-        </div>
-      ))}
+            }}
+          >
+            <ListingCard
+              listing={listing}
+              isFavorited={userFavorites.includes(listing.id)}
+              onFavoriteChange={handleFavoriteChange}
+              showFeaturedBadge={listing.showFeaturedBadge}
+              onClick={() => handleCardClick(listing, idx)}
+              onNavigateToDetail={markNavigatingToDetail}
+            />
+          </div>
+        );
+      })}
     </div>
   );
 
@@ -859,8 +877,15 @@ export function BrowseListings() {
                     <h1 className="text-lg font-bold text-brand-900">
                       {searchLocation ? `Rentals in ${searchLocation.name}` : 'Rentals'}
                     </h1>
-                    <p className="text-sm text-gray-500">
-                      {loading ? "Loading..." : `${totalCount.toLocaleString()} properties available`}
+                    <p className="text-sm text-gray-500 flex items-center gap-2">
+                      {loading ? (
+                        <>
+                          Loading...
+                          <span className="inline-block w-3 h-3 border-2 border-green-600 border-t-transparent rounded-full spinner-rotate"></span>
+                        </>
+                      ) : (
+                        `${totalCount.toLocaleString()} properties available`
+                      )}
                     </p>
                   </div>
 
@@ -899,16 +924,21 @@ export function BrowseListings() {
                   </div>
                 </div>
 
-                {loading ? (
-                  renderLoadingState()
-                ) : displayListings.length === 0 ? (
-                  renderEmptyState()
-                ) : (
-                  <>
-                    {renderListingCards()}
-                    {renderPagination()}
-                  </>
-                )}
+                <div className={`relative ${loading && !isFilterClearing ? '' : ''}`}>
+                  {loading && !isFilterClearing && (
+                    <div className="absolute inset-0 bg-white bg-opacity-50 z-10 pointer-events-none"></div>
+                  )}
+                  {loading && displayListings.length === 0 ? (
+                    renderLoadingState()
+                  ) : displayListings.length === 0 ? (
+                    renderEmptyState()
+                  ) : (
+                    <>
+                      {renderListingCards()}
+                      {renderPagination()}
+                    </>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -968,6 +998,7 @@ export function BrowseListings() {
                 searchLocationName={searchLocation?.name}
                 centerOnListings={centerOnListings}
                 shouldPreservePosition={shouldPreserveMapPosition}
+                isLoading={loading && isFilterClearing}
               />
 
               {/* Listing count badge */}
@@ -1102,7 +1133,7 @@ export function BrowseListings() {
               </button>
             </div>
 
-            {loading ? (
+            {loading && displayListings.length === 0 ? (
               <div className="h-full bg-gray-100 flex items-center justify-center">
                 <div className="text-center">
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-700 mx-auto mb-3"></div>
@@ -1123,6 +1154,7 @@ export function BrowseListings() {
                 searchLocationName={searchLocation?.name}
                 centerOnListings={centerOnListings}
                 shouldPreservePosition={shouldPreserveMapPosition}
+                isLoading={loading && isFilterClearing}
               />
             )}
 

@@ -111,3 +111,79 @@ h6,
 .animate-slide-up {
   animation: slideUp 0.3s ease-out;
 }
+
+/* Filter clearing animations */
+@keyframes mapPinFadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes cardFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes subtleHighlight {
+  0% {
+    box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.4);
+    border-color: rgb(187, 247, 208);
+  }
+  50% {
+    box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.2);
+    border-color: rgb(134, 239, 172);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(34, 197, 94, 0);
+    border-color: transparent;
+  }
+}
+
+@keyframes spinnerRotate {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes loadingPulse {
+  0%, 100% {
+    border-color: rgba(34, 197, 94, 0.3);
+  }
+  50% {
+    border-color: rgba(34, 197, 94, 0.6);
+  }
+}
+
+.animate-pin-appear {
+  animation: mapPinFadeIn 0.3s ease-out forwards;
+}
+
+.animate-card-appear {
+  animation: cardFadeIn 0.25s ease-out forwards;
+}
+
+.animate-new-card {
+  animation: subtleHighlight 1.5s ease-out forwards;
+}
+
+.loading-pulse {
+  animation: loadingPulse 1.5s ease-in-out infinite;
+}
+
+.spinner-rotate {
+  animation: spinnerRotate 1s linear infinite;
+}

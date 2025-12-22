@@ -230,11 +230,20 @@ export function ListingFiltersHorizontal({
   };
 
   const clearFilters = () => {
-    onFiltersChange({});
-    setTempPriceMin("");
-    setTempPriceMax("");
-    setTempBedMin(-1);
-    setTempBathMin(-1);
+    // Add brief delay for visual feedback
+    setTimeout(() => {
+      onFiltersChange({});
+      setTempPriceMin("");
+      setTempPriceMax("");
+      setTempBedMin(-1);
+      setTempBathMin(-1);
+    }, 100);
+  };
+
+  const removeFilter = (filterKey: keyof FilterState) => {
+    const newFilters = { ...filters };
+    delete newFilters[filterKey];
+    onFiltersChange(newFilters);
   };
 
   const handlePriceApply = () => {
@@ -590,6 +599,65 @@ export function ListingFiltersHorizontal({
     );
   }
 
+  const getActiveFilterChips = () => {
+    const chips: { key: keyof FilterState; label: string }[] = [];
+
+    if (filters.bedrooms && filters.bedrooms.length > 0) {
+      const bedLabel = filters.bedrooms.includes(4)
+        ? '4+ Beds'
+        : filters.bedrooms.length === 1
+          ? filters.bedrooms[0] === 0
+            ? 'Studio'
+            : `${filters.bedrooms[0]} Bed${filters.bedrooms[0] > 1 ? 's' : ''}`
+          : `${filters.bedrooms.length} Bedrooms`;
+      chips.push({ key: 'bedrooms', label: bedLabel });
+    }
+
+    if (filters.min_price) {
+      chips.push({ key: 'min_price', label: `Min: ${formatPrice(filters.min_price)}` });
+    }
+
+    if (filters.max_price) {
+      chips.push({ key: 'max_price', label: `Max: ${formatPrice(filters.max_price)}` });
+    }
+
+    if (filters.property_types && filters.property_types.length > 0) {
+      chips.push({ key: 'property_types', label: `${filters.property_types.length} Type${filters.property_types.length > 1 ? 's' : ''}` });
+    }
+
+    if (filters.neighborhoods && filters.neighborhoods.length > 0) {
+      chips.push({ key: 'neighborhoods', label: `${filters.neighborhoods.length} Area${filters.neighborhoods.length > 1 ? 's' : ''}` });
+    }
+
+    if (filters.poster_type === 'owner') {
+      chips.push({ key: 'poster_type', label: 'By Owner' });
+    }
+
+    if (filters.poster_type === 'agent') {
+      chips.push({ key: 'poster_type', label: filters.agency_name || 'By Agency' });
+    }
+
+    if (filters.parking_included) {
+      chips.push({ key: 'parking_included', label: 'Parking' });
+    }
+
+    if (filters.no_fee_only) {
+      chips.push({ key: 'no_fee_only', label: 'No Fee' });
+    }
+
+    return chips;
+  };
+
+  const formatPrice = (price: number) => {
+    if (listingType === "sale") {
+      if (price >= 1000000) return `$${(price / 1000000).toFixed(1)}M`;
+      return `$${(price / 1000).toFixed(0)}K`;
+    }
+    return `$${price.toLocaleString()}`;
+  };
+
+  const activeChips = getActiveFilterChips();
+
   return (
     <div ref={containerRef}>
       <div className="flex items-center gap-2 flex-wrap">
@@ -780,6 +848,27 @@ export function ListingFiltersHorizontal({
           </button>
         )}
       </div>
+
+      {/* Active Filter Chips */}
+      {activeChips.length > 0 && (
+        <div className="flex items-center gap-2 flex-wrap mt-3">
+          {activeChips.map((chip) => (
+            <div
+              key={chip.key}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-green-50 text-green-700 rounded-full text-xs font-medium border border-green-200 transition-all hover:bg-green-100"
+            >
+              <span>{chip.label}</span>
+              <button
+                onClick={() => removeFilter(chip.key)}
+                className="hover:bg-green-200 rounded-full p-0.5 transition-colors"
+                aria-label={`Remove ${chip.label} filter`}
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
 
       <MoreFiltersModal
         isOpen={showMoreFilters}

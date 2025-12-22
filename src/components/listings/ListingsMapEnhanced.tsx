@@ -34,6 +34,7 @@ interface ListingsMapEnhancedProps {
   searchLocationName?: string;
   centerOnListings?: { lat: number; lng: number; zoom: number } | null;
   shouldPreservePosition?: boolean;
+  isLoading?: boolean;
 }
 
 export function ListingsMapEnhanced({
@@ -49,6 +50,7 @@ export function ListingsMapEnhanced({
   searchLocationName,
   centerOnListings,
   shouldPreservePosition = false,
+  isLoading = false,
 }: ListingsMapEnhancedProps) {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
@@ -537,6 +539,14 @@ export function ListingsMapEnhanced({
         el.dataset.isHovered = String(isHovered);
         el.dataset.isSelected = String(isSelected);
 
+        // Add appear animation for new pins
+        el.classList.add('animate-pin-appear');
+
+        // Remove animation class after it completes to avoid re-triggering
+        setTimeout(() => {
+          el.classList.remove('animate-pin-appear');
+        }, 300);
+
         el.addEventListener("mouseenter", () => {
           if (onMarkerHover) {
             onMarkerHover(listing.id);
@@ -670,7 +680,7 @@ export function ListingsMapEnhanced({
 
   return (
     <div className="relative h-full w-full">
-      <div ref={mapContainer} className="h-full w-full" />
+      <div ref={mapContainer} className={`h-full w-full ${isLoading ? 'border-2 loading-pulse' : ''}`} />
 
       <style>{`
         .mapboxgl-ctrl-group {

@@ -78,8 +78,11 @@ export function MoreFiltersModal({
       max_price: filters.max_price,
     };
     setLocalFilters(clearedFilters);
-    onFiltersChange(clearedFilters);
-    onClose();
+    // Add brief delay for visual feedback
+    setTimeout(() => {
+      onFiltersChange(clearedFilters);
+      onClose();
+    }, 100);
   };
 
   const propertyTypeOptions =
