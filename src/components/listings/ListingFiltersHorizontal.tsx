@@ -100,14 +100,14 @@ const BATH_OPTIONS = [
 ];
 
 const RENTAL_PRICE_PRESETS = [
-  { label: "No Min", value: undefined },
-  { label: "$1,500", value: 1500 },
-  { label: "$2,000", value: 2000 },
-  { label: "$2,500", value: 2500 },
-  { label: "$3,000", value: 3000 },
-  { label: "$3,500", value: 3500 },
-  { label: "$4,000", value: 4000 },
-  { label: "$5,000", value: 5000 },
+  { label: "$1,000-$1,500", minValue: 1000, maxValue: 1500 },
+  { label: "$1,500-$2,000", minValue: 1500, maxValue: 2000 },
+  { label: "$2,000-$2,500", minValue: 2000, maxValue: 2500 },
+  { label: "$2,500-$3,000", minValue: 2500, maxValue: 3000 },
+  { label: "$3,000-$3,500", minValue: 3000, maxValue: 3500 },
+  { label: "$3,500-$4,000", minValue: 3500, maxValue: 4000 },
+  { label: "$4,000-$4,500", minValue: 4000, maxValue: 4500 },
+  { label: "$4,500-$5,000", minValue: 4500, maxValue: 5000 },
 ];
 
 const SALE_PRICE_PRESETS = [
@@ -413,16 +413,21 @@ export function ListingFiltersHorizontal({
           </div>
           <div className="flex flex-wrap gap-2">
             {pricePresets.map((preset) => {
-              const isSelected =
-                preset.value === undefined
+              const isSelected = 'minValue' in preset
+                ? filters.min_price === preset.minValue && filters.max_price === preset.maxValue
+                : preset.value === undefined
                   ? !filters.min_price
                   : filters.min_price === preset.value;
               return (
                 <button
                   key={preset.label}
                   onClick={() => {
-                    setTempPriceMin(preset.value?.toString() || "");
-                    handleFilterChange("min_price", preset.value);
+                    if ('minValue' in preset) {
+                      setTempPriceMin(preset.minValue.toString());
+                      setTempPriceMax(preset.maxValue.toString());
+                      handleFilterChange("min_price", preset.minValue);
+                      handleFilterChange("max_price", preset.maxValue);
+                    }
                   }}
                   className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
                     isSelected
@@ -699,8 +704,9 @@ export function ListingFiltersHorizontal({
             </div>
             <div className="flex flex-wrap gap-2 mb-4">
               {pricePresets.map((preset) => {
-                const isSelected =
-                  preset.value === undefined
+                const isSelected = 'minValue' in preset
+                  ? parseInt(tempPriceMin) === preset.minValue && parseInt(tempPriceMax) === preset.maxValue
+                  : preset.value === undefined
                     ? !tempPriceMin
                     : parseInt(tempPriceMin) === preset.value;
                 return (
@@ -708,7 +714,10 @@ export function ListingFiltersHorizontal({
                     key={preset.label}
                     type="button"
                     onClick={() => {
-                      setTempPriceMin(preset.value?.toString() || "");
+                      if ('minValue' in preset) {
+                        setTempPriceMin(preset.minValue.toString());
+                        setTempPriceMax(preset.maxValue.toString());
+                      }
                     }}
                     className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
                       isSelected
