@@ -76,6 +76,7 @@ export function BrowseListings() {
   const [isFilterClearing, setIsFilterClearing] = useState(false);
   const [previousListingIds, setPreviousListingIds] = useState<Set<string>>(new Set());
   const [showCardAnimations, setShowCardAnimations] = useState(false);
+  const preserveMapRef = useRef(false); // Immediate ref for synchronous access
   const { user } = useAuth();
   const { filters, currentPage, updateFilters, updatePage, markNavigatingToDetail, isReady } = useBrowseFilters();
 
@@ -254,7 +255,8 @@ export function BrowseListings() {
       }
       setAllListingsForMap(filteredMapListings);
 
-      if (!shouldPreserveMapPosition && !searchBounds && !boundsFilter) {
+      // Check the ref for immediate synchronous access
+      if (!preserveMapRef.current && !searchBounds && !boundsFilter) {
         const geoCenter = calculateGeographicCenter(filteredMapListings);
         if (geoCenter) {
           setCenterOnListings(geoCenter);
@@ -302,10 +304,17 @@ export function BrowseListings() {
 
   const handleFiltersChange = (newFilters: FilterState) => {
     const isClearing = Object.keys(newFilters).length < Object.keys(filters).length;
+    const isApplying = Object.keys(newFilters).length > Object.keys(filters).length;
 
-    setIsFilterClearing(isClearing);
-    setShouldPreserveMapPosition(isClearing);
-    setCenterOnListings(null); // Clear to prevent stale values
+    // For both clearing and applying filters, preserve map position
+    const shouldPreserve = isClearing || isApplying;
+
+    if (shouldPreserve) {
+      setIsFilterClearing(isClearing);
+      preserveMapRef.current = true; // Set ref immediately for synchronous access
+      setShouldPreserveMapPosition(true);
+      setCenterOnListings(null); // Prevent any auto-centering
+    }
 
     gaEvent("filter_apply", {
       price_min: newFilters.min_price ?? null,
@@ -320,8 +329,9 @@ export function BrowseListings() {
     setShowSearchAreaButton(false);
 
     // Keep preserve flag active until animations complete
-    if (isClearing) {
+    if (shouldPreserve) {
       setTimeout(() => {
+        preserveMapRef.current = false;
         setShouldPreserveMapPosition(false);
       }, 2000);
     }
@@ -492,6 +502,7 @@ export function BrowseListings() {
   }, [filters, updateFilters]);
 
   const handleSearchClear = useCallback(() => {
+    preserveMapRef.current = true;
     setShouldPreserveMapPosition(true);
     setSearchLocation(null);
     setSearchBounds(null);
@@ -500,8 +511,9 @@ export function BrowseListings() {
     updateFilters({});
 
     setTimeout(() => {
+      preserveMapRef.current = false;
       setShouldPreserveMapPosition(false);
-    }, 500);
+    }, 2000);
   }, [updateFilters]);
 
   useEffect(() => {
