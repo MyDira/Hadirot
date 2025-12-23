@@ -40,6 +40,9 @@ interface ListingsMapEnhancedProps {
   centerOnListings?: { lat: number; lng: number; zoom: number } | null;
   shouldPreservePosition?: boolean;
   isLoading?: boolean;
+  shouldFitBounds?: boolean;
+  fitBoundsToAllPins?: boolean;
+  onFitBoundsComplete?: () => void;
 }
 
 export function ListingsMapEnhanced({
@@ -58,6 +61,9 @@ export function ListingsMapEnhanced({
   centerOnListings,
   shouldPreservePosition = false,
   isLoading = false,
+  shouldFitBounds = false,
+  fitBoundsToAllPins = false,
+  onFitBoundsComplete,
 }: ListingsMapEnhancedProps) {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
@@ -71,6 +77,9 @@ export function ListingsMapEnhanced({
   const boundsChangeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const updatePopupPositionRef = useRef<() => void>(() => {});
   const removePopupRef = useRef<() => void>(() => {});
+  const userHasInteracted = useRef(false);
+  const initialFitComplete = useRef(false);
+  const isProgrammaticMove = useRef(false);
 
   const listingsWithCoords = listings.filter(
     (l) => l.latitude != null && l.longitude != null
@@ -108,18 +117,19 @@ export function ListingsMapEnhanced({
         ? (isSaleListing ? formatSalePrice(price) : formatRentalPrice(price))
         : "N/A";
 
-    const baseClasses = "relative cursor-pointer transition-all duration-150";
+    const innerStateClass = isHovered || isSelected ? "marker-active" : "";
     const colorClasses = isHovered || isSelected
       ? "bg-brand-600 text-white"
       : "bg-white text-brand-800 border border-gray-300";
-    const scaleClass = isHovered || isSelected ? "scale-110 z-30" : "hover:scale-105";
     const shadowClass = isHovered || isSelected ? "shadow-lg" : "shadow-sm hover:shadow-lg";
 
     el.innerHTML = `
-      <div class="${baseClasses} ${colorClasses} ${scaleClass} ${shadowClass} px-2 py-0.5 rounded-full text-xs font-semibold whitespace-nowrap" style="font-family: var(--num-font);">
-        ${priceText}
+      <div class="marker-inner ${innerStateClass}">
+        <div class="relative cursor-pointer ${colorClasses} ${shadowClass} px-2 py-0.5 rounded-full text-xs font-semibold whitespace-nowrap" style="font-family: var(--num-font);">
+          ${priceText}
+        </div>
+        <div class="absolute left-1/2 -translate-x-1/2 -bottom-1 w-0 h-0 border-l-4 border-r-4 border-t-4 ${isHovered || isSelected ? 'border-t-brand-600' : 'border-t-white'} border-l-transparent border-r-transparent"></div>
       </div>
-      <div class="absolute left-1/2 -translate-x-1/2 -bottom-1 w-0 h-0 border-l-4 border-r-4 border-t-4 ${isHovered || isSelected ? 'border-t-brand-600' : 'border-t-white'} border-l-transparent border-r-transparent"></div>
     `;
 
     return el;
@@ -135,18 +145,19 @@ export function ListingsMapEnhanced({
       ? (isSaleListing ? formatSalePrice(price) : formatRentalPrice(price))
       : "N/A";
 
-    const baseClasses = "relative cursor-pointer transition-all duration-150";
+    const innerStateClass = isHovered || isSelected ? "marker-active" : "";
     const colorClasses = isHovered || isSelected
       ? "bg-brand-600 text-white"
       : "bg-white text-brand-800 border border-gray-300";
-    const scaleClass = isHovered || isSelected ? "scale-110 z-30" : "hover:scale-105";
     const shadowClass = isHovered || isSelected ? "shadow-lg" : "shadow-sm hover:shadow-lg";
 
     el.innerHTML = `
-      <div class="${baseClasses} ${colorClasses} ${scaleClass} ${shadowClass} px-2 py-0.5 rounded-full text-xs font-semibold whitespace-nowrap" style="font-family: var(--num-font);">
-        ${priceText}
+      <div class="marker-inner ${innerStateClass}">
+        <div class="relative cursor-pointer ${colorClasses} ${shadowClass} px-2 py-0.5 rounded-full text-xs font-semibold whitespace-nowrap" style="font-family: var(--num-font);">
+          ${priceText}
+        </div>
+        <div class="absolute left-1/2 -translate-x-1/2 -bottom-1 w-0 h-0 border-l-4 border-r-4 border-t-4 ${isHovered || isSelected ? 'border-t-brand-600' : 'border-t-white'} border-l-transparent border-r-transparent"></div>
       </div>
-      <div class="absolute left-1/2 -translate-x-1/2 -bottom-1 w-0 h-0 border-l-4 border-r-4 border-t-4 ${isHovered || isSelected ? 'border-t-brand-600' : 'border-t-white'} border-l-transparent border-r-transparent"></div>
     `;
 
     return el;
@@ -517,6 +528,18 @@ export function ListingsMapEnhanced({
       }
     });
 
+    map.current.on("dragend", () => {
+      if (!isProgrammaticMove.current) {
+        userHasInteracted.current = true;
+      }
+    });
+
+    map.current.on("zoomend", () => {
+      if (!isProgrammaticMove.current) {
+        userHasInteracted.current = true;
+      }
+    });
+
     return () => {
       if (boundsChangeTimeoutRef.current) {
         clearTimeout(boundsChangeTimeoutRef.current);
@@ -563,28 +586,32 @@ export function ListingsMapEnhanced({
       const existingItem = markers.current.get(listing.id);
 
       if (existingItem) {
-        // Only update if state actually changed
         const currentlyHovered = existingItem.element.dataset.isHovered === 'true';
         const currentlySelected = existingItem.element.dataset.isSelected === 'true';
 
         if (currentlyHovered !== isHovered || currentlySelected !== isSelected) {
-          // Update data attributes to track state
           existingItem.element.dataset.isHovered = String(isHovered);
           existingItem.element.dataset.isSelected = String(isSelected);
 
-          // Update only the classes, not the entire innerHTML
-          const innerDiv = existingItem.element.querySelector('div:first-child');
-          const triangle = existingItem.element.querySelector('div:last-child');
+          const markerInner = existingItem.element.querySelector('.marker-inner');
+          const priceDiv = existingItem.element.querySelector('.marker-inner > div:first-child');
+          const triangle = existingItem.element.querySelector('.marker-inner > div:last-child');
 
-          if (innerDiv) {
-            const baseClasses = "relative cursor-pointer transition-all duration-150";
+          if (markerInner) {
+            if (isHovered || isSelected) {
+              markerInner.classList.add('marker-active');
+            } else {
+              markerInner.classList.remove('marker-active');
+            }
+          }
+
+          if (priceDiv) {
             const colorClasses = isHovered || isSelected
               ? "bg-brand-600 text-white"
               : "bg-white text-brand-800 border border-gray-300";
-            const scaleClass = isHovered || isSelected ? "scale-110 z-30" : "hover:scale-105";
             const shadowClass = isHovered || isSelected ? "shadow-lg" : "shadow-sm hover:shadow-lg";
 
-            innerDiv.className = `${baseClasses} ${colorClasses} ${scaleClass} ${shadowClass} px-2 py-0.5 rounded-full text-xs font-semibold whitespace-nowrap`;
+            priceDiv.className = `relative cursor-pointer ${colorClasses} ${shadowClass} px-2 py-0.5 rounded-full text-xs font-semibold whitespace-nowrap`;
           }
 
           if (triangle) {
@@ -673,18 +700,25 @@ export function ListingsMapEnhanced({
           existingItem.element.dataset.isHovered = String(isHovered);
           existingItem.element.dataset.isSelected = String(isSelected);
 
-          const innerDiv = existingItem.element.querySelector('div:first-child');
-          const triangle = existingItem.element.querySelector('div:last-child');
+          const markerInner = existingItem.element.querySelector('.marker-inner');
+          const priceDiv = existingItem.element.querySelector('.marker-inner > div:first-child');
+          const triangle = existingItem.element.querySelector('.marker-inner > div:last-child');
 
-          if (innerDiv) {
-            const baseClasses = "relative cursor-pointer transition-all duration-150";
+          if (markerInner) {
+            if (isHovered || isSelected) {
+              markerInner.classList.add('marker-active');
+            } else {
+              markerInner.classList.remove('marker-active');
+            }
+          }
+
+          if (priceDiv) {
             const colorClasses = isHovered || isSelected
               ? "bg-brand-600 text-white"
               : "bg-white text-brand-800 border border-gray-300";
-            const scaleClass = isHovered || isSelected ? "scale-110 z-30" : "hover:scale-105";
             const shadowClass = isHovered || isSelected ? "shadow-lg" : "shadow-sm hover:shadow-lg";
 
-            innerDiv.className = `${baseClasses} ${colorClasses} ${scaleClass} ${shadowClass} px-2 py-0.5 rounded-full text-xs font-semibold whitespace-nowrap`;
+            priceDiv.className = `relative cursor-pointer ${colorClasses} ${shadowClass} px-2 py-0.5 rounded-full text-xs font-semibold whitespace-nowrap`;
           }
 
           if (triangle) {
@@ -858,9 +892,7 @@ export function ListingsMapEnhanced({
   useEffect(() => {
     if (!map.current || !mapLoaded || !centerOnListings || shouldPreservePosition) return;
 
-    // Validate coordinates before flying to them
     if (!isFinite(centerOnListings.lat) || !isFinite(centerOnListings.lng) || !isFinite(centerOnListings.zoom)) {
-      console.error('Invalid centerOnListings coordinates:', centerOnListings);
       return;
     }
 
@@ -870,6 +902,70 @@ export function ListingsMapEnhanced({
       duration: 1200,
     });
   }, [centerOnListings, mapLoaded, shouldPreservePosition]);
+
+  useEffect(() => {
+    if (!mapLoaded || !map.current || initialFitComplete.current) return;
+    if (!visiblePinIds || visiblePinIds.size === 0) return;
+    if (!pinsWithCoords || pinsWithCoords.length === 0) return;
+
+    const visiblePins = pinsWithCoords.filter(p => visiblePinIds.has(p.id));
+    if (visiblePins.length === 0) return;
+
+    const bounds = new mapboxgl.LngLatBounds();
+    visiblePins.forEach(pin => {
+      bounds.extend([pin.longitude, pin.latitude]);
+    });
+
+    isProgrammaticMove.current = true;
+    map.current.fitBounds(bounds, {
+      padding: 50,
+      maxZoom: 15,
+      duration: 1000,
+    });
+
+    setTimeout(() => {
+      isProgrammaticMove.current = false;
+    }, 1100);
+
+    initialFitComplete.current = true;
+  }, [mapLoaded, visiblePinIds, pinsWithCoords]);
+
+  useEffect(() => {
+    if (!shouldFitBounds || !mapLoaded || !map.current) return;
+
+    if (userHasInteracted.current) {
+      userHasInteracted.current = false;
+      if (onFitBoundsComplete) onFitBoundsComplete();
+      return;
+    }
+
+    const targetPins = fitBoundsToAllPins
+      ? pinsWithCoords
+      : pinsWithCoords.filter(p => visiblePinIds?.has(p.id));
+
+    if (targetPins.length === 0) {
+      if (onFitBoundsComplete) onFitBoundsComplete();
+      return;
+    }
+
+    const bounds = new mapboxgl.LngLatBounds();
+    targetPins.forEach(pin => {
+      bounds.extend([pin.longitude, pin.latitude]);
+    });
+
+    isProgrammaticMove.current = true;
+    map.current.fitBounds(bounds, {
+      padding: 50,
+      maxZoom: 15,
+      duration: 800,
+    });
+
+    setTimeout(() => {
+      isProgrammaticMove.current = false;
+      userHasInteracted.current = false;
+      if (onFitBoundsComplete) onFitBoundsComplete();
+    }, 900);
+  }, [shouldFitBounds, fitBoundsToAllPins, mapLoaded, visiblePinIds, pinsWithCoords, onFitBoundsComplete]);
 
   if (!MAPBOX_ACCESS_TOKEN) {
     return (
@@ -928,30 +1024,59 @@ export function ListingsMapEnhanced({
         }
 
         .price-marker {
-          transform: translateY(-50%);
           z-index: 1;
-          transition: opacity 0.2s ease, transform 0.15s ease;
         }
 
         .price-marker.hidden {
           opacity: 0;
           pointer-events: none;
-          transform: translateY(-50%) scale(0.85);
+        }
+
+        .price-marker.hidden .marker-inner {
+          transform: scale(0.85);
+        }
+
+        .marker-inner {
+          transition: transform 0.15s ease, opacity 0.2s ease;
+        }
+
+        .marker-inner.marker-active {
+          transform: scale(1.1);
+          z-index: 30;
+        }
+
+        .marker-inner:hover {
+          transform: scale(1.05);
+        }
+
+        .marker-inner.marker-active:hover {
+          transform: scale(1.1);
         }
 
         @keyframes pin-appear {
           from {
             opacity: 0;
-            transform: translateY(-30%) scale(0.8);
           }
           to {
             opacity: 1;
-            transform: translateY(-50%) scale(1);
+          }
+        }
+
+        @keyframes pin-inner-appear {
+          from {
+            transform: scale(0.8);
+          }
+          to {
+            transform: scale(1);
           }
         }
 
         .animate-pin-appear {
           animation: pin-appear 0.3s ease-out forwards;
+        }
+
+        .animate-pin-appear .marker-inner {
+          animation: pin-inner-appear 0.3s ease-out forwards;
         }
 
         .custom-map-popup {

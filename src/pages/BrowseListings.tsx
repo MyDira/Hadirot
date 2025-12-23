@@ -81,6 +81,8 @@ export function BrowseListings() {
   const [mapPins, setMapPins] = useState<MapPin[]>([]);
   const [mapPinBounds, setMapPinBounds] = useState<MapBounds | null>(null);
   const initialPinsLoadedRef = useRef(false);
+  const [shouldFitBounds, setShouldFitBounds] = useState(false);
+  const [fitBoundsToAllPins, setFitBoundsToAllPins] = useState(false);
   const { user } = useAuth();
   const { filters, currentPage, updateFilters, updatePage, markNavigatingToDetail, isReady } = useBrowseFilters();
 
@@ -321,18 +323,19 @@ export function BrowseListings() {
   }, []);
 
   const handleFiltersChange = (newFilters: FilterState) => {
-    const isClearing = Object.keys(newFilters).length < Object.keys(filters).length;
-    const isApplying = Object.keys(newFilters).length > Object.keys(filters).length;
+    const isClearing = Object.keys(newFilters).length < Object.keys(filters).length ||
+      Object.keys(newFilters).every(k => {
+        const val = newFilters[k as keyof FilterState];
+        return val === undefined || (Array.isArray(val) && val.length === 0);
+      });
 
-    // For both clearing and applying filters, preserve map position
-    const shouldPreserve = isClearing || isApplying;
+    setIsFilterClearing(isClearing);
+    preserveMapRef.current = true;
+    setShouldPreserveMapPosition(true);
+    setCenterOnListings(null);
 
-    if (shouldPreserve) {
-      setIsFilterClearing(isClearing);
-      preserveMapRef.current = true; // Set ref immediately for synchronous access
-      setShouldPreserveMapPosition(true);
-      setCenterOnListings(null); // Prevent any auto-centering
-    }
+    setFitBoundsToAllPins(isClearing);
+    setShouldFitBounds(true);
 
     gaEvent("filter_apply", {
       price_min: newFilters.min_price ?? null,
@@ -346,14 +349,16 @@ export function BrowseListings() {
     updateFilters(newFilters);
     setShowSearchAreaButton(false);
 
-    // Keep preserve flag active until animations complete
-    if (shouldPreserve) {
-      setTimeout(() => {
-        preserveMapRef.current = false;
-        setShouldPreserveMapPosition(false);
-      }, 2000);
-    }
+    setTimeout(() => {
+      preserveMapRef.current = false;
+      setShouldPreserveMapPosition(false);
+    }, 2000);
   };
+
+  const handleFitBoundsComplete = useCallback(() => {
+    setShouldFitBounds(false);
+    setFitBoundsToAllPins(false);
+  }, []);
 
   const handlePageChange = (page: number) => {
     if (page < 1 || page > totalPages) return;
@@ -1036,6 +1041,9 @@ export function BrowseListings() {
                 centerOnListings={centerOnListings}
                 shouldPreservePosition={shouldPreserveMapPosition}
                 isLoading={loading && isFilterClearing}
+                shouldFitBounds={shouldFitBounds}
+                fitBoundsToAllPins={fitBoundsToAllPins}
+                onFitBoundsComplete={handleFitBoundsComplete}
               />
 
               {/* Listing count badge */}
@@ -1194,6 +1202,9 @@ export function BrowseListings() {
                 centerOnListings={centerOnListings}
                 shouldPreservePosition={shouldPreserveMapPosition}
                 isLoading={loading && isFilterClearing}
+                shouldFitBounds={shouldFitBounds}
+                fitBoundsToAllPins={fitBoundsToAllPins}
+                onFitBoundsComplete={handleFitBoundsComplete}
               />
             )}
 

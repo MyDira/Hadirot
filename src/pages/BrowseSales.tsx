@@ -72,6 +72,9 @@ export function BrowseSales() {
   const [centerOnListings, setCenterOnListings] = useState<{ lat: number; lng: number; zoom: number } | null>(null);
   const [shouldPreserveMapPosition, setShouldPreserveMapPosition] = useState(false);
   const [isFilterClearing, setIsFilterClearing] = useState(false);
+  const [shouldFitBounds, setShouldFitBounds] = useState(false);
+  const [fitBoundsToAllPins, setFitBoundsToAllPins] = useState(false);
+  const preserveMapRef = useRef(false);
   const { user } = useAuth();
   const { filters, currentPage, updateFilters, updatePage, markNavigatingToDetail, isReady } = useBrowseFilters('sales');
 
@@ -284,11 +287,19 @@ export function BrowseSales() {
   };
 
   const handleFiltersChange = (newFilters: FilterState) => {
-    const isClearing = Object.keys(newFilters).length < Object.keys(filters).length;
+    const isClearing = Object.keys(newFilters).length < Object.keys(filters).length ||
+      Object.keys(newFilters).every(k => {
+        const val = newFilters[k as keyof FilterState];
+        return val === undefined || (Array.isArray(val) && val.length === 0);
+      });
 
     setIsFilterClearing(isClearing);
-    setShouldPreserveMapPosition(isClearing);
-    setCenterOnListings(null); // Clear to prevent stale values
+    preserveMapRef.current = true;
+    setShouldPreserveMapPosition(true);
+    setCenterOnListings(null);
+
+    setFitBoundsToAllPins(isClearing);
+    setShouldFitBounds(true);
 
     gaEvent("filter_apply", {
       price_min: newFilters.min_price ?? null,
@@ -302,13 +313,16 @@ export function BrowseSales() {
     updateFilters(newFilters);
     setShowSearchAreaButton(false);
 
-    if (isClearing) {
-      setTimeout(() => {
-        setShouldPreserveMapPosition(false);
-        setIsFilterClearing(false);
-      }, 500);
-    }
+    setTimeout(() => {
+      preserveMapRef.current = false;
+      setShouldPreserveMapPosition(false);
+    }, 2000);
   };
+
+  const handleFitBoundsComplete = useCallback(() => {
+    setShouldFitBounds(false);
+    setFitBoundsToAllPins(false);
+  }, []);
 
   const handlePageChange = (page: number) => {
     if (page < 1 || page > totalPages) return;
@@ -963,6 +977,9 @@ export function BrowseSales() {
                 searchLocationName={searchLocation?.name}
                 centerOnListings={centerOnListings}
                 shouldPreservePosition={shouldPreserveMapPosition}
+                shouldFitBounds={shouldFitBounds}
+                fitBoundsToAllPins={fitBoundsToAllPins}
+                onFitBoundsComplete={handleFitBoundsComplete}
               />
 
               {/* Listing count badge */}
@@ -1118,6 +1135,9 @@ export function BrowseSales() {
                 searchLocationName={searchLocation?.name}
                 centerOnListings={centerOnListings}
                 shouldPreservePosition={shouldPreserveMapPosition}
+                shouldFitBounds={shouldFitBounds}
+                fitBoundsToAllPins={fitBoundsToAllPins}
+                onFitBoundsComplete={handleFitBoundsComplete}
               />
             )}
 
