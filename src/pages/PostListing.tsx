@@ -1861,8 +1861,8 @@ export function PostListing() {
                 >
                   <option value="">Select AC type (optional)</option>
                   <option value="central">Central Air</option>
-                  <option value="wall_unit">Wall Unit</option>
-                  <option value="none">No AC</option>
+                  <option value="split_unit">Split Unit</option>
+                  <option value="window">Window Unit</option>
                 </select>
               </div>
             )}
