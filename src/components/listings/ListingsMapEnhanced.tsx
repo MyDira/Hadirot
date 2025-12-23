@@ -1,6 +1,7 @@
 import React, { useRef, useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import mapboxgl from "mapbox-gl";
+import { ArrowUp } from "lucide-react";
 import { Listing } from "../../config/supabase";
 import { MAPBOX_ACCESS_TOKEN } from "@/config/env";
 import { computePrimaryListingImage } from "../../utils/stockImage";
@@ -11,6 +12,7 @@ import {
   type TooltipPosition,
 } from "../../utils/viewportUtils";
 import { MapPin } from "../../utils/filterUtils";
+import { calculateIndicatorData, type IndicatorData } from "../../utils/mapIndicatorUtils";
 
 const BROOKLYN_CENTER: [number, number] = [-73.9442, 40.6782];
 const DEFAULT_ZOOM = 12;
@@ -65,6 +67,7 @@ export function ListingsMapEnhanced({
   const userLocationMarker = useRef<mapboxgl.Marker | null>(null);
   const navigate = useNavigate();
   const [mapLoaded, setMapLoaded] = useState(false);
+  const [offScreenIndicator, setOffScreenIndicator] = useState<(IndicatorData & { listingId: string }) | null>(null);
   const boundsChangeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const updatePopupPositionRef = useRef<() => void>(() => {});
   const removePopupRef = useRef<() => void>(() => {});
@@ -412,6 +415,25 @@ export function ListingsMapEnhanced({
       arrow.className = position.anchor === 'bottom' ? 'popup-arrow-bottom' : 'popup-arrow-top';
     }
   }, [listingsWithCoords]);
+
+  const handleIndicatorClick = useCallback((listingId: string) => {
+    if (!map.current) return;
+
+    const listing = listingsWithCoords.find(l => l.id === listingId);
+    if (!listing?.latitude || !listing?.longitude) return;
+
+    map.current.flyTo({
+      center: [listing.longitude, listing.latitude],
+      zoom: 15,
+      duration: 800,
+    });
+
+    setOffScreenIndicator(null);
+
+    if (onMarkerClick) {
+      onMarkerClick(listingId);
+    }
+  }, [listingsWithCoords, onMarkerClick]);
 
   useEffect(() => {
     updatePopupPositionRef.current = updatePopupPosition;
@@ -765,20 +787,48 @@ export function ListingsMapEnhanced({
   }, [userLocation, mapLoaded]);
 
   useEffect(() => {
-    if (!map.current || !mapLoaded || !hoveredListingId) return;
+    if (!map.current || !mapLoaded || !mapContainer.current) {
+      setOffScreenIndicator(null);
+      return;
+    }
+
+    if (!hoveredListingId) {
+      setOffScreenIndicator(null);
+      return;
+    }
 
     const listing = listingsWithCoords.find(l => l.id === hoveredListingId);
-    if (listing?.latitude && listing?.longitude) {
-      const currentCenter = map.current.getCenter();
-      const bounds = map.current.getBounds();
+    if (!listing?.latitude || !listing?.longitude) {
+      setOffScreenIndicator(null);
+      return;
+    }
 
-      const isInView = bounds.contains([listing.longitude, listing.latitude]);
+    const bounds = map.current.getBounds();
+    const isInView = bounds.contains([listing.longitude, listing.latitude]);
 
-      if (!isInView) {
-        map.current.panTo([listing.longitude, listing.latitude], {
-          duration: 500,
-        });
-      }
+    if (isInView) {
+      setOffScreenIndicator(null);
+    } else {
+      const containerRect = mapContainer.current.getBoundingClientRect();
+      const mapBounds = {
+        north: bounds.getNorth(),
+        south: bounds.getSouth(),
+        east: bounds.getEast(),
+        west: bounds.getWest(),
+      };
+
+      const indicatorData = calculateIndicatorData(
+        listing.longitude,
+        listing.latitude,
+        mapBounds,
+        containerRect.width,
+        containerRect.height
+      );
+
+      setOffScreenIndicator({
+        ...indicatorData,
+        listingId: listing.id,
+      });
     }
   }, [hoveredListingId, listingsWithCoords, mapLoaded]);
 
@@ -839,6 +889,32 @@ export function ListingsMapEnhanced({
   return (
     <div className="relative h-full w-full">
       <div ref={mapContainer} className={`h-full w-full ${isLoading ? 'border-2 loading-pulse' : ''}`} />
+
+      {offScreenIndicator && (
+        <div
+          className="off-screen-indicator"
+          style={{
+            left: `${offScreenIndicator.position.x}px`,
+            top: `${offScreenIndicator.position.y}px`,
+            transform: `translate(-50%, -50%) rotate(${offScreenIndicator.rotation}deg)`,
+          }}
+          onClick={() => handleIndicatorClick(offScreenIndicator.listingId)}
+          role="button"
+          tabIndex={0}
+          aria-label={`Navigate to listing ${offScreenIndicator.direction} of current view`}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              handleIndicatorClick(offScreenIndicator.listingId);
+            }
+          }}
+        >
+          <div className="indicator-icon-wrapper">
+            <ArrowUp size={20} strokeWidth={3} />
+          </div>
+          <div className="indicator-pulse" />
+        </div>
+      )}
 
       <style>{`
         .mapboxgl-ctrl-group {
@@ -980,6 +1056,79 @@ export function ListingsMapEnhanced({
 
         .listing-popup img {
           display: block;
+        }
+
+        .off-screen-indicator {
+          position: absolute;
+          z-index: 999;
+          width: 44px;
+          height: 44px;
+          background: white;
+          border: 2px solid #1E4A74;
+          border-radius: 50%;
+          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15), 0 2px 4px rgba(0, 0, 0, 0.1);
+          cursor: pointer;
+          transition: all 0.2s ease;
+          transform-origin: center;
+          pointer-events: auto;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+
+        .off-screen-indicator:hover {
+          transform: translate(-50%, -50%) scale(1.15);
+          box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2), 0 3px 6px rgba(0, 0, 0, 0.15);
+          border-color: #2563eb;
+        }
+
+        .off-screen-indicator:active {
+          transform: translate(-50%, -50%) scale(1.05);
+        }
+
+        .indicator-icon-wrapper {
+          color: #1E4A74;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          transition: color 0.2s ease;
+          position: relative;
+          z-index: 2;
+        }
+
+        .off-screen-indicator:hover .indicator-icon-wrapper {
+          color: #2563eb;
+        }
+
+        .indicator-pulse {
+          position: absolute;
+          top: 50%;
+          left: 50%;
+          transform: translate(-50%, -50%);
+          width: 100%;
+          height: 100%;
+          border: 2px solid #1E4A74;
+          border-radius: 50%;
+          opacity: 0;
+          animation: indicator-pulse-animation 1.5s ease-out infinite;
+        }
+
+        @keyframes indicator-pulse-animation {
+          0% {
+            opacity: 1;
+            transform: translate(-50%, -50%) scale(1);
+          }
+          100% {
+            opacity: 0;
+            transform: translate(-50%, -50%) scale(1.5);
+          }
+        }
+
+        @media (max-width: 767px) {
+          .off-screen-indicator {
+            width: 48px;
+            height: 48px;
+          }
         }
       `}</style>
     </div>
