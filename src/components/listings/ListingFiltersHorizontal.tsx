@@ -99,6 +99,18 @@ const BATH_OPTIONS = [
   { value: 3, label: "3+" },
 ];
 
+// Minimum price preset options for rental
+const RENTAL_MIN_PRICE_OPTIONS = [
+  { label: "No Min", value: undefined },
+  { label: "$1,000", value: 1000 },
+  { label: "$1,500", value: 1500 },
+  { label: "$2,000", value: 2000 },
+  { label: "$2,500", value: 2500 },
+  { label: "$3,000", value: 3000 },
+  { label: "$3,500", value: 3500 },
+  { label: "$4,000", value: 4000 },
+];
+
 const RENTAL_PRICE_PRESETS = [
   { label: "$1,000-$1,500", minValue: 1000, maxValue: 1500 },
   { label: "$1,500-$2,000", minValue: 1500, maxValue: 2000 },
@@ -138,10 +150,37 @@ export function ListingFiltersHorizontal({
   const [tempBedrooms, setTempBedrooms] = useState<number[]>([]);
   const [tempBathMin, setTempBathMin] = useState<number>(-1);
   const [showMoreFilters, setShowMoreFilters] = useState(false);
+  const [priceInputFocus, setPriceInputFocus] = useState<'min' | 'max' | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const minInputRef = useRef<HTMLInputElement>(null);
+  const maxInputRef = useRef<HTMLInputElement>(null);
 
   const pricePresets =
     listingType === "sale" ? SALE_PRICE_PRESETS : RENTAL_PRICE_PRESETS;
+
+  // Generate maximum price options based on current minimum
+  const generateMaxPriceOptions = () => {
+    if (listingType === "sale") {
+      // For sales, use the existing preset logic
+      return SALE_PRICE_PRESETS.filter(p => p.value !== undefined);
+    }
+
+    // For rentals, generate dynamic maximum options
+    const minValue = tempPriceMin ? parseInt(tempPriceMin) : 0;
+    const startValue = minValue > 0 ? Math.ceil((minValue + 500) / 500) * 500 : 1000;
+    const maxOptions = [];
+
+    // Generate options in $500 increments, starting from first value above minimum
+    for (let i = 0; i < 16; i++) { // Generate 16 options
+      const value = startValue + (i * 500);
+      maxOptions.push({
+        label: `$${value.toLocaleString()}`,
+        value: value,
+      });
+    }
+
+    return maxOptions;
+  };
 
   useEffect(() => {
     const loadBedroomOptions = async () => {
@@ -234,8 +273,9 @@ export function ListingFiltersHorizontal({
       onFiltersChange({});
       setTempPriceMin("");
       setTempPriceMax("");
-      setTempBedMin(-1);
+      setTempBedrooms([]);
       setTempBathMin(-1);
+      setPriceInputFocus(null);
     }, 100);
   };
 
@@ -254,6 +294,7 @@ export function ListingFiltersHorizontal({
       max_price: max,
     });
     setOpenDropdown(null);
+    setPriceInputFocus(null);
   };
 
   const handleBedsApply = () => {
@@ -420,7 +461,10 @@ export function ListingFiltersHorizontal({
                 placeholder="Min."
                 value={tempPriceMin}
                 onChange={(e) => setTempPriceMin(e.target.value.replace(/\D/g, ""))}
-                className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                onFocus={() => setPriceInputFocus('min')}
+                className={`w-full px-4 py-3 border rounded-xl text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500 ${
+                  priceInputFocus === 'min' ? 'border-green-500 ring-2 ring-green-500' : 'border-gray-200'
+                }`}
               />
             </div>
             <span className="text-gray-400">-</span>
@@ -430,39 +474,108 @@ export function ListingFiltersHorizontal({
                 placeholder="Max."
                 value={tempPriceMax}
                 onChange={(e) => setTempPriceMax(e.target.value.replace(/\D/g, ""))}
-                className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                onFocus={() => setPriceInputFocus('max')}
+                className={`w-full px-4 py-3 border rounded-xl text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500 ${
+                  priceInputFocus === 'max' ? 'border-green-500 ring-2 ring-green-500' : 'border-gray-200'
+                }`}
               />
             </div>
           </div>
-          <div className="flex flex-wrap gap-2">
-            {pricePresets.map((preset) => {
-              const isSelected = 'minValue' in preset
-                ? filters.min_price === preset.minValue && filters.max_price === preset.maxValue
-                : preset.value === undefined
-                  ? !filters.min_price
-                  : filters.min_price === preset.value;
-              return (
-                <button
-                  key={preset.label}
-                  onClick={() => {
-                    if ('minValue' in preset) {
-                      setTempPriceMin(preset.minValue.toString());
-                      setTempPriceMax(preset.maxValue.toString());
-                      handleFilterChange("min_price", preset.minValue);
-                      handleFilterChange("max_price", preset.maxValue);
-                    }
-                  }}
-                  className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
-                    isSelected
-                      ? "bg-green-600 text-white"
-                      : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                  }`}
-                >
-                  {preset.label}
-                </button>
-              );
-            })}
-          </div>
+
+          {/* Show minimum options when min input is focused */}
+          {listingType === "rental" && priceInputFocus === 'min' && (
+            <div className="mb-4">
+              <div className="text-sm font-medium text-gray-700 mb-3">Select Minimum</div>
+              <div className="flex flex-wrap gap-2">
+                {RENTAL_MIN_PRICE_OPTIONS.map((option) => {
+                  const isSelected = option.value === undefined
+                    ? !tempPriceMin
+                    : parseInt(tempPriceMin) === option.value;
+                  return (
+                    <button
+                      key={option.label}
+                      onClick={() => {
+                        if (option.value === undefined) {
+                          setTempPriceMin("");
+                        } else {
+                          setTempPriceMin(option.value.toString());
+                        }
+                        setPriceInputFocus('max');
+                      }}
+                      className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
+                        isSelected
+                          ? "bg-green-600 text-white"
+                          : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                      }`}
+                    >
+                      {option.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Show maximum options when max input is focused */}
+          {listingType === "rental" && priceInputFocus === 'max' && (
+            <div className="mb-4">
+              <div className="text-sm font-medium text-gray-700 mb-3">Select Maximum</div>
+              <div className="flex flex-wrap gap-2 max-h-64 overflow-y-auto">
+                {generateMaxPriceOptions().map((option) => {
+                  const isSelected = parseInt(tempPriceMax) === option.value;
+                  return (
+                    <button
+                      key={option.label}
+                      onClick={() => {
+                        setTempPriceMax(option.value.toString());
+                        handleFilterChange("max_price", option.value);
+                      }}
+                      className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
+                        isSelected
+                          ? "bg-green-600 text-white"
+                          : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                      }`}
+                    >
+                      {option.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Show preset ranges when no input is focused or for sale listings */}
+          {(listingType === "sale" || !priceInputFocus) && (
+            <div className="flex flex-wrap gap-2">
+              {pricePresets.map((preset) => {
+                const isSelected = 'minValue' in preset
+                  ? filters.min_price === preset.minValue && filters.max_price === preset.maxValue
+                  : preset.value === undefined
+                    ? !filters.min_price
+                    : filters.min_price === preset.value;
+                return (
+                  <button
+                    key={preset.label}
+                    onClick={() => {
+                      if ('minValue' in preset) {
+                        setTempPriceMin(preset.minValue.toString());
+                        setTempPriceMax(preset.maxValue.toString());
+                        handleFilterChange("min_price", preset.minValue);
+                        handleFilterChange("max_price", preset.maxValue);
+                      }
+                    }}
+                    className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
+                      isSelected
+                        ? "bg-green-600 text-white"
+                        : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                    }`}
+                  >
+                    {preset.label}
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
 
         <div>
@@ -635,71 +748,157 @@ export function ListingFiltersHorizontal({
           value={getPriceLabel()}
           isActive={!!(filters.min_price || filters.max_price)}
           isOpen={openDropdown === "price"}
-          onToggle={() => toggleDropdown("price")}
+          onToggle={() => {
+            toggleDropdown("price");
+            if (openDropdown !== "price") {
+              // Default to minimum view when opening
+              setPriceInputFocus(null);
+            }
+          }}
         >
           <div className="p-5">
             <div className="text-base font-semibold text-gray-900 mb-4">
               {listingType === "sale" ? "Price Range" : "Rent Range"}
             </div>
             <div className="flex gap-3 items-center mb-4">
-              <div className="flex-1">
+              <div className="flex-1 relative">
                 <input
+                  ref={minInputRef}
                   type="text"
                   placeholder="Min."
                   value={tempPriceMin}
-                  onChange={(e) =>
-                    setTempPriceMin(e.target.value.replace(/\D/g, ""))
-                  }
-                  className="w-full px-4 py-3 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                  onChange={(e) => {
+                    setTempPriceMin(e.target.value.replace(/\D/g, ""));
+                  }}
+                  onFocus={() => setPriceInputFocus('min')}
+                  className={`w-full px-4 py-3 border rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500 ${
+                    priceInputFocus === 'min' ? 'border-green-500 ring-2 ring-green-500' : 'border-gray-200'
+                  }`}
                 />
               </div>
               <span className="text-gray-400">-</span>
-              <div className="flex-1">
+              <div className="flex-1 relative">
                 <input
+                  ref={maxInputRef}
                   type="text"
                   placeholder="Max."
                   value={tempPriceMax}
-                  onChange={(e) =>
-                    setTempPriceMax(e.target.value.replace(/\D/g, ""))
-                  }
-                  className="w-full px-4 py-3 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                  onChange={(e) => {
+                    setTempPriceMax(e.target.value.replace(/\D/g, ""));
+                  }}
+                  onFocus={() => setPriceInputFocus('max')}
+                  className={`w-full px-4 py-3 border rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500 ${
+                    priceInputFocus === 'max' ? 'border-green-500 ring-2 ring-green-500' : 'border-gray-200'
+                  }`}
                 />
               </div>
             </div>
-            <div className="flex flex-wrap gap-2 mb-4">
-              {pricePresets.map((preset) => {
-                const isSelected = 'minValue' in preset
-                  ? parseInt(tempPriceMin) === preset.minValue && parseInt(tempPriceMax) === preset.maxValue
-                  : preset.value === undefined
-                    ? !tempPriceMin
-                    : parseInt(tempPriceMin) === preset.value;
-                return (
-                  <button
-                    key={preset.label}
-                    type="button"
-                    onClick={() => {
-                      if ('minValue' in preset) {
-                        setTempPriceMin(preset.minValue.toString());
-                        setTempPriceMax(preset.maxValue.toString());
-                      }
-                    }}
-                    className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
-                      isSelected
-                        ? "bg-green-600 text-white"
-                        : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                    }`}
-                  >
-                    {preset.label}
-                  </button>
-                );
-              })}
-            </div>
+
+            {/* Dynamic option display based on focused input */}
+            {listingType === "rental" && priceInputFocus === 'min' && (
+              <div className="mb-4">
+                <div className="text-sm font-medium text-gray-700 mb-3">Select Minimum</div>
+                <div className="flex flex-wrap gap-2">
+                  {RENTAL_MIN_PRICE_OPTIONS.map((option) => {
+                    const isSelected = option.value === undefined
+                      ? !tempPriceMin
+                      : parseInt(tempPriceMin) === option.value;
+                    return (
+                      <button
+                        key={option.label}
+                        type="button"
+                        onClick={() => {
+                          if (option.value === undefined) {
+                            setTempPriceMin("");
+                          } else {
+                            setTempPriceMin(option.value.toString());
+                          }
+                          // Automatically switch to maximum input after selection
+                          setTimeout(() => {
+                            setPriceInputFocus('max');
+                            maxInputRef.current?.focus();
+                          }, 150);
+                        }}
+                        className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
+                          isSelected
+                            ? "bg-green-600 text-white"
+                            : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                        }`}
+                      >
+                        {option.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {listingType === "rental" && priceInputFocus === 'max' && (
+              <div className="mb-4">
+                <div className="text-sm font-medium text-gray-700 mb-3">Select Maximum</div>
+                <div className="flex flex-wrap gap-2 max-h-48 overflow-y-auto">
+                  {generateMaxPriceOptions().map((option) => {
+                    const isSelected = parseInt(tempPriceMax) === option.value;
+                    return (
+                      <button
+                        key={option.label}
+                        type="button"
+                        onClick={() => {
+                          setTempPriceMax(option.value.toString());
+                        }}
+                        className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
+                          isSelected
+                            ? "bg-green-600 text-white"
+                            : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                        }`}
+                      >
+                        {option.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Show preset ranges when no input is focused (for sale listings or default state) */}
+            {(listingType === "sale" || !priceInputFocus) && (
+              <div className="flex flex-wrap gap-2 mb-4">
+                {pricePresets.map((preset) => {
+                  const isSelected = 'minValue' in preset
+                    ? parseInt(tempPriceMin) === preset.minValue && parseInt(tempPriceMax) === preset.maxValue
+                    : preset.value === undefined
+                      ? !tempPriceMin
+                      : parseInt(tempPriceMin) === preset.value;
+                  return (
+                    <button
+                      key={preset.label}
+                      type="button"
+                      onClick={() => {
+                        if ('minValue' in preset) {
+                          setTempPriceMin(preset.minValue.toString());
+                          setTempPriceMax(preset.maxValue.toString());
+                        }
+                      }}
+                      className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
+                        isSelected
+                          ? "bg-green-600 text-white"
+                          : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                      }`}
+                    >
+                      {preset.label}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
             <div className="flex items-center gap-3 pt-3 border-t border-gray-100">
               <button
                 type="button"
                 onClick={() => {
                   setTempPriceMin("");
                   setTempPriceMax("");
+                  setPriceInputFocus(null);
                 }}
                 className="text-green-600 hover:text-green-700 font-medium text-sm"
               >
