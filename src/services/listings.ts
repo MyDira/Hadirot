@@ -1524,4 +1524,61 @@ async getActiveRentalAgencies(): Promise<string[]> {
     if (width && (width <= 0 || width > 10000)) return false;
     return true;
   },
+
+  async getMapPins(bounds: { north: number; south: number; east: number; west: number }, listingType: 'rental' | 'sale' = 'rental') {
+    const selectStr = `
+      id,
+      latitude,
+      longitude,
+      price,
+      asking_price,
+      listing_type,
+      bedrooms,
+      property_type,
+      broker_fee,
+      parking,
+      neighborhood,
+      owner:profiles!listings_user_id_fkey(role, agency)
+    `;
+
+    let query = supabase
+      .from('listings')
+      .select(selectStr)
+      .eq('is_active', true)
+      .eq('approved', true)
+      .not('latitude', 'is', null)
+      .not('longitude', 'is', null)
+      .gte('latitude', bounds.south)
+      .lte('latitude', bounds.north)
+      .gte('longitude', bounds.west)
+      .lte('longitude', bounds.east);
+
+    if (listingType === 'rental') {
+      query = query.or('listing_type.eq.rental,listing_type.is.null');
+    } else {
+      query = query.eq('listing_type', 'sale');
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      console.error('Error fetching map pins:', error);
+      return [];
+    }
+
+    return (data || []).map((row: any) => ({
+      id: row.id,
+      latitude: row.latitude,
+      longitude: row.longitude,
+      price: row.price,
+      asking_price: row.asking_price,
+      listing_type: row.listing_type,
+      bedrooms: row.bedrooms,
+      property_type: row.property_type,
+      broker_fee: row.broker_fee,
+      parking: row.parking,
+      neighborhood: row.neighborhood,
+      owner: row.owner ? { role: row.owner.role, agency: row.owner.agency } : null,
+    }));
+  },
 };

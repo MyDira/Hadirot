@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { ChevronLeft, ChevronRight, Filter, X, List, Map as MapIcon, Locate, RotateCcw, LayoutGrid, ArrowUpDown } from "lucide-react";
 import { ListingCard } from "../components/listings/ListingCard";
@@ -17,6 +17,7 @@ import { ParsedSearchQuery } from "../utils/searchQueryParser";
 import { LocationResult } from "../services/locationSearch";
 import { calculateGeographicCenter } from "../utils/geoUtils";
 import { isElementFullyVisible, scrollElementIntoView } from "../utils/viewportUtils";
+import { MapPin, getVisiblePinIds } from "../utils/filterUtils";
 
 export type SortOption = 'newest' | 'oldest' | 'price_asc' | 'price_desc' | 'bedrooms_asc' | 'bedrooms_desc' | 'bathrooms_asc' | 'bathrooms_desc';
 
@@ -76,7 +77,10 @@ export function BrowseListings() {
   const [isFilterClearing, setIsFilterClearing] = useState(false);
   const [previousListingIds, setPreviousListingIds] = useState<Set<string>>(new Set());
   const [showCardAnimations, setShowCardAnimations] = useState(false);
-  const preserveMapRef = useRef(false); // Immediate ref for synchronous access
+  const preserveMapRef = useRef(false);
+  const [mapPins, setMapPins] = useState<MapPin[]>([]);
+  const [mapPinBounds, setMapPinBounds] = useState<MapBounds | null>(null);
+  const initialPinsLoadedRef = useRef(false);
   const { user } = useAuth();
   const { filters, currentPage, updateFilters, updatePage, markNavigatingToDetail, isReady } = useBrowseFilters();
 
@@ -88,6 +92,10 @@ export function BrowseListings() {
   const NUM_FEATURED_INJECTED_SLOTS = 4;
   const NUM_STANDARD_SLOTS_PER_PAGE = ITEMS_PER_PAGE - NUM_FEATURED_INJECTED_SLOTS;
   const totalPages = Math.ceil(totalCount / NUM_STANDARD_SLOTS_PER_PAGE);
+
+  const visiblePinIds = useMemo(() => {
+    return getVisiblePinIds(mapPins, filters);
+  }, [mapPins, filters]);
 
   useEffect(() => {
     if (user) {
@@ -302,6 +310,16 @@ export function BrowseListings() {
     }
   };
 
+  const loadMapPins = useCallback(async (bounds: MapBounds) => {
+    try {
+      const pins = await listingsService.getMapPins(bounds, 'rental');
+      setMapPins(pins);
+      setMapPinBounds(bounds);
+    } catch (error) {
+      console.error("Error loading map pins:", error);
+    }
+  }, []);
+
   const handleFiltersChange = (newFilters: FilterState) => {
     const isClearing = Object.keys(newFilters).length < Object.keys(filters).length;
     const isApplying = Object.keys(newFilters).length > Object.keys(filters).length;
@@ -347,25 +365,30 @@ export function BrowseListings() {
 
   const handleMapBoundsChange = useCallback((bounds: MapBounds, zoomLevel: number) => {
     setMapBounds(bounds);
-    if (zoomLevel >= 14) {
-      setIsSearchingArea(true);
-      loadListings(bounds);
+
+    if (!initialPinsLoadedRef.current) {
+      initialPinsLoadedRef.current = true;
+      loadMapPins(bounds);
+    } else if (zoomLevel >= 14) {
+      setShowSearchAreaButton(true);
     } else {
       setShowSearchAreaButton(true);
     }
-  }, [filters, user]);
+  }, [loadMapPins]);
 
-  const handleSearchThisArea = () => {
+  const handleSearchThisArea = async () => {
     if (mapBounds) {
       setIsSearchingArea(true);
       setShowSearchAreaButton(false);
+      await loadMapPins(mapBounds);
       loadListings(mapBounds);
     }
   };
 
-  const handleResetMap = () => {
+  const handleResetMap = async () => {
     setMapBounds(null);
     setShowSearchAreaButton(false);
+    initialPinsLoadedRef.current = false;
     loadListings();
   };
 
@@ -999,6 +1022,8 @@ export function BrowseListings() {
 
               <ListingsMapEnhanced
                 listings={allListingsForMap}
+                pins={mapPins}
+                visiblePinIds={visiblePinIds}
                 hoveredListingId={hoveredListingId}
                 selectedListingId={selectedListingId}
                 onMarkerHover={handleListingHover}
@@ -1015,7 +1040,7 @@ export function BrowseListings() {
 
               {/* Listing count badge */}
               <div className="absolute bottom-4 left-4 bg-white px-3 py-1.5 rounded-full shadow-md text-sm text-gray-600 border border-gray-200">
-                {allListingsForMap.filter(l => l.latitude && l.longitude).length} listing{allListingsForMap.filter(l => l.latitude && l.longitude).length !== 1 ? "s" : ""} on map
+                {visiblePinIds.size} listing{visiblePinIds.size !== 1 ? "s" : ""} on map
                 {searchLocation && ` in ${searchLocation.name}`}
               </div>
             </div>
@@ -1155,6 +1180,8 @@ export function BrowseListings() {
             ) : (
               <ListingsMapEnhanced
                 listings={allListingsForMap}
+                pins={mapPins}
+                visiblePinIds={visiblePinIds}
                 hoveredListingId={hoveredListingId}
                 selectedListingId={selectedListingId}
                 onMarkerHover={handleListingHover}
@@ -1171,7 +1198,7 @@ export function BrowseListings() {
             )}
 
             <div className="absolute bottom-4 left-4 bg-white px-3 py-1.5 rounded-full shadow-md text-sm text-gray-600 border border-gray-200">
-              {allListingsForMap.filter(l => l.latitude && l.longitude).length} listing{allListingsForMap.filter(l => l.latitude && l.longitude).length !== 1 ? "s" : ""} on map
+              {visiblePinIds.size} listing{visiblePinIds.size !== 1 ? "s" : ""} on map
               {searchLocation && ` in ${searchLocation.name}`}
             </div>
           </div>

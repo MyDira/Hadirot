@@ -10,6 +10,7 @@ import {
   calculateTooltipPosition,
   type TooltipPosition,
 } from "../../utils/viewportUtils";
+import { MapPin } from "../../utils/filterUtils";
 
 const BROOKLYN_CENTER: [number, number] = [-73.9442, 40.6782];
 const DEFAULT_ZOOM = 12;
@@ -23,6 +24,8 @@ interface MapBounds {
 
 interface ListingsMapEnhancedProps {
   listings: Listing[];
+  pins?: MapPin[];
+  visiblePinIds?: Set<string>;
   hoveredListingId?: string | null;
   selectedListingId?: string | null;
   onMarkerHover?: (listingId: string | null) => void;
@@ -39,6 +42,8 @@ interface ListingsMapEnhancedProps {
 
 export function ListingsMapEnhanced({
   listings,
+  pins,
+  visiblePinIds,
   hoveredListingId,
   selectedListingId,
   onMarkerHover,
@@ -68,6 +73,12 @@ export function ListingsMapEnhanced({
     (l) => l.latitude != null && l.longitude != null
   );
 
+  const pinsWithCoords = pins?.filter(
+    (p) => p.latitude != null && p.longitude != null
+  ) ?? [];
+
+  const usePinsForMarkers = pins && pins.length > 0;
+
   const formatRentalPrice = (price: number): string => {
     return formatPrice(price);
   };
@@ -93,6 +104,33 @@ export function ListingsMapEnhanced({
       : price != null
         ? (isSaleListing ? formatSalePrice(price) : formatRentalPrice(price))
         : "N/A";
+
+    const baseClasses = "relative cursor-pointer transition-all duration-150";
+    const colorClasses = isHovered || isSelected
+      ? "bg-brand-600 text-white"
+      : "bg-white text-brand-800 border border-gray-300";
+    const scaleClass = isHovered || isSelected ? "scale-110 z-30" : "hover:scale-105";
+    const shadowClass = isHovered || isSelected ? "shadow-lg" : "shadow-sm hover:shadow-lg";
+
+    el.innerHTML = `
+      <div class="${baseClasses} ${colorClasses} ${scaleClass} ${shadowClass} px-2 py-0.5 rounded-full text-xs font-semibold whitespace-nowrap" style="font-family: var(--num-font);">
+        ${priceText}
+      </div>
+      <div class="absolute left-1/2 -translate-x-1/2 -bottom-1 w-0 h-0 border-l-4 border-r-4 border-t-4 ${isHovered || isSelected ? 'border-t-brand-600' : 'border-t-white'} border-l-transparent border-r-transparent"></div>
+    `;
+
+    return el;
+  }, []);
+
+  const createPinMarkerElement = useCallback((pin: MapPin, isHovered: boolean, isSelected: boolean, isVisible: boolean): HTMLDivElement => {
+    const el = document.createElement("div");
+    el.className = `price-marker${isVisible ? '' : ' hidden'}`;
+
+    const isSaleListing = pin.listing_type === "sale";
+    const price = isSaleListing ? pin.asking_price : pin.price;
+    const priceText = price != null
+      ? (isSaleListing ? formatSalePrice(price) : formatRentalPrice(price))
+      : "N/A";
 
     const baseClasses = "relative cursor-pointer transition-all duration-150";
     const colorClasses = isHovered || isSelected
@@ -580,6 +618,126 @@ export function ListingsMapEnhanced({
   }, [listingsWithCoords, mapLoaded, hoveredListingId, selectedListingId, createPriceMarkerElement, createPopupContent, onMarkerHover, onMarkerClick, createCustomPopup]);
 
   useEffect(() => {
+    if (!mapLoaded || !map.current || !usePinsForMarkers) return;
+
+    const existingIds = new Set(markers.current.keys());
+    const newIds = new Set(pinsWithCoords.map(p => p.id));
+
+    existingIds.forEach(id => {
+      if (!newIds.has(id)) {
+        const item = markers.current.get(id);
+        if (item) {
+          if (activeListingId.current === id) {
+            removeCustomPopup();
+          }
+          item.marker.remove();
+          markers.current.delete(id);
+        }
+      }
+    });
+
+    pinsWithCoords.forEach((pin) => {
+      const isHovered = hoveredListingId === pin.id;
+      const isSelected = selectedListingId === pin.id;
+      const isVisible = visiblePinIds?.has(pin.id) ?? true;
+
+      const existingItem = markers.current.get(pin.id);
+
+      if (existingItem) {
+        const currentlyHovered = existingItem.element.dataset.isHovered === 'true';
+        const currentlySelected = existingItem.element.dataset.isSelected === 'true';
+
+        if (currentlyHovered !== isHovered || currentlySelected !== isSelected) {
+          existingItem.element.dataset.isHovered = String(isHovered);
+          existingItem.element.dataset.isSelected = String(isSelected);
+
+          const innerDiv = existingItem.element.querySelector('div:first-child');
+          const triangle = existingItem.element.querySelector('div:last-child');
+
+          if (innerDiv) {
+            const baseClasses = "relative cursor-pointer transition-all duration-150";
+            const colorClasses = isHovered || isSelected
+              ? "bg-brand-600 text-white"
+              : "bg-white text-brand-800 border border-gray-300";
+            const scaleClass = isHovered || isSelected ? "scale-110 z-30" : "hover:scale-105";
+            const shadowClass = isHovered || isSelected ? "shadow-lg" : "shadow-sm hover:shadow-lg";
+
+            innerDiv.className = `${baseClasses} ${colorClasses} ${scaleClass} ${shadowClass} px-2 py-0.5 rounded-full text-xs font-semibold whitespace-nowrap`;
+          }
+
+          if (triangle) {
+            const triangleColor = isHovered || isSelected ? 'border-t-brand-600' : 'border-t-white';
+            triangle.className = `absolute left-1/2 -translate-x-1/2 -bottom-1 w-0 h-0 border-l-4 border-r-4 border-t-4 ${triangleColor} border-l-transparent border-r-transparent`;
+          }
+        }
+      } else {
+        const el = createPinMarkerElement(pin, isHovered, isSelected, isVisible);
+
+        el.dataset.isHovered = String(isHovered);
+        el.dataset.isSelected = String(isSelected);
+
+        el.classList.add('animate-pin-appear');
+        setTimeout(() => {
+          el.classList.remove('animate-pin-appear');
+        }, 300);
+
+        el.addEventListener("mouseenter", () => {
+          if (onMarkerHover) {
+            onMarkerHover(pin.id);
+          }
+        });
+
+        el.addEventListener("mouseleave", () => {
+          if (onMarkerHover) {
+            onMarkerHover(null);
+          }
+        });
+
+        el.addEventListener("click", (e) => {
+          e.stopPropagation();
+
+          const listing = listingsWithCoords.find(l => l.id === pin.id);
+          if (listing) {
+            const lngLat: [number, number] = [pin.longitude, pin.latitude];
+            createCustomPopup(listing, lngLat);
+          }
+
+          if (onMarkerClick) {
+            onMarkerClick(pin.id);
+          }
+        });
+
+        const marker = new mapboxgl.Marker({ element: el, anchor: "bottom" })
+          .setLngLat([pin.longitude, pin.latitude])
+          .addTo(map.current!);
+
+        markers.current.set(pin.id, { marker, element: el });
+      }
+    });
+  }, [pinsWithCoords, mapLoaded, usePinsForMarkers, hoveredListingId, selectedListingId, visiblePinIds, createPinMarkerElement, onMarkerHover, onMarkerClick, createCustomPopup, removeCustomPopup, listingsWithCoords]);
+
+  useEffect(() => {
+    if (!usePinsForMarkers || !visiblePinIds) return;
+
+    markers.current.forEach((item, id) => {
+      const isVisible = visiblePinIds.has(id);
+      const isCurrentlyHidden = item.element.classList.contains('hidden');
+
+      if (isVisible && isCurrentlyHidden) {
+        if (activeListingId.current === id) {
+          removeCustomPopup();
+        }
+        item.element.classList.remove('hidden');
+      } else if (!isVisible && !isCurrentlyHidden) {
+        if (activeListingId.current === id) {
+          removeCustomPopup();
+        }
+        item.element.classList.add('hidden');
+      }
+    });
+  }, [visiblePinIds, usePinsForMarkers, removeCustomPopup]);
+
+  useEffect(() => {
     if (!map.current || !mapLoaded || !userLocation) return;
 
     if (userLocationMarker.current) {
@@ -696,6 +854,28 @@ export function ListingsMapEnhanced({
         .price-marker {
           transform: translateY(-50%);
           z-index: 1;
+          transition: opacity 0.2s ease, transform 0.15s ease;
+        }
+
+        .price-marker.hidden {
+          opacity: 0;
+          pointer-events: none;
+          transform: translateY(-50%) scale(0.85);
+        }
+
+        @keyframes pin-appear {
+          from {
+            opacity: 0;
+            transform: translateY(-30%) scale(0.8);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(-50%) scale(1);
+          }
+        }
+
+        .animate-pin-appear {
+          animation: pin-appear 0.3s ease-out forwards;
         }
 
         .custom-map-popup {
