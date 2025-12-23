@@ -232,6 +232,13 @@ export function ListingFiltersHorizontal({
     setTempPriceMax(filters.max_price?.toString() || "");
   }, [filters.min_price, filters.max_price]);
 
+  // For mobile rentals, default to showing minimum options
+  useEffect(() => {
+    if (isMobile && listingType === "rental" && !priceInputFocus) {
+      setPriceInputFocus('min');
+    }
+  }, [isMobile, listingType]);
+
   useEffect(() => {
     if (filters.bedrooms && filters.bedrooms.length > 0) {
       setTempBedrooms(filters.bedrooms);
@@ -749,9 +756,13 @@ export function ListingFiltersHorizontal({
           isActive={!!(filters.min_price || filters.max_price)}
           isOpen={openDropdown === "price"}
           onToggle={() => {
+            const willBeOpen = openDropdown !== "price";
             toggleDropdown("price");
-            if (openDropdown !== "price") {
-              // Default to minimum view when opening
+            if (willBeOpen && listingType === "rental") {
+              // For rentals, default to showing minimum options when opening
+              setPriceInputFocus('min');
+            } else if (!willBeOpen) {
+              // Reset focus when closing
               setPriceInputFocus(null);
             }
           }}
