@@ -125,18 +125,21 @@ export function BrowseListings() {
     if (!isReady) return;
     loadListings();
     loadNeighborhoods();
-  }, [filters, currentPage, user, isReady]);
+  }, [filters, currentPage, user, isReady, searchBounds]);
 
-  const loadListings = async (boundsFilter?: MapBounds) => {
+  const loadListings = async () => {
     try {
-      // Store previous listing IDs before loading new ones
       const currentIds = new Set(displayListings.map(l => l.id));
       setPreviousListingIds(currentIds);
 
       setLoading(true);
 
       const { no_fee_only, ...restFilters } = filters;
-      const serviceFilters = { ...restFilters, noFeeOnly: no_fee_only };
+      const serviceFilters = {
+        ...restFilters,
+        noFeeOnly: no_fee_only,
+        bounds: searchBounds || undefined,
+      };
 
       const { totalCount: actualTotalCount } = await listingsService.getListings(
         serviceFilters,
@@ -251,23 +254,10 @@ export function BrowseListings() {
         false,
       );
 
-      let filteredMapListings = allData || [];
-      if (boundsFilter) {
-        filteredMapListings = filteredMapListings.filter(listing => {
-          if (listing.latitude == null || listing.longitude == null) return false;
-          return (
-            listing.latitude >= boundsFilter.south &&
-            listing.latitude <= boundsFilter.north &&
-            listing.longitude >= boundsFilter.west &&
-            listing.longitude <= boundsFilter.east
-          );
-        });
-      }
-      setAllListingsForMap(filteredMapListings);
+      setAllListingsForMap(allData || []);
 
-      // Check the ref for immediate synchronous access
-      if (!preserveMapRef.current && !searchBounds && !boundsFilter) {
-        const geoCenter = calculateGeographicCenter(filteredMapListings);
+      if (!preserveMapRef.current && !searchBounds) {
+        const geoCenter = calculateGeographicCenter(allData || []);
         if (geoCenter) {
           setCenterOnListings(geoCenter);
           // Clear after use to prevent stale values
@@ -387,16 +377,24 @@ export function BrowseListings() {
     if (mapBounds) {
       setIsSearchingArea(true);
       setShowSearchAreaButton(false);
+      setSearchBounds(mapBounds);
+      setSearchLocation({ name: 'Custom area', type: 'custom' } as LocationResult);
       await loadMapPins(mapBounds);
-      loadListings(mapBounds);
     }
+  };
+
+  const handleClearAreaSearch = () => {
+    setSearchBounds(null);
+    setSearchLocation(null);
+    setShowSearchAreaButton(false);
   };
 
   const handleResetMap = async () => {
     setMapBounds(null);
+    setSearchBounds(null);
+    setSearchLocation(null);
     setShowSearchAreaButton(false);
     initialPinsLoadedRef.current = false;
-    loadListings();
   };
 
   const handleGetUserLocation = () => {
@@ -831,8 +829,18 @@ export function BrowseListings() {
 
             {/* Title and count */}
             <div>
-              <h1 className="text-lg font-bold text-brand-900">
+              <h1 className="text-lg font-bold text-brand-900 flex items-center gap-2 flex-wrap">
                 Browse Properties for Rent
+                {searchLocation?.type === 'custom' && (
+                  <button
+                    onClick={handleClearAreaSearch}
+                    className="inline-flex items-center gap-1 px-2 py-0.5 bg-gray-100 hover:bg-gray-200 rounded-full text-xs font-medium text-gray-600 transition-colors"
+                    title="Clear area search"
+                  >
+                    <X className="w-3 h-3" />
+                    Clear area
+                  </button>
+                )}
               </h1>
               <p className="text-sm text-gray-500">
                 {loading ? "Loading..." : `${totalCount.toLocaleString()} available`}
@@ -916,8 +924,18 @@ export function BrowseListings() {
                 {/* Title and Sort - Scrolls with content */}
                 <div className="hidden md:flex items-center justify-between mb-4 pb-4 border-b border-gray-200">
                   <div>
-                    <h1 className="text-lg font-bold text-brand-900">
+                    <h1 className="text-lg font-bold text-brand-900 flex items-center gap-2">
                       {searchLocation ? `Rentals in ${searchLocation.name}` : 'Rentals'}
+                      {searchLocation?.type === 'custom' && (
+                        <button
+                          onClick={handleClearAreaSearch}
+                          className="inline-flex items-center gap-1 px-2 py-0.5 bg-gray-100 hover:bg-gray-200 rounded-full text-xs font-medium text-gray-600 transition-colors"
+                          title="Clear area search"
+                        >
+                          <X className="w-3 h-3" />
+                          Clear
+                        </button>
+                      )}
                     </h1>
                     <p className="text-sm text-gray-500 flex items-center gap-2">
                       {loading ? (

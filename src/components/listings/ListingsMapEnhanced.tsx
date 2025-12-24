@@ -761,6 +761,10 @@ export function ListingsMapEnhanced({
         el.addEventListener("click", (e) => {
           e.stopPropagation();
 
+          if (visiblePinIds && !visiblePinIds.has(pin.id)) {
+            return;
+          }
+
           const listing = listingsWithCoords.find(l => l.id === pin.id);
           if (listing) {
             const lngLat: [number, number] = [pin.longitude, pin.latitude];

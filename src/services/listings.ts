@@ -4,6 +4,13 @@ import { capitalizeName } from '../utils/formatters';
 
 export type SortOption = 'newest' | 'oldest' | 'price_asc' | 'price_desc' | 'bedrooms_asc' | 'bedrooms_desc' | 'bathrooms_asc' | 'bathrooms_desc';
 
+export interface MapBounds {
+  north: number;
+  south: number;
+  east: number;
+  west: number;
+}
+
 interface GetListingsFilters {
   bedrooms?: number[];
   property_type?: string;
@@ -18,6 +25,7 @@ interface GetListingsFilters {
   poster_type?: string;
   agency_name?: string;
   sort?: SortOption;
+  bounds?: MapBounds;
 }
 
 export type ListingCreateInput = Omit<Listing, 'id' | 'created_at' | 'updated_at'> & {
@@ -106,6 +114,14 @@ export const listingsService = {
     }
     if (filters.noFeeOnly) {
       query = query.eq('broker_fee', false);
+    }
+
+    if (filters.bounds) {
+      query = query
+        .gte('latitude', filters.bounds.south)
+        .lte('latitude', filters.bounds.north)
+        .gte('longitude', filters.bounds.west)
+        .lte('longitude', filters.bounds.east);
     }
 
     // Filter for featured-only listings if requested via filters
@@ -1437,6 +1453,14 @@ async getActiveRentalAgencies(): Promise<string[]> {
     }
     if (filters.neighborhoods && filters.neighborhoods.length > 0) {
       query = query.in('neighborhood', filters.neighborhoods);
+    }
+
+    if (filters.bounds) {
+      query = query
+        .gte('latitude', filters.bounds.south)
+        .lte('latitude', filters.bounds.north)
+        .gte('longitude', filters.bounds.west)
+        .lte('longitude', filters.bounds.east);
     }
 
     if (filters.is_featured_only || is_featured_only) {
