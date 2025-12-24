@@ -21,6 +21,13 @@ import { MapPin, getVisiblePinIds } from "../utils/filterUtils";
 
 export type SortOption = 'newest' | 'oldest' | 'price_asc' | 'price_desc' | 'bedrooms_asc' | 'bedrooms_desc' | 'bathrooms_asc' | 'bathrooms_desc';
 
+interface MapBounds {
+  north: number;
+  south: number;
+  east: number;
+  west: number;
+}
+
 interface FilterState {
   bedrooms?: number[];
   poster_type?: string;
@@ -34,13 +41,8 @@ interface FilterState {
   no_fee_only?: boolean;
   neighborhoods?: string[];
   sort?: SortOption;
-}
-
-interface MapBounds {
-  north: number;
-  south: number;
-  east: number;
-  west: number;
+  searchBounds?: MapBounds | null;
+  searchLocationName?: string;
 }
 
 type ViewMode = 'split' | 'list' | 'map';
@@ -67,8 +69,6 @@ export function BrowseListings() {
   const [isSearchingArea, setIsSearchingArea] = useState(false);
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [isLocating, setIsLocating] = useState(false);
-  const [searchLocation, setSearchLocation] = useState<LocationResult | null>(null);
-  const [searchBounds, setSearchBounds] = useState<MapBounds | null>(null);
   const [showSortDropdown, setShowSortDropdown] = useState(false);
   const sortDropdownRef = useRef<HTMLDivElement>(null);
   const listingsContainerRef = useRef<HTMLDivElement>(null);
@@ -96,8 +96,8 @@ export function BrowseListings() {
   const totalPages = Math.ceil(totalCount / NUM_STANDARD_SLOTS_PER_PAGE);
 
   const visiblePinIds = useMemo(() => {
-    return getVisiblePinIds(mapPins, filters, searchBounds);
-  }, [mapPins, filters, searchBounds]);
+    return getVisiblePinIds(mapPins, filters, filters.searchBounds);
+  }, [mapPins, filters]);
 
   useEffect(() => {
     if (user) {
@@ -125,7 +125,7 @@ export function BrowseListings() {
     if (!isReady) return;
     loadListings();
     loadNeighborhoods();
-  }, [filters, currentPage, user, isReady, searchBounds]);
+  }, [filters, currentPage, user, isReady]);
 
   const loadListings = async () => {
     try {
@@ -134,11 +134,11 @@ export function BrowseListings() {
 
       setLoading(true);
 
-      const { no_fee_only, ...restFilters } = filters;
+      const { no_fee_only, searchBounds: filterBounds, searchLocationName, ...restFilters } = filters;
       const serviceFilters = {
         ...restFilters,
         noFeeOnly: no_fee_only,
-        bounds: searchBounds || undefined,
+        bounds: filterBounds || undefined,
       };
 
       const { totalCount: actualTotalCount } = await listingsService.getListings(
@@ -256,7 +256,7 @@ export function BrowseListings() {
 
       setAllListingsForMap(allData || []);
 
-      if (!preserveMapRef.current && !searchBounds) {
+      if (!preserveMapRef.current && !filters.searchBounds) {
         const geoCenter = calculateGeographicCenter(allData || []);
         if (geoCenter) {
           setCenterOnListings(geoCenter);
@@ -377,23 +377,40 @@ export function BrowseListings() {
     if (mapBounds) {
       setIsSearchingArea(true);
       setShowSearchAreaButton(false);
-      setSearchBounds(mapBounds);
-      setSearchLocation({ name: 'Custom area', type: 'custom' } as LocationResult);
+      preserveMapRef.current = true;
+      setShouldPreserveMapPosition(true);
+      updateFilters({
+        ...filters,
+        searchBounds: mapBounds,
+        searchLocationName: 'Search Area',
+      });
       await loadMapPins(mapBounds);
+      setTimeout(() => {
+        preserveMapRef.current = false;
+        setShouldPreserveMapPosition(false);
+      }, 500);
     }
   };
 
-  const handleClearAreaSearch = () => {
-    setSearchBounds(null);
-    setSearchLocation(null);
+  const handleClearAreaSearch = useCallback(() => {
+    preserveMapRef.current = true;
+    setShouldPreserveMapPosition(true);
+    const { searchBounds: _, searchLocationName: __, ...restFilters } = filters;
+    updateFilters(restFilters);
     setShowSearchAreaButton(false);
-  };
+    setIsSearchingArea(false);
+    setTimeout(() => {
+      preserveMapRef.current = false;
+      setShouldPreserveMapPosition(false);
+    }, 500);
+  }, [filters, updateFilters]);
 
   const handleResetMap = async () => {
     setMapBounds(null);
-    setSearchBounds(null);
-    setSearchLocation(null);
+    const { searchBounds: _, searchLocationName: __, ...restFilters } = filters;
+    updateFilters(restFilters);
     setShowSearchAreaButton(false);
+    setIsSearchingArea(false);
     initialPinsLoadedRef.current = false;
   };
 
@@ -510,9 +527,9 @@ export function BrowseListings() {
     }
 
     if (location) {
-      setSearchLocation(location);
       if (location.bounds) {
-        setSearchBounds(location.bounds);
+        newFilters.searchBounds = location.bounds;
+        newFilters.searchLocationName = location.name;
       }
     }
 
@@ -532,10 +549,9 @@ export function BrowseListings() {
   const handleSearchClear = useCallback(() => {
     preserveMapRef.current = true;
     setShouldPreserveMapPosition(true);
-    setSearchLocation(null);
-    setSearchBounds(null);
     setMapBounds(null);
     setShowSearchAreaButton(false);
+    setIsSearchingArea(false);
     updateFilters({});
 
     setTimeout(() => {
@@ -765,10 +781,10 @@ export function BrowseListings() {
           />
         </svg>
       </div>
-      {searchLocation ? (
+      {filters.searchLocationName ? (
         <>
           <h3 className="text-lg font-medium text-gray-900 mb-2">
-            No listings in {searchLocation.name}
+            No listings in {filters.searchLocationName}
           </h3>
           <p className="text-gray-500 mb-4">
             We don't have any listings in this area yet. Try expanding your search or adjusting filters.
@@ -810,6 +826,7 @@ export function BrowseListings() {
                 onFiltersChange={handleFiltersChange}
                 agencies={agencies}
                 allNeighborhoods={allNeighborhoods}
+                onClearSearchArea={handleClearAreaSearch}
               />
             </div>
             <div className="flex-shrink-0">
@@ -831,20 +848,10 @@ export function BrowseListings() {
             <div>
               <h1 className="text-lg font-bold text-brand-900 flex items-center gap-2 flex-wrap">
                 Browse Properties for Rent
-                {searchLocation?.type === 'custom' && (
-                  <button
-                    onClick={handleClearAreaSearch}
-                    className="inline-flex items-center gap-1 px-2 py-0.5 bg-gray-100 hover:bg-gray-200 rounded-full text-xs font-medium text-gray-600 transition-colors"
-                    title="Clear area search"
-                  >
-                    <X className="w-3 h-3" />
-                    Clear area
-                  </button>
-                )}
               </h1>
               <p className="text-sm text-gray-500">
                 {loading ? "Loading..." : `${totalCount.toLocaleString()} available`}
-                {searchLocation && ` in ${searchLocation.name}`}
+                {filters.searchLocationName && ` in ${filters.searchLocationName}`}
               </p>
             </div>
 
@@ -925,17 +932,7 @@ export function BrowseListings() {
                 <div className="hidden md:flex items-center justify-between mb-4 pb-4 border-b border-gray-200">
                   <div>
                     <h1 className="text-lg font-bold text-brand-900 flex items-center gap-2">
-                      {searchLocation ? `Rentals in ${searchLocation.name}` : 'Rentals'}
-                      {searchLocation?.type === 'custom' && (
-                        <button
-                          onClick={handleClearAreaSearch}
-                          className="inline-flex items-center gap-1 px-2 py-0.5 bg-gray-100 hover:bg-gray-200 rounded-full text-xs font-medium text-gray-600 transition-colors"
-                          title="Clear area search"
-                        >
-                          <X className="w-3 h-3" />
-                          Clear
-                        </button>
-                      )}
+                      {filters.searchLocationName ? `Rentals in ${filters.searchLocationName}` : 'Rentals'}
                     </h1>
                     <p className="text-sm text-gray-500 flex items-center gap-2">
                       {loading ? (
@@ -1003,7 +1000,7 @@ export function BrowseListings() {
             </div>
 
             {/* Map Panel */}
-            <div className="hidden lg:block flex-1 h-full relative">
+            <div className="hidden lg:block flex-1 h-full relative overflow-hidden" style={{ isolation: 'isolate' }}>
               {/* Map Controls Overlay */}
               <div className="absolute top-4 left-4 z-10 flex flex-col gap-2">
                 {showSearchAreaButton && !isSearchingArea && (
@@ -1056,8 +1053,8 @@ export function BrowseListings() {
                 onMapClick={handleMapClick}
                 onBoundsChange={handleMapBoundsChange}
                 userLocation={userLocation}
-                searchBounds={searchBounds}
-                searchLocationName={searchLocation?.name}
+                searchBounds={filters.searchBounds}
+                searchLocationName={filters.searchLocationName}
                 centerOnListings={centerOnListings}
                 shouldPreservePosition={shouldPreserveMapPosition}
                 isLoading={loading && isFilterClearing}
@@ -1069,7 +1066,7 @@ export function BrowseListings() {
               {/* Listing count badge */}
               <div className="absolute bottom-4 left-4 bg-white px-3 py-1.5 rounded-full shadow-md text-sm text-gray-600 border border-gray-200">
                 {visiblePinIds.size} listing{visiblePinIds.size !== 1 ? "s" : ""} on map
-                {searchLocation && ` in ${searchLocation.name}`}
+                {filters.searchLocationName && ` in ${filters.searchLocationName}`}
               </div>
             </div>
           </div>
@@ -1156,7 +1153,7 @@ export function BrowseListings() {
           </div>
         ) : (
           /* Map Only View */
-          <div className="h-full relative">
+          <div className="h-full relative overflow-hidden" style={{ isolation: 'isolate' }}>
             {/* Map Controls */}
             <div className="absolute top-4 left-4 z-10 flex flex-col gap-2">
               {showSearchAreaButton && !isSearchingArea && (
@@ -1217,8 +1214,8 @@ export function BrowseListings() {
                 onMapClick={handleMapClick}
                 onBoundsChange={handleMapBoundsChange}
                 userLocation={userLocation}
-                searchBounds={searchBounds}
-                searchLocationName={searchLocation?.name}
+                searchBounds={filters.searchBounds}
+                searchLocationName={filters.searchLocationName}
                 centerOnListings={centerOnListings}
                 shouldPreservePosition={shouldPreserveMapPosition}
                 isLoading={loading && isFilterClearing}
@@ -1230,7 +1227,7 @@ export function BrowseListings() {
 
             <div className="absolute bottom-4 left-4 bg-white px-3 py-1.5 rounded-full shadow-md text-sm text-gray-600 border border-gray-200">
               {visiblePinIds.size} listing{visiblePinIds.size !== 1 ? "s" : ""} on map
-              {searchLocation && ` in ${searchLocation.name}`}
+              {filters.searchLocationName && ` in ${filters.searchLocationName}`}
             </div>
           </div>
         )}

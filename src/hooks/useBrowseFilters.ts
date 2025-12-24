@@ -3,17 +3,28 @@ import { useSearchParams, useLocation } from 'react-router-dom';
 
 export type SortOption = 'newest' | 'oldest' | 'price_asc' | 'price_desc' | 'bedrooms_asc' | 'bedrooms_desc' | 'bathrooms_asc' | 'bathrooms_desc';
 
-interface FilterState {
+export interface MapBounds {
+  north: number;
+  south: number;
+  east: number;
+  west: number;
+}
+
+export interface FilterState {
   bedrooms?: number[];
   poster_type?: string;
   agency_name?: string;
   property_type?: string;
+  property_types?: string[];
+  building_types?: string[];
   min_price?: number;
   max_price?: number;
   parking_included?: boolean;
   no_fee_only?: boolean;
   neighborhoods?: string[];
   sort?: SortOption;
+  searchBounds?: MapBounds | null;
+  searchLocationName?: string;
 }
 
 interface BrowseState {
@@ -91,6 +102,16 @@ export function useBrowseFilters() {
     const property_type = params.get('property_type');
     if (property_type) urlFilters.property_type = property_type;
 
+    const property_types = params.get('property_types');
+    if (property_types) {
+      urlFilters.property_types = property_types.split(',').filter(Boolean);
+    }
+
+    const building_types = params.get('building_types');
+    if (building_types) {
+      urlFilters.building_types = building_types.split(',').filter(Boolean);
+    }
+
     const min_price = params.get('min_price');
     if (min_price) urlFilters.min_price = parseInt(min_price);
 
@@ -110,6 +131,23 @@ export function useBrowseFilters() {
 
     const sort = params.get('sort');
     if (sort) urlFilters.sort = sort as SortOption;
+
+    const boundsN = params.get('bounds_n');
+    const boundsS = params.get('bounds_s');
+    const boundsE = params.get('bounds_e');
+    const boundsW = params.get('bounds_w');
+    if (boundsN && boundsS && boundsE && boundsW) {
+      const north = parseFloat(boundsN);
+      const south = parseFloat(boundsS);
+      const east = parseFloat(boundsE);
+      const west = parseFloat(boundsW);
+      if (!isNaN(north) && !isNaN(south) && !isNaN(east) && !isNaN(west)) {
+        urlFilters.searchBounds = { north, south, east, west };
+      }
+    }
+
+    const areaName = params.get('area_name');
+    if (areaName) urlFilters.searchLocationName = areaName;
 
     const page = params.get('page');
     const pageNum = page ? parseInt(page) : 1;
@@ -142,6 +180,12 @@ export function useBrowseFilters() {
         if (savedState.filters.poster_type) params.set('poster_type', savedState.filters.poster_type);
         if (savedState.filters.agency_name) params.set('agency_name', savedState.filters.agency_name);
         if (savedState.filters.property_type) params.set('property_type', savedState.filters.property_type);
+        if (savedState.filters.property_types && savedState.filters.property_types.length > 0) {
+          params.set('property_types', savedState.filters.property_types.join(','));
+        }
+        if (savedState.filters.building_types && savedState.filters.building_types.length > 0) {
+          params.set('building_types', savedState.filters.building_types.join(','));
+        }
         if (savedState.filters.min_price) params.set('min_price', savedState.filters.min_price.toString());
         if (savedState.filters.max_price) params.set('max_price', savedState.filters.max_price.toString());
         if (savedState.filters.parking_included) params.set('parking_included', 'true');
@@ -150,6 +194,15 @@ export function useBrowseFilters() {
           params.set('neighborhoods', savedState.filters.neighborhoods.join(','));
         }
         if (savedState.filters.sort) params.set('sort', savedState.filters.sort);
+        if (savedState.filters.searchBounds) {
+          params.set('bounds_n', savedState.filters.searchBounds.north.toString());
+          params.set('bounds_s', savedState.filters.searchBounds.south.toString());
+          params.set('bounds_e', savedState.filters.searchBounds.east.toString());
+          params.set('bounds_w', savedState.filters.searchBounds.west.toString());
+        }
+        if (savedState.filters.searchLocationName) {
+          params.set('area_name', savedState.filters.searchLocationName);
+        }
         params.set('page', savedState.page.toString());
         setSearchParams(params, { replace: true });
 
@@ -213,9 +266,11 @@ export function useBrowseFilters() {
     }
   }, []);
 
-  const updateFilters = useCallback((newFilters: FilterState) => {
+  const updateFilters = useCallback((newFilters: FilterState, resetPage: boolean = true) => {
     setFilters(newFilters);
-    setCurrentPage(1);
+    if (resetPage) {
+      setCurrentPage(1);
+    }
 
     // Update URL with new filters
     const params = new URLSearchParams();
@@ -226,6 +281,12 @@ export function useBrowseFilters() {
     if (newFilters.poster_type) params.set('poster_type', newFilters.poster_type);
     if (newFilters.agency_name) params.set('agency_name', newFilters.agency_name);
     if (newFilters.property_type) params.set('property_type', newFilters.property_type);
+    if (newFilters.property_types && newFilters.property_types.length > 0) {
+      params.set('property_types', newFilters.property_types.join(','));
+    }
+    if (newFilters.building_types && newFilters.building_types.length > 0) {
+      params.set('building_types', newFilters.building_types.join(','));
+    }
     if (newFilters.min_price) params.set('min_price', newFilters.min_price.toString());
     if (newFilters.max_price) params.set('max_price', newFilters.max_price.toString());
     if (newFilters.parking_included) params.set('parking_included', 'true');
@@ -237,9 +298,19 @@ export function useBrowseFilters() {
 
     if (newFilters.sort) params.set('sort', newFilters.sort);
 
-    params.set('page', '1');
+    if (newFilters.searchBounds) {
+      params.set('bounds_n', newFilters.searchBounds.north.toString());
+      params.set('bounds_s', newFilters.searchBounds.south.toString());
+      params.set('bounds_e', newFilters.searchBounds.east.toString());
+      params.set('bounds_w', newFilters.searchBounds.west.toString());
+    }
+    if (newFilters.searchLocationName) {
+      params.set('area_name', newFilters.searchLocationName);
+    }
+
+    params.set('page', resetPage ? '1' : currentPage.toString());
     setSearchParams(params);
-  }, [setSearchParams]);
+  }, [setSearchParams, currentPage]);
 
   const updatePage = useCallback((page: number) => {
     const params = new URLSearchParams(searchParams);

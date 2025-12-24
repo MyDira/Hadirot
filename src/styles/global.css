@@ -187,3 +187,22 @@ h6,
 .spinner-rotate {
   animation: spinnerRotate 1s linear infinite;
 }
+
+/* Map container containment - prevents markers from escaping */
+.mapboxgl-canvas-container {
+  overflow: hidden;
+}
+
+.mapboxgl-map {
+  overflow: hidden;
+  contain: layout paint;
+}
+
+.mapboxgl-marker {
+  max-width: 100%;
+  will-change: transform;
+}
+
+.mapboxgl-popup {
+  max-width: calc(100% - 40px);
+}

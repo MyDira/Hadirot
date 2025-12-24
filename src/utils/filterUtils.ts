@@ -13,6 +13,13 @@ export interface MapPin {
   owner: { role: string; agency: string | null } | null;
 }
 
+interface MapBoundsFilter {
+  north: number;
+  south: number;
+  east: number;
+  west: number;
+}
+
 interface FilterState {
   bedrooms?: number[];
   poster_type?: string;
@@ -26,6 +33,8 @@ interface FilterState {
   no_fee_only?: boolean;
   neighborhoods?: string[];
   sort?: string;
+  searchBounds?: MapBoundsFilter | null;
+  searchLocationName?: string;
 }
 
 export function doesPinMatchFilters(pin: MapPin, filters: FilterState): boolean {
@@ -114,13 +123,14 @@ export function getVisiblePinIds(
   searchBounds?: MapBounds | null
 ): Set<string> {
   const visibleIds = new Set<string>();
+  const effectiveBounds = searchBounds ?? filters.searchBounds;
 
   for (const pin of pins) {
     if (!doesPinMatchFilters(pin, filters)) {
       continue;
     }
 
-    if (searchBounds && !isPinWithinBounds(pin, searchBounds)) {
+    if (effectiveBounds && !isPinWithinBounds(pin, effectiveBounds)) {
       continue;
     }
 

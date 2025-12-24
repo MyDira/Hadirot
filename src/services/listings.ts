@@ -97,7 +97,9 @@ export const listingsService = {
     if (filters.bedrooms !== undefined && filters.bedrooms.length > 0) {
       query = query.in('bedrooms', filters.bedrooms);
     }
-    if (filters.property_type) {
+    if (filters.property_types && filters.property_types.length > 0) {
+      query = query.in('property_type', filters.property_types);
+    } else if (filters.property_type) {
       query = query.eq('property_type', filters.property_type);
     }
     if (filters.min_price) {

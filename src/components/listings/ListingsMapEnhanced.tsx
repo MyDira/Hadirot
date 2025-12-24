@@ -1001,8 +1001,8 @@ export function ListingsMapEnhanced({
   }
 
   return (
-    <div className="relative h-full w-full">
-      <div ref={mapContainer} className={`h-full w-full ${isLoading ? 'border-2 loading-pulse' : ''}`} />
+    <div className="relative h-full w-full overflow-hidden" style={{ isolation: 'isolate', contain: 'layout paint' }}>
+      <div ref={mapContainer} className={`h-full w-full overflow-hidden ${isLoading ? 'border-2 loading-pulse' : ''}`} />
 
       {offScreenIndicator && (
         <div

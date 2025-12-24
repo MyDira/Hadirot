@@ -13,6 +13,13 @@ export type SortOption =
   | "bathrooms_asc"
   | "bathrooms_desc";
 
+interface MapBounds {
+  north: number;
+  south: number;
+  east: number;
+  west: number;
+}
+
 interface FilterState {
   bedrooms?: number[];
   poster_type?: string;
@@ -26,6 +33,8 @@ interface FilterState {
   no_fee_only?: boolean;
   neighborhoods?: string[];
   sort?: SortOption;
+  searchBounds?: MapBounds | null;
+  searchLocationName?: string;
 }
 
 interface ListingFiltersHorizontalProps {
@@ -35,6 +44,7 @@ interface ListingFiltersHorizontalProps {
   allNeighborhoods?: string[];
   isMobile?: boolean;
   listingType?: "rental" | "sale";
+  onClearSearchArea?: () => void;
 }
 
 interface FilterDropdownProps {
@@ -139,6 +149,7 @@ export function ListingFiltersHorizontal({
   allNeighborhoods = [],
   isMobile = false,
   listingType = "rental",
+  onClearSearchArea,
 }: ListingFiltersHorizontalProps) {
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
   const [bedroomOptions, setBedroomOptions] = useState<
@@ -275,7 +286,6 @@ export function ListingFiltersHorizontal({
   };
 
   const clearFilters = () => {
-    // Add brief delay for visual feedback
     setTimeout(() => {
       onFiltersChange({});
       setTempPriceMin("");
@@ -283,7 +293,18 @@ export function ListingFiltersHorizontal({
       setTempBedrooms([]);
       setTempBathMin(-1);
       setPriceInputFocus(null);
+      if (onClearSearchArea) {
+        onClearSearchArea();
+      }
     }, 100);
+  };
+
+  const handleClearSearchAreaOnly = () => {
+    const { searchBounds, searchLocationName, ...restFilters } = filters;
+    onFiltersChange(restFilters);
+    if (onClearSearchArea) {
+      onClearSearchArea();
+    }
   };
 
   const removeFilter = (filterKey: keyof FilterState) => {
@@ -381,8 +402,11 @@ export function ListingFiltersHorizontal({
     filters.max_price ||
     filters.parking_included ||
     filters.no_fee_only ||
-    (filters.neighborhoods && filters.neighborhoods.length > 0)
+    (filters.neighborhoods && filters.neighborhoods.length > 0) ||
+    filters.searchBounds
   );
+
+  const hasSearchAreaFilter = !!filters.searchBounds;
 
   const hasOtherActiveFilters = !!(
     filters.property_type ||
@@ -1040,6 +1064,16 @@ export function ListingFiltersHorizontal({
             <span className="flex h-2 w-2 rounded-full bg-green-600"></span>
           )}
         </button>
+
+        {hasSearchAreaFilter && (
+          <button
+            onClick={handleClearSearchAreaOnly}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-full text-sm font-medium transition-all border bg-green-50 text-green-700 border-green-300"
+          >
+            <span>Search Area</span>
+            <X className="w-4 h-4" />
+          </button>
+        )}
 
         {hasActiveFilters && (
           <button
