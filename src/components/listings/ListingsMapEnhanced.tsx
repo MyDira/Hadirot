@@ -80,6 +80,7 @@ export function ListingsMapEnhanced({
   const userHasInteracted = useRef(false);
   const initialFitComplete = useRef(false);
   const isProgrammaticMove = useRef(false);
+  const isPinHover = useRef(false);
 
   const listingsWithCoords = listings.filter(
     (l) => l.latitude != null && l.longitude != null
@@ -593,6 +594,8 @@ export function ListingsMapEnhanced({
           existingItem.element.dataset.isHovered = String(isHovered);
           existingItem.element.dataset.isSelected = String(isSelected);
 
+          existingItem.element.style.zIndex = (isHovered || isSelected) ? '100' : '1';
+
           const markerInner = existingItem.element.querySelector('.marker-inner');
           const priceDiv = existingItem.element.querySelector('.marker-inner > div:first-child');
           const triangle = existingItem.element.querySelector('.marker-inner > div:last-child');
@@ -635,12 +638,14 @@ export function ListingsMapEnhanced({
         }, 300);
 
         el.addEventListener("mouseenter", () => {
+          isPinHover.current = true;
           if (onMarkerHover) {
             onMarkerHover(listing.id);
           }
         });
 
         el.addEventListener("mouseleave", () => {
+          isPinHover.current = false;
           if (onMarkerHover) {
             onMarkerHover(null);
           }
@@ -700,6 +705,8 @@ export function ListingsMapEnhanced({
           existingItem.element.dataset.isHovered = String(isHovered);
           existingItem.element.dataset.isSelected = String(isSelected);
 
+          existingItem.element.style.zIndex = (isHovered || isSelected) ? '100' : '1';
+
           const markerInner = existingItem.element.querySelector('.marker-inner');
           const priceDiv = existingItem.element.querySelector('.marker-inner > div:first-child');
           const triangle = existingItem.element.querySelector('.marker-inner > div:last-child');
@@ -738,12 +745,14 @@ export function ListingsMapEnhanced({
         }, 300);
 
         el.addEventListener("mouseenter", () => {
+          isPinHover.current = true;
           if (onMarkerHover) {
             onMarkerHover(pin.id);
           }
         });
 
         el.addEventListener("mouseleave", () => {
+          isPinHover.current = false;
           if (onMarkerHover) {
             onMarkerHover(null);
           }
@@ -827,6 +836,11 @@ export function ListingsMapEnhanced({
     }
 
     if (!hoveredListingId) {
+      setOffScreenIndicator(null);
+      return;
+    }
+
+    if (isPinHover.current || activeListingId.current) {
       setOffScreenIndicator(null);
       return;
     }

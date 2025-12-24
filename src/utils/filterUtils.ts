@@ -92,13 +92,39 @@ export function doesPinMatchFilters(pin: MapPin, filters: FilterState): boolean 
   return true;
 }
 
-export function getVisiblePinIds(pins: MapPin[], filters: FilterState): Set<string> {
+interface MapBounds {
+  north: number;
+  south: number;
+  east: number;
+  west: number;
+}
+
+function isPinWithinBounds(pin: MapPin, bounds: MapBounds): boolean {
+  return (
+    pin.latitude >= bounds.south &&
+    pin.latitude <= bounds.north &&
+    pin.longitude >= bounds.west &&
+    pin.longitude <= bounds.east
+  );
+}
+
+export function getVisiblePinIds(
+  pins: MapPin[],
+  filters: FilterState,
+  searchBounds?: MapBounds | null
+): Set<string> {
   const visibleIds = new Set<string>();
 
   for (const pin of pins) {
-    if (doesPinMatchFilters(pin, filters)) {
-      visibleIds.add(pin.id);
+    if (!doesPinMatchFilters(pin, filters)) {
+      continue;
     }
+
+    if (searchBounds && !isPinWithinBounds(pin, searchBounds)) {
+      continue;
+    }
+
+    visibleIds.add(pin.id);
   }
 
   return visibleIds;

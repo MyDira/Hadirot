@@ -96,8 +96,8 @@ export function BrowseListings() {
   const totalPages = Math.ceil(totalCount / NUM_STANDARD_SLOTS_PER_PAGE);
 
   const visiblePinIds = useMemo(() => {
-    return getVisiblePinIds(mapPins, filters);
-  }, [mapPins, filters]);
+    return getVisiblePinIds(mapPins, filters, searchBounds);
+  }, [mapPins, filters, searchBounds]);
 
   useEffect(() => {
     if (user) {
@@ -334,8 +334,10 @@ export function BrowseListings() {
     setShouldPreserveMapPosition(true);
     setCenterOnListings(null);
 
-    setFitBoundsToAllPins(isClearing);
-    setShouldFitBounds(true);
+    if (!isClearing) {
+      setShouldFitBounds(true);
+      setFitBoundsToAllPins(false);
+    }
 
     gaEvent("filter_apply", {
       price_min: newFilters.min_price ?? null,
