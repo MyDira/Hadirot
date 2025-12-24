@@ -45,6 +45,10 @@ interface ListingsMapEnhancedProps {
   onFitBoundsComplete?: () => void;
 }
 
+// INVARIANT: `pins` is ALWAYS pre-filtered by the parent component.
+// Do NOT re-filter pins here. The parent (BrowseListings/BrowseSales) applies
+// all filters via applyFilters() before deriving pins from filtered listings.
+// visiblePinIds contains exactly all pin IDs from the already-filtered set.
 export function ListingsMapEnhanced({
   listings,
   pins,

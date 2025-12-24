@@ -16,6 +16,7 @@ import { ParsedSearchQuery } from "../utils/searchQueryParser";
 import { LocationResult } from "../services/locationSearch";
 import { calculateGeographicCenter } from "../utils/geoUtils";
 import { isElementFullyVisible, scrollElementIntoView } from "../utils/viewportUtils";
+import { MapPin, applyFilters, FilterState as FilterStateFromUtils } from "../utils/filterUtils";
 
 export type SortOption = 'newest' | 'oldest' | 'price_asc' | 'price_desc' | 'bedrooms_asc' | 'bedrooms_desc' | 'bathrooms_asc' | 'bathrooms_desc';
 
@@ -32,6 +33,8 @@ interface FilterState {
   no_fee_only?: boolean;
   neighborhoods?: string[];
   sort?: SortOption;
+  searchBounds?: MapBounds | null;
+  searchLocationName?: string;
 }
 
 interface MapBounds {
@@ -87,18 +90,35 @@ export function BrowseSales() {
   const NUM_STANDARD_SLOTS_PER_PAGE = ITEMS_PER_PAGE - NUM_FEATURED_INJECTED_SLOTS;
   const totalPages = Math.ceil(totalCount / NUM_STANDARD_SLOTS_PER_PAGE);
 
-  const filteredMapListings = useMemo(() => {
-    if (!searchBounds) return allListingsForMap;
-    return allListingsForMap.filter(listing => {
-      if (listing.latitude == null || listing.longitude == null) return false;
-      return (
-        listing.latitude >= searchBounds.south &&
-        listing.latitude <= searchBounds.north &&
-        listing.longitude >= searchBounds.west &&
-        listing.longitude <= searchBounds.east
-      );
-    });
-  }, [allListingsForMap, searchBounds]);
+  const filteredListingsForMap = useMemo(() => {
+    const filtersWithBounds = searchBounds
+      ? { ...filters, searchBounds } as FilterStateFromUtils
+      : filters as FilterStateFromUtils;
+    return applyFilters(allListingsForMap, filtersWithBounds);
+  }, [allListingsForMap, filters, searchBounds]);
+
+  const pinsFromListings = useMemo((): MapPin[] => {
+    return filteredListingsForMap
+      .filter((l) => l.latitude != null && l.longitude != null)
+      .map((l) => ({
+        id: l.id,
+        latitude: l.latitude!,
+        longitude: l.longitude!,
+        price: l.price,
+        asking_price: l.asking_price ?? null,
+        listing_type: l.listing_type ?? null,
+        bedrooms: l.bedrooms,
+        property_type: l.property_type,
+        broker_fee: l.broker_fee ?? null,
+        parking: l.parking,
+        neighborhood: l.neighborhood,
+        owner: l.owner ? { role: l.owner.role, agency: l.owner.agency ?? null } : null,
+      }));
+  }, [filteredListingsForMap]);
+
+  const visiblePinIds = useMemo(() => {
+    return new Set(pinsFromListings.map((p) => p.id));
+  }, [pinsFromListings]);
 
   useEffect(() => {
     if (user) {
@@ -1000,7 +1020,9 @@ export function BrowseSales() {
               </div>
 
               <ListingsMapEnhanced
-                listings={filteredMapListings}
+                listings={allListingsForMap}
+                pins={pinsFromListings}
+                visiblePinIds={visiblePinIds}
                 hoveredListingId={hoveredListingId}
                 selectedListingId={selectedListingId}
                 onMarkerHover={handleListingHover}
@@ -1019,7 +1041,7 @@ export function BrowseSales() {
 
               {/* Listing count badge */}
               <div className="absolute bottom-4 left-4 bg-white px-3 py-1.5 rounded-full shadow-md text-sm text-gray-600 border border-gray-200">
-                {filteredMapListings.filter(l => l.latitude && l.longitude).length} propert{filteredMapListings.filter(l => l.latitude && l.longitude).length !== 1 ? "ies" : "y"} on map
+                {visiblePinIds.size} propert{visiblePinIds.size !== 1 ? "ies" : "y"} on map
                 {searchLocation && ` in ${searchLocation.name}`}
               </div>
             </div>
@@ -1158,7 +1180,9 @@ export function BrowseSales() {
               </div>
             ) : (
               <ListingsMapEnhanced
-                listings={filteredMapListings}
+                listings={allListingsForMap}
+                pins={pinsFromListings}
+                visiblePinIds={visiblePinIds}
                 hoveredListingId={hoveredListingId}
                 selectedListingId={selectedListingId}
                 onMarkerHover={handleListingHover}
@@ -1177,7 +1201,7 @@ export function BrowseSales() {
             )}
 
             <div className="absolute bottom-4 left-4 bg-white px-3 py-1.5 rounded-full shadow-md text-sm text-gray-600 border border-gray-200">
-              {filteredMapListings.filter(l => l.latitude && l.longitude).length} propert{filteredMapListings.filter(l => l.latitude && l.longitude).length !== 1 ? "ies" : "y"} on map
+              {visiblePinIds.size} propert{visiblePinIds.size !== 1 ? "ies" : "y"} on map
               {searchLocation && ` in ${searchLocation.name}`}
             </div>
           </div>

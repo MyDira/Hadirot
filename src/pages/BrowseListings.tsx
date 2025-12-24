@@ -17,7 +17,7 @@ import { ParsedSearchQuery } from "../utils/searchQueryParser";
 import { LocationResult } from "../services/locationSearch";
 import { calculateGeographicCenter } from "../utils/geoUtils";
 import { isElementFullyVisible, scrollElementIntoView } from "../utils/viewportUtils";
-import { MapPin, getVisiblePinIds } from "../utils/filterUtils";
+import { MapPin, applyFilters, FilterState as FilterStateFromUtils } from "../utils/filterUtils";
 
 export type SortOption = 'newest' | 'oldest' | 'price_asc' | 'price_desc' | 'bedrooms_asc' | 'bedrooms_desc' | 'bathrooms_asc' | 'bathrooms_desc';
 
@@ -78,9 +78,6 @@ export function BrowseListings() {
   const [previousListingIds, setPreviousListingIds] = useState<Set<string>>(new Set());
   const [showCardAnimations, setShowCardAnimations] = useState(false);
   const preserveMapRef = useRef(false);
-  const [mapPins, setMapPins] = useState<MapPin[]>([]);
-  const [mapPinBounds, setMapPinBounds] = useState<MapBounds | null>(null);
-  const initialPinsLoadedRef = useRef(false);
   const [shouldFitBounds, setShouldFitBounds] = useState(false);
   const [fitBoundsToAllPins, setFitBoundsToAllPins] = useState(false);
   const { user } = useAuth();
@@ -95,9 +92,32 @@ export function BrowseListings() {
   const NUM_STANDARD_SLOTS_PER_PAGE = ITEMS_PER_PAGE - NUM_FEATURED_INJECTED_SLOTS;
   const totalPages = Math.ceil(totalCount / NUM_STANDARD_SLOTS_PER_PAGE);
 
+  const filteredListingsForMap = useMemo(() => {
+    return applyFilters(allListingsForMap, filters as FilterStateFromUtils);
+  }, [allListingsForMap, filters]);
+
+  const pinsFromListings = useMemo((): MapPin[] => {
+    return filteredListingsForMap
+      .filter((l) => l.latitude != null && l.longitude != null)
+      .map((l) => ({
+        id: l.id,
+        latitude: l.latitude!,
+        longitude: l.longitude!,
+        price: l.price,
+        asking_price: l.asking_price ?? null,
+        listing_type: l.listing_type ?? null,
+        bedrooms: l.bedrooms,
+        property_type: l.property_type,
+        broker_fee: l.broker_fee ?? null,
+        parking: l.parking,
+        neighborhood: l.neighborhood,
+        owner: l.owner ? { role: l.owner.role, agency: l.owner.agency ?? null } : null,
+      }));
+  }, [filteredListingsForMap]);
+
   const visiblePinIds = useMemo(() => {
-    return getVisiblePinIds(mapPins, filters, filters.searchBounds);
-  }, [mapPins, filters]);
+    return new Set(pinsFromListings.map((p) => p.id));
+  }, [pinsFromListings]);
 
   useEffect(() => {
     if (user) {
@@ -302,16 +322,6 @@ export function BrowseListings() {
     }
   };
 
-  const loadMapPins = useCallback(async (bounds: MapBounds) => {
-    try {
-      const pins = await listingsService.getMapPins(bounds, 'rental');
-      setMapPins(pins);
-      setMapPinBounds(bounds);
-    } catch (error) {
-      console.error("Error loading map pins:", error);
-    }
-  }, []);
-
   const handleFiltersChange = (newFilters: FilterState) => {
     const isClearing = Object.keys(newFilters).length < Object.keys(filters).length ||
       Object.keys(newFilters).every(k => {
@@ -362,18 +372,10 @@ export function BrowseListings() {
 
   const handleMapBoundsChange = useCallback((bounds: MapBounds, zoomLevel: number) => {
     setMapBounds(bounds);
+    setShowSearchAreaButton(true);
+  }, []);
 
-    if (!initialPinsLoadedRef.current) {
-      initialPinsLoadedRef.current = true;
-      loadMapPins(bounds);
-    } else if (zoomLevel >= 14) {
-      setShowSearchAreaButton(true);
-    } else {
-      setShowSearchAreaButton(true);
-    }
-  }, [loadMapPins]);
-
-  const handleSearchThisArea = async () => {
+  const handleSearchThisArea = () => {
     if (mapBounds) {
       setIsSearchingArea(true);
       setShowSearchAreaButton(false);
@@ -384,7 +386,6 @@ export function BrowseListings() {
         searchBounds: mapBounds,
         searchLocationName: 'Search Area',
       });
-      await loadMapPins(mapBounds);
       setTimeout(() => {
         preserveMapRef.current = false;
         setShouldPreserveMapPosition(false);
@@ -405,13 +406,12 @@ export function BrowseListings() {
     }, 500);
   }, [filters, updateFilters]);
 
-  const handleResetMap = async () => {
+  const handleResetMap = () => {
     setMapBounds(null);
     const { searchBounds: _, searchLocationName: __, ...restFilters } = filters;
     updateFilters(restFilters);
     setShowSearchAreaButton(false);
     setIsSearchingArea(false);
-    initialPinsLoadedRef.current = false;
   };
 
   const handleGetUserLocation = () => {
@@ -1044,7 +1044,7 @@ export function BrowseListings() {
 
               <ListingsMapEnhanced
                 listings={allListingsForMap}
-                pins={mapPins}
+                pins={pinsFromListings}
                 visiblePinIds={visiblePinIds}
                 hoveredListingId={hoveredListingId}
                 selectedListingId={selectedListingId}
@@ -1205,7 +1205,7 @@ export function BrowseListings() {
             ) : (
               <ListingsMapEnhanced
                 listings={allListingsForMap}
-                pins={mapPins}
+                pins={pinsFromListings}
                 visiblePinIds={visiblePinIds}
                 hoveredListingId={hoveredListingId}
                 selectedListingId={selectedListingId}

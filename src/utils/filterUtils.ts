@@ -20,7 +20,7 @@ interface MapBoundsFilter {
   west: number;
 }
 
-interface FilterState {
+export interface FilterState {
   bedrooms?: number[];
   poster_type?: string;
   agency_name?: string;
@@ -35,6 +35,142 @@ interface FilterState {
   sort?: string;
   searchBounds?: MapBoundsFilter | null;
   searchLocationName?: string;
+}
+
+export interface FilterableListing {
+  id: string;
+  listing_type?: string | null;
+  price: number | null;
+  asking_price?: number | null;
+  bedrooms: number;
+  property_type: string | null;
+  building_type?: string | null;
+  broker_fee: boolean | null;
+  parking: string | null;
+  neighborhood: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  owner?: { role: string; agency?: string | null } | null;
+}
+
+export function normalizePropertyTypes(filters: FilterState): string[] {
+  if (filters.property_types && filters.property_types.length > 0) {
+    return filters.property_types;
+  }
+  if (filters.property_type) {
+    return [filters.property_type];
+  }
+  return [];
+}
+
+function isWithinBounds(lat: number, lng: number, bounds: MapBoundsFilter): boolean {
+  return (
+    lat >= bounds.south &&
+    lat <= bounds.north &&
+    lng >= bounds.west &&
+    lng <= bounds.east
+  );
+}
+
+export function applyFilters<T extends FilterableListing>(
+  listings: T[],
+  filters: FilterState
+): T[] {
+  if (!listings || listings.length === 0) return [];
+
+  const propertyTypes = normalizePropertyTypes(filters);
+  const hasPropertyTypeFilter = propertyTypes.length > 0;
+  const hasBuildingTypeFilter = filters.building_types && filters.building_types.length > 0;
+  const hasBedroomFilter = filters.bedrooms && filters.bedrooms.length > 0;
+  const hasNeighborhoodFilter = filters.neighborhoods && filters.neighborhoods.length > 0;
+  const hasMinPrice = filters.min_price != null;
+  const hasMaxPrice = filters.max_price != null;
+  const hasBoundsFilter = filters.searchBounds != null;
+
+  const hasAnyFilter =
+    hasBedroomFilter ||
+    hasMinPrice ||
+    hasMaxPrice ||
+    hasPropertyTypeFilter ||
+    hasBuildingTypeFilter ||
+    filters.parking_included ||
+    filters.no_fee_only ||
+    hasNeighborhoodFilter ||
+    filters.poster_type ||
+    filters.agency_name ||
+    hasBoundsFilter;
+
+  if (!hasAnyFilter) return listings;
+
+  return listings.filter((listing) => {
+    const isSale = listing.listing_type === 'sale';
+    const price = isSale ? listing.asking_price : listing.price;
+
+    if (hasMinPrice && price != null && price < filters.min_price!) {
+      return false;
+    }
+
+    if (hasMaxPrice && price != null && price > filters.max_price!) {
+      return false;
+    }
+
+    if (hasBedroomFilter && !filters.bedrooms!.includes(listing.bedrooms)) {
+      return false;
+    }
+
+    if (hasPropertyTypeFilter) {
+      if (!listing.property_type || !propertyTypes.includes(listing.property_type)) {
+        return false;
+      }
+    }
+
+    if (hasBuildingTypeFilter) {
+      if (!listing.building_type || !filters.building_types!.includes(listing.building_type)) {
+        return false;
+      }
+    }
+
+    if (filters.parking_included) {
+      if (listing.parking !== 'yes' && listing.parking !== 'included') {
+        return false;
+      }
+    }
+
+    if (filters.no_fee_only) {
+      if (listing.broker_fee !== false) {
+        return false;
+      }
+    }
+
+    if (hasNeighborhoodFilter) {
+      if (!listing.neighborhood || !filters.neighborhoods!.includes(listing.neighborhood)) {
+        return false;
+      }
+    }
+
+    if (filters.poster_type === 'owner') {
+      if (!listing.owner || (listing.owner.role !== 'landlord' && listing.owner.role !== 'tenant')) {
+        return false;
+      }
+    }
+
+    if (filters.poster_type === 'agent') {
+      if (!listing.owner || listing.owner.role !== 'agent') {
+        return false;
+      }
+      if (filters.agency_name && listing.owner.agency !== filters.agency_name) {
+        return false;
+      }
+    }
+
+    if (hasBoundsFilter && listing.latitude != null && listing.longitude != null) {
+      if (!isWithinBounds(listing.latitude, listing.longitude, filters.searchBounds!)) {
+        return false;
+      }
+    }
+
+    return true;
+  });
 }
 
 export function doesPinMatchFilters(pin: MapPin, filters: FilterState): boolean {
