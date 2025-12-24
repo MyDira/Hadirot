@@ -29,7 +29,7 @@ export function Footer() {
   }, [location.pathname]);
 
   const Logo = () => (
-    <div className="font-brand uppercase tracking-wide text-xl md:text-2xl text-white">
+    <div className="logo-font uppercase tracking-wide text-xl md:text-2xl text-white">
       HADIROT
     </div>
   );
