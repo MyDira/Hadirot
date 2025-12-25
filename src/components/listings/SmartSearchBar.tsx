@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback, useImperativeHandle, forwardRef } from "react";
 import { Search, X, MapPin, Building2, Navigation } from "lucide-react";
 import { parseSearchQuery, ParsedSearchQuery } from "../../utils/searchQueryParser";
 import { searchLocations, LocationResult } from "../../services/locationSearch";
@@ -11,13 +11,17 @@ interface SmartSearchBarProps {
   className?: string;
 }
 
-export function SmartSearchBar({
+export interface SmartSearchBarRef {
+  clearSearch: () => void;
+}
+
+export const SmartSearchBar = forwardRef<SmartSearchBarRef, SmartSearchBarProps>(({
   onSearch,
   onClear,
   placeholder = "Search by location, beds, price...",
   initialValue = "",
   className = "",
-}: SmartSearchBarProps) {
+}, ref) => {
   const [inputValue, setInputValue] = useState(initialValue);
   const [suggestions, setSuggestions] = useState<LocationResult[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -219,6 +223,11 @@ export function SmartSearchBar({
     onClear();
   };
 
+  // Expose clear method to parent via ref
+  useImperativeHandle(ref, () => ({
+    clearSearch: handleClear
+  }));
+
   const removeFilter = (key: string) => {
     if (key === "location") {
       setSelectedLocation(null);
@@ -367,4 +376,4 @@ export function SmartSearchBar({
       )}
     </div>
   );
-}
+});

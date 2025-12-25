@@ -3,7 +3,7 @@ import { ChevronLeft, ChevronRight, Filter, X, List, Map as MapIcon, Locate, Rot
 import { ListingCard } from "../components/listings/ListingCard";
 import { ListingFiltersHorizontal } from "../components/listings/ListingFiltersHorizontal";
 import { ListingsMapEnhanced } from "../components/listings/ListingsMapEnhanced";
-import { SmartSearchBar } from "../components/listings/SmartSearchBar";
+import { SmartSearchBar, SmartSearchBarRef } from "../components/listings/SmartSearchBar";
 import { MobileListingCarousel } from "../components/listings/MobileListingCarousel";
 import { Listing } from "../config/supabase";
 import { listingsService } from "../services/listings";
@@ -72,6 +72,7 @@ export function BrowseSales() {
   const [showSortDropdown, setShowSortDropdown] = useState(false);
   const sortDropdownRef = useRef<HTMLDivElement>(null);
   const listingsContainerRef = useRef<HTMLDivElement>(null);
+  const searchBarRef = useRef<SmartSearchBarRef>(null);
   const [centerOnListings, setCenterOnListings] = useState<{ lat: number; lng: number; zoom: number } | null>(null);
   const [shouldPreserveMapPosition, setShouldPreserveMapPosition] = useState(false);
   const [isFilterClearing, setIsFilterClearing] = useState(false);
@@ -326,6 +327,12 @@ export function BrowseSales() {
     if (!isClearing) {
       setShouldFitBounds(true);
       setFitBoundsToAllPins(false);
+    }
+
+    // If clearing all filters, also clear the search bar
+    const isClearingAll = Object.keys(newFilters).length === 0;
+    if (isClearingAll && searchBarRef.current) {
+      searchBarRef.current.clearSearch();
     }
 
     gaEvent("filter_apply", {
@@ -784,6 +791,7 @@ export function BrowseSales() {
           <div className="hidden md:flex items-center gap-4 mb-3">
             <div className="w-[400px] flex-shrink-0">
               <SmartSearchBar
+                ref={searchBarRef}
                 onSearch={handleSmartSearch}
                 onClear={handleSearchClear}
                 placeholder="Try: Park Slope 3 bed under 1M"
@@ -808,6 +816,7 @@ export function BrowseSales() {
           <div className="md:hidden space-y-3">
             {/* Search bar */}
             <SmartSearchBar
+              ref={searchBarRef}
               onSearch={handleSmartSearch}
               onClear={handleSearchClear}
               placeholder="Search location, beds, price..."

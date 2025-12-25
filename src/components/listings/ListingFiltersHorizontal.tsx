@@ -741,7 +741,7 @@ export function ListingFiltersHorizontal({
           {hasActiveFilters && (
             <button
               onClick={clearFilters}
-              className="flex items-center gap-2 px-5 py-3 bg-green-600 text-white rounded-xl font-semibold hover:bg-green-700 transition-all shadow-sm"
+              className="flex items-center gap-2 px-5 py-3 bg-green-50 text-green-700 rounded-xl font-medium border border-green-300 hover:bg-green-100 transition-all"
             >
               <X className="w-4 h-4" />
               Clear All Filters
@@ -1056,7 +1056,7 @@ export function ListingFiltersHorizontal({
         {hasActiveFilters && (
           <button
             onClick={clearFilters}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-full text-sm font-semibold bg-green-600 text-white hover:bg-green-700 transition-all shadow-sm"
+            className="flex items-center gap-2 px-4 py-2.5 rounded-full text-sm font-medium transition-all border bg-green-50 text-green-700 border-green-300 hover:bg-green-100"
           >
             <X className="w-4 h-4" />
             Clear All Filters
