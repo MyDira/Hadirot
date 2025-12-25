@@ -228,26 +228,6 @@ export const SmartSearchBar = forwardRef<SmartSearchBarRef, SmartSearchBarProps>
     clearSearch: handleClear
   }));
 
-  const removeFilter = (key: string) => {
-    if (key === "location") {
-      setSelectedLocation(null);
-      setInputValue("");
-    }
-    setActiveFilters((prev) => prev.filter((f) => f.key !== key));
-
-    const parsed = parseSearchQuery(inputValue);
-    if (key === "bedrooms") parsed.bedrooms = undefined;
-    if (key === "bathrooms") parsed.bathrooms = undefined;
-    if (key === "price") {
-      parsed.minPrice = undefined;
-      parsed.maxPrice = undefined;
-    }
-    if (key === "propertyType") parsed.propertyType = undefined;
-
-    const newLocation = key === "location" ? null : selectedLocation;
-    onSearch(parsed, newLocation);
-  };
-
   const getTypeIcon = (type: LocationResult["type"]) => {
     switch (type) {
       case "zip":
@@ -285,13 +265,6 @@ export const SmartSearchBar = forwardRef<SmartSearchBarRef, SmartSearchBarProps>
                 className="inline-flex items-center gap-1 px-2.5 py-1 bg-green-100 text-green-800 rounded-full text-sm font-medium whitespace-nowrap flex-shrink-0"
               >
                 {filter.label}
-                <button
-                  type="button"
-                  onClick={() => removeFilter(filter.key)}
-                  className="hover:bg-green-200 rounded-full p-0.5 transition-colors"
-                >
-                  <X className="w-3 h-3" />
-                </button>
               </span>
             ))}
             <input
