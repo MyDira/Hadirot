@@ -987,6 +987,12 @@ export function PostListing() {
       return;
     }
 
+    if (!formData.latitude || !formData.longitude) {
+      alert("Please set a location on the map before posting. Use 'Find on Map' or 'Set Pin Location' to geocode your listing.");
+      setLoading(false);
+      return;
+    }
+
     if (!formData.terms_agreed) {
       alert("Please agree to receive SMS messages before posting");
       setLoading(false);
@@ -1644,61 +1650,186 @@ export function PostListing() {
                   </div>
                 </div>
 
-                <div className="lg:col-span-2">
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
-                    <div className="space-y-4">
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            City *
-                          </label>
-                          <input
-                            type="text"
-                            name="city"
-                            value={formData.city}
-                            onChange={handleInputChange}
-                            required
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-brand-700 focus:border-brand-700"
-                            placeholder="Brooklyn"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            State *
-                          </label>
-                          <input
-                            type="text"
-                            name="state"
-                            value={formData.state}
-                            onChange={handleInputChange}
-                            required
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-brand-700 focus:border-brand-700"
-                            placeholder="NY"
-                            maxLength={2}
-                          />
-                        </div>
-                      </div>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Location Preview (optional)
-                      </label>
-                      <p className="text-sm text-gray-500 mb-3">
-                        Use "Find on Map" or click to set precise location
-                      </p>
-                      <LocationPicker
-                        crossStreets={`${formData.street_address || ''}, ${formData.city || ''}, ${formData.state || ''}`}
-                        neighborhood={formData.neighborhood}
-                        latitude={formData.latitude}
-                        longitude={formData.longitude}
-                        onLocationChange={handleLocationCoordinatesChange}
-                        onNeighborhoodChange={handleNeighborhoodFromMap}
-                        onZipCodeChange={handleZipCodeFromMap}
-                        onCityChange={handleCityFromMap}
-                        onGeocodeStatusChange={handleGeocodeStatusChange}
-                      />
-                    </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      City *
+                    </label>
+                    <input
+                      type="text"
+                      name="city"
+                      value={formData.city}
+                      onChange={handleInputChange}
+                      required
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-brand-700 focus:border-brand-700"
+                      placeholder="Brooklyn"
+                    />
                   </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      State *
+                    </label>
+                    <input
+                      type="text"
+                      name="state"
+                      value={formData.state}
+                      onChange={handleInputChange}
+                      required
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-brand-700 focus:border-brand-700"
+                      placeholder="NY"
+                      maxLength={2}
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Property Type *
+                  </label>
+                  <select
+                    name="property_type"
+                    value={formData.property_type}
+                    onChange={handleInputChange}
+                    required
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-brand-700 focus:border-brand-700"
+                  >
+                    <option value="">Select Property Type</option>
+                    <option value="single_family">Single-Family</option>
+                    <option value="two_family">Two-Family</option>
+                    <option value="three_family">Three-Family</option>
+                    <option value="four_family">Multi-Family</option>
+                    <option value="condo">Condo</option>
+                    <option value="co_op">Co-op</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Building Type *
+                  </label>
+                  <select
+                    name="building_type"
+                    value={formData.building_type || ''}
+                    onChange={handleInputChange}
+                    required
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-brand-700 focus:border-brand-700"
+                  >
+                    <option value="">Select Building Type</option>
+                    <option value="detached">Detached</option>
+                    <option value="semi_attached">Semi-Attached</option>
+                    <option value="fully_attached">Fully Attached</option>
+                    <option value="apartment">Apartment</option>
+                  </select>
+                </div>
+
+                <div className="grid grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Bedrooms *
+                    </label>
+                    <select
+                      name="bedrooms"
+                      value={formData.bedrooms}
+                      onChange={(e) => handleMainBedroomChange(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-brand-700 focus:border-brand-700"
+                    >
+                      <option value={0}>Studio</option>
+                      <option value={1}>1</option>
+                      <option value={2}>2</option>
+                      <option value={3}>3</option>
+                      <option value={4}>4</option>
+                      <option value={5}>5</option>
+                      <option value={6}>6</option>
+                      <option value={7}>7</option>
+                      <option value={8}>8+</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Bathrooms *
+                    </label>
+                    <select
+                      name="bathrooms"
+                      value={formData.bathrooms}
+                      onChange={handleInputChange}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-brand-700 focus:border-brand-700"
+                    >
+                      <option value={1}>1</option>
+                      <option value={1.5}>1.5</option>
+                      <option value={2}>2</option>
+                      <option value={2.5}>2.5</option>
+                      <option value={3}>3</option>
+                      <option value={3.5}>3.5</option>
+                      <option value={4}>4+</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      + Rooms
+                    </label>
+                    <select
+                      name="additional_rooms"
+                      value={formData.additional_rooms || ""}
+                      onChange={(e) => handleAdditionalRoomsChange(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-brand-700 focus:border-brand-700"
+                    >
+                      <option value="">None</option>
+                      <option value={1}>+1</option>
+                      <option value={2}>+2</option>
+                      <option value={3}>+3</option>
+                      <option value={4}>+4</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Asking Price ($) *
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    step={1}
+                    value={formData.asking_price ?? ''}
+                    onChange={(e) => handlePriceChange(e.target.value)}
+                    disabled={formData.call_for_price}
+                    required={!formData.call_for_price}
+                    className={`w-full px-3 py-2 border rounded-md focus:ring-brand-700 focus:border-brand-700 ${
+                      priceError && !formData.call_for_price ? 'border-red-500' : 'border-gray-300'
+                    }`}
+                    placeholder="450000"
+                  />
+                  {priceError && !formData.call_for_price && (
+                    <p className="text-red-600 text-sm mt-1">{priceError}</p>
+                  )}
+                  <label className="flex items-center gap-2 mt-2">
+                    <input
+                      type="checkbox"
+                      checked={formData.call_for_price}
+                      onChange={(e) => handleCallForPriceChange(e.target.checked)}
+                    />
+                    <span className="text-sm text-gray-700">Call for Price</span>
+                  </label>
+                </div>
+
+                <div className="lg:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Location on Map *
+                  </label>
+                  <p className="text-sm text-gray-500 mb-3">
+                    Use "Find on Map" or "Set Pin Location" to geocode your property
+                  </p>
+                  <LocationPicker
+                    crossStreets={`${formData.street_address || ''}, ${formData.city || ''}, ${formData.state || ''}`}
+                    neighborhood={formData.neighborhood}
+                    latitude={formData.latitude}
+                    longitude={formData.longitude}
+                    onLocationChange={handleLocationCoordinatesChange}
+                    onNeighborhoodChange={handleNeighborhoodFromMap}
+                    onZipCodeChange={handleZipCodeFromMap}
+                    onCityChange={handleCityFromMap}
+                    onGeocodeStatusChange={handleGeocodeStatusChange}
+                  />
                 </div>
               </>
             ) : (
@@ -1777,7 +1908,7 @@ export function PostListing() {
                             <option value="single_family">Single-Family</option>
                             <option value="two_family">Two-Family</option>
                             <option value="three_family">Three-Family</option>
-                            <option value="four_family">Four-Family</option>
+                            <option value="four_family">Multi-Family</option>
                             <option value="condo">Condo</option>
                             <option value="co_op">Co-op</option>
                           </>
@@ -1795,10 +1926,10 @@ export function PostListing() {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Location Preview (optional)
+                      Location on Map *
                     </label>
                     <p className="text-sm text-gray-500 mb-3">
-                      Use "Find on Map" or click to set precise location
+                      Use "Find on Map" or "Set Pin Location" to geocode your property
                     </p>
                     <LocationPicker
                       crossStreets={formData.location}
@@ -1827,132 +1958,113 @@ export function PostListing() {
           </h2>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {formData.listing_type === 'sale' && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Building Type *
-                </label>
-                <select
-                  name="building_type"
-                  value={formData.building_type || ''}
-                  onChange={handleInputChange}
-                  required
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-brand-700 focus:border-brand-700"
-                >
-                  <option value="">Select Building Type</option>
-                  <option value="detached">Detached</option>
-                  <option value="semi_attached">Semi-Attached</option>
-                  <option value="fully_attached">Fully Attached</option>
-                  <option value="apartment">Apartment</option>
-                </select>
-              </div>
-            )}
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Bedrooms *
-              </label>
-              <select
-                name="bedrooms"
-                value={formData.bedrooms}
-                onChange={(e) => handleMainBedroomChange(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-brand-700 focus:border-brand-700"
-              >
-                <option value={0}>Studio</option>
-                <option value={1}>1 Bedroom</option>
-                <option value={2}>2 Bedrooms</option>
-                <option value={3}>3 Bedrooms</option>
-                <option value={4}>4 Bedrooms</option>
-                <option value={5}>5 Bedrooms</option>
-                <option value={6}>6 Bedrooms</option>
-                <option value={7}>7 Bedrooms</option>
-                <option value={8}>8+ Bedrooms</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Additional Rooms (optional)
-              </label>
-              <select
-                name="additional_rooms"
-                value={formData.additional_rooms || ""}
-                onChange={(e) => handleAdditionalRoomsChange(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-brand-700 focus:border-brand-700"
-              >
-                <option value="">None</option>
-                <option value={1}>+1</option>
-                <option value={2}>+2</option>
-                <option value={3}>+3</option>
-                <option value={4}>+4</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Bathrooms *
-              </label>
-              <select
-                name="bathrooms"
-                value={formData.bathrooms}
-                onChange={handleInputChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-brand-700 focus:border-brand-700"
-              >
-                <option value={1}>1 Bathroom</option>
-                <option value={1.5}>1.5 Bathrooms</option>
-                <option value={2}>2 Bathrooms</option>
-                <option value={2.5}>2.5 Bathrooms</option>
-                <option value={3}>3 Bathrooms</option>
-                <option value={3.5}>3.5 Bathrooms</option>
-                <option value={4}>4+ Bathrooms</option>
-              </select>
-            </div>
-
             {formData.listing_type === 'rental' && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Floor
-                </label>
-                <input
-                  type="number"
-                  name="floor"
-                  value={formData.floor || ""}
-                  onChange={handleInputChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-brand-700 focus:border-brand-700"
-                  placeholder="2"
-                />
-              </div>
-            )}
+              <>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Bedrooms *
+                  </label>
+                  <select
+                    name="bedrooms"
+                    value={formData.bedrooms}
+                    onChange={(e) => handleMainBedroomChange(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-brand-700 focus:border-brand-700"
+                  >
+                    <option value={0}>Studio</option>
+                    <option value={1}>1 Bedroom</option>
+                    <option value={2}>2 Bedrooms</option>
+                    <option value={3}>3 Bedrooms</option>
+                    <option value={4}>4 Bedrooms</option>
+                    <option value={5}>5 Bedrooms</option>
+                    <option value={6}>6 Bedrooms</option>
+                    <option value={7}>7 Bedrooms</option>
+                    <option value={8}>8+ Bedrooms</option>
+                  </select>
+                </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                {formData.listing_type === 'sale' ? 'Asking Price ($) *' : 'Monthly Rent ($) *'}
-              </label>
-              <input
-                type="number"
-                min={1}
-                step={1}
-                value={formData.listing_type === 'sale' ? (formData.asking_price ?? '') : (formData.price ?? '')}
-                onChange={(e) => handlePriceChange(e.target.value)}
-                disabled={formData.call_for_price}
-                required={!formData.call_for_price}
-                className={`w-full px-3 py-2 border rounded-md focus:ring-brand-700 focus:border-brand-700 ${
-                  priceError && !formData.call_for_price ? 'border-red-500' : 'border-gray-300'
-                }`}
-                placeholder={formData.listing_type === 'sale' ? '450000' : '2500'}
-              />
-              {priceError && !formData.call_for_price && (
-                <p className="text-red-600 text-sm mt-1">{priceError}</p>
-              )}
-              <label className="flex items-center gap-2 mt-2">
-                <input
-                  type="checkbox"
-                  checked={formData.call_for_price}
-                  onChange={(e) => handleCallForPriceChange(e.target.checked)}
-                />
-                <span>Call for Price</span>
-              </label>
-            </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Additional Rooms (optional)
+                  </label>
+                  <select
+                    name="additional_rooms"
+                    value={formData.additional_rooms || ""}
+                    onChange={(e) => handleAdditionalRoomsChange(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-brand-700 focus:border-brand-700"
+                  >
+                    <option value="">None</option>
+                    <option value={1}>+1</option>
+                    <option value={2}>+2</option>
+                    <option value={3}>+3</option>
+                    <option value={4}>+4</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Bathrooms *
+                  </label>
+                  <select
+                    name="bathrooms"
+                    value={formData.bathrooms}
+                    onChange={handleInputChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-brand-700 focus:border-brand-700"
+                  >
+                    <option value={1}>1 Bathroom</option>
+                    <option value={1.5}>1.5 Bathrooms</option>
+                    <option value={2}>2 Bathrooms</option>
+                    <option value={2.5}>2.5 Bathrooms</option>
+                    <option value={3}>3 Bathrooms</option>
+                    <option value={3.5}>3.5 Bathrooms</option>
+                    <option value={4}>4+ Bathrooms</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Floor
+                  </label>
+                  <input
+                    type="number"
+                    name="floor"
+                    value={formData.floor || ""}
+                    onChange={handleInputChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-brand-700 focus:border-brand-700"
+                    placeholder="2"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Monthly Rent ($) *
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    step={1}
+                    value={formData.price ?? ''}
+                    onChange={(e) => handlePriceChange(e.target.value)}
+                    disabled={formData.call_for_price}
+                    required={!formData.call_for_price}
+                    className={`w-full px-3 py-2 border rounded-md focus:ring-brand-700 focus:border-brand-700 ${
+                      priceError && !formData.call_for_price ? 'border-red-500' : 'border-gray-300'
+                    }`}
+                    placeholder="2500"
+                  />
+                  {priceError && !formData.call_for_price && (
+                    <p className="text-red-600 text-sm mt-1">{priceError}</p>
+                  )}
+                  <label className="flex items-center gap-2 mt-2">
+                    <input
+                      type="checkbox"
+                      checked={formData.call_for_price}
+                      onChange={(e) => handleCallForPriceChange(e.target.checked)}
+                    />
+                    <span>Call for Price</span>
+                  </label>
+                </div>
+              </>
+            )}
 
             {/* Square Footage - Hidden but kept for future use */}
             <div style={{ display: 'none' }}>

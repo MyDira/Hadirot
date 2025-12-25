@@ -217,6 +217,22 @@ export function MapModal({
                   </>
                 )}
               </button>
+              <button
+                type="button"
+                onClick={handleFreezeLocation}
+                disabled={!hasMovedMap && !currentCenter}
+                className="inline-flex items-center px-6 py-2 bg-[#273140] text-white text-sm font-semibold rounded-md hover:bg-[#1a2129] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                <MapPin className="w-4 h-4 mr-2" />
+                Confirm Location
+              </button>
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800 transition-colors"
+              >
+                Cancel
+              </button>
             </div>
 
             {geocodeError && (
@@ -255,7 +271,7 @@ export function MapModal({
               <span>
                 {isReverseGeocoding
                   ? "Detecting neighborhood..."
-                  : "Pan and zoom the map to position the pin, then click 'Freeze Current Location'"}
+                  : "Pan and zoom the map to position the pin at your property's location, then click 'Confirm Location'"}
               </span>
             </div>
 
@@ -265,25 +281,6 @@ export function MapModal({
               </div>
             )}
           </div>
-        </div>
-
-        <div className="flex items-center justify-between p-4 border-t border-gray-200 bg-gray-50">
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800 transition-colors"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={handleFreezeLocation}
-            disabled={!hasMovedMap && !currentCenter}
-            className="inline-flex items-center px-6 py-2 bg-accent-500 text-white text-sm font-semibold rounded-md hover:bg-accent-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-          >
-            <MapPin className="w-4 h-4 mr-2" />
-            Freeze Current Location
-          </button>
         </div>
       </div>
     </div>

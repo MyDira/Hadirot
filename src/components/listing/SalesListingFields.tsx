@@ -52,7 +52,7 @@ export function SalesListingFields({
         <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
           <div className="col-span-2">
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Building Size *
+              Building Size
             </label>
             <div className="flex gap-4 mb-3">
               <label className="flex items-center">
@@ -81,7 +81,6 @@ export function SalesListingFields({
                 name="building_size_sqft"
                 value={formData.building_size_sqft || ''}
                 onChange={handleInputChange}
-                required
                 min="1"
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-brand-700 focus:border-brand-700"
                 placeholder="1500"
@@ -89,13 +88,12 @@ export function SalesListingFields({
             ) : (
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs text-gray-600 mb-1">Length (ft) *</label>
+                  <label className="block text-xs text-gray-600 mb-1">Length (ft)</label>
                   <input
                     type="number"
                     name="building_length_ft"
                     value={formData.building_length_ft || ''}
                     onChange={handleInputChange}
-                    required
                     min="1"
                     step="0.01"
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-brand-700 focus:border-brand-700"
@@ -103,13 +101,12 @@ export function SalesListingFields({
                   />
                 </div>
                 <div>
-                  <label className="block text-xs text-gray-600 mb-1">Width (ft) *</label>
+                  <label className="block text-xs text-gray-600 mb-1">Width (ft)</label>
                   <input
                     type="number"
                     name="building_width_ft"
                     value={formData.building_width_ft || ''}
                     onChange={handleInputChange}
-                    required
                     min="1"
                     step="0.01"
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-brand-700 focus:border-brand-700"
@@ -127,14 +124,13 @@ export function SalesListingFields({
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Number of Floors *
+              Number of Floors
             </label>
             <input
               type="number"
               name="number_of_floors"
               value={formData.number_of_floors || ''}
               onChange={handleInputChange}
-              required
               min="1"
               max="10"
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-brand-700 focus:border-brand-700"
@@ -145,14 +141,13 @@ export function SalesListingFields({
           {isMultiFamily && (
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Number of Units *
+                Number of Units
               </label>
               <input
                 type="number"
                 name="unit_count"
                 value={formData.unit_count || ''}
                 onChange={handleInputChange}
-                required
                 min="2"
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-brand-700 focus:border-brand-700"
                 placeholder="2"
@@ -162,7 +157,7 @@ export function SalesListingFields({
 
           <div className="col-span-2">
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Lot Size *
+              Lot Size
             </label>
             <div className="flex gap-4 mb-3">
               <label className="flex items-center">
@@ -191,7 +186,6 @@ export function SalesListingFields({
                 name="lot_size_sqft"
                 value={formData.lot_size_sqft || ''}
                 onChange={handleInputChange}
-                required
                 min="1"
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-brand-700 focus:border-brand-700"
                 placeholder="5000"
@@ -199,13 +193,12 @@ export function SalesListingFields({
             ) : (
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs text-gray-600 mb-1">Length (ft) *</label>
+                  <label className="block text-xs text-gray-600 mb-1">Length (ft)</label>
                   <input
                     type="number"
                     name="property_length_ft"
                     value={formData.property_length_ft || ''}
                     onChange={handleInputChange}
-                    required
                     min="1"
                     step="0.01"
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-brand-700 focus:border-brand-700"
@@ -213,13 +206,12 @@ export function SalesListingFields({
                   />
                 </div>
                 <div>
-                  <label className="block text-xs text-gray-600 mb-1">Width (ft) *</label>
+                  <label className="block text-xs text-gray-600 mb-1">Width (ft)</label>
                   <input
                     type="number"
                     name="property_width_ft"
                     value={formData.property_width_ft || ''}
                     onChange={handleInputChange}
-                    required
                     min="1"
                     step="0.01"
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-brand-700 focus:border-brand-700"
@@ -243,13 +235,12 @@ export function SalesListingFields({
         <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Property Condition *
+              Property Condition
             </label>
             <select
               name="property_condition"
               value={formData.property_condition || ''}
               onChange={handleInputChange}
-              required
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-brand-700 focus:border-brand-700"
             >
               <option value="">Select Condition</option>
@@ -262,13 +253,12 @@ export function SalesListingFields({
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Occupancy Status *
+              Occupancy Status
             </label>
             <select
               name="occupancy_status"
               value={formData.occupancy_status || ''}
               onChange={handleInputChange}
-              required
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-brand-700 focus:border-brand-700"
             >
               <option value="">Select Status</option>
@@ -280,13 +270,12 @@ export function SalesListingFields({
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Delivery Condition *
+              Delivery Condition
             </label>
             <select
               name="delivery_condition"
               value={formData.delivery_condition || ''}
               onChange={handleInputChange}
-              required
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-brand-700 focus:border-brand-700"
             >
               <option value="">Select Delivery</option>
