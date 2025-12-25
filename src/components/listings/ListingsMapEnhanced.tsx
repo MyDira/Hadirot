@@ -13,6 +13,8 @@ import {
 } from "../../utils/viewportUtils";
 import { MapPin } from "../../utils/filterUtils";
 import { calculateIndicatorData, type IndicatorData } from "../../utils/mapIndicatorUtils";
+import { MobileBottomSheet } from "./MobileBottomSheet";
+import { isMobileDevice } from "../../utils/deviceDetection";
 
 const BROOKLYN_CENTER: [number, number] = [-73.9442, 40.6782];
 const DEFAULT_ZOOM = 12;
@@ -85,6 +87,8 @@ export function ListingsMapEnhanced({
   const initialFitComplete = useRef(false);
   const isProgrammaticMove = useRef(false);
   const isPinHover = useRef(false);
+  const [mobileSheetListing, setMobileSheetListing] = useState<Listing | null>(null);
+  const [isMobileSheetOpen, setIsMobileSheetOpen] = useState(false);
 
   const listingsWithCoords = listings.filter(
     (l) => l.latitude != null && l.longitude != null
@@ -384,6 +388,30 @@ export function ListingsMapEnhanced({
     });
   }, [createPopupContent, onMapClick, removeCustomPopup]);
 
+  const handleShowListing = useCallback((listing: Listing, markerLngLat: [number, number]) => {
+    if (isMobileDevice()) {
+      setMobileSheetListing(listing);
+      setIsMobileSheetOpen(true);
+      activeListingId.current = listing.id;
+    } else {
+      createCustomPopup(listing, markerLngLat);
+    }
+  }, [createCustomPopup]);
+
+  const handleCloseMobileSheet = useCallback(() => {
+    setIsMobileSheetOpen(false);
+    setMobileSheetListing(null);
+    activeListingId.current = null;
+    if (onMapClick) onMapClick();
+  }, [onMapClick]);
+
+  const handleMobileSheetViewListing = useCallback((listingId: string) => {
+    if (onMarkerClick) {
+      onMarkerClick(listingId);
+    }
+    navigate(`/listing/${listingId}`);
+  }, [navigate, onMarkerClick]);
+
   const updatePopupPosition = useCallback(() => {
     if (!popupContainer.current || !map.current || !mapContainer.current || !activeListingId.current) return;
 
@@ -659,7 +687,7 @@ export function ListingsMapEnhanced({
           e.stopPropagation();
 
           const lngLat: [number, number] = [listing.longitude!, listing.latitude!];
-          createCustomPopup(listing, lngLat);
+          handleShowListing(listing, lngLat);
 
           if (onMarkerClick) {
             onMarkerClick(listing.id);
@@ -673,7 +701,7 @@ export function ListingsMapEnhanced({
         markers.current.set(listing.id, { marker, element: el });
       }
     });
-  }, [listingsWithCoords, mapLoaded, hoveredListingId, selectedListingId, createPriceMarkerElement, createPopupContent, onMarkerHover, onMarkerClick, createCustomPopup]);
+  }, [listingsWithCoords, mapLoaded, hoveredListingId, selectedListingId, createPriceMarkerElement, createPopupContent, onMarkerHover, onMarkerClick, handleShowListing]);
 
   useEffect(() => {
     if (!mapLoaded || !map.current || !usePinsForMarkers) return;
@@ -772,7 +800,7 @@ export function ListingsMapEnhanced({
           const listing = listingsWithCoords.find(l => l.id === pin.id);
           if (listing) {
             const lngLat: [number, number] = [pin.longitude, pin.latitude];
-            createCustomPopup(listing, lngLat);
+            handleShowListing(listing, lngLat);
           }
 
           if (onMarkerClick) {
@@ -787,7 +815,7 @@ export function ListingsMapEnhanced({
         markers.current.set(pin.id, { marker, element: el });
       }
     });
-  }, [pinsWithCoords, mapLoaded, usePinsForMarkers, hoveredListingId, selectedListingId, visiblePinIds, createPinMarkerElement, onMarkerHover, onMarkerClick, createCustomPopup, removeCustomPopup, listingsWithCoords]);
+  }, [pinsWithCoords, mapLoaded, usePinsForMarkers, hoveredListingId, selectedListingId, visiblePinIds, createPinMarkerElement, onMarkerHover, onMarkerClick, handleShowListing, removeCustomPopup, listingsWithCoords]);
 
   useEffect(() => {
     if (!usePinsForMarkers || !visiblePinIds) return;
@@ -890,11 +918,18 @@ export function ListingsMapEnhanced({
 
   useEffect(() => {
     // Sync popup state with parent's selectedListingId
-    if (!selectedListingId && popupContainer.current) {
-      // Parent cleared selection, so remove popup
-      removeCustomPopup();
+    if (!selectedListingId) {
+      if (popupContainer.current) {
+        // Parent cleared selection, so remove popup
+        removeCustomPopup();
+      }
+      if (isMobileSheetOpen) {
+        // Also close mobile sheet
+        setIsMobileSheetOpen(false);
+        setMobileSheetListing(null);
+      }
     }
-  }, [selectedListingId, removeCustomPopup]);
+  }, [selectedListingId, removeCustomPopup, isMobileSheetOpen]);
 
   useEffect(() => {
     if (!map.current || !mapLoaded || !searchBounds || shouldPreservePosition) return;
@@ -1278,6 +1313,13 @@ export function ListingsMapEnhanced({
           }
         }
       `}</style>
+
+      <MobileBottomSheet
+        listing={mobileSheetListing}
+        isOpen={isMobileSheetOpen}
+        onClose={handleCloseMobileSheet}
+        onViewListing={handleMobileSheetViewListing}
+      />
     </div>
   );
 }
