@@ -834,6 +834,7 @@ export function BrowseListings() {
               <ListingFiltersHorizontal
                 filters={filters}
                 onFiltersChange={handleFiltersChange}
+                onSearchClear={() => searchBarRef.current?.clearSearch()}
                 agencies={agencies}
                 allNeighborhoods={allNeighborhoods}
               />
@@ -918,6 +919,7 @@ export function BrowseListings() {
                   handleFiltersChange(newFilters);
                   setShowFiltersMobile(false);
                 }}
+                onSearchClear={() => searchBarRef.current?.clearSearch()}
                 agencies={agencies}
                 allNeighborhoods={allNeighborhoods}
                 isMobile={true}

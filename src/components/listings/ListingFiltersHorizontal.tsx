@@ -40,6 +40,7 @@ interface FilterState {
 interface ListingFiltersHorizontalProps {
   filters: FilterState;
   onFiltersChange: (filters: FilterState) => void;
+  onSearchClear?: () => void;
   agencies?: string[];
   allNeighborhoods?: string[];
   isMobile?: boolean;
@@ -144,6 +145,7 @@ const SALE_PRICE_PRESETS = [
 export function ListingFiltersHorizontal({
   filters,
   onFiltersChange,
+  onSearchClear,
   agencies = [],
   allNeighborhoods = [],
   isMobile = false,
@@ -284,6 +286,8 @@ export function ListingFiltersHorizontal({
   };
 
   const clearFilters = () => {
+    onSearchClear?.();
+
     setTimeout(() => {
       onFiltersChange({});
       setTempPriceMin("");
