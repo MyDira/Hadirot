@@ -44,7 +44,6 @@ interface ListingFiltersHorizontalProps {
   allNeighborhoods?: string[];
   isMobile?: boolean;
   listingType?: "rental" | "sale";
-  onClearSearchArea?: () => void;
 }
 
 interface FilterDropdownProps {
@@ -149,7 +148,6 @@ export function ListingFiltersHorizontal({
   allNeighborhoods = [],
   isMobile = false,
   listingType = "rental",
-  onClearSearchArea,
 }: ListingFiltersHorizontalProps) {
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
   const [bedroomOptions, setBedroomOptions] = useState<
@@ -293,18 +291,7 @@ export function ListingFiltersHorizontal({
       setTempBedrooms([]);
       setTempBathMin(-1);
       setPriceInputFocus(null);
-      if (onClearSearchArea) {
-        onClearSearchArea();
-      }
     }, 100);
-  };
-
-  const handleClearSearchAreaOnly = () => {
-    const { searchBounds, searchLocationName, ...restFilters } = filters;
-    onFiltersChange(restFilters);
-    if (onClearSearchArea) {
-      onClearSearchArea();
-    }
   };
 
   const removeFilter = (filterKey: keyof FilterState) => {
@@ -750,19 +737,20 @@ export function ListingFiltersHorizontal({
           </select>
         </div>
 
-        <div className="pt-4 border-t border-gray-200 flex items-center gap-4">
+        <div className="pt-4 border-t border-gray-200 flex items-center gap-3">
           {hasActiveFilters && (
             <button
               onClick={clearFilters}
-              className="text-green-600 hover:text-green-700 font-medium text-sm"
+              className="flex items-center gap-2 px-5 py-3 bg-green-600 text-white rounded-xl font-semibold hover:bg-green-700 transition-all shadow-sm"
             >
-              Clear
+              <X className="w-4 h-4" />
+              Clear All Filters
             </button>
           )}
           <div className="flex-1" />
           <button
             onClick={() => onFiltersChange(filters)}
-            className="px-8 py-3 bg-green-600 text-white rounded-xl font-semibold hover:bg-green-700 transition-colors"
+            className="px-8 py-3 bg-gray-900 text-white rounded-xl font-semibold hover:bg-gray-800 transition-colors"
           >
             Done
           </button>
@@ -1065,23 +1053,13 @@ export function ListingFiltersHorizontal({
           )}
         </button>
 
-        {hasSearchAreaFilter && (
-          <button
-            onClick={handleClearSearchAreaOnly}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-full text-sm font-medium transition-all border bg-green-50 text-green-700 border-green-300"
-          >
-            <span>Search Area</span>
-            <X className="w-4 h-4" />
-          </button>
-        )}
-
         {hasActiveFilters && (
           <button
             onClick={clearFilters}
-            className="flex items-center gap-1 px-3 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 transition-colors"
+            className="flex items-center gap-2 px-4 py-2.5 rounded-full text-sm font-semibold bg-green-600 text-white hover:bg-green-700 transition-all shadow-sm"
           >
             <X className="w-4 h-4" />
-            Clear All
+            Clear All Filters
           </button>
         )}
       </div>

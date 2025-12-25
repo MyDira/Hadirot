@@ -400,6 +400,7 @@ export function BrowseListings() {
     updateFilters(restFilters);
     setShowSearchAreaButton(false);
     setIsSearchingArea(false);
+    setMapBounds(null);
     setTimeout(() => {
       preserveMapRef.current = false;
       setShouldPreserveMapPosition(false);
@@ -552,6 +553,7 @@ export function BrowseListings() {
     setMapBounds(null);
     setShowSearchAreaButton(false);
     setIsSearchingArea(false);
+    setCenterOnListings(null);
     updateFilters({});
 
     setTimeout(() => {
@@ -826,7 +828,6 @@ export function BrowseListings() {
                 onFiltersChange={handleFiltersChange}
                 agencies={agencies}
                 allNeighborhoods={allNeighborhoods}
-                onClearSearchArea={handleClearAreaSearch}
               />
             </div>
             <div className="flex-shrink-0">
