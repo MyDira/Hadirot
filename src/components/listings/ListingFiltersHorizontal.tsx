@@ -286,16 +286,12 @@ export function ListingFiltersHorizontal({
   };
 
   const clearFilters = () => {
-    onSearchClear?.();
-
-    setTimeout(() => {
-      onFiltersChange({});
-      setTempPriceMin("");
-      setTempPriceMax("");
-      setTempBedrooms([]);
-      setTempBathMin(-1);
-      setPriceInputFocus(null);
-    }, 100);
+    onFiltersChange({});
+    setTempPriceMin("");
+    setTempPriceMax("");
+    setTempBedrooms([]);
+    setTempBathMin(-1);
+    setPriceInputFocus(null);
   };
 
   const removeFilter = (filterKey: keyof FilterState) => {
