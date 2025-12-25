@@ -1728,6 +1728,70 @@ export function PostListing() {
                         </div>
                       )}
                     </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Neighborhood *
+                      </label>
+                      <select
+                        name="neighborhood"
+                        value={neighborhoodSelectValue}
+                        onChange={handleNeighborhoodSelect}
+                        required
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-brand-700 focus:border-brand-700"
+                      >
+                        <option value="">Select a neighborhood</option>
+                        <option value="Midwood">Midwood</option>
+                        <option value="Homecrest">Homecrest</option>
+                        <option value="Marine Park">Marine Park</option>
+                        <option value="Flatbush">Flatbush</option>
+                        <option value="Gravesend">Gravesend</option>
+                        <option value="Boro Park">Boro Park</option>
+                        <option value="other">Other (type below)</option>
+                      </select>
+                      {showCustomNeighborhood && (
+                        <input
+                          type="text"
+                          value={customNeighborhoodInput}
+                          onChange={handleCustomNeighborhoodChange}
+                          className="mt-2 w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-brand-700 focus:border-brand-700"
+                          placeholder="Enter custom neighborhood"
+                        />
+                      )}
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Property Type *
+                      </label>
+                      <select
+                        name="property_type"
+                        value={formData.property_type}
+                        onChange={handleInputChange}
+                        required
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-brand-700 focus:border-brand-700"
+                      >
+                        <option value="">Select Property Type</option>
+                        {formData.listing_type === 'sale' ? (
+                          <>
+                            <option value="single_family">Single-Family</option>
+                            <option value="two_family">Two-Family</option>
+                            <option value="three_family">Three-Family</option>
+                            <option value="four_family">Four-Family</option>
+                            <option value="condo">Condo</option>
+                            <option value="co_op">Co-op</option>
+                          </>
+                        ) : (
+                          <>
+                            <option value="apartment_building">Apartment in a building</option>
+                            <option value="apartment_house">Apartment in a house</option>
+                            <option value="basement">Basement</option>
+                            <option value="duplex">Duplex</option>
+                            <option value="full_house">Full house</option>
+                          </>
+                        )}
+                      </select>
+                    </div>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -1763,70 +1827,6 @@ export function PostListing() {
           </h2>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Neighborhood *
-              </label>
-              <select
-                name="neighborhood"
-                value={neighborhoodSelectValue}
-                onChange={handleNeighborhoodSelect}
-                required
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-brand-700 focus:border-brand-700"
-              >
-                <option value="">Select a neighborhood</option>
-                <option value="Midwood">Midwood</option>
-                <option value="Homecrest">Homecrest</option>
-                <option value="Marine Park">Marine Park</option>
-                <option value="Flatbush">Flatbush</option>
-                <option value="Gravesend">Gravesend</option>
-                <option value="Boro Park">Boro Park</option>
-                <option value="other">Other (type below)</option>
-              </select>
-              {showCustomNeighborhood && (
-                <input
-                  type="text"
-                  value={customNeighborhoodInput}
-                  onChange={handleCustomNeighborhoodChange}
-                  className="mt-2 w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-brand-700 focus:border-brand-700"
-                  placeholder="Enter custom neighborhood"
-                />
-              )}
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Property Type *
-              </label>
-              <select
-                name="property_type"
-                value={formData.property_type}
-                onChange={handleInputChange}
-                required
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-brand-700 focus:border-brand-700"
-              >
-                <option value="">Select Property Type</option>
-                {formData.listing_type === 'sale' ? (
-                  <>
-                    <option value="single_family">Single-Family</option>
-                    <option value="two_family">Two-Family</option>
-                    <option value="three_family">Three-Family</option>
-                    <option value="four_family">Four-Family</option>
-                    <option value="condo">Condo</option>
-                    <option value="co_op">Co-op</option>
-                  </>
-                ) : (
-                  <>
-                    <option value="apartment_building">Apartment in a building</option>
-                    <option value="apartment_house">Apartment in a house</option>
-                    <option value="basement">Basement</option>
-                    <option value="duplex">Duplex</option>
-                    <option value="full_house">Full house</option>
-                  </>
-                )}
-              </select>
-            </div>
-
             {formData.listing_type === 'sale' && (
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -1844,25 +1844,6 @@ export function PostListing() {
                   <option value="semi_attached">Semi-Attached</option>
                   <option value="fully_attached">Fully Attached</option>
                   <option value="apartment">Apartment</option>
-                </select>
-              </div>
-            )}
-
-            {formData.listing_type === 'rental' && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Air Conditioning
-                </label>
-                <select
-                  name="ac_type"
-                  value={formData.ac_type || ''}
-                  onChange={handleInputChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-brand-700 focus:border-brand-700"
-                >
-                  <option value="">Select AC type (optional)</option>
-                  <option value="central">Central Air</option>
-                  <option value="split_unit">Split Unit</option>
-                  <option value="window">Window Unit</option>
                 </select>
               </div>
             )}
@@ -2050,6 +2031,25 @@ export function PostListing() {
                 >
                   <option value="tenant_pays">Tenant Pays</option>
                   <option value="included">Heat Included</option>
+                </select>
+              </div>
+            )}
+
+            {formData.listing_type === 'rental' && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Air Conditioning
+                </label>
+                <select
+                  name="ac_type"
+                  value={formData.ac_type || ''}
+                  onChange={handleInputChange}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-brand-700 focus:border-brand-700"
+                >
+                  <option value="">Select AC type (optional)</option>
+                  <option value="central">Central Air</option>
+                  <option value="split_unit">Split Unit</option>
+                  <option value="window">Window Unit</option>
                 </select>
               </div>
             )}
