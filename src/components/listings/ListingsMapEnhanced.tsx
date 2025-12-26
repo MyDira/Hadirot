@@ -14,7 +14,7 @@ import {
 import { MapPin } from "../../utils/filterUtils";
 import { calculateIndicatorData, type IndicatorData } from "../../utils/mapIndicatorUtils";
 import { MobileBottomSheet } from "./MobileBottomSheet";
-import { isMobileDevice } from "../../utils/deviceDetection";
+import { isMobileViewport } from "../../utils/deviceDetection";
 
 const BROOKLYN_CENTER: [number, number] = [-73.9442, 40.6782];
 const DEFAULT_ZOOM = 12;
@@ -389,14 +389,15 @@ export function ListingsMapEnhanced({
   }, [createPopupContent, onMapClick, removeCustomPopup]);
 
   const handleShowListing = useCallback((listing: Listing, markerLngLat: [number, number]) => {
-    if (isMobileDevice()) {
+    if (isMobileViewport()) {
+      removeCustomPopup();
       setMobileSheetListing(listing);
       setIsMobileSheetOpen(true);
       activeListingId.current = listing.id;
     } else {
       createCustomPopup(listing, markerLngLat);
     }
-  }, [createCustomPopup]);
+  }, [createCustomPopup, removeCustomPopup]);
 
   const handleCloseMobileSheet = useCallback(() => {
     setIsMobileSheetOpen(false);

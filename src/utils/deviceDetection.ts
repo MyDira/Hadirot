@@ -21,3 +21,8 @@ export function isTouchDevice(): boolean {
 
   return 'ontouchstart' in window || navigator.maxTouchPoints > 0;
 }
+
+export function isMobileViewport(): boolean {
+  if (typeof window === 'undefined') return false;
+  return window.innerWidth < 768;
+}
