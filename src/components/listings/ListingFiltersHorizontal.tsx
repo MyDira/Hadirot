@@ -287,6 +287,7 @@ export function ListingFiltersHorizontal({
 
   const clearFilters = () => {
     onFiltersChange({});
+    onSearchClear?.();
     setTempPriceMin("");
     setTempPriceMax("");
     setTempBedrooms([]);
