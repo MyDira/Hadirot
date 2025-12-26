@@ -325,10 +325,9 @@ h6,
 /* Collapsed State Layout */
 .sheet-collapsed-content {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 12px;
   padding: 0 16px 16px;
-  height: 100%;
 }
 
 .sheet-collapsed-image {
@@ -360,6 +359,7 @@ h6,
   display: flex;
   flex-direction: column;
   gap: 4px;
+  justify-content: center;
 }
 
 .sheet-collapsed-price {
@@ -393,6 +393,7 @@ h6,
   display: flex;
   align-items: center;
   justify-content: center;
+  align-self: center;
   flex-shrink: 0;
   cursor: pointer;
   transition: all 0.15s ease;
