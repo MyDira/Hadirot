@@ -72,7 +72,8 @@ export function BrowseListings() {
   const [showSortDropdown, setShowSortDropdown] = useState(false);
   const sortDropdownRef = useRef<HTMLDivElement>(null);
   const listingsContainerRef = useRef<HTMLDivElement>(null);
-  const searchBarRef = useRef<SmartSearchBarRef>(null);
+  const searchBarDesktopRef = useRef<SmartSearchBarRef>(null);
+  const searchBarMobileRef = useRef<SmartSearchBarRef>(null);
   const [centerOnListings, setCenterOnListings] = useState<{ lat: number; lng: number; zoom: number } | null>(null);
   const [shouldPreserveMapPosition, setShouldPreserveMapPosition] = useState(false);
   const [isFilterClearing, setIsFilterClearing] = useState(false);
@@ -342,8 +343,9 @@ export function BrowseListings() {
 
     // If clearing all filters, also clear the search bar
     const isClearingAll = Object.keys(newFilters).length === 0;
-    if (isClearingAll && searchBarRef.current) {
-      searchBarRef.current.clearSearch();
+    if (isClearingAll) {
+      searchBarDesktopRef.current?.clearSearch();
+      searchBarMobileRef.current?.clearSearch();
     }
 
     gaEvent("filter_apply", {
@@ -824,7 +826,7 @@ export function BrowseListings() {
           <div className="hidden md:flex items-center gap-4 mb-3">
             <div className="w-[400px] flex-shrink-0">
               <SmartSearchBar
-                ref={searchBarRef}
+                ref={searchBarDesktopRef}
                 onSearch={handleSmartSearch}
                 onClear={handleSearchClear}
                 placeholder="Try: Williamsburg 2 bed under 3k"
@@ -834,7 +836,10 @@ export function BrowseListings() {
               <ListingFiltersHorizontal
                 filters={filters}
                 onFiltersChange={handleFiltersChange}
-                onSearchClear={() => searchBarRef.current?.clearSearch()}
+                onSearchClear={() => {
+                  searchBarDesktopRef.current?.clearSearch();
+                  searchBarMobileRef.current?.clearSearch();
+                }}
                 agencies={agencies}
                 allNeighborhoods={allNeighborhoods}
               />
@@ -849,7 +854,7 @@ export function BrowseListings() {
           <div className="md:hidden space-y-3">
             {/* Search bar */}
             <SmartSearchBar
-              ref={searchBarRef}
+              ref={searchBarMobileRef}
               onSearch={handleSmartSearch}
               onClear={handleSearchClear}
               placeholder="Search location, beds, price..."
@@ -919,7 +924,10 @@ export function BrowseListings() {
                   handleFiltersChange(newFilters);
                   setShowFiltersMobile(false);
                 }}
-                onSearchClear={() => searchBarRef.current?.clearSearch()}
+                onSearchClear={() => {
+                  searchBarDesktopRef.current?.clearSearch();
+                  searchBarMobileRef.current?.clearSearch();
+                }}
                 agencies={agencies}
                 allNeighborhoods={allNeighborhoods}
                 isMobile={true}
