@@ -347,12 +347,11 @@ export function MobileBottomSheet({
   // Calculate translateY based on snap position and drag
   const getTranslateY = () => {
     if (animationState === 'exiting' || snapPosition === 'closed') {
-      return snapHeights.collapsed; // Slide out
+      return snapHeights.expanded;
     }
 
     const baseHeight = snapHeights[snapPosition];
-    const viewportHeight = window.innerHeight;
-    const baseTranslate = viewportHeight - baseHeight;
+    const baseTranslate = snapHeights.expanded - baseHeight;
 
     return baseTranslate + dragY;
   };
