@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState, useCallback } from "react";
 import { X, ExternalLink } from "lucide-react";
 import { Listing } from "../../config/supabase";
 import { computePrimaryListingImage } from "../../utils/stockImage";
@@ -11,8 +11,22 @@ interface MobileBottomSheetProps {
   onViewListing: (listingId: string) => void;
 }
 
-const DRAG_THRESHOLD = 100;
+type SnapPosition = "collapsed" | "mid" | "expanded" | "closed";
+
+interface VelocitySample {
+  y: number;
+  timestamp: number;
+}
+
 const ANIMATION_DURATION = 300;
+const VELOCITY_SAMPLES = 5;
+const FLICK_THRESHOLD = 0.5; // pixels per millisecond
+const DRAG_THRESHOLD_TO_CLOSE = 150; // pixels to drag down from collapsed to close
+
+// Spring animation constants
+const SPRING_STIFFNESS = 300;
+const SPRING_DAMPING = 30;
+const SPRING_MASS = 1;
 
 export function MobileBottomSheet({
   listing,
@@ -21,17 +35,233 @@ export function MobileBottomSheet({
   onViewListing,
 }: MobileBottomSheetProps) {
   const sheetRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const [snapPosition, setSnapPosition] = useState<SnapPosition>("collapsed");
   const [dragY, setDragY] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
   const touchStartY = useRef(0);
-  const currentTranslateY = useRef(0);
+  const velocityHistory = useRef<VelocitySample[]>([]);
   const [animationState, setAnimationState] = useState<'entering' | 'entered' | 'exiting' | 'exited'>('exited');
+  const animationFrameRef = useRef<number | null>(null);
+  const [backdropOpacity, setBackdropOpacity] = useState(0.1);
 
+  // Calculate snap point heights based on viewport
+  const getSnapHeights = useCallback(() => {
+    const viewportHeight = window.innerHeight;
+    const safeAreaBottom = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--sab') || '0');
+
+    return {
+      collapsed: viewportHeight * 0.25,
+      mid: viewportHeight * 0.50,
+      expanded: viewportHeight * 0.90,
+      closed: 0,
+    };
+  }, []);
+
+  const snapHeights = getSnapHeights();
+
+  // Calculate backdrop opacity based on position
+  const calculateBackdropOpacity = useCallback((position: SnapPosition, dragOffset: number = 0) => {
+    const heights = getSnapHeights();
+    let currentHeight = heights[position];
+
+    if (isDragging && position !== "closed") {
+      currentHeight = Math.max(0, currentHeight - dragOffset);
+    }
+
+    const maxHeight = heights.expanded;
+    const minHeight = heights.collapsed;
+
+    // Linear interpolation between 0.1 (collapsed) and 0.4 (expanded)
+    const ratio = (currentHeight - minHeight) / (maxHeight - minHeight);
+    return 0.1 + (ratio * 0.3);
+  }, [getSnapHeights, isDragging]);
+
+  // Track velocity for flick detection
+  const addVelocitySample = useCallback((y: number) => {
+    const sample: VelocitySample = {
+      y,
+      timestamp: Date.now(),
+    };
+
+    velocityHistory.current.push(sample);
+    if (velocityHistory.current.length > VELOCITY_SAMPLES) {
+      velocityHistory.current.shift();
+    }
+  }, []);
+
+  // Calculate average velocity from samples
+  const getVelocity = useCallback((): number => {
+    if (velocityHistory.current.length < 2) return 0;
+
+    const first = velocityHistory.current[0];
+    const last = velocityHistory.current[velocityHistory.current.length - 1];
+
+    const deltaY = last.y - first.y;
+    const deltaT = last.timestamp - first.timestamp;
+
+    if (deltaT === 0) return 0;
+
+    return deltaY / deltaT; // pixels per millisecond
+  }, []);
+
+  // Determine target snap position based on current position, drag distance, and velocity
+  const getTargetSnapPosition = useCallback((currentPos: SnapPosition, dragDistance: number, velocity: number): SnapPosition => {
+    const heights = getSnapHeights();
+
+    // Fast flick detection
+    if (Math.abs(velocity) > FLICK_THRESHOLD) {
+      if (velocity < 0) {
+        // Flick up
+        if (currentPos === "collapsed") return "mid";
+        if (currentPos === "mid") return "expanded";
+        return currentPos;
+      } else {
+        // Flick down
+        if (currentPos === "expanded") return "mid";
+        if (currentPos === "mid") return "collapsed";
+        if (currentPos === "collapsed") return dragDistance > DRAG_THRESHOLD_TO_CLOSE ? "closed" : "collapsed";
+        return currentPos;
+      }
+    }
+
+    // Slow drag - snap to nearest
+    const currentHeight = heights[currentPos];
+    const effectiveHeight = currentHeight - dragDistance;
+
+    if (currentPos === "collapsed" && dragDistance > DRAG_THRESHOLD_TO_CLOSE) {
+      return "closed";
+    }
+
+    // Find nearest snap point
+    let nearest: SnapPosition = currentPos;
+    let minDistance = Infinity;
+
+    (["collapsed", "mid", "expanded"] as SnapPosition[]).forEach((pos) => {
+      const distance = Math.abs(effectiveHeight - heights[pos]);
+      if (distance < minDistance) {
+        minDistance = distance;
+        nearest = pos;
+      }
+    });
+
+    return nearest;
+  }, [getSnapHeights]);
+
+  // Elastic resistance when dragging beyond bounds
+  const applyElasticResistance = useCallback((dragDistance: number, maxDrag: number): number => {
+    if (dragDistance <= 0) return dragDistance;
+    if (dragDistance <= maxDrag) return dragDistance;
+
+    const excess = dragDistance - maxDrag;
+    const resistance = Math.log(excess + 1) * 20;
+
+    return maxDrag + resistance;
+  }, []);
+
+  // Handle touch start
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    const sheet = sheetRef.current;
+    const content = contentRef.current;
+    if (!sheet) return;
+
+    // Don't start drag if touching interactive elements
+    const target = e.target as HTMLElement;
+    if (target.closest('button') || target.closest('a')) {
+      return;
+    }
+
+    // Check if content is scrollable and not at top
+    if (content && content.scrollTop > 0 && snapPosition !== "collapsed") {
+      return;
+    }
+
+    const touch = e.touches[0];
+    touchStartY.current = touch.clientY;
+    setIsDragging(true);
+    velocityHistory.current = [];
+    addVelocitySample(touch.clientY);
+  }, [snapPosition, addVelocitySample]);
+
+  // Handle touch move
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    if (!isDragging) return;
+
+    const sheet = sheetRef.current;
+    const content = contentRef.current;
+    if (!sheet) return;
+
+    // If content is scrollable and we're scrolling within it, don't drag sheet
+    if (content && content.scrollTop > 0 && snapPosition !== "collapsed") {
+      const touch = e.touches[0];
+      const deltaY = touch.clientY - touchStartY.current;
+
+      // Only allow sheet drag if dragging down from scroll top
+      if (deltaY < 0) return;
+    }
+
+    const touch = e.touches[0];
+    let deltaY = touch.clientY - touchStartY.current;
+
+    // Apply elastic resistance when dragging up beyond expanded
+    if (deltaY < 0 && snapPosition === "expanded") {
+      deltaY = applyElasticResistance(Math.abs(deltaY), 50) * -1;
+    }
+
+    // Only allow downward drags (positive deltaY)
+    if (deltaY > 0) {
+      setDragY(deltaY);
+      addVelocitySample(touch.clientY);
+
+      // Update backdrop opacity during drag
+      const opacity = calculateBackdropOpacity(snapPosition, deltaY);
+      setBackdropOpacity(opacity);
+    }
+  }, [isDragging, snapPosition, applyElasticResistance, addVelocitySample, calculateBackdropOpacity]);
+
+  // Handle touch end
+  const handleTouchEnd = useCallback(() => {
+    if (!isDragging) return;
+
+    setIsDragging(false);
+
+    const velocity = getVelocity();
+    const targetPosition = getTargetSnapPosition(snapPosition, dragY, velocity);
+
+    if (targetPosition === "closed") {
+      onClose();
+    } else {
+      setSnapPosition(targetPosition);
+      setBackdropOpacity(calculateBackdropOpacity(targetPosition));
+    }
+
+    setDragY(0);
+    velocityHistory.current = [];
+  }, [isDragging, snapPosition, dragY, getVelocity, getTargetSnapPosition, onClose, calculateBackdropOpacity]);
+
+  // Handle backdrop click - collapse to collapsed state
+  const handleBackdropClick = useCallback((e: React.MouseEvent) => {
+    if (e.target === e.currentTarget) {
+      if (snapPosition !== "collapsed") {
+        setSnapPosition("collapsed");
+        setBackdropOpacity(0.1);
+      }
+    }
+  }, [snapPosition]);
+
+  const handleViewListing = () => {
+    if (listing) {
+      onViewListing(listing.id);
+    }
+  };
+
+  // Handle open/close animation
   useEffect(() => {
     if (isOpen) {
       setAnimationState('entering');
+      setSnapPosition('collapsed');
       setDragY(0);
-      currentTranslateY.current = 0;
+      setBackdropOpacity(0.1);
       document.body.style.overflow = 'hidden';
 
       setTimeout(() => {
@@ -39,6 +269,7 @@ export function MobileBottomSheet({
       }, ANIMATION_DURATION);
     } else if (animationState !== 'exited') {
       setAnimationState('exiting');
+      setSnapPosition('closed');
 
       setTimeout(() => {
         setAnimationState('exited');
@@ -51,62 +282,22 @@ export function MobileBottomSheet({
     };
   }, [isOpen]);
 
-  const handleTouchStart = (e: React.TouchEvent) => {
-    const sheet = sheetRef.current;
-    if (!sheet) return;
-
-    const touch = e.touches[0];
-    touchStartY.current = touch.clientY;
-    setIsDragging(true);
-
-    const scrollableContent = sheet.querySelector('.sheet-content');
-    if (scrollableContent && scrollableContent.scrollTop > 0) {
-      return;
+  // Update when listing changes (pin switching)
+  useEffect(() => {
+    if (listing && isOpen) {
+      // Keep current snap position when switching pins
+      // Content will fade/update but position stays same
     }
-  };
+  }, [listing, isOpen]);
 
-  const handleTouchMove = (e: React.TouchEvent) => {
-    if (!isDragging) return;
-
-    const sheet = sheetRef.current;
-    if (!sheet) return;
-
-    const scrollableContent = sheet.querySelector('.sheet-content');
-    if (scrollableContent && scrollableContent.scrollTop > 0) {
-      return;
-    }
-
-    const touch = e.touches[0];
-    const deltaY = touch.clientY - touchStartY.current;
-
-    if (deltaY > 0) {
-      setDragY(deltaY);
-      currentTranslateY.current = deltaY;
-    }
-  };
-
-  const handleTouchEnd = () => {
-    setIsDragging(false);
-
-    if (dragY > DRAG_THRESHOLD) {
-      onClose();
-    }
-
-    setDragY(0);
-    currentTranslateY.current = 0;
-  };
-
-  const handleBackdropClick = (e: React.MouseEvent) => {
-    if (e.target === e.currentTarget) {
-      onClose();
-    }
-  };
-
-  const handleViewListing = () => {
-    if (listing) {
-      onViewListing(listing.id);
-    }
-  };
+  // Cleanup animation frame on unmount
+  useEffect(() => {
+    return () => {
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
+    };
+  }, []);
 
   if (!listing || animationState === 'exited') return null;
 
@@ -151,95 +342,184 @@ export function MobileBottomSheet({
         ? `${listing.bedrooms}+${listing.additional_rooms}`
         : `${listing.bedrooms}`;
 
-  const isAnimating = animationState === 'entering' || animationState === 'exiting';
   const shouldShowSheet = animationState === 'entering' || animationState === 'entered';
-  const translateY = isDragging ? dragY : 0;
+
+  // Calculate translateY based on snap position and drag
+  const getTranslateY = () => {
+    if (animationState === 'exiting' || snapPosition === 'closed') {
+      return snapHeights.collapsed; // Slide out
+    }
+
+    const baseHeight = snapHeights[snapPosition];
+    const viewportHeight = window.innerHeight;
+    const baseTranslate = viewportHeight - baseHeight;
+
+    return baseTranslate + dragY;
+  };
+
+  const translateY = getTranslateY();
 
   return (
     <div
       className={`mobile-bottom-sheet-backdrop ${shouldShowSheet ? 'backdrop-visible' : 'backdrop-hidden'}`}
+      style={{
+        backgroundColor: `rgba(0, 0, 0, ${backdropOpacity})`,
+      }}
       onClick={handleBackdropClick}
     >
       <div
         ref={sheetRef}
-        className={`mobile-bottom-sheet ${animationState}`}
+        className={`mobile-bottom-sheet mobile-sheet-${snapPosition} ${isDragging ? 'mobile-sheet-dragging' : 'mobile-sheet-animating'}`}
         style={{
           transform: `translateY(${translateY}px)`,
+          height: `${snapHeights.expanded}px`,
           transition: isDragging ? 'none' : `transform ${ANIMATION_DURATION}ms cubic-bezier(0.4, 0, 0.2, 1)`,
+          willChange: isDragging ? 'transform' : 'auto',
         }}
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Property details"
       >
+        {/* Drag Handle */}
         <div className="sheet-handle-container">
-          <div className="sheet-handle" />
+          <div
+            className="sheet-handle"
+            style={{
+              opacity: isDragging ? 1 : 0.6,
+            }}
+          />
         </div>
 
+        {/* Close Button */}
         <button
           onClick={onClose}
           className="sheet-close-btn"
-          aria-label="Close"
+          aria-label="Close property details"
         >
           <X className="w-5 h-5" />
         </button>
 
-        <div className="sheet-content">
-          <div className="sheet-image-container">
-            <img
-              src={imageUrl}
-              alt={isStock ? 'Stock photo' : listing.title}
-              className="sheet-image"
-            />
-            {isStock && (
-              <div className="sheet-stock-badge">
-                Stock photo
+        {/* Content - changes based on snap position */}
+        <div
+          ref={contentRef}
+          className={`sheet-content sheet-content-${snapPosition}`}
+        >
+          {snapPosition === "collapsed" ? (
+            // Collapsed State: Compact horizontal layout
+            <div className="sheet-collapsed-content">
+              <div className="sheet-collapsed-image">
+                <img
+                  src={imageUrl}
+                  alt={isStock ? 'Stock photo' : listing.title}
+                  className="w-full h-full object-cover"
+                />
+                {isStock && (
+                  <div className="sheet-stock-badge-small">
+                    Stock
+                  </div>
+                )}
               </div>
-            )}
-          </div>
-
-          <div className="sheet-details">
-            <div className="sheet-price" style={{ fontFamily: 'var(--num-font)' }}>
-              {priceDisplay}
-            </div>
-
-            <div className="sheet-specs">
-              <span className="sheet-spec-item">{bedroomDisplay} bed</span>
-              <span className="sheet-spec-separator">•</span>
-              <span className="sheet-spec-item">{listing.bathrooms} bath</span>
-              {!isSaleListing && hasParking && (
-                <>
-                  <span className="sheet-spec-separator">•</span>
-                  <span className="sheet-spec-item">Parking</span>
-                </>
-              )}
-              {!isSaleListing && (
-                <span className={`sheet-fee-badge ${listing.broker_fee ? 'broker-fee' : 'no-fee'}`}>
-                  {listing.broker_fee ? 'Broker Fee' : 'No Fee'}
-                </span>
-              )}
-            </div>
-
-            <div className="sheet-location">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="sheet-location-icon">
-                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
-                <circle cx="12" cy="10" r="3"></circle>
-              </svg>
-              <span className="sheet-location-text">
-                {isSaleListing ? (listing.full_address || listing.location || '') : (listing.cross_streets ?? listing.location) || ''}
-              </span>
-            </div>
-
-            <div className="sheet-footer">
-              <span className="sheet-poster">by {getPosterLabel()}</span>
+              <div className="sheet-collapsed-details">
+                <div className="sheet-collapsed-price" style={{ fontFamily: 'var(--num-font)' }}>
+                  {priceDisplay}
+                </div>
+                <div className="sheet-collapsed-specs">
+                  <span>{bedroomDisplay} bed • {listing.bathrooms} bath</span>
+                </div>
+                <div className="sheet-collapsed-location">
+                  {isSaleListing ? (listing.full_address || listing.location || '') : (listing.cross_streets ?? listing.location) || ''}
+                </div>
+              </div>
               <button
                 onClick={handleViewListing}
-                className="sheet-view-btn"
+                className="sheet-collapsed-view-btn"
+                aria-label="View full listing"
               >
-                View Listing
                 <ExternalLink className="w-4 h-4" />
               </button>
             </div>
-          </div>
+          ) : (
+            // Mid and Expanded States: Vertical layout
+            <>
+              <div className="sheet-image-container">
+                <img
+                  src={imageUrl}
+                  alt={isStock ? 'Stock photo' : listing.title}
+                  className="sheet-image"
+                />
+                {isStock && (
+                  <div className="sheet-stock-badge">
+                    Stock photo
+                  </div>
+                )}
+              </div>
+
+              <div className="sheet-details">
+                <div className="sheet-price" style={{ fontFamily: 'var(--num-font)' }}>
+                  {priceDisplay}
+                </div>
+
+                <div className="sheet-specs">
+                  <span className="sheet-spec-item">{bedroomDisplay} bed</span>
+                  <span className="sheet-spec-separator">•</span>
+                  <span className="sheet-spec-item">{listing.bathrooms} bath</span>
+                  {!isSaleListing && hasParking && (
+                    <>
+                      <span className="sheet-spec-separator">•</span>
+                      <span className="sheet-spec-item">Parking</span>
+                    </>
+                  )}
+                  {!isSaleListing && (
+                    <span className={`sheet-fee-badge ${listing.broker_fee ? 'broker-fee' : 'no-fee'}`}>
+                      {listing.broker_fee ? 'Broker Fee' : 'No Fee'}
+                    </span>
+                  )}
+                </div>
+
+                <div className="sheet-location">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="sheet-location-icon">
+                    <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                    <circle cx="12" cy="10" r="3"></circle>
+                  </svg>
+                  <span className="sheet-location-text">
+                    {isSaleListing ? (listing.full_address || listing.location || '') : (listing.cross_streets ?? listing.location) || ''}
+                  </span>
+                </div>
+
+                {snapPosition === "expanded" && (
+                  <div className="sheet-expanded-content">
+                    {listing.title && (
+                      <div className="sheet-description">
+                        <h3 className="text-sm font-semibold text-gray-900 mb-2">Description</h3>
+                        <p className="text-sm text-gray-600 leading-relaxed">{listing.title}</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                <div className="sheet-footer">
+                  <span className="sheet-poster">by {getPosterLabel()}</span>
+                  <button
+                    onClick={handleViewListing}
+                    className="sheet-view-btn"
+                  >
+                    View Listing
+                    <ExternalLink className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* Snap Position Indicator */}
+        <div className="sheet-snap-indicator">
+          <div className={`snap-dot ${snapPosition === "collapsed" ? "active" : ""}`} />
+          <div className={`snap-dot ${snapPosition === "mid" ? "active" : ""}`} />
+          <div className={`snap-dot ${snapPosition === "expanded" ? "active" : ""}`} />
         </div>
       </div>
     </div>

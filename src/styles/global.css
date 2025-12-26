@@ -212,51 +212,55 @@ h6,
   position: fixed;
   inset: 0;
   z-index: 1000;
-  background: rgba(0, 0, 0, 0.4);
-  opacity: 0;
   pointer-events: none;
-  transition: opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: background-color 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .mobile-bottom-sheet-backdrop.backdrop-visible {
-  opacity: 1;
   pointer-events: auto;
 }
 
 .mobile-bottom-sheet-backdrop.backdrop-hidden {
-  opacity: 0;
   pointer-events: none;
 }
 
 .mobile-bottom-sheet {
-  position: absolute;
+  position: fixed;
   bottom: 0;
   left: 0;
   right: 0;
-  max-height: 85vh;
   background: white;
   border-radius: 16px 16px 0 0;
-  box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.15), 0 -2px 8px rgba(0, 0, 0, 0.1);
   display: flex;
   flex-direction: column;
-  transform: translateY(100%);
-  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  will-change: transform;
   pointer-events: auto;
   touch-action: pan-y;
   padding-bottom: env(safe-area-inset-bottom);
+  contain: layout style paint;
+  overflow: hidden;
 }
 
-.mobile-bottom-sheet.entering {
-  transform: translateY(0);
+/* Snap position specific styles */
+.mobile-bottom-sheet.mobile-sheet-collapsed {
+  box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.1);
 }
 
-.mobile-bottom-sheet.entered {
-  transform: translateY(0);
+.mobile-bottom-sheet.mobile-sheet-mid {
+  box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.15);
 }
 
-.mobile-bottom-sheet.exiting {
-  transform: translateY(100%);
+.mobile-bottom-sheet.mobile-sheet-expanded {
+  box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.2), 0 -2px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* Dragging state */
+.mobile-bottom-sheet.mobile-sheet-dragging {
+  transition: none !important;
+}
+
+/* Animating state */
+.mobile-bottom-sheet.mobile-sheet-animating {
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s ease;
 }
 
 .sheet-handle-container {
@@ -276,6 +280,7 @@ h6,
   height: 4px;
   background: #d1d5db;
   border-radius: 999px;
+  transition: opacity 0.2s ease;
 }
 
 .sheet-close-btn {
@@ -309,10 +314,94 @@ h6,
 }
 
 .sheet-content {
+  flex: 1;
   overflow-y: auto;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
-  max-height: calc(85vh - 40px);
+  display: flex;
+  flex-direction: column;
+}
+
+/* Collapsed State Layout */
+.sheet-collapsed-content {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 16px 16px;
+  height: 100%;
+}
+
+.sheet-collapsed-image {
+  width: 80px;
+  height: 80px;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #f3f4f6;
+  flex-shrink: 0;
+  position: relative;
+}
+
+.sheet-stock-badge-small {
+  position: absolute;
+  bottom: 4px;
+  left: 4px;
+  background: rgba(0, 0, 0, 0.6);
+  color: white;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 9px;
+  font-weight: 500;
+  backdrop-filter: blur(4px);
+}
+
+.sheet-collapsed-details {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.sheet-collapsed-price {
+  font-size: 18px;
+  font-weight: 700;
+  color: #1E4A74;
+  line-height: 1.2;
+}
+
+.sheet-collapsed-specs {
+  font-size: 13px;
+  color: #6b7280;
+  line-height: 1.3;
+}
+
+.sheet-collapsed-location {
+  font-size: 12px;
+  color: #9ca3af;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sheet-collapsed-view-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  background: #1E4A74;
+  color: white;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  touch-action: manipulation;
+}
+
+.sheet-collapsed-view-btn:active {
+  transform: scale(0.95);
+  background: #163a5e;
 }
 
 .sheet-image-container {
@@ -453,8 +542,54 @@ h6,
   box-shadow: 0 2px 6px rgba(30, 74, 116, 0.2);
 }
 
+/* Expanded State Content */
+.sheet-expanded-content {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid #f3f4f6;
+}
+
+.sheet-description {
+  margin-bottom: 16px;
+}
+
+/* Snap Position Indicator */
+.sheet-snap-indicator {
+  position: absolute;
+  bottom: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  z-index: 5;
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 12px;
+  backdrop-filter: blur(4px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.snap-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #d1d5db;
+  transition: all 0.2s ease;
+}
+
+.snap-dot.active {
+  background: #1E4A74;
+  width: 20px;
+  border-radius: 3px;
+}
+
 @media (min-width: 768px) {
   .mobile-bottom-sheet-backdrop {
+    display: none;
+  }
+
+  .mobile-bottom-sheet {
     display: none;
   }
 }
