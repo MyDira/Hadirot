@@ -200,6 +200,26 @@ export function BrowseListings() {
           false,
         );
         allFeaturedListings = featuredData || [];
+        if (filters.lease_terms && filters.lease_terms.length > 0) {
+          const selectedTerms = filters.lease_terms;
+          const hasLongTermSelected = selectedTerms.includes('long_term_annual');
+          const specialTerms = selectedTerms.filter(t => t !== 'long_term_annual');
+          const hasSpecialTermsSelected = specialTerms.length > 0;
+
+          allFeaturedListings = allFeaturedListings.filter((l) => {
+            const listingLeaseLength = l.lease_length;
+            const isNullOrLongTerm = !listingLeaseLength || listingLeaseLength === 'long_term_annual';
+
+            if (hasLongTermSelected && hasSpecialTermsSelected) {
+              return isNullOrLongTerm || specialTerms.includes(listingLeaseLength!);
+            } else if (hasLongTermSelected) {
+              return isNullOrLongTerm;
+            } else if (hasSpecialTermsSelected) {
+              return listingLeaseLength && specialTerms.includes(listingLeaseLength);
+            }
+            return true;
+          });
+        }
       } catch (error) {
         console.error("Error loading featured listings:", error);
       }
@@ -240,6 +260,26 @@ export function BrowseListings() {
         standardListings = standardListings.filter(
           (l) => l.owner && l.owner.agency === filters.agency_name,
         );
+      }
+      if (filters.lease_terms && filters.lease_terms.length > 0) {
+        const selectedTerms = filters.lease_terms;
+        const hasLongTermSelected = selectedTerms.includes('long_term_annual');
+        const specialTerms = selectedTerms.filter(t => t !== 'long_term_annual');
+        const hasSpecialTermsSelected = specialTerms.length > 0;
+
+        standardListings = standardListings.filter((l) => {
+          const listingLeaseLength = l.lease_length;
+          const isNullOrLongTerm = !listingLeaseLength || listingLeaseLength === 'long_term_annual';
+
+          if (hasLongTermSelected && hasSpecialTermsSelected) {
+            return isNullOrLongTerm || specialTerms.includes(listingLeaseLength!);
+          } else if (hasLongTermSelected) {
+            return isNullOrLongTerm;
+          } else if (hasSpecialTermsSelected) {
+            return listingLeaseLength && specialTerms.includes(listingLeaseLength);
+          }
+          return true;
+        });
       }
 
       const injectedFeaturedMap = new Map(

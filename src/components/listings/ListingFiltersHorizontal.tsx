@@ -394,6 +394,7 @@ export function ListingFiltersHorizontal({
     filters.parking_included ||
     filters.no_fee_only ||
     (filters.neighborhoods && filters.neighborhoods.length > 0) ||
+    filters.lease_terms?.length ||
     filters.searchBounds
   );
 
