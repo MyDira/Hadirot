@@ -948,7 +948,8 @@ export function BrowseListings() {
                   filters.max_price ||
                   filters.parking_included ||
                   filters.no_fee_only ||
-                  (filters.neighborhoods && filters.neighborhoods.length > 0)) && (
+                  (filters.neighborhoods && filters.neighborhoods.length > 0) ||
+                  (filters.lease_terms && filters.lease_terms.length > 0)) && (
                   <span className="bg-brand-600 text-white text-xs px-1.5 py-0.5 rounded-full">
                     Active
                   </span>

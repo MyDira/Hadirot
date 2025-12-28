@@ -144,6 +144,22 @@ const SALE_PRICE_PRESETS = [
   { label: "$3M", value: 3000000 },
 ];
 
+const LEASE_TERM_LABELS: Record<string, string> = {
+  long_term_annual: "Long Term / Annual",
+  short_term: "Short Term",
+  summer_rental: "Summer Rental",
+  winter_rental: "Winter Rental",
+};
+
+const SORT_OPTIONS = [
+  { value: "newest", label: "Newest First" },
+  { value: "oldest", label: "Oldest First" },
+  { value: "price_asc", label: "Price: Low to High" },
+  { value: "price_desc", label: "Price: High to Low" },
+  { value: "bedrooms_asc", label: "Bedrooms: Low to High" },
+  { value: "bedrooms_desc", label: "Bedrooms: High to Low" },
+];
+
 export function ListingFiltersHorizontal({
   filters,
   onFiltersChange,
@@ -637,60 +653,111 @@ export function ListingFiltersHorizontal({
           </div>
         </div>
 
+        {listingType === "rental" && availableLeaseTerms.length > 0 && (
+          <div>
+            <h3 className="text-base font-semibold text-gray-900 mb-2">
+              Lease Length
+            </h3>
+            <p className="text-xs text-gray-500 mb-4">
+              Long Term / Annual excludes short-term and seasonal rentals
+            </p>
+            <div className="max-h-48 overflow-y-auto border border-gray-200 rounded-xl">
+              {availableLeaseTerms.map((term) => {
+                const isSelected =
+                  filters.lease_terms?.includes(term) || false;
+                return (
+                  <label
+                    key={term}
+                    className="flex items-center px-4 py-3 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-b-0"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      onChange={() => {
+                        const current = filters.lease_terms || [];
+                        const newLeaseTerms = isSelected
+                          ? current.filter((t) => t !== term)
+                          : [...current, term];
+                        handleFilterChange(
+                          "lease_terms",
+                          newLeaseTerms.length > 0 ? newLeaseTerms : undefined
+                        );
+                      }}
+                      className="h-5 w-5 text-green-600 focus:ring-green-500 border-gray-300 rounded"
+                    />
+                    <span className="ml-3 text-sm text-gray-700">
+                      {LEASE_TERM_LABELS[term] || term}
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         <div>
           <h3 className="text-base font-semibold text-gray-900 mb-4">
             Listed By
           </h3>
-          <select
-            value={
-              filters.poster_type === "owner"
-                ? "owner"
-                : filters.poster_type === "agent"
-                ? filters.agency_name
-                  ? `agent:${filters.agency_name}`
-                  : "agent:any"
-                : ""
-            }
-            onChange={(e) => {
-              const value = e.target.value;
-              if (value === "owner") {
-                onFiltersChange({
-                  ...filters,
-                  poster_type: "owner",
-                  agency_name: undefined,
-                });
-              } else if (value === "agent:any") {
-                onFiltersChange({
-                  ...filters,
-                  poster_type: "agent",
-                  agency_name: undefined,
-                });
-              } else if (value.startsWith("agent:")) {
-                onFiltersChange({
-                  ...filters,
-                  poster_type: "agent",
-                  agency_name: value.slice("agent:".length),
-                });
-              } else {
-                onFiltersChange({
-                  ...filters,
-                  poster_type: undefined,
-                  agency_name: undefined,
-                });
-              }
-            }}
-            className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500"
-          >
-            <option value="">All Posters</option>
-            <option value="owner">By Owner</option>
-            <option value="agent:any">By Agency</option>
+          <div className="max-h-48 overflow-y-auto border border-gray-200 rounded-xl">
+            <label className="flex items-center px-4 py-3 hover:bg-gray-50 cursor-pointer border-b border-gray-100">
+              <input
+                type="radio"
+                checked={!filters.poster_type}
+                onChange={() => {
+                  handleFilterChange("poster_type", undefined);
+                  handleFilterChange("agency_name", undefined);
+                }}
+                className="h-5 w-5 text-green-600 focus:ring-green-500 border-gray-300"
+              />
+              <span className="ml-3 text-sm text-gray-700">All Posters</span>
+            </label>
+            <label className="flex items-center px-4 py-3 hover:bg-gray-50 cursor-pointer border-b border-gray-100">
+              <input
+                type="radio"
+                checked={filters.poster_type === "owner"}
+                onChange={() => {
+                  handleFilterChange("poster_type", "owner");
+                  handleFilterChange("agency_name", undefined);
+                }}
+                className="h-5 w-5 text-green-600 focus:ring-green-500 border-gray-300"
+              />
+              <span className="ml-3 text-sm text-gray-700">By Owner</span>
+            </label>
+            <label className="flex items-center px-4 py-3 hover:bg-gray-50 cursor-pointer border-b border-gray-100">
+              <input
+                type="radio"
+                checked={filters.poster_type === "agent" && !filters.agency_name}
+                onChange={() => {
+                  handleFilterChange("poster_type", "agent");
+                  handleFilterChange("agency_name", undefined);
+                }}
+                className="h-5 w-5 text-green-600 focus:ring-green-500 border-gray-300"
+              />
+              <span className="ml-3 text-sm text-gray-700">By Agency (All)</span>
+            </label>
             {agencies.length > 0 &&
               agencies.map((agency) => (
-                <option key={agency} value={`agent:${agency}`}>
-                  {agency}
-                </option>
+                <label
+                  key={agency}
+                  className="flex items-center px-4 py-3 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-b-0"
+                >
+                  <input
+                    type="radio"
+                    checked={
+                      filters.poster_type === "agent" &&
+                      filters.agency_name === agency
+                    }
+                    onChange={() => {
+                      handleFilterChange("poster_type", "agent");
+                      handleFilterChange("agency_name", agency);
+                    }}
+                    className="h-5 w-5 text-green-600 focus:ring-green-500 border-gray-300"
+                  />
+                  <span className="ml-3 text-sm text-gray-700">{agency}</span>
+                </label>
               ))}
-          </select>
+          </div>
         </div>
 
         <div>
@@ -729,18 +796,25 @@ export function ListingFiltersHorizontal({
 
         <div>
           <h3 className="text-base font-semibold text-gray-900 mb-4">Sort By</h3>
-          <select
-            value={filters.sort || "newest"}
-            onChange={(e) => handleFilterChange("sort", e.target.value || undefined)}
-            className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500"
-          >
-            <option value="newest">Newest First</option>
-            <option value="oldest">Oldest First</option>
-            <option value="price_asc">Price: Low to High</option>
-            <option value="price_desc">Price: High to Low</option>
-            <option value="bedrooms_asc">Bedrooms: Low to High</option>
-            <option value="bedrooms_desc">Bedrooms: High to Low</option>
-          </select>
+          <div className="max-h-48 overflow-y-auto border border-gray-200 rounded-xl">
+            {SORT_OPTIONS.map((option) => {
+              const isSelected = (filters.sort || "newest") === option.value;
+              return (
+                <label
+                  key={option.value}
+                  className="flex items-center px-4 py-3 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-b-0"
+                >
+                  <input
+                    type="radio"
+                    checked={isSelected}
+                    onChange={() => handleFilterChange("sort", option.value)}
+                    className="h-5 w-5 text-green-600 focus:ring-green-500 border-gray-300"
+                  />
+                  <span className="ml-3 text-sm text-gray-700">{option.label}</span>
+                </label>
+              );
+            })}
+          </div>
         </div>
 
         <div className="pt-4 border-t border-gray-200 flex items-center gap-3">
