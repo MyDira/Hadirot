@@ -52,6 +52,7 @@ import { ReportRentedButton } from "../components/listing/ReportRentedButton";
 import { ImageZoomModal } from "../components/listing/ImageZoomModal";
 import { ListingContactForm } from "../components/listing/ListingContactForm";
 import { AdminListingBanner } from "../components/listing/AdminListingBanner";
+import { formatLeaseLength } from "../utils/formatters";
 
 const SCROLL_THRESHOLDS = [25, 50, 75, 100] as const;
 
@@ -478,14 +479,6 @@ export function ListingDetail() {
   };
 
   const isSaleListing = listing.listing_type === 'sale';
-
-  const formatLeaseLength = (leaseLength: string | null | undefined): string => {
-    if (!leaseLength) return "";
-    return leaseLength
-      .split("_")
-      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-      .join(" ");
-  };
 
   const images =
     listing.listing_images

@@ -2101,9 +2101,9 @@ export function PostListing() {
                 >
                   <option value="">Select lease length (optional)</option>
                   <option value="short_term">Short Term</option>
-                  <option value="1_year">1 Year</option>
-                  <option value="18_months">18 Months</option>
-                  <option value="2_years">2 Years</option>
+                  <option value="long_term_annual">Long Term/Annual</option>
+                  <option value="summer_rental">Summer Rental</option>
+                  <option value="winter_rental">Winter Rental</option>
                 </select>
               </div>
             )}

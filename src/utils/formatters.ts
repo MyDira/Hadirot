@@ -57,3 +57,28 @@ export function formatPrice(price: number): string {
     maximumFractionDigits: 0,
   }).format(price);
 }
+
+/**
+ * Formats lease length enum value to display-friendly text
+ * @param leaseLength - The lease length enum value
+ * @returns Formatted lease length string
+ */
+export function formatLeaseLength(leaseLength: string | null | undefined): string {
+  if (!leaseLength) return '';
+
+  switch (leaseLength) {
+    case 'short_term':
+      return 'Short Term';
+    case 'long_term_annual':
+      return 'Long Term/Annual';
+    case 'summer_rental':
+      return 'Summer Rental';
+    case 'winter_rental':
+      return 'Winter Rental';
+    default:
+      return leaseLength
+        .split('_')
+        .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(' ');
+  }
+}

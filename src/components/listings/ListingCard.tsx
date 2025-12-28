@@ -197,6 +197,16 @@ export function ListingCard({
                   Short Term
                 </div>
               )}
+              {listing.lease_length === "summer_rental" && (
+                <div className="rounded-full bg-black/35 px-3 py-1 text-xs font-medium text-white backdrop-blur-sm">
+                  Summer Rental
+                </div>
+              )}
+              {listing.lease_length === "winter_rental" && (
+                <div className="rounded-full bg-black/35 px-3 py-1 text-xs font-medium text-white backdrop-blur-sm">
+                  Winter Rental
+                </div>
+              )}
             </>
           )}
         </div>
