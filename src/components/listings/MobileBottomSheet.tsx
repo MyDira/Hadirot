@@ -43,6 +43,7 @@ export function MobileBottomSheet({
   const touchStartY = useRef(0);
   const touchStartX = useRef(0);
   const touchMoved = useRef(false);
+  const hadTouchInteraction = useRef(false);
   const velocityHistory = useRef<VelocitySample[]>([]);
   const [animationState, setAnimationState] = useState<'entering' | 'entered' | 'exiting' | 'exited'>('exited');
   const animationFrameRef = useRef<number | null>(null);
@@ -168,6 +169,8 @@ export function MobileBottomSheet({
     const content = contentRef.current;
     if (!sheet) return;
 
+    hadTouchInteraction.current = true;
+
     // Don't start drag if touching interactive elements
     const target = e.target as HTMLElement;
     if (target.closest('button') || target.closest('a') || target.closest('.sheet-handle-container')) {
@@ -275,6 +278,7 @@ export function MobileBottomSheet({
       setSnapPosition('collapsed');
       setDragY(0);
       setBackdropOpacity(0.1);
+      hadTouchInteraction.current = false;
       document.body.style.overflow = 'hidden';
 
       setTimeout(() => {
@@ -286,6 +290,7 @@ export function MobileBottomSheet({
 
       setTimeout(() => {
         setAnimationState('exited');
+        hadTouchInteraction.current = false;
         document.body.style.overflow = '';
       }, ANIMATION_DURATION);
     }
@@ -418,13 +423,23 @@ export function MobileBottomSheet({
         <div
           ref={contentRef}
           className={`sheet-content-horizontal sheet-content-${snapPosition} ${isTapActive ? 'sheet-content-active' : ''}`}
+          onClick={() => {
+            // Only handle clicks from mouse/non-touch devices
+            // Touch devices are handled by touch events
+            if (listing && !hadTouchInteraction.current) {
+              onViewListing(listing.id);
+            }
+            // Reset after handling
+            setTimeout(() => {
+              hadTouchInteraction.current = false;
+            }, 100);
+          }}
         >
           {/* Left Panel: Image (50%) */}
           <div className="sheet-horizontal-image">
             <img
               src={imageUrl}
               alt={isStock ? 'Stock photo' : listing.title}
-              className="w-full h-full object-cover"
             />
             {isStock && (
               <div className="sheet-stock-badge-horizontal">
