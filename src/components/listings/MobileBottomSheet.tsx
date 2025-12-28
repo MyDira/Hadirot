@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback } from "react";
-import { X, ExternalLink } from "lucide-react";
+import { X } from "lucide-react";
 import { Listing } from "../../config/supabase";
 import { computePrimaryListingImage } from "../../utils/stockImage";
 import { formatPrice, capitalizeName } from "../../utils/formatters";
@@ -39,7 +39,10 @@ export function MobileBottomSheet({
   const [snapPosition, setSnapPosition] = useState<SnapPosition>("collapsed");
   const [dragY, setDragY] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
+  const [isTapActive, setIsTapActive] = useState(false);
   const touchStartY = useRef(0);
+  const touchStartX = useRef(0);
+  const touchMoved = useRef(false);
   const velocityHistory = useRef<VelocitySample[]>([]);
   const [animationState, setAnimationState] = useState<'entering' | 'entered' | 'exiting' | 'exited'>('exited');
   const animationFrameRef = useRef<number | null>(null);
@@ -167,7 +170,7 @@ export function MobileBottomSheet({
 
     // Don't start drag if touching interactive elements
     const target = e.target as HTMLElement;
-    if (target.closest('button') || target.closest('a')) {
+    if (target.closest('button') || target.closest('a') || target.closest('.sheet-handle-container')) {
       return;
     }
 
@@ -178,6 +181,9 @@ export function MobileBottomSheet({
 
     const touch = e.touches[0];
     touchStartY.current = touch.clientY;
+    touchStartX.current = touch.clientX;
+    touchMoved.current = false;
+    setIsTapActive(true);
     setIsDragging(true);
     velocityHistory.current = [];
     addVelocitySample(touch.clientY);
@@ -191,30 +197,35 @@ export function MobileBottomSheet({
     const content = contentRef.current;
     if (!sheet) return;
 
+    const touch = e.touches[0];
+    const deltaX = Math.abs(touch.clientX - touchStartX.current);
+    const deltaY = touch.clientY - touchStartY.current;
+
+    // If moved more than 10px, mark as moved (not a tap)
+    if (Math.abs(deltaY) > 10 || deltaX > 10) {
+      touchMoved.current = true;
+      setIsTapActive(false);
+    }
+
     // If content is scrollable and we're scrolling within it, don't drag sheet
     if (content && content.scrollTop > 0 && snapPosition !== "collapsed") {
-      const touch = e.touches[0];
-      const deltaY = touch.clientY - touchStartY.current;
-
       // Only allow sheet drag if dragging down from scroll top
       if (deltaY < 0) return;
     }
 
-    const touch = e.touches[0];
-    let deltaY = touch.clientY - touchStartY.current;
-
     // Apply elastic resistance when dragging up beyond expanded
-    if (deltaY < 0 && snapPosition === "expanded") {
-      deltaY = applyElasticResistance(Math.abs(deltaY), 50) * -1;
+    let adjustedDeltaY = deltaY;
+    if (adjustedDeltaY < 0 && snapPosition === "expanded") {
+      adjustedDeltaY = applyElasticResistance(Math.abs(adjustedDeltaY), 50) * -1;
     }
 
     // Only allow downward drags (positive deltaY)
-    if (deltaY > 0) {
-      setDragY(deltaY);
+    if (adjustedDeltaY > 0) {
+      setDragY(adjustedDeltaY);
       addVelocitySample(touch.clientY);
 
       // Update backdrop opacity during drag
-      const opacity = calculateBackdropOpacity(snapPosition, deltaY);
+      const opacity = calculateBackdropOpacity(snapPosition, adjustedDeltaY);
       setBackdropOpacity(opacity);
     }
   }, [isDragging, snapPosition, applyElasticResistance, addVelocitySample, calculateBackdropOpacity]);
@@ -224,6 +235,13 @@ export function MobileBottomSheet({
     if (!isDragging) return;
 
     setIsDragging(false);
+    setIsTapActive(false);
+
+    // If no significant movement, treat as tap
+    if (!touchMoved.current && listing) {
+      onViewListing(listing.id);
+      return;
+    }
 
     const velocity = getVelocity();
     const targetPosition = getTargetSnapPosition(snapPosition, dragY, velocity);
@@ -237,7 +255,8 @@ export function MobileBottomSheet({
 
     setDragY(0);
     velocityHistory.current = [];
-  }, [isDragging, snapPosition, dragY, getVelocity, getTargetSnapPosition, onClose, calculateBackdropOpacity]);
+    touchMoved.current = false;
+  }, [isDragging, snapPosition, dragY, listing, getVelocity, getTargetSnapPosition, onClose, onViewListing, calculateBackdropOpacity]);
 
   // Handle backdrop click - collapse to collapsed state
   const handleBackdropClick = useCallback((e: React.MouseEvent) => {
@@ -248,12 +267,6 @@ export function MobileBottomSheet({
       }
     }
   }, [snapPosition]);
-
-  const handleViewListing = () => {
-    if (listing) {
-      onViewListing(listing.id);
-    }
-  };
 
   // Handle open/close animation
   useEffect(() => {
@@ -401,117 +414,70 @@ export function MobileBottomSheet({
           <X className="w-5 h-5" />
         </button>
 
-        {/* Content - changes based on snap position */}
+        {/* Content - horizontal split layout for all states */}
         <div
           ref={contentRef}
-          className={`sheet-content sheet-content-${snapPosition}`}
+          className={`sheet-content-horizontal sheet-content-${snapPosition} ${isTapActive ? 'sheet-content-active' : ''}`}
         >
-          {snapPosition === "collapsed" ? (
-            // Collapsed State: Compact horizontal layout
-            <div className="sheet-collapsed-content">
-              <div className="sheet-collapsed-image">
-                <img
-                  src={imageUrl}
-                  alt={isStock ? 'Stock photo' : listing.title}
-                  className="w-full h-full object-cover"
-                />
-                {isStock && (
-                  <div className="sheet-stock-badge-small">
-                    Stock
-                  </div>
-                )}
+          {/* Left Panel: Image (50%) */}
+          <div className="sheet-horizontal-image">
+            <img
+              src={imageUrl}
+              alt={isStock ? 'Stock photo' : listing.title}
+              className="w-full h-full object-cover"
+            />
+            {isStock && (
+              <div className="sheet-stock-badge-horizontal">
+                Stock photo
               </div>
-              <div className="sheet-collapsed-details">
-                <div className="sheet-collapsed-price" style={{ fontFamily: 'var(--num-font)' }}>
-                  {priceDisplay}
-                </div>
-                <div className="sheet-collapsed-specs">
-                  <span>{bedroomDisplay} bed • {listing.bathrooms} bath</span>
-                </div>
-                <div className="sheet-collapsed-location">
-                  {isSaleListing ? (listing.full_address || listing.location || '') : (listing.cross_streets ?? listing.location) || ''}
-                </div>
+            )}
+          </div>
+
+          {/* Right Panel: Details (50%) */}
+          <div className="sheet-horizontal-details">
+            <div className="sheet-horizontal-details-inner">
+              <div className="sheet-horizontal-price" style={{ fontFamily: 'var(--num-font)' }}>
+                {priceDisplay}
               </div>
-              <button
-                onClick={handleViewListing}
-                className="sheet-collapsed-view-btn"
-                aria-label="View full listing"
-              >
-                <ExternalLink className="w-4 h-4" />
-              </button>
-            </div>
-          ) : (
-            // Mid and Expanded States: Vertical layout
-            <>
-              <div className="sheet-image-container">
-                <img
-                  src={imageUrl}
-                  alt={isStock ? 'Stock photo' : listing.title}
-                  className="sheet-image"
-                />
-                {isStock && (
-                  <div className="sheet-stock-badge">
-                    Stock photo
-                  </div>
+
+              <div className="sheet-horizontal-specs">
+                <span>{bedroomDisplay} bed • {listing.bathrooms} bath</span>
+                {!isSaleListing && hasParking && snapPosition !== "collapsed" && (
+                  <span> • Parking</span>
                 )}
               </div>
 
-              <div className="sheet-details">
-                <div className="sheet-price" style={{ fontFamily: 'var(--num-font)' }}>
-                  {priceDisplay}
-                </div>
-
-                <div className="sheet-specs">
-                  <span className="sheet-spec-item">{bedroomDisplay} bed</span>
-                  <span className="sheet-spec-separator">•</span>
-                  <span className="sheet-spec-item">{listing.bathrooms} bath</span>
-                  {!isSaleListing && hasParking && (
-                    <>
-                      <span className="sheet-spec-separator">•</span>
-                      <span className="sheet-spec-item">Parking</span>
-                    </>
-                  )}
-                  {!isSaleListing && (
-                    <span className={`sheet-fee-badge ${listing.broker_fee ? 'broker-fee' : 'no-fee'}`}>
-                      {listing.broker_fee ? 'Broker Fee' : 'No Fee'}
-                    </span>
-                  )}
-                </div>
-
-                <div className="sheet-location">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="sheet-location-icon">
-                    <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
-                    <circle cx="12" cy="10" r="3"></circle>
-                  </svg>
-                  <span className="sheet-location-text">
-                    {isSaleListing ? (listing.full_address || listing.location || '') : (listing.cross_streets ?? listing.location) || ''}
+              {!isSaleListing && snapPosition !== "collapsed" && (
+                <div className="sheet-horizontal-badge">
+                  <span className={`sheet-fee-badge ${listing.broker_fee ? 'broker-fee' : 'no-fee'}`}>
+                    {listing.broker_fee ? 'Broker Fee' : 'No Fee'}
                   </span>
                 </div>
+              )}
 
-                {snapPosition === "expanded" && (
-                  <div className="sheet-expanded-content">
-                    {listing.title && (
-                      <div className="sheet-description">
-                        <h3 className="text-sm font-semibold text-gray-900 mb-2">Description</h3>
-                        <p className="text-sm text-gray-600 leading-relaxed">{listing.title}</p>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                <div className="sheet-footer">
-                  <span className="sheet-poster">by {getPosterLabel()}</span>
-                  <button
-                    onClick={handleViewListing}
-                    className="sheet-view-btn"
-                  >
-                    View Listing
-                    <ExternalLink className="w-4 h-4" />
-                  </button>
-                </div>
+              <div className="sheet-horizontal-location">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="flex-shrink-0">
+                  <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                  <circle cx="12" cy="10" r="3"></circle>
+                </svg>
+                <span className="sheet-horizontal-location-text">
+                  {isSaleListing ? (listing.full_address || listing.location || '') : (listing.cross_streets ?? listing.location) || ''}
+                </span>
               </div>
-            </>
-          )}
+
+              {snapPosition === "expanded" && listing.title && (
+                <div className="sheet-horizontal-description">
+                  <p>{listing.title}</p>
+                </div>
+              )}
+
+              {snapPosition !== "collapsed" && (
+                <div className="sheet-horizontal-poster">
+                  by {getPosterLabel()}
+                </div>
+              )}
+            </div>
+          </div>
         </div>
 
         {/* Snap Position Indicator */}
