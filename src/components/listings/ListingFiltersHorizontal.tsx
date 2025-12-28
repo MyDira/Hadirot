@@ -32,6 +32,7 @@ interface FilterState {
   parking_included?: boolean;
   no_fee_only?: boolean;
   neighborhoods?: string[];
+  lease_terms?: string[];
   sort?: SortOption;
   searchBounds?: MapBounds | null;
   searchLocationName?: string;
@@ -43,6 +44,7 @@ interface ListingFiltersHorizontalProps {
   onSearchClear?: () => void;
   agencies?: string[];
   allNeighborhoods?: string[];
+  availableLeaseTerms?: string[];
   isMobile?: boolean;
   listingType?: "rental" | "sale";
 }
@@ -148,6 +150,7 @@ export function ListingFiltersHorizontal({
   onSearchClear,
   agencies = [],
   allNeighborhoods = [],
+  availableLeaseTerms = [],
   isMobile = false,
   listingType = "rental",
 }: ListingFiltersHorizontalProps) {
@@ -401,6 +404,7 @@ export function ListingFiltersHorizontal({
     filters.property_types?.length ||
     filters.building_types?.length ||
     (filters.neighborhoods && filters.neighborhoods.length > 0) ||
+    filters.lease_terms?.length ||
     filters.poster_type ||
     filters.parking_included ||
     filters.no_fee_only
@@ -1072,6 +1076,7 @@ export function ListingFiltersHorizontal({
         onFiltersChange={onFiltersChange}
         agencies={agencies}
         allNeighborhoods={allNeighborhoods}
+        availableLeaseTerms={availableLeaseTerms}
         listingType={listingType}
       />
     </div>

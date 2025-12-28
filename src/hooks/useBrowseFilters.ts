@@ -22,6 +22,7 @@ export interface FilterState {
   parking_included?: boolean;
   no_fee_only?: boolean;
   neighborhoods?: string[];
+  lease_terms?: string[];
   sort?: SortOption;
   searchBounds?: MapBounds | null;
   searchLocationName?: string;
@@ -129,6 +130,11 @@ export function useBrowseFilters() {
       urlFilters.neighborhoods = neighborhoods.split(',').filter(Boolean);
     }
 
+    const lease_terms = params.get('lease_terms');
+    if (lease_terms) {
+      urlFilters.lease_terms = lease_terms.split(',').filter(Boolean);
+    }
+
     const sort = params.get('sort');
     if (sort) urlFilters.sort = sort as SortOption;
 
@@ -192,6 +198,9 @@ export function useBrowseFilters() {
         if (savedState.filters.no_fee_only) params.set('no_fee_only', '1');
         if (savedState.filters.neighborhoods && savedState.filters.neighborhoods.length > 0) {
           params.set('neighborhoods', savedState.filters.neighborhoods.join(','));
+        }
+        if (savedState.filters.lease_terms && savedState.filters.lease_terms.length > 0) {
+          params.set('lease_terms', savedState.filters.lease_terms.join(','));
         }
         if (savedState.filters.sort) params.set('sort', savedState.filters.sort);
         if (savedState.filters.searchBounds) {
@@ -294,6 +303,10 @@ export function useBrowseFilters() {
 
     if (newFilters.neighborhoods && newFilters.neighborhoods.length > 0) {
       params.set('neighborhoods', newFilters.neighborhoods.join(','));
+    }
+
+    if (newFilters.lease_terms && newFilters.lease_terms.length > 0) {
+      params.set('lease_terms', newFilters.lease_terms.join(','));
     }
 
     if (newFilters.sort) params.set('sort', newFilters.sort);

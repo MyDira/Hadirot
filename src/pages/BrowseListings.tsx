@@ -40,6 +40,7 @@ interface FilterState {
   parking_included?: boolean;
   no_fee_only?: boolean;
   neighborhoods?: string[];
+  lease_terms?: string[];
   sort?: SortOption;
   searchBounds?: MapBounds | null;
   searchLocationName?: string;
@@ -120,6 +121,23 @@ export function BrowseListings() {
   const visiblePinIds = useMemo(() => {
     return new Set(pinsFromListings.map((p) => p.id));
   }, [pinsFromListings]);
+
+  const availableLeaseTerms = useMemo(() => {
+    const termsInData = new Set<string>();
+    for (const listing of filteredListingsForMap) {
+      if (listing.lease_length) {
+        termsInData.add(listing.lease_length);
+      }
+    }
+    const result = ['long_term_annual'];
+    const specialTerms = ['short_term', 'summer_rental', 'winter_rental'];
+    for (const term of specialTerms) {
+      if (termsInData.has(term)) {
+        result.push(term);
+      }
+    }
+    return result;
+  }, [filteredListingsForMap]);
 
   useEffect(() => {
     if (user) {
@@ -842,6 +860,7 @@ export function BrowseListings() {
                 }}
                 agencies={agencies}
                 allNeighborhoods={allNeighborhoods}
+                availableLeaseTerms={availableLeaseTerms}
               />
             </div>
             <div className="flex-shrink-0">
@@ -930,6 +949,7 @@ export function BrowseListings() {
                 }}
                 agencies={agencies}
                 allNeighborhoods={allNeighborhoods}
+                availableLeaseTerms={availableLeaseTerms}
                 isMobile={true}
               />
             </div>

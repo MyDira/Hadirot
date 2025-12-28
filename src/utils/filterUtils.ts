@@ -32,6 +32,7 @@ export interface FilterState {
   parking_included?: boolean;
   no_fee_only?: boolean;
   neighborhoods?: string[];
+  lease_terms?: string[];
   sort?: string;
   searchBounds?: MapBoundsFilter | null;
   searchLocationName?: string;
@@ -48,6 +49,7 @@ export interface FilterableListing {
   broker_fee: boolean | null;
   parking: string | null;
   neighborhood: string | null;
+  lease_length?: string | null;
   latitude?: number | null;
   longitude?: number | null;
   owner?: { role: string; agency?: string | null } | null;
@@ -83,6 +85,7 @@ export function applyFilters<T extends FilterableListing>(
   const hasBuildingTypeFilter = filters.building_types && filters.building_types.length > 0;
   const hasBedroomFilter = filters.bedrooms && filters.bedrooms.length > 0;
   const hasNeighborhoodFilter = filters.neighborhoods && filters.neighborhoods.length > 0;
+  const hasLeaseTermFilter = filters.lease_terms && filters.lease_terms.length > 0;
   const hasMinPrice = filters.min_price != null;
   const hasMaxPrice = filters.max_price != null;
   const hasBoundsFilter = filters.searchBounds != null;
@@ -96,6 +99,7 @@ export function applyFilters<T extends FilterableListing>(
     filters.parking_included ||
     filters.no_fee_only ||
     hasNeighborhoodFilter ||
+    hasLeaseTermFilter ||
     filters.poster_type ||
     filters.agency_name ||
     hasBoundsFilter;
@@ -145,6 +149,29 @@ export function applyFilters<T extends FilterableListing>(
     if (hasNeighborhoodFilter) {
       if (!listing.neighborhood || !filters.neighborhoods!.includes(listing.neighborhood)) {
         return false;
+      }
+    }
+
+    if (hasLeaseTermFilter) {
+      const selectedTerms = filters.lease_terms!;
+      const hasLongTermSelected = selectedTerms.includes('long_term_annual');
+      const specialTerms = selectedTerms.filter(t => t !== 'long_term_annual');
+      const hasSpecialTermsSelected = specialTerms.length > 0;
+      const listingLeaseLength = listing.lease_length;
+      const isNullOrLongTerm = !listingLeaseLength || listingLeaseLength === 'long_term_annual';
+
+      if (hasLongTermSelected && hasSpecialTermsSelected) {
+        if (!isNullOrLongTerm && !specialTerms.includes(listingLeaseLength!)) {
+          return false;
+        }
+      } else if (hasLongTermSelected) {
+        if (!isNullOrLongTerm) {
+          return false;
+        }
+      } else if (hasSpecialTermsSelected) {
+        if (!listingLeaseLength || !specialTerms.includes(listingLeaseLength)) {
+          return false;
+        }
       }
     }
 

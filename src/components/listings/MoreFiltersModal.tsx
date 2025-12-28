@@ -29,6 +29,7 @@ interface FilterState {
   parking_included?: boolean;
   no_fee_only?: boolean;
   neighborhoods?: string[];
+  lease_terms?: string[];
   sort?: SortOption;
 }
 
@@ -39,8 +40,16 @@ interface MoreFiltersModalProps {
   onFiltersChange: (filters: FilterState) => void;
   agencies?: string[];
   allNeighborhoods?: string[];
+  availableLeaseTerms?: string[];
   listingType?: "rental" | "sale";
 }
+
+const LEASE_TERM_LABELS: Record<string, string> = {
+  long_term_annual: "Long Term / Annual",
+  short_term: "Short Term",
+  summer_rental: "Summer Rental",
+  winter_rental: "Winter Rental",
+};
 
 export function MoreFiltersModal({
   isOpen,
@@ -49,6 +58,7 @@ export function MoreFiltersModal({
   onFiltersChange,
   agencies = [],
   allNeighborhoods = [],
+  availableLeaseTerms = [],
   listingType = "rental",
 }: MoreFiltersModalProps) {
   const [localFilters, setLocalFilters] = useState<FilterState>(filters);
@@ -262,6 +272,50 @@ export function MoreFiltersModal({
                   ))}
               </div>
             </div>
+
+            {listingType === "rental" && availableLeaseTerms.length > 0 && (
+              <div>
+                <h3 className="text-base font-semibold text-gray-900 mb-2">
+                  Lease Length
+                </h3>
+                <p className="text-xs text-gray-500 mb-4">
+                  Long Term / Annual excludes short-term and seasonal rentals
+                </p>
+                <div className="max-h-56 overflow-y-auto border border-gray-200 rounded-xl">
+                  {availableLeaseTerms.map((term) => {
+                    const isSelected =
+                      localFilters.lease_terms?.includes(term) || false;
+                    return (
+                      <label
+                        key={term}
+                        className="flex items-center px-4 py-3 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-b-0"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => {
+                            const current = localFilters.lease_terms || [];
+                            const newLeaseTerms = isSelected
+                              ? current.filter((t) => t !== term)
+                              : [...current, term];
+                            handleLocalFilterChange(
+                              "lease_terms",
+                              newLeaseTerms.length > 0
+                                ? newLeaseTerms
+                                : undefined
+                            );
+                          }}
+                          className="h-5 w-5 text-green-600 focus:ring-green-500 border-gray-300 rounded"
+                        />
+                        <span className="ml-3 text-sm text-gray-700">
+                          {LEASE_TERM_LABELS[term] || term}
+                        </span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
             <div>
               <h3 className="text-base font-semibold text-gray-900 mb-4">
