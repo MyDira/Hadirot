@@ -1306,10 +1306,12 @@ export function BrowseListings() {
               />
             )}
 
-            <div className="absolute bottom-4 left-4 z-[5] bg-white px-3 py-1.5 rounded-full shadow-md text-sm text-gray-600 border border-gray-200">
-              {visiblePinIds.size} listing{visiblePinIds.size !== 1 ? "s" : ""} on map
-              {filters.searchLocationName && ` in ${filters.searchLocationName}`}
-            </div>
+            {!(isMobileDevice() && selectedListingId) && (
+              <div className="absolute bottom-4 left-4 z-[5] bg-white px-3 py-1.5 rounded-full shadow-md text-sm text-gray-600 border border-gray-200">
+                {visiblePinIds.size} listing{visiblePinIds.size !== 1 ? "s" : ""} on map
+                {filters.searchLocationName && ` in ${filters.searchLocationName}`}
+              </div>
+            )}
           </div>
         )}
       </div>

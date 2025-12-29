@@ -264,7 +264,7 @@ h6,
 }
 
 .sheet-handle-container {
-  padding: 12px 0 8px;
+  padding: 10px 0 0;
   display: flex;
   justify-content: center;
   cursor: grab;
@@ -318,11 +318,14 @@ h6,
   flex: 1;
   display: flex;
   flex-direction: row;
+  align-items: center;
   overflow: hidden;
   cursor: pointer;
   transition: opacity 0.15s ease, transform 0.15s ease;
   user-select: none;
   -webkit-tap-highlight-color: transparent;
+  padding: 8px 12px 12px 12px;
+  gap: 12px;
 }
 
 .sheet-content-horizontal.sheet-content-active {
@@ -330,14 +333,15 @@ h6,
   transform: scale(0.995);
 }
 
-/* Left Panel: Image (50%) */
+/* Left Panel: Image */
 .sheet-horizontal-image {
-  width: 50%;
-  height: 100%;
+  width: 45%;
+  flex-shrink: 0;
+  aspect-ratio: 4 / 3;
   position: relative;
   overflow: hidden;
   background: #e5e7eb;
-  border-radius: 16px 0 0 0;
+  border-radius: 12px;
 }
 
 .sheet-horizontal-image img {
@@ -349,42 +353,38 @@ h6,
 
 .sheet-stock-badge-horizontal {
   position: absolute;
-  bottom: 12px;
-  left: 12px;
+  bottom: 8px;
+  left: 8px;
   background: rgba(0, 0, 0, 0.35);
   color: white;
-  padding: 4px 10px;
+  padding: 3px 8px;
   border-radius: 999px;
-  font-size: 10px;
+  font-size: 9px;
   backdrop-filter: blur(4px);
   font-weight: 500;
 }
 
-/* Right Panel: Details (50%) */
+/* Right Panel: Details */
 .sheet-horizontal-details {
-  width: 50%;
+  flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  -webkit-overflow-scrolling: touch;
+  justify-content: center;
+  overflow: hidden;
 }
 
 .sheet-horizontal-details-inner {
-  padding: 10px 14px 12px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  height: 100%;
+  gap: 4px;
 }
 
 .sheet-content-mid .sheet-horizontal-details-inner {
-  padding: 14px 16px 16px;
-  gap: 8px;
+  gap: 6px;
 }
 
 .sheet-content-expanded .sheet-horizontal-details-inner {
-  padding: 16px 20px 20px;
   gap: 8px;
 }
 
@@ -567,10 +567,6 @@ h6,
     font-size: 22px;
   }
 
-  .sheet-horizontal-details-inner {
-    padding: 8px 12px 10px;
-  }
-
   .sheet-horizontal-specs {
     font-size: 11px;
   }
@@ -602,11 +598,7 @@ h6,
 /* Landscape orientation adjustments for mobile */
 @media (max-height: 500px) and (orientation: landscape) {
   .sheet-horizontal-image {
-    width: 40%;
-  }
-
-  .sheet-horizontal-details {
-    width: 60%;
+    width: 35%;
   }
 }
 
