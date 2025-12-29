@@ -9,6 +9,7 @@ interface MobileBottomSheetProps {
   isOpen: boolean;
   onClose: () => void;
   onViewListing: (listingId: string) => void;
+  shouldCollapse?: boolean;
 }
 
 type SnapPosition = "collapsed" | "mid" | "expanded" | "closed";
@@ -33,6 +34,7 @@ export function MobileBottomSheet({
   isOpen,
   onClose,
   onViewListing,
+  shouldCollapse = false,
 }: MobileBottomSheetProps) {
   const sheetRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -47,7 +49,7 @@ export function MobileBottomSheet({
   const velocityHistory = useRef<VelocitySample[]>([]);
   const [animationState, setAnimationState] = useState<'entering' | 'entered' | 'exiting' | 'exited'>('exited');
   const animationFrameRef = useRef<number | null>(null);
-  const [backdropOpacity, setBackdropOpacity] = useState(0.1);
+  const [backdropOpacity, setBackdropOpacity] = useState(0.08);
 
   // Calculate snap point heights based on viewport
   const getSnapHeights = useCallback(() => {
@@ -76,9 +78,9 @@ export function MobileBottomSheet({
     const maxHeight = heights.expanded;
     const minHeight = heights.collapsed;
 
-    // Linear interpolation between 0.1 (collapsed) and 0.4 (expanded)
+    // Linear interpolation between 0.08 (collapsed) and 0.35 (expanded)
     const ratio = (currentHeight - minHeight) / (maxHeight - minHeight);
-    return 0.1 + (ratio * 0.3);
+    return 0.08 + (ratio * 0.27);
   }, [getSnapHeights, isDragging]);
 
   // Track velocity for flick detection
@@ -266,7 +268,7 @@ export function MobileBottomSheet({
     if (e.target === e.currentTarget) {
       if (snapPosition !== "collapsed") {
         setSnapPosition("collapsed");
-        setBackdropOpacity(0.1);
+        setBackdropOpacity(0.08);
       }
     }
   }, [snapPosition]);
@@ -277,7 +279,7 @@ export function MobileBottomSheet({
       setAnimationState('entering');
       setSnapPosition('collapsed');
       setDragY(0);
-      setBackdropOpacity(0.1);
+      setBackdropOpacity(0.08);
       hadTouchInteraction.current = false;
       document.body.style.overflow = 'hidden';
 
@@ -307,6 +309,14 @@ export function MobileBottomSheet({
       // Content will fade/update but position stays same
     }
   }, [listing, isOpen]);
+
+  // Auto-collapse when map is being interacted with
+  useEffect(() => {
+    if (shouldCollapse && isOpen && snapPosition !== "collapsed" && animationState === 'entered') {
+      setSnapPosition("collapsed");
+      setBackdropOpacity(0.08);
+    }
+  }, [shouldCollapse, isOpen, snapPosition, animationState]);
 
   // Cleanup animation frame on unmount
   useEffect(() => {

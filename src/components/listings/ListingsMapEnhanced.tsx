@@ -89,6 +89,7 @@ export function ListingsMapEnhanced({
   const isPinHover = useRef(false);
   const [mobileSheetListing, setMobileSheetListing] = useState<Listing | null>(null);
   const [isMobileSheetOpen, setIsMobileSheetOpen] = useState(false);
+  const [isMapDragging, setIsMapDragging] = useState(false);
 
   const listingsWithCoords = listings.filter(
     (l) => l.latitude != null && l.longitude != null
@@ -562,16 +563,26 @@ export function ListingsMapEnhanced({
       }
     });
 
+    map.current.on("dragstart", () => {
+      setIsMapDragging(true);
+    });
+
     map.current.on("dragend", () => {
       if (!isProgrammaticMove.current) {
         userHasInteracted.current = true;
       }
+      setIsMapDragging(false);
+    });
+
+    map.current.on("zoomstart", () => {
+      setIsMapDragging(true);
     });
 
     map.current.on("zoomend", () => {
       if (!isProgrammaticMove.current) {
         userHasInteracted.current = true;
       }
+      setIsMapDragging(false);
     });
 
     return () => {
@@ -1320,6 +1331,7 @@ export function ListingsMapEnhanced({
         isOpen={isMobileSheetOpen}
         onClose={handleCloseMobileSheet}
         onViewListing={handleMobileSheetViewListing}
+        shouldCollapse={isMapDragging}
       />
     </div>
   );
