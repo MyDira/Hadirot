@@ -433,6 +433,7 @@ export function MobileBottomSheet({
         <div
           ref={contentRef}
           className={`sheet-content-horizontal sheet-content-${snapPosition} ${isTapActive ? 'sheet-content-active' : ''}`}
+          style={{ minHeight: 0 }}
           onClick={() => {
             // Only handle clicks from mouse/non-touch devices
             // Touch devices are handled by touch events
@@ -450,6 +451,12 @@ export function MobileBottomSheet({
             <img
               src={imageUrl}
               alt={isStock ? 'Stock photo' : listing.title}
+              style={{
+                width: '100%',
+                height: '100%',
+                objectFit: 'cover',
+                display: 'block'
+              }}
             />
             {isStock && (
               <div className="sheet-stock-badge-horizontal">
