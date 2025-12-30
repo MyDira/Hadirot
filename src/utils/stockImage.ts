@@ -2,6 +2,8 @@
 // Deterministically map a listing to one of our stock photos for even coverage.
 // We avoid random() so the same listing always shows the same stock image.
 
+import { supabase } from '../config/supabase';
+
 const STOCK_IMAGES = [
   "/stock/living-01.jpg",
   "/stock/living-02.jpg",
@@ -44,6 +46,13 @@ export function getStockImageForListing(seed: {
   return STOCK_IMAGES[idx];
 }
 
+function normalizeImageUrl(url: string): string {
+  if (!url) return url;
+  if (url.startsWith('http://') || url.startsWith('https://')) return url;
+  if (url.startsWith('/stock/')) return url;
+  return supabase.storage.from('listing-images').getPublicUrl(url).data.publicUrl;
+}
+
 export function computePrimaryListingImage(
   images: Array<{ image_url: string }> | undefined | null,
   seed: {
@@ -56,10 +65,10 @@ export function computePrimaryListingImage(
 ): { url: string; isStock: boolean } {
   const hasReal = Array.isArray(images) && images.length > 0;
   if (hasReal) {
-    return { url: images[0].image_url, isStock: false };
+    return { url: normalizeImageUrl(images[0].image_url), isStock: false };
   }
   if (videoThumbnailUrl) {
-    return { url: videoThumbnailUrl, isStock: false };
+    return { url: normalizeImageUrl(videoThumbnailUrl), isStock: false };
   }
   return { url: getStockImageForListing(seed), isStock: true };
 }
