@@ -350,9 +350,9 @@ h6,
 
 .sheet-horizontal-image img {
   width: 100%;
-  height: auto;
+  height: 100%;
   max-height: 100%;
-  object-fit: cover;
+  object-fit: contain;
   display: block;
 }
 
@@ -588,14 +588,14 @@ h6,
 /* Small devices (375px - 413px) */
 @media (min-width: 375px) and (max-width: 413px) {
   .sheet-horizontal-image img {
-    object-fit: cover;
+    object-fit: contain;
   }
 }
 
 /* Medium devices (414px - 767px) */
 @media (min-width: 414px) and (max-width: 767px) {
   .sheet-horizontal-image img {
-    object-fit: cover;
+    object-fit: contain;
   }
 
   .sheet-horizontal-price {
@@ -622,7 +622,7 @@ h6,
   }
 
   .sheet-horizontal-image img {
-    object-fit: cover;
+    object-fit: contain;
   }
 }
 
