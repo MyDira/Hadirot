@@ -316,9 +316,11 @@ h6,
 /* Horizontal Split Layout - All States */
 .sheet-content-horizontal {
   flex: 1;
+  height: 0;
+  min-height: 0;
   display: flex;
   flex-direction: row;
-  align-items: center;
+  align-items: stretch;
   overflow: hidden;
   cursor: pointer;
   transition: opacity 0.15s ease, transform 0.15s ease;
@@ -336,6 +338,8 @@ h6,
 /* Left Panel: Image */
 .sheet-horizontal-image {
   width: 45%;
+  height: 100%;
+  max-height: 100%;
   flex-shrink: 0;
   aspect-ratio: 4 / 3;
   position: relative;
