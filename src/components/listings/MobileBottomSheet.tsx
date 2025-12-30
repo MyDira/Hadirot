@@ -1,8 +1,15 @@
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import { X } from "lucide-react";
 import { Listing } from "../../config/supabase";
-import { computePrimaryListingImage } from "../../utils/stockImage";
 import { formatPrice, capitalizeName } from "../../utils/formatters";
+
+export interface SheetState {
+  snapPosition: "collapsed" | "mid" | "expanded" | "closed";
+  translateY: number;
+  isDragging: boolean;
+  animationState: "entering" | "entered" | "exiting" | "exited";
+  expandedHeight: number;
+}
 
 interface MobileBottomSheetProps {
   listing: Listing | null;
@@ -10,6 +17,7 @@ interface MobileBottomSheetProps {
   onClose: () => void;
   onViewListing: (listingId: string) => void;
   shouldCollapse?: boolean;
+  onStateChange?: (state: SheetState) => void;
 }
 
 type SnapPosition = "collapsed" | "mid" | "expanded" | "closed";
@@ -35,6 +43,7 @@ export function MobileBottomSheet({
   onClose,
   onViewListing,
   shouldCollapse = false,
+  onStateChange,
 }: MobileBottomSheetProps) {
   const sheetRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -327,26 +336,21 @@ export function MobileBottomSheet({
     };
   }, []);
 
+  // Report state changes to parent for floating image synchronization
+  useEffect(() => {
+    if (onStateChange) {
+      const translateY = getTranslateY();
+      onStateChange({
+        snapPosition,
+        translateY,
+        isDragging,
+        animationState,
+        expandedHeight: snapHeights.expanded,
+      });
+    }
+  }, [snapPosition, dragY, isDragging, animationState, onStateChange]);
+
   if (!listing || animationState === 'exited') return null;
-
-  const sortedImages = listing.listing_images
-    ?.filter((img) => img && img.image_url)
-    .sort((a, b) => {
-      if (a.is_featured && !b.is_featured) return -1;
-      if (!a.is_featured && b.is_featured) return 1;
-      return a.sort_order - b.sort_order;
-    });
-
-  const { url: imageUrl, isStock } = computePrimaryListingImage(
-    sortedImages,
-    {
-      id: listing.id,
-      addressLine: listing.location,
-      city: listing.neighborhood,
-      price: listing.price,
-    },
-    listing.video_thumbnail_url
-  );
 
   const isSaleListing = listing.listing_type === "sale";
   const price = isSaleListing ? listing.asking_price : listing.price;
@@ -431,10 +435,10 @@ export function MobileBottomSheet({
           <X className="w-5 h-5" />
         </button>
 
-        {/* Content - horizontal split layout for all states */}
+        {/* Content - details only */}
         <div
           ref={contentRef}
-          className={`sheet-content-horizontal sheet-content-${snapPosition} ${isTapActive ? 'sheet-content-active' : ''}`}
+          className={`sheet-content-vertical sheet-content-${snapPosition} ${isTapActive ? 'sheet-content-active' : ''}`}
           style={{ minHeight: 0 }}
           onClick={() => {
             // Only handle clicks from mouse/non-touch devices
@@ -448,27 +452,14 @@ export function MobileBottomSheet({
             }, 100);
           }}
         >
-          {/* Left Panel: Image (50%) */}
-          <div className="sheet-horizontal-image">
-            <img
-              src={imageUrl}
-              alt={isStock ? 'Stock photo' : listing.title}
-            />
-            {isStock && (
-              <div className="sheet-stock-badge-horizontal">
-                Stock photo
-              </div>
-            )}
-          </div>
-
-          {/* Right Panel: Details (50%) */}
-          <div className="sheet-horizontal-details">
-            <div className="sheet-horizontal-details-inner">
-              <div className="sheet-horizontal-price" style={{ fontFamily: 'var(--num-font)' }}>
+          {/* Details Panel */}
+          <div className="sheet-details">
+            <div className="sheet-details-inner">
+              <div className="sheet-price" style={{ fontFamily: 'var(--num-font)' }}>
                 {priceDisplay}
               </div>
 
-              <div className="sheet-horizontal-specs">
+              <div className="sheet-specs">
                 <span>{bedroomDisplay} bed • {listing.bathrooms} bath</span>
                 {!isSaleListing && hasParking && snapPosition !== "collapsed" && (
                   <span> • Parking</span>
@@ -476,31 +467,31 @@ export function MobileBottomSheet({
               </div>
 
               {!isSaleListing && snapPosition !== "collapsed" && (
-                <div className="sheet-horizontal-badge">
+                <div className="sheet-badge">
                   <span className={`sheet-fee-badge ${listing.broker_fee ? 'broker-fee' : 'no-fee'}`}>
                     {listing.broker_fee ? 'Broker Fee' : 'No Fee'}
                   </span>
                 </div>
               )}
 
-              <div className="sheet-horizontal-location">
+              <div className="sheet-location">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="flex-shrink-0">
                   <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
                   <circle cx="12" cy="10" r="3"></circle>
                 </svg>
-                <span className="sheet-horizontal-location-text">
+                <span className="sheet-location-text">
                   {isSaleListing ? (listing.full_address || listing.location || '') : (listing.cross_streets ?? listing.location) || ''}
                 </span>
               </div>
 
               {snapPosition === "expanded" && listing.title && (
-                <div className="sheet-horizontal-description">
+                <div className="sheet-description">
                   <p>{listing.title}</p>
                 </div>
               )}
 
               {snapPosition !== "collapsed" && (
-                <div className="sheet-horizontal-poster">
+                <div className="sheet-poster">
                   by {getPosterLabel()}
                 </div>
               )}

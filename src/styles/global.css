@@ -207,6 +207,55 @@ h6,
   max-width: calc(100% - 40px);
 }
 
+/* Floating Listing Image Styles */
+.floating-listing-image {
+  position: fixed;
+  left: 12px;
+  right: 12px;
+  height: 200px;
+  border-radius: 16px;
+  overflow: hidden;
+  background: #f3f4f6;
+  z-index: 1001;
+  pointer-events: auto;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  opacity: 0;
+  transition: opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.floating-listing-image.image-visible {
+  opacity: 1;
+}
+
+.floating-listing-image.image-hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.floating-listing-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+.floating-stock-badge {
+  position: absolute;
+  bottom: 8px;
+  left: 8px;
+  background: rgba(0, 0, 0, 0.35);
+  color: white;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 9px;
+  backdrop-filter: blur(4px);
+  font-weight: 500;
+}
+
 /* Mobile Bottom Sheet Styles */
 .mobile-bottom-sheet-backdrop {
   position: fixed;
@@ -313,127 +362,90 @@ h6,
   transform: scale(0.95);
 }
 
-/* Horizontal Split Layout - All States */
-.sheet-content-horizontal {
+/* Vertical Layout - Details Only */
+.sheet-content-vertical {
   flex: 1;
   height: 0;
   min-height: 0;
   display: flex;
-  flex-direction: row;
-  align-items: stretch;
+  flex-direction: column;
   overflow: hidden;
   cursor: pointer;
   transition: opacity 0.15s ease, transform 0.15s ease;
   user-select: none;
   -webkit-tap-highlight-color: transparent;
-  padding: 8px 12px 12px 12px;
-  gap: 12px;
+  padding: 8px 16px 12px 16px;
 }
 
-.sheet-content-horizontal.sheet-content-active {
+.sheet-content-vertical.sheet-content-active {
   opacity: 0.95;
   transform: scale(0.995);
 }
 
-/* Left Panel: Image */
-.sheet-horizontal-image {
-  flex: 0 0 55%;
-  align-self: stretch;
-  position: relative;
-  overflow: hidden;
-  background: #f3f4f6;
-  border-radius: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.sheet-horizontal-image img {
-  width: 100%;
-  height: 100%;
-  max-height: 100%;
-  object-fit: contain;
-  display: block;
-}
-
-.sheet-stock-badge-horizontal {
-  position: absolute;
-  bottom: 8px;
-  left: 8px;
-  background: rgba(0, 0, 0, 0.35);
-  color: white;
-  padding: 3px 8px;
-  border-radius: 999px;
-  font-size: 9px;
-  backdrop-filter: blur(4px);
-  font-weight: 500;
-}
-
-/* Right Panel: Details */
-.sheet-horizontal-details {
+/* Details Panel */
+.sheet-details {
   flex: 1;
   min-width: 0;
   min-height: 0;
   display: flex;
   flex-direction: column;
-  padding: 12px 14px;
-  gap: 6px;
+  padding: 12px 0;
   overflow-y: auto;
 }
 
-.sheet-horizontal-details-inner {
+.sheet-details-inner {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 8px;
   overflow: visible;
 }
 
-.sheet-content-mid .sheet-horizontal-details-inner {
-  gap: 6px;
+.sheet-content-mid .sheet-details-inner {
+  gap: 10px;
 }
 
-.sheet-content-expanded .sheet-horizontal-details-inner {
-  gap: 8px;
+.sheet-content-expanded .sheet-details-inner {
+  gap: 12px;
 }
 
 /* Price */
-.sheet-horizontal-price {
-  font-size: 20px;
+.sheet-price {
+  font-size: 22px;
   font-weight: 700;
   color: #1E4A74;
   line-height: 1.2;
 }
 
-.sheet-content-collapsed .sheet-horizontal-price {
-  font-size: 20px;
-}
-
-.sheet-content-mid .sheet-horizontal-price {
+.sheet-content-collapsed .sheet-price {
   font-size: 22px;
 }
 
-.sheet-content-expanded .sheet-horizontal-price {
+.sheet-content-mid .sheet-price {
   font-size: 24px;
 }
 
+.sheet-content-expanded .sheet-price {
+  font-size: 26px;
+}
+
 /* Specs */
-.sheet-horizontal-specs {
-  font-size: 14px;
+.sheet-specs {
+  font-size: 15px;
   font-weight: 500;
   color: #6b7280;
   line-height: 1.4;
 }
 
-.sheet-content-mid .sheet-horizontal-specs,
-.sheet-content-expanded .sheet-horizontal-specs {
-  font-size: 15px;
+.sheet-content-mid .sheet-specs,
+.sheet-content-expanded .sheet-specs {
+  font-size: 16px;
 }
 
 /* Badge */
-.sheet-horizontal-badge {
+.sheet-badge {
   display: flex;
   align-items: center;
-  margin-top: 2px;
+  margin-top: 4px;
 }
 
 .sheet-fee-badge {
@@ -458,63 +470,63 @@ h6,
 }
 
 /* Location */
-.sheet-horizontal-location {
+.sheet-location {
   display: flex;
   align-items: flex-start;
-  gap: 6px;
+  gap: 8px;
   color: #9ca3af;
-  font-size: 13px;
-  line-height: 1.4;
-  margin-top: 2px;
-}
-
-.sheet-content-mid .sheet-horizontal-location,
-.sheet-content-expanded .sheet-horizontal-location {
   font-size: 14px;
+  line-height: 1.4;
+  margin-top: 4px;
 }
 
-.sheet-horizontal-location-text {
+.sheet-content-mid .sheet-location,
+.sheet-content-expanded .sheet-location {
+  font-size: 15px;
+}
+
+.sheet-location-text {
   overflow: hidden;
   text-overflow: ellipsis;
   display: -webkit-box;
-  -webkit-line-clamp: 2;
+  -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
   word-break: break-word;
 }
 
-.sheet-content-collapsed .sheet-horizontal-location-text {
+.sheet-content-collapsed .sheet-location-text {
   -webkit-line-clamp: 2;
 }
 
 /* Description (expanded only) */
-.sheet-horizontal-description {
-  margin-top: 8px;
+.sheet-description {
+  margin-top: 12px;
   padding-top: 12px;
   border-top: 1px solid #f3f4f6;
 }
 
-.sheet-horizontal-description p {
-  font-size: 13px;
+.sheet-description p {
+  font-size: 14px;
   color: #6b7280;
-  line-height: 1.5;
+  line-height: 1.6;
   overflow: hidden;
   text-overflow: ellipsis;
   display: -webkit-box;
-  -webkit-line-clamp: 4;
+  -webkit-line-clamp: 6;
   -webkit-box-orient: vertical;
 }
 
 /* Poster */
-.sheet-horizontal-poster {
+.sheet-poster {
   margin-top: auto;
-  padding-top: 12px;
-  font-size: 12px;
+  padding-top: 16px;
+  font-size: 13px;
   color: #9ca3af;
 }
 
-.sheet-content-mid .sheet-horizontal-poster,
-.sheet-content-expanded .sheet-horizontal-poster {
-  padding-top: 16px;
+.sheet-content-mid .sheet-poster,
+.sheet-content-expanded .sheet-poster {
+  padding-top: 20px;
   border-top: 1px solid #f3f4f6;
 }
 
@@ -552,87 +564,53 @@ h6,
 /* Mobile Breakpoint Optimizations */
 /* Extra small devices (320px - 374px) */
 @media (max-width: 374px) {
-  .sheet-horizontal-image {
-    width: 45%;
+  .floating-listing-image {
+    height: 160px;
   }
 
-  .sheet-horizontal-details {
-    width: 55%;
+  .sheet-price {
+    font-size: 18px;
   }
 
-  .sheet-horizontal-price {
-    font-size: 15px;
+  .sheet-content-collapsed .sheet-price {
+    font-size: 18px;
   }
 
-  .sheet-content-collapsed .sheet-horizontal-price {
-    font-size: 15px;
-  }
-
-  .sheet-content-mid .sheet-horizontal-price {
-    font-size: 19px;
-  }
-
-  .sheet-content-expanded .sheet-horizontal-price {
-    font-size: 22px;
-  }
-
-  .sheet-horizontal-specs {
-    font-size: 11px;
-  }
-
-  .sheet-horizontal-location {
-    font-size: 10px;
-  }
-}
-
-/* Small devices (375px - 413px) */
-@media (min-width: 375px) and (max-width: 413px) {
-  .sheet-horizontal-image img {
-    object-fit: contain;
-  }
-}
-
-/* Medium devices (414px - 767px) */
-@media (min-width: 414px) and (max-width: 767px) {
-  .sheet-horizontal-image img {
-    object-fit: contain;
-  }
-
-  .sheet-horizontal-price {
+  .sheet-content-mid .sheet-price {
     font-size: 20px;
   }
 
-  .sheet-content-collapsed .sheet-horizontal-price {
-    font-size: 20px;
-  }
-
-  .sheet-content-mid .sheet-horizontal-price {
+  .sheet-content-expanded .sheet-price {
     font-size: 22px;
   }
 
-  .sheet-content-expanded .sheet-horizontal-price {
-    font-size: 24px;
+  .sheet-specs {
+    font-size: 13px;
+  }
+
+  .sheet-location {
+    font-size: 12px;
   }
 }
 
 /* Landscape orientation adjustments for mobile */
 @media (max-height: 500px) and (orientation: landscape) {
-  .sheet-horizontal-image {
-    flex: 0 0 35%;
-  }
-
-  .sheet-horizontal-image img {
-    object-fit: contain;
+  .floating-listing-image {
+    height: 140px;
   }
 }
 
-/* Desktop and Tablet - Hide mobile sheet */
+/* Desktop and Tablet - Hide mobile sheet and floating image */
 @media (min-width: 768px) {
   .mobile-bottom-sheet-backdrop {
     display: none;
   }
 
   .mobile-bottom-sheet {
+    display: none;
+  }
+
+  .floating-listing-image {
     display: none;
   }
 }
