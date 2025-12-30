@@ -454,8 +454,10 @@ export function MobileBottomSheet({
               style={{
                 width: '100%',
                 height: '100%',
-                objectFit: 'cover',
-                display: 'block'
+                objectFit: 'contain',
+                display: 'block',
+                maxHeight: '100%',
+                maxWidth: '100%'
               }}
             />
             {isStock && (
