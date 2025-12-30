@@ -329,11 +329,13 @@ export function MobileBottomSheet({
 
   if (!listing || animationState === 'exited') return null;
 
-  const sortedImages = listing.listing_images?.sort((a, b) => {
-    if (a.is_featured && !b.is_featured) return -1;
-    if (!a.is_featured && b.is_featured) return 1;
-    return a.sort_order - b.sort_order;
-  });
+  const sortedImages = listing.listing_images
+    ?.filter((img) => img && img.image_url)
+    .sort((a, b) => {
+      if (a.is_featured && !b.is_featured) return -1;
+      if (!a.is_featured && b.is_featured) return 1;
+      return a.sort_order - b.sort_order;
+    });
 
   const { url: imageUrl, isStock } = computePrimaryListingImage(
     sortedImages,
