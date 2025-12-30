@@ -451,14 +451,6 @@ export function MobileBottomSheet({
             <img
               src={imageUrl}
               alt={isStock ? 'Stock photo' : listing.title}
-              style={{
-                width: '100%',
-                height: '100%',
-                objectFit: 'contain',
-                display: 'block',
-                maxHeight: '100%',
-                maxWidth: '100%'
-              }}
             />
             {isStock && (
               <div className="sheet-stock-badge-horizontal">

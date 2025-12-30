@@ -337,11 +337,11 @@ h6,
 
 /* Left Panel: Image */
 .sheet-horizontal-image {
-  flex: 0 0 45%;
-  aspect-ratio: 4 / 3;
+  flex: 0 0 55%;
+  align-self: stretch;
   position: relative;
   overflow: hidden;
-  background: #e5e7eb;
+  background: #f3f4f6;
   border-radius: 12px;
   display: flex;
   align-items: center;
@@ -350,11 +350,10 @@ h6,
 
 .sheet-horizontal-image img {
   width: 100%;
-  height: 100%;
-  object-fit: contain;
-  display: block;
+  height: auto;
   max-height: 100%;
-  max-width: 100%;
+  object-fit: cover;
+  display: block;
 }
 
 .sheet-stock-badge-horizontal {
@@ -377,6 +376,8 @@ h6,
   min-height: 0;
   display: flex;
   flex-direction: column;
+  padding: 12px 14px;
+  gap: 6px;
   overflow-y: auto;
 }
 
@@ -397,14 +398,14 @@ h6,
 
 /* Price */
 .sheet-horizontal-price {
-  font-size: 17px;
+  font-size: 20px;
   font-weight: 700;
   color: #1E4A74;
   line-height: 1.2;
 }
 
 .sheet-content-collapsed .sheet-horizontal-price {
-  font-size: 17px;
+  font-size: 20px;
 }
 
 .sheet-content-mid .sheet-horizontal-price {
@@ -412,19 +413,20 @@ h6,
 }
 
 .sheet-content-expanded .sheet-horizontal-price {
-  font-size: 26px;
+  font-size: 24px;
 }
 
 /* Specs */
 .sheet-horizontal-specs {
-  font-size: 12px;
+  font-size: 14px;
+  font-weight: 500;
   color: #6b7280;
   line-height: 1.4;
 }
 
 .sheet-content-mid .sheet-horizontal-specs,
 .sheet-content-expanded .sheet-horizontal-specs {
-  font-size: 13px;
+  font-size: 15px;
 }
 
 /* Badge */
@@ -460,15 +462,15 @@ h6,
   display: flex;
   align-items: flex-start;
   gap: 6px;
-  color: #6b7280;
-  font-size: 11px;
+  color: #9ca3af;
+  font-size: 13px;
   line-height: 1.4;
   margin-top: 2px;
 }
 
 .sheet-content-mid .sheet-horizontal-location,
 .sheet-content-expanded .sheet-horizontal-location {
-  font-size: 12px;
+  font-size: 14px;
 }
 
 .sheet-horizontal-location-text {
@@ -586,46 +588,41 @@ h6,
 /* Small devices (375px - 413px) */
 @media (min-width: 375px) and (max-width: 413px) {
   .sheet-horizontal-image img {
-    object-fit: contain;
+    object-fit: cover;
   }
 }
 
 /* Medium devices (414px - 767px) */
 @media (min-width: 414px) and (max-width: 767px) {
   .sheet-horizontal-image img {
-    object-fit: contain;
+    object-fit: cover;
   }
 
   .sheet-horizontal-price {
-    font-size: 19px;
+    font-size: 20px;
   }
 
   .sheet-content-collapsed .sheet-horizontal-price {
-    font-size: 19px;
+    font-size: 20px;
   }
 
   .sheet-content-mid .sheet-horizontal-price {
-    font-size: 24px;
+    font-size: 22px;
   }
 
   .sheet-content-expanded .sheet-horizontal-price {
-    font-size: 28px;
+    font-size: 24px;
   }
 }
 
 /* Landscape orientation adjustments for mobile */
 @media (max-height: 500px) and (orientation: landscape) {
   .sheet-horizontal-image {
-    width: 35%;
-  }
-
-  .sheet-horizontal-details {
-    width: 65%;
+    flex: 0 0 35%;
   }
 
   .sheet-horizontal-image img {
-    object-fit: contain;
-    max-height: 90%;
+    object-fit: cover;
   }
 }
 
