@@ -1333,6 +1333,37 @@ async getActiveRentalAgencies(): Promise<string[]> {
   return Array.from(new Set(names)).sort((a, b) => a.localeCompare(b));
 },
 
+async getInquiryCountsForUser(): Promise<Record<string, number>> {
+  const { data, error } = await supabase.rpc('get_owner_listing_inquiry_counts');
+
+  if (error) {
+    console.error('[svc] getInquiryCountsForUser RPC error:', error.message, error);
+    return {};
+  }
+
+  const counts: Record<string, number> = {};
+  (data ?? []).forEach((row: { listing_id: string; inquiry_count: number }) => {
+    counts[row.listing_id] = row.inquiry_count ?? 0;
+  });
+
+  return counts;
+},
+
+async getInquiriesForListing(listingId: string): Promise<{ user_name: string; user_phone: string; created_at: string }[]> {
+  const { data, error } = await supabase.rpc('get_listing_inquiries', { p_listing_id: listingId });
+
+  if (error) {
+    console.error('[svc] getInquiriesForListing RPC error:', error.message, error);
+    return [];
+  }
+
+  return (data ?? []).map((row: any) => ({
+    user_name: row.user_name ?? '',
+    user_phone: row.user_phone ?? '',
+    created_at: row.created_at ?? '',
+  }));
+},
+
   async getGlobalFeaturedCount(): Promise<number> {
     const { count, error } = await supabase
       .from('listings')

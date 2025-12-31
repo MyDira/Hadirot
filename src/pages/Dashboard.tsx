@@ -4,6 +4,7 @@ import {
   Edit,
   Eye,
   MousePointerClick,
+  MessageSquare,
   Star,
   Trash2,
   RefreshCw,
@@ -16,6 +17,7 @@ import { Listing } from "../config/supabase";
 import { listingsService } from "../services/listings";
 import { profilesService } from "../services/profiles";
 import { emailService } from "../services/email";
+import { InquiriesModal, Inquiry } from "../components/listing/InquiriesModal";
 
 export default function Dashboard() {
   const { user, profile, loading: authLoading, refreshProfile } = useAuth();
@@ -28,6 +30,12 @@ export default function Dashboard() {
   const [currentUserProfile, setCurrentUserProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [inquiryCounts, setInquiryCounts] = useState<Record<string, number>>({});
+  const [modalOpen, setModalOpen] = useState(false);
+  const [modalListingId, setModalListingId] = useState<string | null>(null);
+  const [modalListingTitle, setModalListingTitle] = useState<string>('');
+  const [modalInquiries, setModalInquiries] = useState<Inquiry[]>([]);
+  const [modalLoading, setModalLoading] = useState(false);
 
   useEffect(() => {
     if (user && !authLoading) {
@@ -71,7 +79,10 @@ export default function Dashboard() {
     if (!user) return;
 
     try {
-      const data = await listingsService.getUserListings(user.id);
+      const [data, counts] = await Promise.all([
+        listingsService.getUserListings(user.id),
+        listingsService.getInquiryCountsForUser(),
+      ]);
       console.debug(
         '[Dashboard] loaded listings with metrics',
         data.map((listing) => ({
@@ -81,6 +92,7 @@ export default function Dashboard() {
         })),
       );
       setListings(data);
+      setInquiryCounts(counts);
     } catch (error) {
       console.error("Error loading user listings:", error);
     } finally {
@@ -261,6 +273,30 @@ export default function Dashboard() {
     }
   };
 
+  const handleOpenInquiries = async (listingId: string, listingTitle: string) => {
+    setModalListingId(listingId);
+    setModalListingTitle(listingTitle);
+    setModalOpen(true);
+    setModalLoading(true);
+    setModalInquiries([]);
+
+    try {
+      const inquiries = await listingsService.getInquiriesForListing(listingId);
+      setModalInquiries(inquiries);
+    } catch (error) {
+      console.error('Error loading inquiries:', error);
+    } finally {
+      setModalLoading(false);
+    }
+  };
+
+  const handleCloseModal = () => {
+    setModalOpen(false);
+    setModalListingId(null);
+    setModalListingTitle('');
+    setModalInquiries([]);
+  };
+
   const formatPrice = (price: number | null) => {
     if (price == null) return "";
     return new Intl.NumberFormat("en-US", {
@@ -400,6 +436,9 @@ export default function Dashboard() {
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap" style={{ width: '120px' }}>
                       Direct Views
                     </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap" style={{ width: '100px' }}>
+                      Inquiries
+                    </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap" style={{ width: '140px' }}>
                       Status
                     </th>
@@ -466,6 +505,19 @@ export default function Dashboard() {
                                 : (listing.direct_views ?? 0).toLocaleString()}
                             </span>
                           </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          <button
+                            type="button"
+                            onClick={() => handleOpenInquiries(listing.id, listing.title)}
+                            className="flex items-center gap-1.5 hover:text-accent-600 transition-colors cursor-pointer"
+                            title="View inquiries"
+                          >
+                            <MessageSquare className="h-4 w-4 opacity-70" aria-hidden />
+                            <span className="hover:underline">
+                              {inquiryCounts[listing.id] ?? 0}
+                            </span>
+                          </button>
                         </td>
                         <td className="px-6 py-4">
                           <div className="flex flex-wrap items-center gap-1.5">
@@ -611,6 +663,14 @@ export default function Dashboard() {
           </div>
         )}
       </div>
+
+      <InquiriesModal
+        isOpen={modalOpen}
+        onClose={handleCloseModal}
+        listingTitle={modalListingTitle}
+        inquiries={modalInquiries}
+        loading={modalLoading}
+      />
     </div>
   );
 }

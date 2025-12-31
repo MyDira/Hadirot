@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { Phone } from 'lucide-react';
-import { supabase } from '@/config/supabase';
 
 interface ListingContactFormProps {
   listingId: string;
@@ -193,19 +193,16 @@ export function ListingContactForm({ listingId, onSuccess }: ListingContactFormP
         )}
       </div>
 
-      <div className="flex items-start">
-        <input
-          type="checkbox"
-          id="consentToFollowup"
-          checked={formData.consentToFollowup}
-          onChange={(e) => setFormData({ ...formData, consentToFollowup: e.target.checked })}
-          className="mt-1 h-4 w-4 text-[#273140] border-gray-300 rounded focus:ring-[#273140]"
-          disabled={loading}
-        />
-        <label htmlFor="consentToFollowup" className="ml-2 text-sm text-gray-600 leading-relaxed">
-          I'd like to receive updates and property information via WhatsApp
-        </label>
-      </div>
+      <p className="text-xs text-gray-500">
+        By submitting this form, you agree to our{' '}
+        <Link to="/terms" className="text-accent-600 hover:text-accent-700 underline">
+          Terms and Conditions
+        </Link>{' '}
+        and{' '}
+        <Link to="/privacy" className="text-accent-600 hover:text-accent-700 underline">
+          Privacy Policy
+        </Link>.
+      </p>
 
       {error && (
         <div className="bg-red-50 border border-red-200 rounded-md p-3">
