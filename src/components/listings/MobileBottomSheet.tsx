@@ -336,6 +336,18 @@ export function MobileBottomSheet({
     };
   }, []);
 
+  // Calculate translateY based on snap position and drag
+  const getTranslateY = useCallback(() => {
+    if (animationState === 'exiting' || snapPosition === 'closed') {
+      return snapHeights.expanded;
+    }
+
+    const baseHeight = snapHeights[snapPosition];
+    const baseTranslate = snapHeights.expanded - baseHeight;
+
+    return baseTranslate + dragY;
+  }, [animationState, snapPosition, snapHeights, dragY]);
+
   // Report state changes to parent for floating image synchronization
   useEffect(() => {
     if (onStateChange) {
@@ -348,7 +360,7 @@ export function MobileBottomSheet({
         expandedHeight: snapHeights.expanded,
       });
     }
-  }, [snapPosition, dragY, isDragging, animationState, onStateChange]);
+  }, [snapPosition, dragY, isDragging, animationState, onStateChange, getTranslateY, snapHeights.expanded]);
 
   if (!listing || animationState === 'exited') return null;
 
@@ -377,18 +389,6 @@ export function MobileBottomSheet({
         : `${listing.bedrooms}`;
 
   const shouldShowSheet = animationState === 'entering' || animationState === 'entered';
-
-  // Calculate translateY based on snap position and drag
-  const getTranslateY = () => {
-    if (animationState === 'exiting' || snapPosition === 'closed') {
-      return snapHeights.expanded;
-    }
-
-    const baseHeight = snapHeights[snapPosition];
-    const baseTranslate = snapHeights.expanded - baseHeight;
-
-    return baseTranslate + dragY;
-  };
 
   const translateY = getTranslateY();
 
