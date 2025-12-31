@@ -35,7 +35,7 @@ export function InternalAnalytics() {
   const isAdmin = profile?.is_admin === true;
 
   const [activeTab, setActiveTab] = useState<TabId>('traffic');
-  const [dateRange, setDateRange] = useState<DateRange>(7);
+  const [dateRange, setDateRange] = useState<DateRange>(1);
   const [dataLoading, setDataLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [drilldownListingId, setDrilldownListingId] = useState<string | null>(null);

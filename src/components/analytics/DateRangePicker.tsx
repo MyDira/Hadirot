@@ -1,6 +1,6 @@
 import React from 'react';
 
-export type DateRange = 7 | 14 | 30;
+export type DateRange = 1 | 7 | 14 | 30;
 
 interface DateRangePickerProps {
   value: DateRange;
@@ -8,7 +8,7 @@ interface DateRangePickerProps {
 }
 
 export function DateRangePicker({ value, onChange }: DateRangePickerProps) {
-  const options: DateRange[] = [7, 14, 30];
+  const options: DateRange[] = [1, 7, 14, 30];
 
   return (
     <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
@@ -22,7 +22,7 @@ export function DateRangePicker({ value, onChange }: DateRangePickerProps) {
               : 'text-gray-600 hover:text-gray-900'
           }`}
         >
-          {option}d
+          {option === 1 ? '24h' : `${option}d`}
         </button>
       ))}
     </div>
