@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useCallback } from "react";
+import React, { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { X } from "lucide-react";
 import { Listing } from "../../config/supabase";
 import { formatPrice, capitalizeName } from "../../utils/formatters";
@@ -60,11 +60,12 @@ export function MobileBottomSheet({
   const animationFrameRef = useRef<number | null>(null);
   const [backdropOpacity, setBackdropOpacity] = useState(0.08);
 
-  // Calculate snap point heights based on viewport
-  const getSnapHeights = useCallback(() => {
-    const viewportHeight = window.innerHeight;
-    const safeAreaBottom = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--sab') || '0');
+  const onStateChangeRef = useRef(onStateChange);
+  onStateChangeRef.current = onStateChange;
 
+  // Calculate snap point heights based on viewport (memoized to prevent infinite loops)
+  const snapHeights = useMemo(() => {
+    const viewportHeight = window.innerHeight;
     return {
       collapsed: viewportHeight * 0.25,
       mid: viewportHeight * 0.50,
@@ -73,7 +74,7 @@ export function MobileBottomSheet({
     };
   }, []);
 
-  const snapHeights = getSnapHeights();
+  const getSnapHeights = useCallback(() => snapHeights, [snapHeights]);
 
   // Calculate backdrop opacity based on position
   const calculateBackdropOpacity = useCallback((position: SnapPosition, dragOffset: number = 0) => {
@@ -350,9 +351,17 @@ export function MobileBottomSheet({
 
   // Report state changes to parent for floating image synchronization
   useEffect(() => {
-    if (onStateChange) {
-      const translateY = getTranslateY();
-      onStateChange({
+    const callback = onStateChangeRef.current;
+    if (callback) {
+      let translateY: number;
+      if (animationState === 'exiting' || snapPosition === 'closed') {
+        translateY = snapHeights.expanded;
+      } else {
+        const baseHeight = snapHeights[snapPosition];
+        const baseTranslate = snapHeights.expanded - baseHeight;
+        translateY = baseTranslate + dragY;
+      }
+      callback({
         snapPosition,
         translateY,
         isDragging,
@@ -360,7 +369,7 @@ export function MobileBottomSheet({
         expandedHeight: snapHeights.expanded,
       });
     }
-  }, [snapPosition, dragY, isDragging, animationState, onStateChange, getTranslateY, snapHeights.expanded]);
+  }, [snapPosition, dragY, isDragging, animationState, snapHeights]);
 
   if (!listing || animationState === 'exited') return null;
 

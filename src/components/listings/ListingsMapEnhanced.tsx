@@ -425,7 +425,18 @@ export function ListingsMapEnhanced({
   }, [navigate, onMarkerClick]);
 
   const handleSheetStateChange = useCallback((state: SheetState) => {
-    setSheetState(state);
+    setSheetState(prev => {
+      if (
+        prev.snapPosition === state.snapPosition &&
+        prev.translateY === state.translateY &&
+        prev.isDragging === state.isDragging &&
+        prev.animationState === state.animationState &&
+        prev.expandedHeight === state.expandedHeight
+      ) {
+        return prev;
+      }
+      return state;
+    });
   }, []);
 
   const updatePopupPosition = useCallback(() => {
