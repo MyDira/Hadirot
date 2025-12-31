@@ -53,6 +53,7 @@ import { ImageZoomModal } from "../components/listing/ImageZoomModal";
 import { ListingContactForm } from "../components/listing/ListingContactForm";
 import { AdminListingBanner } from "../components/listing/AdminListingBanner";
 import { formatLeaseLength } from "../utils/formatters";
+import { ListingLocationMap } from "../components/listing/ListingLocationMap";
 
 const SCROLL_THRESHOLDS = [25, 50, 75, 100] as const;
 
@@ -580,6 +581,19 @@ export function ListingDetail() {
               <p className="text-gray-700 leading-relaxed whitespace-pre-wrap">
                 {listing.description}
               </p>
+            </section>
+          )}
+
+          {listing.latitude && listing.longitude && (
+            <section id="ld-location-map" className="mt-8">
+              <h2 className="text-2xl font-bold text-[#273140] mb-4">
+                Location
+              </h2>
+              <ListingLocationMap
+                latitude={listing.latitude}
+                longitude={listing.longitude}
+                className="h-[300px]"
+              />
             </section>
           )}
         </div>
@@ -1236,6 +1250,20 @@ export function ListingDetail() {
               <p className="text-gray-700 leading-relaxed whitespace-pre-wrap">
                 {listing.description}
               </p>
+            </section>
+          )}
+
+          {/* Mobile Location Map - Ninth on mobile (before similar listings) */}
+          {listing.latitude && listing.longitude && (
+            <section id="ld-location-map-mobile" className="lg:hidden order-9 mt-6">
+              <h2 className="text-2xl font-bold text-[#273140] mb-4">
+                Location
+              </h2>
+              <ListingLocationMap
+                latitude={listing.latitude}
+                longitude={listing.longitude}
+                className="h-[260px]"
+              />
             </section>
           )}
 
