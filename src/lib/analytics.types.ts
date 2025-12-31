@@ -9,6 +9,7 @@ export type AnalyticsEventName =
   | 'agency_page_view'
   | 'agency_filter_apply'
   | 'agency_share'
+  | 'phone_click'
   | 'post_started'
   | 'post_submitted'
   | 'post_success'

@@ -427,6 +427,11 @@ export function trackAgencyShare(agencyId: string): void {
   track('agency_share', { agency_id: agencyId });
 }
 
+export function trackPhoneClick(listingId: string): void {
+  if (!listingId) return;
+  track('phone_click', { listing_id: listingId });
+}
+
 function getPostingSession(): { attemptId: string; sessionId: string } {
   const sessionId = ensureSession(Date.now());
   let attemptId = safeSessionGet(POST_ATTEMPT_KEY);
@@ -589,6 +594,7 @@ export default {
   trackAgencyPageView,
   trackAgencyFilterApply,
   trackAgencyShare,
+  trackPhoneClick,
   ensurePostAttempt,
   trackPostStart,
   trackPostSubmit,
