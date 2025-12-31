@@ -67,18 +67,19 @@ export function BrowseSales() {
   const [isSearchingArea, setIsSearchingArea] = useState(false);
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [isLocating, setIsLocating] = useState(false);
-  const [searchLocation, setSearchLocation] = useState<LocationResult | null>(null);
-  const [searchBounds, setSearchBounds] = useState<MapBounds | null>(null);
   const [showSortDropdown, setShowSortDropdown] = useState(false);
   const sortDropdownRef = useRef<HTMLDivElement>(null);
   const listingsContainerRef = useRef<HTMLDivElement>(null);
-  const searchBarRef = useRef<SmartSearchBarRef>(null);
+  const searchBarDesktopRef = useRef<SmartSearchBarRef>(null);
+  const searchBarMobileRef = useRef<SmartSearchBarRef>(null);
   const [centerOnListings, setCenterOnListings] = useState<{ lat: number; lng: number; zoom: number } | null>(null);
   const [shouldPreserveMapPosition, setShouldPreserveMapPosition] = useState(false);
   const [isFilterClearing, setIsFilterClearing] = useState(false);
+  const [previousListingIds, setPreviousListingIds] = useState<Set<string>>(new Set());
+  const [showCardAnimations, setShowCardAnimations] = useState(false);
+  const preserveMapRef = useRef(false);
   const [shouldFitBounds, setShouldFitBounds] = useState(false);
   const [fitBoundsToAllPins, setFitBoundsToAllPins] = useState(false);
-  const preserveMapRef = useRef(false);
   const { user } = useAuth();
   const { filters, currentPage, updateFilters, updatePage, markNavigatingToDetail, isReady } = useBrowseFilters('sales');
 
@@ -92,11 +93,8 @@ export function BrowseSales() {
   const totalPages = Math.ceil(totalCount / NUM_STANDARD_SLOTS_PER_PAGE);
 
   const filteredListingsForMap = useMemo(() => {
-    const filtersWithBounds = searchBounds
-      ? { ...filters, searchBounds } as FilterStateFromUtils
-      : filters as FilterStateFromUtils;
-    return applyFilters(allListingsForMap, filtersWithBounds);
-  }, [allListingsForMap, filters, searchBounds]);
+    return applyFilters(allListingsForMap, filters as FilterStateFromUtils);
+  }, [allListingsForMap, filters]);
 
   const pinsFromListings = useMemo((): MapPin[] => {
     return filteredListingsForMap
@@ -156,17 +154,20 @@ export function BrowseSales() {
     if (!isReady) return;
     loadListings();
     loadNeighborhoods();
-  }, [filters, currentPage, user, isReady, searchBounds]);
+  }, [filters, currentPage, user, isReady]);
 
   const loadListings = async () => {
     try {
+      const currentIds = new Set(displayListings.map(l => l.id));
+      setPreviousListingIds(currentIds);
+
       setLoading(true);
 
-      const { no_fee_only, ...restFilters } = filters;
+      const { no_fee_only, searchBounds: filterBounds, searchLocationName, ...restFilters } = filters;
       const serviceFilters = {
         ...restFilters,
         noFeeOnly: no_fee_only,
-        bounds: searchBounds || undefined,
+        bounds: filterBounds || undefined,
       };
 
       const { totalCount: actualTotalCount } = await listingsService.getSaleListings(
@@ -284,11 +285,10 @@ export function BrowseSales() {
 
       setAllListingsForMap(allData || []);
 
-      if (!shouldPreserveMapPosition && !searchBounds) {
+      if (!preserveMapRef.current && !filters.searchBounds) {
         const geoCenter = calculateGeographicCenter(allData || []);
         if (geoCenter) {
           setCenterOnListings(geoCenter);
-          // Clear after use to prevent stale values
           setTimeout(() => {
             setCenterOnListings(null);
           }, 1500);
@@ -300,6 +300,14 @@ export function BrowseSales() {
     } finally {
       setLoading(false);
       setIsSearchingArea(false);
+
+      if (isFilterClearing) {
+        setShowCardAnimations(true);
+        setTimeout(() => {
+          setShowCardAnimations(false);
+          setIsFilterClearing(false);
+        }, 1600);
+      }
     }
   };
 
@@ -329,10 +337,10 @@ export function BrowseSales() {
       setFitBoundsToAllPins(false);
     }
 
-    // If clearing all filters, also clear the search bar
     const isClearingAll = Object.keys(newFilters).length === 0;
-    if (isClearingAll && searchBarRef.current) {
-      searchBarRef.current.clearSearch();
+    if (isClearingAll) {
+      searchBarDesktopRef.current?.clearSearch();
+      searchBarMobileRef.current?.clearSearch();
     }
 
     gaEvent("filter_apply", {
@@ -368,34 +376,47 @@ export function BrowseSales() {
 
   const handleMapBoundsChange = useCallback((bounds: MapBounds, zoomLevel: number) => {
     setMapBounds(bounds);
-    if (zoomLevel >= 14) {
-      setIsSearchingArea(true);
-      loadListings(bounds);
-    } else {
-      setShowSearchAreaButton(true);
-    }
-  }, [filters, user]);
+    setShowSearchAreaButton(true);
+  }, []);
 
   const handleSearchThisArea = () => {
     if (mapBounds) {
       setIsSearchingArea(true);
       setShowSearchAreaButton(false);
-      setSearchBounds(mapBounds);
-      setSearchLocation({ name: 'Custom area', type: 'custom' } as LocationResult);
+      preserveMapRef.current = true;
+      setShouldPreserveMapPosition(true);
+      updateFilters({
+        ...filters,
+        searchBounds: mapBounds,
+        searchLocationName: 'Search Area',
+      });
+      setTimeout(() => {
+        preserveMapRef.current = false;
+        setShouldPreserveMapPosition(false);
+      }, 500);
     }
   };
 
-  const handleClearAreaSearch = () => {
-    setSearchBounds(null);
-    setSearchLocation(null);
+  const handleClearAreaSearch = useCallback(() => {
+    preserveMapRef.current = true;
+    setShouldPreserveMapPosition(true);
+    const { searchBounds: _, searchLocationName: __, ...restFilters } = filters;
+    updateFilters(restFilters);
     setShowSearchAreaButton(false);
-  };
+    setIsSearchingArea(false);
+    setMapBounds(null);
+    setTimeout(() => {
+      preserveMapRef.current = false;
+      setShouldPreserveMapPosition(false);
+    }, 500);
+  }, [filters, updateFilters]);
 
   const handleResetMap = () => {
     setMapBounds(null);
-    setSearchBounds(null);
-    setSearchLocation(null);
+    const { searchBounds: _, searchLocationName: __, ...restFilters } = filters;
+    updateFilters(restFilters);
     setShowSearchAreaButton(false);
+    setIsSearchingArea(false);
   };
 
   const handleGetUserLocation = () => {
@@ -512,9 +533,9 @@ export function BrowseSales() {
     }
 
     if (location) {
-      setSearchLocation(location);
       if (location.bounds) {
-        setSearchBounds(location.bounds);
+        newFilters.searchBounds = location.bounds;
+        newFilters.searchLocationName = location.name;
       }
     }
 
@@ -533,16 +554,18 @@ export function BrowseSales() {
   }, [filters, updateFilters]);
 
   const handleSearchClear = useCallback(() => {
+    preserveMapRef.current = true;
     setShouldPreserveMapPosition(true);
-    setSearchLocation(null);
-    setSearchBounds(null);
     setMapBounds(null);
     setShowSearchAreaButton(false);
+    setIsSearchingArea(false);
+    setCenterOnListings(null);
     updateFilters({});
 
     setTimeout(() => {
+      preserveMapRef.current = false;
       setShouldPreserveMapPosition(false);
-    }, 500);
+    }, 2000);
   }, [updateFilters]);
 
   useEffect(() => {
@@ -619,38 +642,41 @@ export function BrowseSales() {
 
   const renderListingCards = () => (
     <div className="grid grid-cols-2 gap-3">
-      {displayListings.map((listing, idx) => (
-        <div
-          key={listing.key}
-          id={`listing-card-${listing.id}`}
-          className={`transition-all duration-200 ${
-            hoveredListingId === listing.id || selectedListingId === listing.id
-              ? 'ring-2 ring-brand-500 rounded-lg'
-              : ''
-          }`}
-          onMouseEnter={() => handleListingHover(listing.id)}
-          onMouseLeave={() => handleListingHover(null)}
-          ref={(el) => {
-            if (el) {
-              observeElement(el, listing.id);
-            } else {
-              const existingEl = document.querySelector(`[data-listing-id="${listing.id}"]`);
-              if (existingEl) {
-                unobserveElement(existingEl);
+      {displayListings.map((listing, idx) => {
+        const isNewListing = showCardAnimations && !previousListingIds.has(listing.id);
+        return (
+          <div
+            key={listing.key}
+            id={`listing-card-${listing.id}`}
+            className={`transition-all duration-200 ${
+              hoveredListingId === listing.id || selectedListingId === listing.id
+                ? 'ring-2 ring-brand-500 rounded-lg'
+                : ''
+            } ${isNewListing ? 'animate-new-card' : ''}`}
+            onMouseEnter={() => handleListingHover(listing.id)}
+            onMouseLeave={() => handleListingHover(null)}
+            ref={(el) => {
+              if (el) {
+                observeElement(el, listing.id);
+              } else {
+                const existingEl = document.querySelector(`[data-listing-id="${listing.id}"]`);
+                if (existingEl) {
+                  unobserveElement(existingEl);
+                }
               }
-            }
-          }}
-        >
-          <ListingCard
-            listing={listing}
-            isFavorited={userFavorites.includes(listing.id)}
-            onFavoriteChange={handleFavoriteChange}
-            showFeaturedBadge={listing.showFeaturedBadge}
-            onClick={() => handleCardClick(listing, idx)}
-            onNavigateToDetail={markNavigatingToDetail}
-          />
-        </div>
-      ))}
+            }}
+          >
+            <ListingCard
+              listing={listing}
+              isFavorited={userFavorites.includes(listing.id)}
+              onFavoriteChange={handleFavoriteChange}
+              showFeaturedBadge={listing.showFeaturedBadge}
+              onClick={() => handleCardClick(listing, idx)}
+              onNavigateToDetail={markNavigatingToDetail}
+            />
+          </div>
+        );
+      })}
     </div>
   );
 
@@ -761,23 +787,27 @@ export function BrowseSales() {
           />
         </svg>
       </div>
-      <h3 className="text-lg font-medium text-gray-900 mb-2">
-        {searchLocation
-          ? `No properties found in ${searchLocation.name}`
-          : "No properties found"}
-      </h3>
-      <p className="text-gray-500">
-        {searchLocation
-          ? "Try expanding your search to nearby areas or adjusting your filters."
-          : "Try adjusting your filters to see more results."}
-      </p>
-      {searchLocation && (
-        <button
-          onClick={handleSearchClear}
-          className="mt-4 px-4 py-2 bg-brand-600 text-white rounded-lg hover:bg-brand-700 transition-colors text-sm font-medium"
-        >
-          Clear search
-        </button>
+      {filters.searchLocationName ? (
+        <>
+          <h3 className="text-lg font-medium text-gray-900 mb-2">
+            No properties in {filters.searchLocationName}
+          </h3>
+          <p className="text-gray-500 mb-4">
+            We don't have any properties in this area yet. Try expanding your search or adjusting filters.
+          </p>
+          <button
+            onClick={handleSearchClear}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-brand-700 text-white rounded-lg text-sm font-medium hover:bg-brand-800 transition-colors"
+          >
+            <RotateCcw className="w-4 h-4" />
+            Clear search
+          </button>
+        </>
+      ) : (
+        <>
+          <h3 className="text-lg font-medium text-gray-900 mb-2">No properties found</h3>
+          <p className="text-gray-500">Try adjusting your filters to see more results.</p>
+        </>
       )}
     </div>
   );
@@ -791,7 +821,7 @@ export function BrowseSales() {
           <div className="hidden md:flex items-center gap-4 mb-3">
             <div className="w-[400px] flex-shrink-0">
               <SmartSearchBar
-                ref={searchBarRef}
+                ref={searchBarDesktopRef}
                 onSearch={handleSmartSearch}
                 onClear={handleSearchClear}
                 placeholder="Try: Park Slope 3 bed under 1M"
@@ -801,7 +831,10 @@ export function BrowseSales() {
               <ListingFiltersHorizontal
                 filters={filters}
                 onFiltersChange={handleFiltersChange}
-                onSearchClear={() => searchBarRef.current?.clearSearch()}
+                onSearchClear={() => {
+                  searchBarDesktopRef.current?.clearSearch();
+                  searchBarMobileRef.current?.clearSearch();
+                }}
                 agencies={agencies}
                 allNeighborhoods={allNeighborhoods}
                 listingType="sale"
@@ -817,7 +850,7 @@ export function BrowseSales() {
           <div className="md:hidden space-y-3">
             {/* Search bar */}
             <SmartSearchBar
-              ref={searchBarRef}
+              ref={searchBarMobileRef}
               onSearch={handleSmartSearch}
               onClear={handleSearchClear}
               placeholder="Search location, beds, price..."
@@ -827,20 +860,10 @@ export function BrowseSales() {
             <div>
               <h1 className="text-lg font-bold text-brand-900 flex items-center gap-2 flex-wrap">
                 Browse Properties for Sale
-                {searchLocation?.type === 'custom' && (
-                  <button
-                    onClick={handleClearAreaSearch}
-                    className="inline-flex items-center gap-1 px-2 py-0.5 bg-gray-100 hover:bg-gray-200 rounded-full text-xs font-medium text-gray-600 transition-colors"
-                    title="Clear area search"
-                  >
-                    <X className="w-3 h-3" />
-                    Clear area
-                  </button>
-                )}
               </h1>
               <p className="text-sm text-gray-500">
                 {loading ? "Loading..." : `${totalCount.toLocaleString()} available`}
-                {searchLocation && ` in ${searchLocation.name}`}
+                {filters.searchLocationName && ` in ${filters.searchLocationName}`}
               </p>
             </div>
 
@@ -896,7 +919,10 @@ export function BrowseSales() {
                   handleFiltersChange(newFilters);
                   setShowFiltersMobile(false);
                 }}
-                onSearchClear={() => searchBarRef.current?.clearSearch()}
+                onSearchClear={() => {
+                  searchBarDesktopRef.current?.clearSearch();
+                  searchBarMobileRef.current?.clearSearch();
+                }}
                 agencies={agencies}
                 allNeighborhoods={allNeighborhoods}
                 isMobile={true}
@@ -922,20 +948,17 @@ export function BrowseSales() {
                 <div className="hidden md:flex items-center justify-between mb-4 pb-4 border-b border-gray-200">
                   <div>
                     <h1 className="text-lg font-bold text-brand-900 flex items-center gap-2">
-                      {searchLocation ? `Homes for Sale in ${searchLocation.name}` : 'Homes for Sale'}
-                      {searchLocation?.type === 'custom' && (
-                        <button
-                          onClick={handleClearAreaSearch}
-                          className="inline-flex items-center gap-1 px-2 py-0.5 bg-gray-100 hover:bg-gray-200 rounded-full text-xs font-medium text-gray-600 transition-colors"
-                          title="Clear area search"
-                        >
-                          <X className="w-3 h-3" />
-                          Clear
-                        </button>
-                      )}
+                      {filters.searchLocationName ? `Homes for Sale in ${filters.searchLocationName}` : 'Homes for Sale'}
                     </h1>
-                    <p className="text-sm text-gray-500">
-                      {loading ? "Loading..." : `${totalCount.toLocaleString()} properties available`}
+                    <p className="text-sm text-gray-500 flex items-center gap-2">
+                      {loading ? (
+                        <>
+                          Loading...
+                          <span className="inline-block w-3 h-3 border-2 border-green-600 border-t-transparent rounded-full spinner-rotate"></span>
+                        </>
+                      ) : (
+                        `${totalCount.toLocaleString()} properties available`
+                      )}
                     </p>
                   </div>
 
@@ -974,21 +997,26 @@ export function BrowseSales() {
                   </div>
                 </div>
 
-                {loading ? (
-                  renderLoadingState()
-                ) : displayListings.length === 0 ? (
-                  renderEmptyState()
-                ) : (
-                  <>
-                    {renderListingCards()}
-                    {renderPagination()}
-                  </>
-                )}
+                <div className={`relative ${loading && !isFilterClearing ? '' : ''}`}>
+                  {loading && !isFilterClearing && (
+                    <div className="absolute inset-0 bg-white bg-opacity-50 z-10 pointer-events-none"></div>
+                  )}
+                  {loading && displayListings.length === 0 ? (
+                    renderLoadingState()
+                  ) : displayListings.length === 0 ? (
+                    renderEmptyState()
+                  ) : (
+                    <>
+                      {renderListingCards()}
+                      {renderPagination()}
+                    </>
+                  )}
+                </div>
               </div>
             </div>
 
             {/* Map Panel */}
-            <div className="hidden lg:block flex-1 h-full relative">
+            <div className="hidden lg:block flex-1 h-full relative overflow-hidden" style={{ isolation: 'isolate' }}>
               {/* Map Controls Overlay */}
               <div className="absolute top-4 left-4 z-10 flex flex-col gap-2">
                 {showSearchAreaButton && !isSearchingArea && (
@@ -1041,19 +1069,20 @@ export function BrowseSales() {
                 onMapClick={handleMapClick}
                 onBoundsChange={handleMapBoundsChange}
                 userLocation={userLocation}
-                searchBounds={searchBounds}
-                searchLocationName={searchLocation?.name}
+                searchBounds={filters.searchBounds}
+                searchLocationName={filters.searchLocationName}
                 centerOnListings={centerOnListings}
                 shouldPreservePosition={shouldPreserveMapPosition}
+                isLoading={loading && isFilterClearing}
                 shouldFitBounds={shouldFitBounds}
                 fitBoundsToAllPins={fitBoundsToAllPins}
                 onFitBoundsComplete={handleFitBoundsComplete}
               />
 
               {/* Listing count badge */}
-              <div className="absolute bottom-4 left-4 bg-white px-3 py-1.5 rounded-full shadow-md text-sm text-gray-600 border border-gray-200">
+              <div className="absolute bottom-4 left-4 z-[5] bg-white px-3 py-1.5 rounded-full shadow-md text-sm text-gray-600 border border-gray-200">
                 {visiblePinIds.size} propert{visiblePinIds.size !== 1 ? "ies" : "y"} on map
-                {searchLocation && ` in ${searchLocation.name}`}
+                {filters.searchLocationName && ` in ${filters.searchLocationName}`}
               </div>
             </div>
           </div>
@@ -1140,7 +1169,7 @@ export function BrowseSales() {
           </div>
         ) : (
           /* Map Only View */
-          <div className="h-full relative">
+          <div className="h-full relative overflow-hidden" style={{ isolation: 'isolate' }}>
             {/* Map Controls */}
             <div className="absolute top-4 left-4 z-10 flex flex-col gap-2">
               {showSearchAreaButton && !isSearchingArea && (
@@ -1182,7 +1211,7 @@ export function BrowseSales() {
               </button>
             </div>
 
-            {loading ? (
+            {loading && displayListings.length === 0 ? (
               <div className="h-full bg-gray-100 flex items-center justify-center">
                 <div className="text-center">
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-700 mx-auto mb-3"></div>
@@ -1201,20 +1230,23 @@ export function BrowseSales() {
                 onMapClick={handleMapClick}
                 onBoundsChange={handleMapBoundsChange}
                 userLocation={userLocation}
-                searchBounds={searchBounds}
-                searchLocationName={searchLocation?.name}
+                searchBounds={filters.searchBounds}
+                searchLocationName={filters.searchLocationName}
                 centerOnListings={centerOnListings}
                 shouldPreservePosition={shouldPreserveMapPosition}
+                isLoading={loading && isFilterClearing}
                 shouldFitBounds={shouldFitBounds}
                 fitBoundsToAllPins={fitBoundsToAllPins}
                 onFitBoundsComplete={handleFitBoundsComplete}
               />
             )}
 
-            <div className="absolute bottom-4 left-4 bg-white px-3 py-1.5 rounded-full shadow-md text-sm text-gray-600 border border-gray-200">
-              {visiblePinIds.size} propert{visiblePinIds.size !== 1 ? "ies" : "y"} on map
-              {searchLocation && ` in ${searchLocation.name}`}
-            </div>
+            {!(isMobileDevice() && selectedListingId) && (
+              <div className="absolute bottom-4 left-4 z-[5] bg-white px-3 py-1.5 rounded-full shadow-md text-sm text-gray-600 border border-gray-200">
+                {visiblePinIds.size} propert{visiblePinIds.size !== 1 ? "ies" : "y"} on map
+                {filters.searchLocationName && ` in ${filters.searchLocationName}`}
+              </div>
+            )}
           </div>
         )}
       </div>
