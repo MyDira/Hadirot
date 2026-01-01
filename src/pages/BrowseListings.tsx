@@ -1142,6 +1142,8 @@ export function BrowseListings() {
                 shouldFitBounds={shouldFitBounds}
                 fitBoundsToAllPins={fitBoundsToAllPins}
                 onFitBoundsComplete={handleFitBoundsComplete}
+                userFavorites={userFavorites}
+                onFavoriteChange={handleFavoriteChange}
               />
 
               {/* Listing count badge */}
@@ -1303,6 +1305,8 @@ export function BrowseListings() {
                 shouldFitBounds={shouldFitBounds}
                 fitBoundsToAllPins={fitBoundsToAllPins}
                 onFitBoundsComplete={handleFitBoundsComplete}
+                userFavorites={userFavorites}
+                onFavoriteChange={handleFavoriteChange}
               />
             )}
 

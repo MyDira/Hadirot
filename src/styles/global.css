@@ -600,6 +600,238 @@ h6,
   }
 }
 
+/* ============================================
+   Mobile Map Listing Popup (New Fixed-Height Card)
+   ============================================ */
+
+.mobile-map-popup-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background-color: rgba(0, 0, 0, 0);
+  pointer-events: none;
+  transition: background-color 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.mobile-map-popup-backdrop.backdrop-visible {
+  background-color: rgba(0, 0, 0, 0.25);
+  pointer-events: auto;
+}
+
+.mobile-map-popup-backdrop.backdrop-hidden {
+  background-color: rgba(0, 0, 0, 0);
+  pointer-events: none;
+}
+
+.mobile-map-popup {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: white;
+  border-radius: 16px 16px 0 0;
+  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.15);
+  padding: 12px;
+  padding-bottom: calc(12px + env(safe-area-inset-bottom));
+  transform: translateY(100%);
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  pointer-events: auto;
+  z-index: 1001;
+}
+
+.mobile-map-popup.popup-visible {
+  transform: translateY(0);
+}
+
+.mobile-map-popup.popup-hidden {
+  transform: translateY(100%);
+}
+
+.mobile-map-popup-close {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: white;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #6b7280;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+  transition: all 0.15s ease;
+  z-index: 10;
+  touch-action: manipulation;
+}
+
+.mobile-map-popup-close:hover {
+  background: #f3f4f6;
+  color: #1f2937;
+}
+
+.mobile-map-popup-close:active {
+  transform: scale(0.95);
+}
+
+.mobile-map-popup-content {
+  display: flex;
+  gap: 12px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.mobile-map-popup-image {
+  width: 120px;
+  height: 100px;
+  flex-shrink: 0;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #f3f4f6;
+  position: relative;
+}
+
+.mobile-map-popup-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.mobile-map-popup-stock-badge {
+  position: absolute;
+  bottom: 4px;
+  left: 4px;
+  background: rgba(0, 0, 0, 0.5);
+  color: white;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 9px;
+  font-weight: 500;
+}
+
+.mobile-map-popup-details {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  padding-right: 28px;
+}
+
+.mobile-map-popup-price {
+  font-size: 20px;
+  font-weight: 700;
+  color: #1E4A74;
+  line-height: 1.2;
+}
+
+.mobile-map-popup-specs {
+  font-size: 14px;
+  font-weight: 500;
+  color: #4b5563;
+  line-height: 1.3;
+}
+
+.mobile-map-popup-location {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: #9ca3af;
+  font-size: 13px;
+  line-height: 1.3;
+}
+
+.mobile-map-popup-location .truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mobile-map-popup-poster {
+  font-size: 12px;
+  color: #9ca3af;
+  margin-top: 2px;
+}
+
+.mobile-map-popup-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.mobile-map-popup-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 12px 16px;
+  background: #22c55e;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  min-height: 44px;
+}
+
+.mobile-map-popup-btn:hover {
+  background: #16a34a;
+}
+
+.mobile-map-popup-btn:active {
+  transform: scale(0.98);
+  background: #15803d;
+}
+
+/* Extra small devices */
+@media (max-width: 374px) {
+  .mobile-map-popup-image {
+    width: 100px;
+    height: 85px;
+  }
+
+  .mobile-map-popup-price {
+    font-size: 18px;
+  }
+
+  .mobile-map-popup-specs {
+    font-size: 13px;
+  }
+
+  .mobile-map-popup-location {
+    font-size: 12px;
+  }
+
+  .mobile-map-popup-btn {
+    padding: 10px 12px;
+    font-size: 13px;
+  }
+}
+
+/* Desktop and Tablet - Hide mobile popup */
+@media (min-width: 768px) {
+  .mobile-map-popup-backdrop {
+    display: none;
+  }
+
+  .mobile-map-popup {
+    display: none;
+  }
+}
+
+/* ============================================
+   Legacy Mobile Bottom Sheet (deprecated)
+   ============================================ */
+
 /* Desktop and Tablet - Hide mobile sheet and floating image */
 @media (min-width: 768px) {
   .mobile-bottom-sheet-backdrop {

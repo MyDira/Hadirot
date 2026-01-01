@@ -13,8 +13,7 @@ import {
 } from "../../utils/viewportUtils";
 import { MapPin } from "../../utils/filterUtils";
 import { calculateIndicatorData, type IndicatorData } from "../../utils/mapIndicatorUtils";
-import { MobileBottomSheet, type SheetState } from "./MobileBottomSheet";
-import { FloatingListingImage } from "./FloatingListingImage";
+import { MobileMapListingPopup } from "./MobileMapListingPopup";
 import { isMobileViewport } from "../../utils/deviceDetection";
 
 const BROOKLYN_CENTER: [number, number] = [-73.9442, 40.6782];
@@ -46,6 +45,8 @@ interface ListingsMapEnhancedProps {
   shouldFitBounds?: boolean;
   fitBoundsToAllPins?: boolean;
   onFitBoundsComplete?: () => void;
+  userFavorites?: string[];
+  onFavoriteChange?: () => void;
 }
 
 // INVARIANT: `pins` is ALWAYS pre-filtered by the parent component.
@@ -71,6 +72,8 @@ export function ListingsMapEnhanced({
   shouldFitBounds = false,
   fitBoundsToAllPins = false,
   onFitBoundsComplete,
+  userFavorites = [],
+  onFavoriteChange,
 }: ListingsMapEnhancedProps) {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
@@ -91,13 +94,6 @@ export function ListingsMapEnhanced({
   const [mobileSheetListing, setMobileSheetListing] = useState<Listing | null>(null);
   const [isMobileSheetOpen, setIsMobileSheetOpen] = useState(false);
   const [isMapDragging, setIsMapDragging] = useState(false);
-  const [sheetState, setSheetState] = useState<SheetState>({
-    snapPosition: "collapsed",
-    translateY: 0,
-    isDragging: false,
-    animationState: "exited",
-    expandedHeight: 0,
-  });
 
   const listingsWithCoords = listings.filter(
     (l) => l.latitude != null && l.longitude != null
@@ -424,20 +420,11 @@ export function ListingsMapEnhanced({
     navigate(`/listing/${listingId}`);
   }, [navigate, onMarkerClick]);
 
-  const handleSheetStateChange = useCallback((state: SheetState) => {
-    setSheetState(prev => {
-      if (
-        prev.snapPosition === state.snapPosition &&
-        prev.translateY === state.translateY &&
-        prev.isDragging === state.isDragging &&
-        prev.animationState === state.animationState &&
-        prev.expandedHeight === state.expandedHeight
-      ) {
-        return prev;
-      }
-      return state;
-    });
-  }, []);
+  const handleFavoriteChange = useCallback(() => {
+    if (onFavoriteChange) {
+      onFavoriteChange();
+    }
+  }, [onFavoriteChange]);
 
   const updatePopupPosition = useCallback(() => {
     if (!popupContainer.current || !map.current || !mapContainer.current || !activeListingId.current) return;
@@ -1351,28 +1338,13 @@ export function ListingsMapEnhanced({
         }
       `}</style>
 
-      <FloatingListingImage
-        listing={mobileSheetListing}
-        snapPosition={sheetState.snapPosition}
-        translateY={sheetState.translateY}
-        isOpen={isMobileSheetOpen}
-        isDragging={sheetState.isDragging}
-        animationState={sheetState.animationState}
-        expandedHeight={sheetState.expandedHeight}
-        onImageClick={() => {
-          if (mobileSheetListing) {
-            handleMobileSheetViewListing(mobileSheetListing.id);
-          }
-        }}
-      />
-
-      <MobileBottomSheet
+      <MobileMapListingPopup
         listing={mobileSheetListing}
         isOpen={isMobileSheetOpen}
         onClose={handleCloseMobileSheet}
         onViewListing={handleMobileSheetViewListing}
-        shouldCollapse={isMapDragging}
-        onStateChange={handleSheetStateChange}
+        isFavorited={mobileSheetListing ? userFavorites.includes(mobileSheetListing.id) : false}
+        onFavoriteChange={handleFavoriteChange}
       />
     </div>
   );
