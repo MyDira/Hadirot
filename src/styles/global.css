@@ -770,9 +770,6 @@ h6,
   justify-content: center;
   gap: 6px;
   padding: 12px 16px;
-  background: #22c55e;
-  color: white;
-  border: none;
   border-radius: 8px;
   font-size: 14px;
   font-weight: 600;
@@ -783,13 +780,34 @@ h6,
   min-height: 44px;
 }
 
-.mobile-map-popup-btn:hover {
+.mobile-map-popup-btn-primary {
+  background: #22c55e;
+  color: white;
+  border: none;
+}
+
+.mobile-map-popup-btn-primary:hover {
   background: #16a34a;
 }
 
-.mobile-map-popup-btn:active {
+.mobile-map-popup-btn-primary:active {
   transform: scale(0.98);
   background: #15803d;
+}
+
+.mobile-map-popup-btn-outline {
+  background: white;
+  color: #22c55e;
+  border: 2px solid #22c55e;
+}
+
+.mobile-map-popup-btn-outline:hover {
+  background: #f0fdf4;
+}
+
+.mobile-map-popup-btn-outline:active {
+  transform: scale(0.98);
+  background: #dcfce7;
 }
 
 /* Extra small devices */

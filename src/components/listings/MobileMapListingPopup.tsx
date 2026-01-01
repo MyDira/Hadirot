@@ -276,7 +276,7 @@ export function MobileMapListingPopup({
           <div className="mobile-map-popup-actions">
             <button
               onClick={handleFavoriteToggle}
-              className="mobile-map-popup-btn"
+              className="mobile-map-popup-btn mobile-map-popup-btn-primary"
             >
               <Heart
                 className={`w-4 h-4 ${isFavorited ? "fill-current" : ""}`}
@@ -285,7 +285,7 @@ export function MobileMapListingPopup({
             </button>
             <button
               onClick={handleShareClick}
-              className="mobile-map-popup-btn"
+              className="mobile-map-popup-btn mobile-map-popup-btn-outline"
             >
               <Share2 className="w-4 h-4" />
               <span>Share</span>
