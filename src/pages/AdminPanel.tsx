@@ -1564,6 +1564,11 @@ export function AdminPanel() {
                                   ? listing.owner.agency || 'Unknown Agency'
                                   : listing.owner?.role || 'Unknown role'}
                               </div>
+                              {!listing.user_id && (
+                                <span className="inline-block mt-1 px-2 py-0.5 text-xs rounded-full bg-gray-200 text-gray-700">
+                                  Archived
+                                </span>
+                              )}
                             </div>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
@@ -1776,6 +1781,11 @@ export function AdminPanel() {
                             <td className="px-6 py-4 whitespace-nowrap">
                               <div className="text-sm text-gray-900">{listing.owner?.full_name || 'Unknown'}</div>
                               <div className="text-sm text-gray-500 capitalize">{listing.owner?.role || 'N/A'}</div>
+                              {!listing.user_id && (
+                                <span className="inline-block mt-1 px-2 py-0.5 text-xs rounded-full bg-gray-200 text-gray-700">
+                                  Archived
+                                </span>
+                              )}
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                               {listing.call_for_price
