@@ -23,6 +23,7 @@ interface LocationPickerProps {
   onZipCodeChange?: (zipCode: string) => void;
   onCityChange?: (city: string) => void;
   onGeocodeStatusChange?: (error: string | null, success: string | null) => void;
+  onConfirmationStatusChange?: (confirmed: boolean) => void;
   disabled?: boolean;
 }
 
@@ -39,6 +40,7 @@ export function LocationPicker({
   onZipCodeChange,
   onCityChange,
   onGeocodeStatusChange,
+  onConfirmationStatusChange,
   disabled = false,
 }: LocationPickerProps) {
   const mapContainer = useRef<HTMLDivElement>(null);
@@ -50,6 +52,8 @@ export function LocationPicker({
   const [mapLoaded, setMapLoaded] = useState(false);
   const [isLocationSet, setIsLocationSet] = useState(false);
   const [showMapModal, setShowMapModal] = useState(false);
+  const [requiresConfirmation, setRequiresConfirmation] = useState(false);
+  const [isLocationConfirmed, setIsLocationConfirmed] = useState(false);
 
   const performReverseGeocode = useCallback(
     async (lat: number, lng: number) => {
@@ -170,6 +174,10 @@ export function LocationPicker({
           performReverseGeocode(lat, lng);
         }
 
+        // Set unconfirmed and open modal in confirmation mode
+        setIsLocationConfirmed(false);
+        if (onConfirmationStatusChange) onConfirmationStatusChange(false);
+        setRequiresConfirmation(true);
         setShowMapModal(true);
       } else {
         const errorMsg = result.error || "Location not found. Try a different format (e.g., 'Avenue J & East 15th Street')";
@@ -189,6 +197,8 @@ export function LocationPicker({
   const handleLocationConfirm = (lat: number, lng: number) => {
     setIsLocationSet(true);
     onLocationChange(lat, lng);
+    setIsLocationConfirmed(true);
+    if (onConfirmationStatusChange) onConfirmationStatusChange(true);
 
     if (map.current) {
       map.current.flyTo({
@@ -203,6 +213,8 @@ export function LocationPicker({
     setIsLocationSet(false);
     setGeocodeSuccess(null);
     setGeocodeError(null);
+    setIsLocationConfirmed(false);
+    if (onConfirmationStatusChange) onConfirmationStatusChange(false);
     onLocationChange(null, null);
     if (map.current) {
       map.current.flyTo({
@@ -211,6 +223,11 @@ export function LocationPicker({
         duration: 1000,
       });
     }
+  };
+
+  const handleOpenModalManually = () => {
+    setRequiresConfirmation(false);
+    setShowMapModal(true);
   };
 
   if (!MAPBOX_ACCESS_TOKEN) {
@@ -253,7 +270,7 @@ export function LocationPicker({
 
           <button
             type="button"
-            onClick={() => setShowMapModal(true)}
+            onClick={handleOpenModalManually}
             disabled={disabled}
             className="inline-flex items-center px-4 py-2 border border-[#273140] text-[#273140] text-sm font-medium rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
@@ -275,7 +292,7 @@ export function LocationPicker({
 
         <div
           className="relative cursor-pointer group"
-          onClick={() => setShowMapModal(true)}
+          onClick={handleOpenModalManually}
         >
           <div
             ref={mapContainer}
@@ -309,18 +326,20 @@ export function LocationPicker({
           </div>
         </div>
 
-        <div className="flex items-center gap-2 text-sm text-gray-600">
+        <div className="flex items-center gap-2 text-sm">
           <MapPin className="w-4 h-4 flex-shrink-0" />
           {isLocationSet ? (
-            <span>
+            <span className={isLocationConfirmed ? "text-gray-600" : "text-amber-700"}>
               {isReverseGeocoding ? (
                 "Detecting neighborhood..."
+              ) : isLocationConfirmed ? (
+                "Location confirmed. Click map to adjust or use 'Set Pin Location' button."
               ) : (
-                "Location set. Click map to adjust or use 'Set Pin Location' button."
+                "Location needs confirmation - click to review and confirm"
               )}
             </span>
           ) : (
-            <span>
+            <span className="text-gray-600">
               Use "Find on Map" to geocode address, or click "Set Pin Location" to manually position.
             </span>
           )}
@@ -341,6 +360,7 @@ export function LocationPicker({
         onNeighborhoodChange={onNeighborhoodChange}
         onZipCodeChange={onZipCodeChange}
         onCityChange={onCityChange}
+        requiresConfirmation={requiresConfirmation}
       />
     </>
   );

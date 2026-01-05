@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useState, useCallback } from "react";
 import mapboxgl from "mapbox-gl";
-import { X, MapPin, Search, Loader2, CheckCircle } from "lucide-react";
+import { X, MapPin, Search, Loader2, CheckCircle, RotateCcw, AlertCircle } from "lucide-react";
 import { MAPBOX_ACCESS_TOKEN } from "@/config/env";
 import { geocodeCrossStreets, formatCorrectionMessage } from "@/services/geocoding";
 import { reverseGeocode } from "@/services/reverseGeocode";
@@ -23,6 +23,7 @@ interface MapModalProps {
   onNeighborhoodChange?: (neighborhood: string) => void;
   onZipCodeChange?: (zipCode: string) => void;
   onCityChange?: (city: string) => void;
+  requiresConfirmation?: boolean;
 }
 
 export function MapModal({
@@ -39,6 +40,7 @@ export function MapModal({
   onNeighborhoodChange,
   onZipCodeChange,
   onCityChange,
+  requiresConfirmation = false,
 }: MapModalProps) {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
@@ -49,6 +51,7 @@ export function MapModal({
   const [mapLoaded, setMapLoaded] = useState(false);
   const [hasMovedMap, setHasMovedMap] = useState(false);
   const [currentCenter, setCurrentCenter] = useState<{ lat: number; lng: number } | null>(null);
+  const [originalCenter, setOriginalCenter] = useState<{ lat: number; lng: number } | null>(null);
 
   const performReverseGeocode = useCallback(
     async (lat: number, lng: number) => {
@@ -76,12 +79,24 @@ export function MapModal({
   useEffect(() => {
     if (!isOpen || !mapContainer.current || !MAPBOX_ACCESS_TOKEN) return;
 
+    // Reset states when modal opens
+    setHasMovedMap(false);
+    setGeocodeError(null);
+    setGeocodeSuccess(null);
+
     mapboxgl.accessToken = MAPBOX_ACCESS_TOKEN;
 
     const initialCenter: [number, number] =
       initialLongitude && initialLatitude ? [initialLongitude, initialLatitude] : DEFAULT_CENTER;
 
     const hasInitialLocation = !!(initialLatitude && initialLongitude);
+
+    // Store original center if in confirmation mode
+    if (requiresConfirmation && hasInitialLocation) {
+      setOriginalCenter({ lat: initialLatitude, lng: initialLongitude });
+    } else {
+      setOriginalCenter(null);
+    }
 
     map.current = new mapboxgl.Map({
       container: mapContainer.current,
@@ -114,7 +129,7 @@ export function MapModal({
         map.current = null;
       }
     };
-  }, [isOpen, initialLatitude, initialLongitude]);
+  }, [isOpen, initialLatitude, initialLongitude, requiresConfirmation]);
 
   const handleFindOnMap = async () => {
     // If we have both features, calculate midpoint directly
@@ -213,6 +228,26 @@ export function MapModal({
     onClose();
   };
 
+  const handleResetToOriginal = () => {
+    if (!originalCenter || !map.current) return;
+
+    map.current.flyTo({
+      center: [originalCenter.lng, originalCenter.lat],
+      zoom: 16,
+      duration: 1000,
+    });
+    setCurrentCenter(originalCenter);
+    setHasMovedMap(false);
+  };
+
+  const hasMovedFromOriginal = () => {
+    if (!hasMovedMap || !originalCenter || !currentCenter) return false;
+    const threshold = 0.0001; // ~11 meters
+    const latDiff = Math.abs(currentCenter.lat - originalCenter.lat);
+    const lngDiff = Math.abs(currentCenter.lng - originalCenter.lng);
+    return latDiff > threshold || lngDiff > threshold;
+  };
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Escape") {
       onClose();
@@ -239,41 +274,70 @@ export function MapModal({
         </div>
 
         <div className="p-4">
+          {requiresConfirmation && (
+            <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+              <div className="flex items-start gap-3">
+                <AlertCircle className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-sm font-medium text-blue-900">
+                    Please confirm this location is correct or drag the map to adjust the pin to the correct spot
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
           <div className="mb-4">
             <div className="flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                onClick={handleFindOnMap}
-                disabled={isGeocoding || !crossStreets.trim()}
-                className="inline-flex items-center px-4 py-2 bg-accent-500 text-white text-sm font-medium rounded-md hover:bg-accent-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                {isGeocoding ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Finding...
-                  </>
-                ) : (
-                  <>
-                    <Search className="w-4 h-4 mr-2" />
-                    Find on Map
-                  </>
-                )}
-              </button>
+              {!requiresConfirmation && (
+                <button
+                  type="button"
+                  onClick={handleFindOnMap}
+                  disabled={isGeocoding || !crossStreets.trim()}
+                  className="inline-flex items-center px-4 py-2 bg-accent-500 text-white text-sm font-medium rounded-md hover:bg-accent-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  {isGeocoding ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Finding...
+                    </>
+                  ) : (
+                    <>
+                      <Search className="w-4 h-4 mr-2" />
+                      Find on Map
+                    </>
+                  )}
+                </button>
+              )}
               <button
                 type="button"
                 onClick={handleFreezeLocation}
-                disabled={!hasMovedMap && !currentCenter}
-                className="inline-flex items-center px-6 py-2 bg-[#273140] text-white text-sm font-semibold rounded-md hover:bg-[#1a2129] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                disabled={!currentCenter}
+                className={`inline-flex items-center px-6 py-2 text-white text-sm font-semibold rounded-md disabled:opacity-50 disabled:cursor-not-allowed transition-colors ${
+                  requiresConfirmation
+                    ? "bg-accent-600 hover:bg-accent-700"
+                    : "bg-[#273140] hover:bg-[#1a2129]"
+                }`}
               >
                 <MapPin className="w-4 h-4 mr-2" />
                 Confirm Location
               </button>
+              {requiresConfirmation && hasMovedFromOriginal() && (
+                <button
+                  type="button"
+                  onClick={handleResetToOriginal}
+                  className="inline-flex items-center px-4 py-2 border border-gray-300 text-gray-700 text-sm font-medium rounded-md hover:bg-gray-50 transition-colors"
+                >
+                  <RotateCcw className="w-4 h-4 mr-2" />
+                  Reset to Original
+                </button>
+              )}
               <button
                 type="button"
                 onClick={onClose}
                 className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800 transition-colors"
               >
-                Cancel
+                {requiresConfirmation ? "Close Without Confirming" : "Cancel"}
               </button>
             </div>
 
@@ -308,14 +372,16 @@ export function MapModal({
           </div>
 
           <div className="mt-4 space-y-3">
-            <div className="flex items-center gap-2 text-sm text-gray-600">
-              <MapPin className="w-4 h-4 flex-shrink-0" />
-              <span>
-                {isReverseGeocoding
-                  ? "Detecting neighborhood..."
-                  : "Please confirm this location is correct or drag the map to adjust the pin to the correct spot"}
-              </span>
-            </div>
+            {!requiresConfirmation && (
+              <div className="flex items-center gap-2 text-sm text-gray-600">
+                <MapPin className="w-4 h-4 flex-shrink-0" />
+                <span>
+                  {isReverseGeocoding
+                    ? "Detecting neighborhood..."
+                    : "Drag the map to adjust the pin location"}
+                </span>
+              </div>
+            )}
 
             {currentCenter && (
               <div className="text-xs text-gray-500">

@@ -138,6 +138,7 @@ export function PostListing() {
   const [adminListingTypeDisplay, setAdminListingTypeDisplay] = useState<'agent' | 'owner' | ''>('');
   const [crossStreetAFeature, setCrossStreetAFeature] = useState<MapboxFeature | null>(null);
   const [crossStreetBFeature, setCrossStreetBFeature] = useState<MapboxFeature | null>(null);
+  const [isLocationConfirmed, setIsLocationConfirmed] = useState(false);
   const [formData, setFormData] = useState<ListingFormData>({
     listing_type: "",
     title: "",
@@ -716,6 +717,10 @@ export function PostListing() {
     setGeocodeSuccess(success);
   };
 
+  const handleConfirmationStatusChange = (confirmed: boolean) => {
+    setIsLocationConfirmed(confirmed);
+  };
+
   const calculateBuildingSize = () => {
     if (formData.building_length_ft && formData.building_width_ft) {
       return Math.round(formData.building_length_ft * formData.building_width_ft);
@@ -992,6 +997,12 @@ export function PostListing() {
 
     if (!formData.latitude || !formData.longitude) {
       alert("Please set a location on the map before posting. Use 'Find on Map' or 'Set Pin Location' to geocode your listing.");
+      setLoading(false);
+      return;
+    }
+
+    if (!isLocationConfirmed) {
+      alert("Please confirm the map location before submitting. Open the map modal and click 'Confirm Location'.");
       setLoading(false);
       return;
     }
@@ -1838,6 +1849,7 @@ export function PostListing() {
                         onZipCodeChange={handleZipCodeFromMap}
                         onCityChange={handleCityFromMap}
                         onGeocodeStatusChange={handleGeocodeStatusChange}
+                        onConfirmationStatusChange={handleConfirmationStatusChange}
                       />
                     </div>
                   </div>
@@ -1971,6 +1983,7 @@ export function PostListing() {
                       onZipCodeChange={handleZipCodeFromMap}
                       onCityChange={handleCityFromMap}
                       onGeocodeStatusChange={handleGeocodeStatusChange}
+                      onConfirmationStatusChange={handleConfirmationStatusChange}
                     />
                   </div>
                 </div>

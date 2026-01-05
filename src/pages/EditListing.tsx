@@ -124,6 +124,7 @@ export function EditListing() {
   const [adminListingTypeDisplay, setAdminListingTypeDisplay] = useState<'agent' | 'owner' | ''>('');
   const [crossStreetAFeature, setCrossStreetAFeature] = useState<MapboxFeature | null>(null);
   const [crossStreetBFeature, setCrossStreetBFeature] = useState<MapboxFeature | null>(null);
+  const [isLocationConfirmed, setIsLocationConfirmed] = useState(true);
   const [formData, setFormData] = useState<ListingFormData>({
     title: "",
     description: "",
@@ -553,6 +554,10 @@ export function EditListing() {
     }
   };
 
+  const handleConfirmationStatusChange = (confirmed: boolean) => {
+    setIsLocationConfirmed(confirmed);
+  };
+
   const handleMediaAdd = async (files: File[]) => {
     if (!user) {
       alert("Please sign in to upload media");
@@ -731,6 +736,12 @@ export function EditListing() {
 
       if (!formData.property_type || formData.property_type === "") {
         alert("Please select a property type");
+        setSaving(false);
+        return;
+      }
+
+      if (formData.latitude && formData.longitude && !isLocationConfirmed) {
+        alert("Please confirm the map location before saving. Open the map modal and click 'Confirm Location'.");
         setSaving(false);
         return;
       }
@@ -1255,6 +1266,7 @@ export function EditListing() {
                   longitude={formData.longitude}
                   onLocationChange={handleLocationCoordinatesChange}
                   onNeighborhoodChange={handleNeighborhoodFromMap}
+                  onConfirmationStatusChange={handleConfirmationStatusChange}
                 />
               </div>
             </div>
