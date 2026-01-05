@@ -169,6 +169,8 @@ export function LocationPicker({
         } else {
           performReverseGeocode(lat, lng);
         }
+
+        setShowMapModal(true);
       } else {
         const errorMsg = result.error || "Location not found. Try a different format (e.g., 'Avenue J & East 15th Street')";
         setGeocodeError(errorMsg);

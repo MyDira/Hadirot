@@ -157,11 +157,12 @@ export function MapboxStreetAutocomplete({
           }`}
         />
 
-        <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-          {isLoading && <Loader2 className="w-4 h-4 text-gray-400 animate-spin" />}
-          {!isLoading && isValid && <Check className="w-4 h-4 text-green-600" />}
-          {!isLoading && hasInput && !isValid && <X className="w-4 h-4 text-red-500" />}
-        </div>
+        {!isValid && (
+          <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+            {isLoading && <Loader2 className="w-4 h-4 text-gray-400 animate-spin" />}
+            {!isLoading && hasInput && <X className="w-4 h-4 text-red-500" />}
+          </div>
+        )}
 
         {isValid && (
           <button
