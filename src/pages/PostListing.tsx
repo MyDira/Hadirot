@@ -8,6 +8,7 @@ import { emailService, renderBrandEmail } from "../services/email";
 import { draftListingsService, DraftData, TempVideoData } from "../services/draftListings";
 import { agenciesService } from "../services/agencies";
 import { salesService } from "../services/sales";
+import { reverseGeocode } from "../services/reverseGeocode";
 import { Modal } from "../components/shared/Modal";
 import { AuthForm } from "../components/auth/AuthForm";
 import { compressImage } from "../utils/imageUtils";
@@ -972,22 +973,29 @@ export function PostListing() {
     }
     setLoading(true);
     try {
+      // For rental listings, get neighborhood from form
+      // For sale listings, it will be derived from coordinates at submission time
       const neighborhood =
-        neighborhoodSelectValue === "other"
-          ? customNeighborhoodInput.trim()
-          : neighborhoodSelectValue;
+        formData.listing_type === 'rental'
+          ? (neighborhoodSelectValue === "other"
+            ? customNeighborhoodInput.trim()
+            : neighborhoodSelectValue)
+          : '';
 
-    if (!neighborhood || neighborhood === "") {
-      alert("Please select or enter a neighborhood");
-      setLoading(false);
-      return;
-    }
+      // Validate neighborhood only for rental listings
+      if (formData.listing_type === 'rental') {
+        if (!neighborhood || neighborhood === "") {
+          alert("Please select or enter a neighborhood");
+          setLoading(false);
+          return;
+        }
 
-    if (neighborhoodSelectValue === "other" && neighborhood === "") {
-      alert("Please enter a neighborhood");
-      setLoading(false);
-      return;
-    }
+        if (neighborhoodSelectValue === "other" && neighborhood === "") {
+          alert("Please enter a neighborhood");
+          setLoading(false);
+          return;
+        }
+      }
 
     if (!formData.property_type || formData.property_type === "") {
       alert("Please select a property type");
@@ -1074,11 +1082,29 @@ export function PostListing() {
       // Determine the user_id for the listing
       const listingUserId = (profile?.is_admin && adminAssignUser) ? adminAssignUser.id : user.id;
 
+      // For sale listings, derive neighborhood from coordinates
+      let finalNeighborhood = neighborhood;
+      if (formData.listing_type === 'sale' && formData.latitude && formData.longitude) {
+        try {
+          const geoResult = await reverseGeocode(formData.latitude, formData.longitude);
+          if (geoResult.neighborhood) {
+            finalNeighborhood = geoResult.neighborhood;
+            console.log('✅ Auto-derived neighborhood for sale listing:', finalNeighborhood);
+          } else {
+            console.log('⚠️ Could not derive neighborhood from coordinates');
+            finalNeighborhood = null;
+          }
+        } catch (error) {
+          console.error('Error reverse geocoding for neighborhood:', error);
+          finalNeighborhood = null;
+        }
+      }
+
       // Create the listing first
       const payload = {
         ...formData,
         broker_fee: false,
-        neighborhood,
+        neighborhood: finalNeighborhood,
         location: finalLocation,
         cross_street_a: crossStreetAFeature?.text || null,
         cross_street_b: crossStreetBFeature?.text || null,
@@ -1899,36 +1925,39 @@ export function PostListing() {
                       )}
                     </div>
 
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Neighborhood *
-                      </label>
-                      <select
-                        name="neighborhood"
-                        value={neighborhoodSelectValue}
-                        onChange={handleNeighborhoodSelect}
-                        required
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-brand-700 focus:border-brand-700"
-                      >
-                        <option value="">Select a neighborhood</option>
-                        <option value="Midwood">Midwood</option>
-                        <option value="Homecrest">Homecrest</option>
-                        <option value="Marine Park">Marine Park</option>
-                        <option value="Flatbush">Flatbush</option>
-                        <option value="Gravesend">Gravesend</option>
-                        <option value="Boro Park">Boro Park</option>
-                        <option value="other">Other (type below)</option>
-                      </select>
-                      {showCustomNeighborhood && (
-                        <input
-                          type="text"
-                          value={customNeighborhoodInput}
-                          onChange={handleCustomNeighborhoodChange}
-                          className="mt-2 w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-brand-700 focus:border-brand-700"
-                          placeholder="Enter custom neighborhood"
-                        />
-                      )}
-                    </div>
+                    {/* Neighborhood field - only shown for rental listings */}
+                    {formData.listing_type === 'rental' && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Neighborhood *
+                        </label>
+                        <select
+                          name="neighborhood"
+                          value={neighborhoodSelectValue}
+                          onChange={handleNeighborhoodSelect}
+                          required
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-brand-700 focus:border-brand-700"
+                        >
+                          <option value="">Select a neighborhood</option>
+                          <option value="Midwood">Midwood</option>
+                          <option value="Homecrest">Homecrest</option>
+                          <option value="Marine Park">Marine Park</option>
+                          <option value="Flatbush">Flatbush</option>
+                          <option value="Gravesend">Gravesend</option>
+                          <option value="Boro Park">Boro Park</option>
+                          <option value="other">Other (type below)</option>
+                        </select>
+                        {showCustomNeighborhood && (
+                          <input
+                            type="text"
+                            value={customNeighborhoodInput}
+                            onChange={handleCustomNeighborhoodChange}
+                            className="mt-2 w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-brand-700 focus:border-brand-700"
+                            placeholder="Enter custom neighborhood"
+                          />
+                        )}
+                      </div>
+                    )}
 
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
