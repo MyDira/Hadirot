@@ -15,6 +15,7 @@ import { generateVideoThumbnail } from "../utils/videoUtils";
 import { MediaUploader, MediaFile } from "../components/shared/MediaUploader";
 import { SalesListingFields } from "../components/listing/SalesListingFields";
 import { LocationPicker } from "../components/listing/LocationPicker";
+import { MapboxStreetAutocomplete, MapboxFeature } from "../components/listing/MapboxStreetAutocomplete";
 import { UserSearchSelect } from "../components/admin/UserSearchSelect";
 import type { Profile } from "../config/supabase";
 import { gaEvent } from "@/lib/ga";
@@ -135,6 +136,8 @@ export function PostListing() {
   const [adminAssignUser, setAdminAssignUser] = useState<Profile | null>(null);
   const [adminCustomAgencyName, setAdminCustomAgencyName] = useState('');
   const [adminListingTypeDisplay, setAdminListingTypeDisplay] = useState<'agent' | 'owner' | ''>('');
+  const [crossStreetAFeature, setCrossStreetAFeature] = useState<MapboxFeature | null>(null);
+  const [crossStreetBFeature, setCrossStreetBFeature] = useState<MapboxFeature | null>(null);
   const [formData, setFormData] = useState<ListingFormData>({
     listing_type: "",
     title: "",
@@ -1066,6 +1069,8 @@ export function PostListing() {
         broker_fee: false,
         neighborhood,
         location: finalLocation,
+        cross_street_a: crossStreetAFeature?.text || null,
+        cross_street_b: crossStreetBFeature?.text || null,
         full_address: fullAddress,
         user_id: listingUserId,
         agency_id: ownedAgencyId || null,
@@ -1846,15 +1851,31 @@ export function PostListing() {
                       <label className="block text-sm font-medium text-gray-700 mb-1">
                         Cross Streets *
                       </label>
-                      <input
-                        type="text"
-                        name="location"
-                        value={formData.location}
-                        onChange={handleInputChange}
-                        required
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-brand-700 focus:border-brand-700"
-                        placeholder="Avenue J & East 15th Street"
-                      />
+                      <p className="text-xs text-gray-500 mb-2">
+                        Please enter two exact street names
+                      </p>
+                      <div className="space-y-3">
+                        <MapboxStreetAutocomplete
+                          value={crossStreetAFeature?.text}
+                          onSelect={(feature) => {
+                            setCrossStreetAFeature(feature);
+                            if (feature) {
+                              setFormData(prev => ({ ...prev, location: `${feature.text} & ${crossStreetBFeature?.text || ''}`.trim() }));
+                            }
+                          }}
+                          placeholder="First cross street (e.g., Avenue J)"
+                        />
+                        <MapboxStreetAutocomplete
+                          value={crossStreetBFeature?.text}
+                          onSelect={(feature) => {
+                            setCrossStreetBFeature(feature);
+                            if (feature) {
+                              setFormData(prev => ({ ...prev, location: `${crossStreetAFeature?.text || ''} & ${feature.text}`.trim() }));
+                            }
+                          }}
+                          placeholder="Second cross street (e.g., East 15th Street)"
+                        />
+                      </div>
                       {geocodeError && (
                         <p className="text-sm text-red-600 mt-1">{geocodeError}</p>
                       )}
@@ -1939,7 +1960,10 @@ export function PostListing() {
                     </p>
                     <LocationPicker
                       crossStreets={formData.location}
+                      crossStreetAFeature={crossStreetAFeature}
+                      crossStreetBFeature={crossStreetBFeature}
                       neighborhood={formData.neighborhood}
+                      city={formData.city}
                       latitude={formData.latitude}
                       longitude={formData.longitude}
                       onLocationChange={handleLocationCoordinatesChange}

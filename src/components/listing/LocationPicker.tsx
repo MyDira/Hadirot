@@ -5,13 +5,17 @@ import { MAPBOX_ACCESS_TOKEN } from "@/config/env";
 import { geocodeCrossStreets, formatCorrectionMessage } from "@/services/geocoding";
 import { reverseGeocode } from "@/services/reverseGeocode";
 import { MapModal } from "./MapModal";
+import { MapboxFeature } from "./MapboxStreetAutocomplete";
 
 const DEFAULT_CENTER: [number, number] = [-73.9442, 40.6782];
 const PREVIEW_ZOOM = 15;
 
 interface LocationPickerProps {
   crossStreets: string;
+  crossStreetAFeature?: MapboxFeature | null;
+  crossStreetBFeature?: MapboxFeature | null;
   neighborhood?: string;
+  city?: string;
   latitude: number | null;
   longitude: number | null;
   onLocationChange: (lat: number | null, lng: number | null) => void;
@@ -24,7 +28,10 @@ interface LocationPickerProps {
 
 export function LocationPicker({
   crossStreets,
+  crossStreetAFeature,
+  crossStreetBFeature,
   neighborhood,
+  city,
   latitude,
   longitude,
   onLocationChange,
@@ -220,7 +227,13 @@ export function LocationPicker({
           <button
             type="button"
             onClick={handleFindOnMap}
-            disabled={disabled || isGeocoding || !crossStreets.trim()}
+            disabled={
+              disabled ||
+              isGeocoding ||
+              (crossStreetAFeature !== undefined || crossStreetBFeature !== undefined
+                ? !crossStreetAFeature || !crossStreetBFeature
+                : !crossStreets.trim())
+            }
             className="inline-flex items-center px-4 py-2 bg-accent-500 text-white text-sm font-medium rounded-md hover:bg-accent-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {isGeocoding ? (
@@ -316,7 +329,10 @@ export function LocationPicker({
         isOpen={showMapModal}
         onClose={() => setShowMapModal(false)}
         crossStreets={crossStreets}
+        crossStreetAFeature={crossStreetAFeature}
+        crossStreetBFeature={crossStreetBFeature}
         neighborhood={neighborhood}
+        city={city}
         initialLatitude={latitude}
         initialLongitude={longitude}
         onLocationConfirm={handleLocationConfirm}

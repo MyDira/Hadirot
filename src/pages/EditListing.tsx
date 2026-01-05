@@ -8,6 +8,7 @@ import { emailService } from "../services/email";
 import { generateVideoThumbnail } from "../utils/videoUtils";
 import { MediaUploader, MediaFile } from "../components/shared/MediaUploader";
 import { LocationPicker } from "../components/listing/LocationPicker";
+import { MapboxStreetAutocomplete, MapboxFeature } from "../components/listing/MapboxStreetAutocomplete";
 import { UserSearchSelect } from "../components/admin/UserSearchSelect";
 import { profilesService } from "../services/profiles";
 import {
@@ -121,6 +122,8 @@ export function EditListing() {
   const [adminAssignUser, setAdminAssignUser] = useState<Profile | null>(null);
   const [adminCustomAgencyName, setAdminCustomAgencyName] = useState('');
   const [adminListingTypeDisplay, setAdminListingTypeDisplay] = useState<'agent' | 'owner' | ''>('');
+  const [crossStreetAFeature, setCrossStreetAFeature] = useState<MapboxFeature | null>(null);
+  const [crossStreetBFeature, setCrossStreetBFeature] = useState<MapboxFeature | null>(null);
   const [formData, setFormData] = useState<ListingFormData>({
     title: "",
     description: "",
@@ -777,6 +780,8 @@ export function EditListing() {
         title: formData.title,
         description: formData.description,
         location: formData.location,
+        cross_street_a: crossStreetAFeature?.text || null,
+        cross_street_b: crossStreetBFeature?.text || null,
         neighborhood,
         bedrooms: formData.bedrooms,
         bathrooms: formData.bathrooms,
@@ -1208,15 +1213,31 @@ export function EditListing() {
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Cross Streets *
               </label>
-              <input
-                type="text"
-                name="location"
-                value={formData.location}
-                onChange={handleInputChange}
-                required
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140] mb-4"
-                placeholder="Avenue J & East 15th Street"
-              />
+              <p className="text-xs text-gray-500 mb-2">
+                Please enter two exact street names
+              </p>
+              <div className="space-y-3 mb-4">
+                <MapboxStreetAutocomplete
+                  value={crossStreetAFeature?.text}
+                  onSelect={(feature) => {
+                    setCrossStreetAFeature(feature);
+                    if (feature) {
+                      setFormData(prev => ({ ...prev, location: `${feature.text} & ${crossStreetBFeature?.text || ''}`.trim() }));
+                    }
+                  }}
+                  placeholder="First cross street (e.g., Avenue J)"
+                />
+                <MapboxStreetAutocomplete
+                  value={crossStreetBFeature?.text}
+                  onSelect={(feature) => {
+                    setCrossStreetBFeature(feature);
+                    if (feature) {
+                      setFormData(prev => ({ ...prev, location: `${crossStreetAFeature?.text || ''} & ${feature.text}`.trim() }));
+                    }
+                  }}
+                  placeholder="Second cross street (e.g., East 15th Street)"
+                />
+              </div>
               <div className="mt-4 mb-6">
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Set Location on Map (optional)
@@ -1226,7 +1247,10 @@ export function EditListing() {
                 </p>
                 <LocationPicker
                   crossStreets={formData.location}
+                  crossStreetAFeature={crossStreetAFeature}
+                  crossStreetBFeature={crossStreetBFeature}
                   neighborhood={formData.neighborhood}
+                  city={formData.city}
                   latitude={formData.latitude}
                   longitude={formData.longitude}
                   onLocationChange={handleLocationCoordinatesChange}
