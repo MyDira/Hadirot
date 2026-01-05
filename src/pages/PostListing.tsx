@@ -208,6 +208,8 @@ export function PostListing() {
   const [hasDraft, setHasDraft] = useState<boolean | null>(null);
   const hasInteractedRef = useRef(false);
   const startTrackedRef = useRef(false);
+  const hasManuallySelectedTypeRef = useRef(false);
+  const permissionsLoadedRef = useRef(false);
 
   // Load draft data on component mount
   useEffect(() => {
@@ -321,6 +323,31 @@ export function PostListing() {
     }
   }, [formData.listing_type]);
 
+  // Auto-select listing type based on priority order
+  useEffect(() => {
+    // Wait for both permissions and draft to be loaded
+    if (hasDraft === null) {
+      return; // Still loading draft
+    }
+
+    // Mark permissions as loaded once we have the values
+    if (!permissionsLoadedRef.current) {
+      permissionsLoadedRef.current = true;
+    }
+
+    // Priority 1: Draft has listing_type - already handled by loadDraftData
+    // Priority 2: User manually selected a type - don't override
+    if (hasManuallySelectedTypeRef.current) {
+      return;
+    }
+
+    // Priority 3: User lacks canPostSales - auto-select rental
+    // Priority 4: Otherwise leave empty to force explicit choice
+    if (!canPostSales && formData.listing_type === '') {
+      setFormData(prev => ({ ...prev, listing_type: 'rental' }));
+    }
+  }, [hasDraft, canPostSales, formData.listing_type]);
+
   const loadDraftData = async (): Promise<boolean> => {
     try {
       let draftData: DraftData | null = null;
@@ -373,7 +400,7 @@ export function PostListing() {
           ac_type: (draftData as any).ac_type || null,
           apartment_conditions: (draftData as any).apartment_conditions || [],
           additional_rooms: (draftData as any).additional_rooms || 0,
-          listing_type: (draftData as any).listing_type || "rental",
+          listing_type: (draftData as any).listing_type || "",
           asking_price: (draftData as any).asking_price || null,
           property_age: (draftData as any).property_age,
           year_built: (draftData as any).year_built,
@@ -463,10 +490,15 @@ export function PostListing() {
 
         console.log("✅ Draft data loaded successfully");
 
-        const restoredListingType = (draftData as any).listing_type || "rental";
+        const restoredListingType = (draftData as any).listing_type || "";
         const restoredCallForPrice = draftData.call_for_price ?? false;
         const restoredPrice = draftData.call_for_price ? null : draftData.price ?? null;
         const restoredAskingPrice = (draftData as any).asking_price || null;
+
+        // If draft has a listing_type, mark it as manually selected (Priority 1)
+        if ((draftData as any).listing_type) {
+          hasManuallySelectedTypeRef.current = true;
+        }
 
         if (restoredListingType && !restoredCallForPrice) {
           if (restoredListingType === 'rental' && (!restoredPrice || restoredPrice <= 0)) {
@@ -1470,7 +1502,10 @@ export function PostListing() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <button
               type="button"
-              onClick={() => setFormData({ ...formData, listing_type: 'rental' })}
+              onClick={() => {
+                hasManuallySelectedTypeRef.current = true;
+                setFormData({ ...formData, listing_type: 'rental' });
+              }}
               className={`p-6 border-2 rounded-lg transition-all ${
                 formData.listing_type === 'rental'
                   ? 'border-accent-500 bg-accent-50 shadow-md'
@@ -1487,6 +1522,7 @@ export function PostListing() {
                   type="button"
                   onClick={() => {
                     if (canPostSales) {
+                      hasManuallySelectedTypeRef.current = true;
                       setFormData({ ...formData, listing_type: 'sale' });
                     } else {
                       setShowPermissionModal(true);
