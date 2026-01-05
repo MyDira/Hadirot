@@ -3,7 +3,7 @@ import { Check, X, Loader2 } from "lucide-react";
 import { MAPBOX_ACCESS_TOKEN } from "@/config/env";
 
 const NYC_BOUNDING_BOX = "-74.2591,40.4774,-73.7002,40.9176";
-const NYC_CENTER = "-73.9712,40.7831";
+const BROOKLYN_CENTER = "-73.9442,40.6782";
 
 export interface MapboxFeature {
   id: string;
@@ -83,7 +83,7 @@ export function MapboxStreetAutocomplete({
         `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodedQuery}.json?` +
         `access_token=${MAPBOX_ACCESS_TOKEN}` +
         `&bbox=${NYC_BOUNDING_BOX}` +
-        `&proximity=${NYC_CENTER}` +
+        `&proximity=${BROOKLYN_CENTER}` +
         `&types=address` +
         `&country=US` +
         `&limit=5`;
