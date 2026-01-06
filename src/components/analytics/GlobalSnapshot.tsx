@@ -1,7 +1,9 @@
 import React from 'react';
-import { Users, RefreshCw, Home, MessageSquare, TrendingUp, TrendingDown } from 'lucide-react';
+import { Activity, Users, RefreshCw, Home, MessageSquare, TrendingUp, TrendingDown } from 'lucide-react';
 
 interface SnapshotData {
+  sessions: number;
+  sessionsPrev: number;
   uniqueVisitors: number;
   uniqueVisitorsPrev: number;
   returningRate: number;
@@ -72,8 +74,8 @@ function SnapshotCard({
 export function GlobalSnapshot({ data, loading }: GlobalSnapshotProps) {
   if (loading) {
     return (
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-        {[...Array(4)].map((_, i) => (
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
+        {[...Array(5)].map((_, i) => (
           <div key={i} className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 animate-pulse">
             <div className="h-4 bg-gray-200 rounded w-24 mb-3"></div>
             <div className="h-8 bg-gray-200 rounded w-16"></div>
@@ -83,15 +85,23 @@ export function GlobalSnapshot({ data, loading }: GlobalSnapshotProps) {
     );
   }
 
+  const sessionChange = formatChange(data.sessions, data.sessionsPrev);
   const visitorChange = formatChange(data.uniqueVisitors, data.uniqueVisitorsPrev);
   const returningChange = formatChange(data.returningRate, data.returningRatePrev);
   const inquiryChange = formatChange(data.inquiries, data.inquiriesPrev);
 
   return (
-    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+    <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
+      <SnapshotCard
+        icon={Activity}
+        iconColor="text-blue-600"
+        label="Sessions"
+        value={data.sessions}
+        change={sessionChange}
+      />
       <SnapshotCard
         icon={Users}
-        iconColor="text-blue-600"
+        iconColor="text-cyan-600"
         label="Unique Visitors"
         value={data.uniqueVisitors}
         change={visitorChange}

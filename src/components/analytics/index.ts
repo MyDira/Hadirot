@@ -5,3 +5,4 @@ export { TrafficTab } from './TrafficTab';
 export { EngagementTab } from './EngagementTab';
 export { ListingsTab } from './ListingsTab';
 export { InquiriesTab } from './InquiriesTab';
+export { ValidationTab } from './ValidationTab';

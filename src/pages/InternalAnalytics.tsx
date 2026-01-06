@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { BarChart3, Activity, Layers, Home, MessageSquare } from 'lucide-react';
+import { BarChart3, Activity, Layers, Home, MessageSquare, ShieldCheck } from 'lucide-react';
 import { useAuth, AUTH_CONTEXT_ID } from '@/hooks/useAuth';
 import { supabase } from '../config/supabase';
 import {
@@ -12,9 +12,10 @@ import {
   EngagementTab,
   ListingsTab,
   InquiriesTab,
+  ValidationTab,
 } from '../components/analytics';
 
-type TabId = 'traffic' | 'engagement' | 'listings' | 'inquiries';
+type TabId = 'traffic' | 'engagement' | 'listings' | 'inquiries' | 'validation';
 
 interface TabConfig {
   id: TabId;
@@ -27,6 +28,7 @@ const TABS: TabConfig[] = [
   { id: 'engagement', label: 'Engagement', icon: Layers },
   { id: 'listings', label: 'Listings', icon: Home },
   { id: 'inquiries', label: 'Inquiries', icon: MessageSquare },
+  { id: 'validation', label: 'Validation', icon: ShieldCheck },
 ];
 
 export function InternalAnalytics() {
@@ -41,6 +43,8 @@ export function InternalAnalytics() {
   const [drilldownListingId, setDrilldownListingId] = useState<string | null>(null);
 
   const [globalSnapshot, setGlobalSnapshot] = useState({
+    sessions: 0,
+    sessionsPrev: 0,
     uniqueVisitors: 0,
     uniqueVisitorsPrev: 0,
     returningRate: 0,
@@ -156,8 +160,10 @@ export function InternalAnalytics() {
       const prevContact = contactSummaryPrevResult.data?.[0];
 
       setGlobalSnapshot({
-        uniqueVisitors: currentSession?.total_sessions || 0,
-        uniqueVisitorsPrev: prevSession?.total_sessions || 0,
+        sessions: currentSession?.total_sessions || 0,
+        sessionsPrev: prevSession?.total_sessions || 0,
+        uniqueVisitors: currentSession?.unique_visitors || 0,
+        uniqueVisitorsPrev: prevSession?.unique_visitors || 0,
         returningRate: currentSession?.returning_visitor_rate || 0,
         returningRatePrev: prevSession?.returning_visitor_rate || 0,
         activeListings: supplyResult.data?.[0]?.active_count || 0,
@@ -339,6 +345,10 @@ export function InternalAnalytics() {
           onListingClick={handleListingClick}
           loading={dataLoading}
         />
+      )}
+
+      {activeTab === 'validation' && (
+        <ValidationTab loading={dataLoading} />
       )}
 
       <ListingDrilldown

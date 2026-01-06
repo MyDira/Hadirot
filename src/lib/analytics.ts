@@ -27,6 +27,7 @@ const POST_ATTEMPT_SESSION_KEY = 'ha_post_attempt_session';
 const IDLE_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
 const FLUSH_INTERVAL_MS = 3000; // 3 seconds
 const FLUSH_BATCH_SIZE = 20;
+const MAX_QUEUE_SIZE = 500; // Maximum events to hold in memory to prevent unbounded growth
 
 type PendingEvent = AnalyticsEventPayload;
 
@@ -186,6 +187,13 @@ function enqueueEvent(
 
   eventQueue.push(payload);
 
+  if (eventQueue.length > MAX_QUEUE_SIZE) {
+    const dropped = eventQueue.splice(0, eventQueue.length - MAX_QUEUE_SIZE);
+    if (ANALYTICS_DEBUG) {
+      console.warn('[analytics] queue limit reached, dropped', dropped.length, 'oldest events');
+    }
+  }
+
   if (ANALYTICS_DEBUG) {
     console.log('[analytics] queue', eventName, props);
   }
@@ -227,8 +235,14 @@ async function flushEvents(options: { useKeepalive?: boolean } = {}): Promise<vo
       throw error;
     }
   } catch (error) {
-    // Put events back at the front of the queue so they are retried later
-    eventQueue.unshift(...events);
+    const availableSlots = MAX_QUEUE_SIZE - eventQueue.length;
+    if (availableSlots > 0) {
+      const eventsToRequeue = events.slice(0, availableSlots);
+      eventQueue.unshift(...eventsToRequeue);
+      if (ANALYTICS_DEBUG && eventsToRequeue.length < events.length) {
+        console.warn('[analytics] flush failed, dropped', events.length - eventsToRequeue.length, 'events due to queue limit');
+      }
+    }
     if (ANALYTICS_DEBUG) {
       console.warn('[analytics] flush failed', error);
     }
