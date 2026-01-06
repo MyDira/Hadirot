@@ -111,7 +111,7 @@ export function InternalAnalytics() {
         supabase.rpc('analytics_top_filters', { days_back: dateRange, limit_count: 15, tz }),
         supabase.rpc('analytics_supply_stats', { days_back: dateRange, tz }),
         supabase.rpc('analytics_listings_performance', { days_back: dateRange, limit_count: 20, tz }),
-        supabase.rpc('analytics_zero_inquiry_listings', { days_back: dateRange, min_views: 10, limit_count: 20, tz }),
+        supabase.rpc('analytics_zero_inquiry_listings', { days_back: dateRange, min_views: 10, tz }),
         supabase.rpc('analytics_summary', { days_back: dateRange, tz }),
         supabase.rpc('analytics_inquiry_quality', { days_back: dateRange, tz }),
         supabase.rpc('analytics_inquiry_quality', { days_back: dateRange * 2, tz }),
