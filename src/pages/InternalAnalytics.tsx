@@ -103,27 +103,7 @@ export function InternalAnalytics() {
       const tz = 'America/New_York';
       const prevRange = dateRange;
 
-      const [
-        sessionQualityResult,
-        sessionQualityPrevResult,
-        kpisResult,
-        engagementResult,
-        filtersResult,
-        supplyResult,
-        performanceResult,
-        zeroInquiryResult,
-        summaryResult,
-        inquiryQualityResult,
-        inquiryQualityPrevResult,
-        inquiryTrendResult,
-        velocityResult,
-        topInquiredResult,
-        demandResult,
-        timingResult,
-        abuseResult,
-        contactSummaryResult,
-        contactSummaryPrevResult,
-      ] = await Promise.all([
+      const results = await Promise.all([
         supabase.rpc('analytics_session_quality', { days_back: dateRange, tz }),
         supabase.rpc('analytics_session_quality', { days_back: dateRange * 2, tz }),
         supabase.rpc('analytics_kpis_with_sparkline', { tz }),
@@ -144,6 +124,39 @@ export function InternalAnalytics() {
         supabase.rpc('analytics_contact_submissions_summary', { days_back: dateRange, tz }),
         supabase.rpc('analytics_contact_submissions_summary', { days_back: dateRange * 2, tz }),
       ]);
+
+      const firstError = results.find(r => r.error);
+      if (firstError?.error) {
+        const errorMessage = firstError.error.message || 'Unknown error';
+        if (errorMessage.includes('Admin access required') || errorMessage.includes('Authentication required')) {
+          setError('You do not have permission to view analytics data.');
+        } else {
+          setError(`Failed to load analytics: ${errorMessage}`);
+        }
+        return;
+      }
+
+      const [
+        sessionQualityResult,
+        sessionQualityPrevResult,
+        kpisResult,
+        engagementResult,
+        filtersResult,
+        supplyResult,
+        performanceResult,
+        zeroInquiryResult,
+        summaryResult,
+        inquiryQualityResult,
+        inquiryQualityPrevResult,
+        inquiryTrendResult,
+        velocityResult,
+        topInquiredResult,
+        demandResult,
+        timingResult,
+        abuseResult,
+        contactSummaryResult,
+        contactSummaryPrevResult,
+      ] = results;
 
       if (sessionQualityResult.data?.[0]) {
         setSessionQuality(sessionQualityResult.data[0]);
