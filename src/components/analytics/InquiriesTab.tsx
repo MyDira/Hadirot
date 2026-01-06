@@ -211,10 +211,14 @@ export function InquiriesTab({
     avg_listings_per_inquirer: 0,
   };
 
-  const demandData = demand || { by_price_band: [], by_bedrooms: [], by_neighborhood: [] };
-  const maxPriceBand = Math.max(...demandData.by_price_band.map((d) => d.count), 1);
-  const maxBedroom = Math.max(...demandData.by_bedrooms.map((d) => d.count), 1);
-  const maxNeighborhood = Math.max(...demandData.by_neighborhood.map((d) => d.count), 1);
+  const demandData = {
+    by_price_band: demand?.by_price_band || [],
+    by_bedrooms: demand?.by_bedrooms || [],
+    by_neighborhood: demand?.by_neighborhood || [],
+  };
+  const maxPriceBand = Math.max(...demandData.by_price_band.map((d) => d.count ?? 0), 1);
+  const maxBedroom = Math.max(...demandData.by_bedrooms.map((d) => d.count ?? 0), 1);
+  const maxNeighborhood = Math.max(...demandData.by_neighborhood.map((d) => d.count ?? 0), 1);
 
   const formatPrice = (price: number | null) => {
     if (!price) return 'Call';

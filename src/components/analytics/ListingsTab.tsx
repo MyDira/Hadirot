@@ -239,14 +239,14 @@ export function ListingsTab({
                         {listing.is_featured && <Star className="w-4 h-4 text-amber-500" />}
                         <div>
                           <div className="font-medium text-gray-900 truncate max-w-[200px]">
-                            {listing.location}
+                            {listing.location || '-'}
                           </div>
-                          <div className="text-xs text-gray-500">{listing.neighborhood}</div>
+                          <div className="text-xs text-gray-500">{listing.neighborhood || '-'}</div>
                         </div>
                       </div>
                     </td>
                     <td className="py-3 px-4 text-center text-sm">
-                      {listing.bedrooms === 0 ? 'Studio' : listing.bedrooms}
+                      {(listing.bedrooms ?? 0) === 0 ? 'Studio' : listing.bedrooms}
                     </td>
                     <td className="py-3 px-4 text-right text-sm font-medium">
                       {formatPrice(listing.price)}
@@ -254,29 +254,29 @@ export function ListingsTab({
                     <td className="py-3 px-4 text-right text-sm">
                       <div className="flex items-center justify-end gap-1">
                         <Eye className="w-3 h-3 text-gray-400" />
-                        {listing.views}
+                        {listing.views ?? 0}
                       </div>
                     </td>
-                    <td className="py-3 px-4 text-right text-sm text-gray-600">{listing.impressions}</td>
+                    <td className="py-3 px-4 text-right text-sm text-gray-600">{listing.impressions ?? 0}</td>
                     <td className="py-3 px-4 text-right text-sm">
-                      <span className={listing.ctr >= 5 ? 'text-green-600 font-medium' : ''}>
-                        {listing.ctr}%
+                      <span className={(listing.ctr ?? 0) >= 5 ? 'text-green-600 font-medium' : ''}>
+                        {listing.ctr ?? 0}%
                       </span>
                     </td>
                     <td className="py-3 px-4 text-right text-sm">
                       <div className="flex items-center justify-end gap-1">
                         <MessageSquare className="w-3 h-3 text-gray-400" />
-                        {listing.inquiry_count}
+                        {listing.inquiry_count ?? 0}
                       </div>
                     </td>
                     <td className="py-3 px-4 text-right text-sm">
                       <div className="flex items-center justify-end gap-1">
                         <Phone className="w-3 h-3 text-gray-400" />
-                        {listing.phone_click_count}
+                        {listing.phone_click_count ?? 0}
                       </div>
                     </td>
                     <td className="py-3 px-4 text-right text-sm text-gray-600">
-                      {listing.hours_to_first_inquiry !== null
+                      {listing.hours_to_first_inquiry != null
                         ? `${listing.hours_to_first_inquiry.toFixed(0)}h`
                         : '-'}
                     </td>

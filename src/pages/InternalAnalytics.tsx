@@ -185,7 +185,13 @@ export function InternalAnalytics() {
       });
 
       if (engagementResult.data?.[0]) {
-        setEngagementFunnel(engagementResult.data[0]);
+        const raw = engagementResult.data[0];
+        setEngagementFunnel({
+          sessions: raw.total_sessions ?? 0,
+          impressions: raw.total_impressions ?? 0,
+          listing_views: raw.total_views ?? 0,
+          contact_attempts: raw.sessions_with_inquiry ?? 0,
+        });
       }
 
       setTopFilters(filtersResult.data || []);
