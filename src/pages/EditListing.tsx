@@ -742,6 +742,33 @@ export function EditListing() {
         }
       }
 
+      // Validate address fields for sales listings
+      if (isSaleListing) {
+        if (!formData.street_address || formData.street_address.trim() === "") {
+          alert("Please enter a street address");
+          setSaving(false);
+          return;
+        }
+
+        if (!formData.city || formData.city.trim() === "") {
+          alert("Please enter a city");
+          setSaving(false);
+          return;
+        }
+
+        if (!formData.state || formData.state.trim() === "") {
+          alert("Please enter a state");
+          setSaving(false);
+          return;
+        }
+
+        if (!formData.zip_code || formData.zip_code.trim() === "") {
+          alert("Please enter a ZIP code");
+          setSaving(false);
+          return;
+        }
+      }
+
       if (!formData.property_type || formData.property_type === "") {
         alert("Please select a property type");
         setSaving(false);
@@ -862,6 +889,17 @@ export function EditListing() {
       if (isSaleListing) {
         const calculatedLotSize = calculateLotSize();
         const calculatedBuildingSize = calculateBuildingSize();
+
+        // Build full address string for sales listings
+        const addressParts = [
+          formData.street_address,
+          formData.unit_number ? `Unit ${formData.unit_number}` : '',
+          formData.city || 'Brooklyn',
+          formData.state || 'NY',
+          formData.zip_code || ''
+        ].filter(Boolean);
+        const fullAddress = addressParts.join(', ');
+
         Object.assign(updatePayload, {
           asking_price: formData.call_for_price ? null : formData.asking_price,
           call_for_price: !!formData.call_for_price,
@@ -892,6 +930,7 @@ export function EditListing() {
           state: formData.state || null,
           zip_code: formData.zip_code || null,
           unit_count: formData.unit_count || null,
+          full_address: fullAddress,
         });
       } else {
         Object.assign(updatePayload, {
@@ -1252,89 +1291,208 @@ export function EditListing() {
               />
             </div>
 
-            <div className="lg:col-span-2">
+            {/* Listing Type - Display Only (Cannot be changed during edit) */}
+            <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Cross Streets *
+                Listing Type
               </label>
-              <p className="text-xs text-gray-500 mb-2">
-                Please enter two exact street names
-              </p>
-              <div className="space-y-3 mb-4">
-                <MapboxStreetAutocomplete
-                  value={crossStreetAFeature?.text}
-                  onSelect={(feature) => {
-                    setCrossStreetAFeature(feature);
-                    if (feature) {
-                      setFormData(prev => ({ ...prev, location: `${feature.text} & ${crossStreetBFeature?.text || ''}`.trim() }));
-                    }
-                  }}
-                  placeholder="First cross street (e.g., Avenue J)"
-                />
-                <MapboxStreetAutocomplete
-                  value={crossStreetBFeature?.text}
-                  onSelect={(feature) => {
-                    setCrossStreetBFeature(feature);
-                    if (feature) {
-                      setFormData(prev => ({ ...prev, location: `${crossStreetAFeature?.text || ''} & ${feature.text}`.trim() }));
-                    }
-                  }}
-                  placeholder="Second cross street (e.g., East 15th Street)"
-                />
-              </div>
-              <div className="mt-4 mb-6">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Set Location on Map (optional)
-                </label>
-                <p className="text-sm text-gray-500 mb-3">
-                  Help tenants find your listing by setting its location on the map.
-                </p>
-                <LocationPicker
-                  crossStreets={formData.location}
-                  crossStreetAFeature={crossStreetAFeature}
-                  crossStreetBFeature={crossStreetBFeature}
-                  neighborhood={formData.neighborhood}
-                  city={formData.city}
-                  latitude={formData.latitude}
-                  longitude={formData.longitude}
-                  onLocationChange={handleLocationCoordinatesChange}
-                  onNeighborhoodChange={handleNeighborhoodFromMap}
-                  onConfirmationStatusChange={handleConfirmationStatusChange}
-                />
+              <div className="flex items-center h-10 px-3 py-2 bg-gray-50 border border-gray-300 rounded-md">
+                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                  isSaleListing
+                    ? 'bg-blue-100 text-blue-800'
+                    : 'bg-green-100 text-green-800'
+                }`}>
+                  {isSaleListing ? 'For Sale' : 'For Rent'}
+                </span>
+                <span className="ml-3 text-sm text-gray-500">
+                  (Cannot be changed)
+                </span>
               </div>
             </div>
 
-            {/* Neighborhood field - only shown for rental listings */}
-            {!isSaleListing && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Neighborhood *
-                </label>
-                <select
-                  name="neighborhood"
-                  value={neighborhoodSelectValue}
-                  onChange={handleNeighborhoodSelect}
-                  required
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
-                >
-                  <option value="">Select a neighborhood</option>
-                  <option value="Midwood">Midwood</option>
-                  <option value="Homecrest">Homecrest</option>
-                  <option value="Marine Park">Marine Park</option>
-                  <option value="Flatbush">Flatbush</option>
-                  <option value="Gravesend">Gravesend</option>
-                  <option value="Boro Park">Boro Park</option>
-                  <option value="other">Other (type below)</option>
-                </select>
-                {showCustomNeighborhood && (
+            {/* Location fields - different for rental vs sale listings */}
+            {isSaleListing ? (
+              <>
+                {/* Sales Listing: Full Address Fields */}
+                <div className="lg:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Street Address *
+                  </label>
                   <input
                     type="text"
-                    value={customNeighborhoodInput}
-                    onChange={handleCustomNeighborhoodChange}
-                    className="mt-2 w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
-                    placeholder="Enter custom neighborhood"
+                    name="street_address"
+                    value={formData.street_address || ""}
+                    onChange={handleInputChange}
+                    required
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
+                    placeholder="123 Main Street"
                   />
-                )}
-              </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Unit/Apt #
+                  </label>
+                  <input
+                    type="text"
+                    name="unit_number"
+                    value={formData.unit_number || ""}
+                    onChange={handleInputChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
+                    placeholder="Optional"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    ZIP Code *
+                  </label>
+                  <input
+                    type="text"
+                    name="zip_code"
+                    value={formData.zip_code || ""}
+                    onChange={handleInputChange}
+                    required
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
+                    placeholder="11201"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    City *
+                  </label>
+                  <input
+                    type="text"
+                    name="city"
+                    value={formData.city || ""}
+                    onChange={handleInputChange}
+                    required
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
+                    placeholder="Brooklyn"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    State *
+                  </label>
+                  <input
+                    type="text"
+                    name="state"
+                    value={formData.state || ""}
+                    onChange={handleInputChange}
+                    required
+                    maxLength={2}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
+                    placeholder="NY"
+                  />
+                </div>
+
+                <div className="lg:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Set Location on Map *
+                  </label>
+                  <p className="text-sm text-gray-500 mb-3">
+                    Use "Find on Map" or "Set Pin Location" to geocode your property
+                  </p>
+                  <LocationPicker
+                    crossStreets={`${formData.street_address || ''}, ${formData.city || ''}, ${formData.state || ''}`}
+                    neighborhood={formData.neighborhood}
+                    latitude={formData.latitude}
+                    longitude={formData.longitude}
+                    onLocationChange={handleLocationCoordinatesChange}
+                    onNeighborhoodChange={handleNeighborhoodFromMap}
+                    onConfirmationStatusChange={handleConfirmationStatusChange}
+                  />
+                </div>
+              </>
+            ) : (
+              <>
+                {/* Rental Listing: Cross Streets + Neighborhood */}
+                <div className="lg:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Cross Streets *
+                  </label>
+                  <p className="text-xs text-gray-500 mb-2">
+                    Please enter two exact street names
+                  </p>
+                  <div className="space-y-3 mb-4">
+                    <MapboxStreetAutocomplete
+                      value={crossStreetAFeature?.text}
+                      onSelect={(feature) => {
+                        setCrossStreetAFeature(feature);
+                        if (feature) {
+                          setFormData(prev => ({ ...prev, location: `${feature.text} & ${crossStreetBFeature?.text || ''}`.trim() }));
+                        }
+                      }}
+                      placeholder="First cross street (e.g., Avenue J)"
+                    />
+                    <MapboxStreetAutocomplete
+                      value={crossStreetBFeature?.text}
+                      onSelect={(feature) => {
+                        setCrossStreetBFeature(feature);
+                        if (feature) {
+                          setFormData(prev => ({ ...prev, location: `${crossStreetAFeature?.text || ''} & ${feature.text}`.trim() }));
+                        }
+                      }}
+                      placeholder="Second cross street (e.g., East 15th Street)"
+                    />
+                  </div>
+                  <div className="mt-4 mb-6">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Set Location on Map (optional)
+                    </label>
+                    <p className="text-sm text-gray-500 mb-3">
+                      Help tenants find your listing by setting its location on the map.
+                    </p>
+                    <LocationPicker
+                      crossStreets={formData.location}
+                      crossStreetAFeature={crossStreetAFeature}
+                      crossStreetBFeature={crossStreetBFeature}
+                      neighborhood={formData.neighborhood}
+                      city={formData.city}
+                      latitude={formData.latitude}
+                      longitude={formData.longitude}
+                      onLocationChange={handleLocationCoordinatesChange}
+                      onNeighborhoodChange={handleNeighborhoodFromMap}
+                      onConfirmationStatusChange={handleConfirmationStatusChange}
+                    />
+                  </div>
+                </div>
+
+                {/* Neighborhood field - only for rental listings */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Neighborhood *
+                  </label>
+                  <select
+                    name="neighborhood"
+                    value={neighborhoodSelectValue}
+                    onChange={handleNeighborhoodSelect}
+                    required
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
+                  >
+                    <option value="">Select a neighborhood</option>
+                    <option value="Midwood">Midwood</option>
+                    <option value="Homecrest">Homecrest</option>
+                    <option value="Marine Park">Marine Park</option>
+                    <option value="Flatbush">Flatbush</option>
+                    <option value="Gravesend">Gravesend</option>
+                    <option value="Boro Park">Boro Park</option>
+                    <option value="other">Other (type below)</option>
+                  </select>
+                  {showCustomNeighborhood && (
+                    <input
+                      type="text"
+                      value={customNeighborhoodInput}
+                      onChange={handleCustomNeighborhoodChange}
+                      className="mt-2 w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
+                      placeholder="Enter custom neighborhood"
+                    />
+                  )}
+                </div>
+              </>
             )}
 
             <div>
