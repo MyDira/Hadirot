@@ -484,7 +484,16 @@ export function ListingDetail() {
 
   const images =
     listing.listing_images
-      ?.filter((img) => img && img.image_url) // Filter out invalid entries
+      ?.filter((img) => {
+        return (
+          img !== null &&
+          img !== undefined &&
+          typeof img === 'object' &&
+          img.image_url &&
+          typeof img.image_url === 'string' &&
+          img.image_url.trim().length > 0
+        );
+      })
       .sort((a, b) => {
         if (a.is_featured && !b.is_featured) return -1;
         if (!a.is_featured && b.is_featured) return 1;

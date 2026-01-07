@@ -107,7 +107,7 @@ export default function ImageCarousel({
     // Preload all remaining images in background
     const timer = setTimeout(() => {
       displayMedia.forEach(media => {
-        if (media.type === 'image') preloadImage(media.url);
+        if (media && media.type === 'image') preloadImage(media.url);
       });
     }, 500);
 
@@ -262,7 +262,7 @@ export default function ImageCarousel({
     { media: displayMedia[prevIndex], position: -1, index: prevIndex },
     { media: displayMedia[currentIndex], position: 0, index: currentIndex },
     { media: displayMedia[nextIndex], position: 1, index: nextIndex }
-  ];
+  ].filter(slide => slide.media !== undefined && slide.media !== null);
 
   const currentMedia = displayMedia[currentIndex];
   const canZoom = enableZoom && currentMedia?.type === 'image' && hasRealImages && onImageClick;
@@ -292,6 +292,10 @@ export default function ImageCarousel({
 
   const renderMediaSlide = (media: MediaItem, position: number, index: number) => {
     const isCurrentSlide = position === 0;
+
+    if (!media) {
+      return null;
+    }
 
     return (
       <div
