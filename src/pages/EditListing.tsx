@@ -904,7 +904,7 @@ export function EditListing() {
         ].filter(Boolean);
         const fullAddress = addressParts.join(', ');
 
-        const saleStatusChanged = formData.sale_status !== (existingListing?.sale_status || 'available');
+        const saleStatusChanged = formData.sale_status !== (listing?.sale_status || 'available');
         const newExpiresAt = saleStatusChanged
           ? getExpirationDate('sale', formData.sale_status || 'available').toISOString()
           : undefined;
@@ -1883,7 +1883,7 @@ export function EditListing() {
         </div>
 
         {/* Sale Status Selector */}
-        {isSaleListing && existingListing?.is_active && (
+        {isSaleListing && listing?.is_active && (
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
             <h2 className="text-xl font-semibold text-[#273140] mb-4">
               Sale Status
