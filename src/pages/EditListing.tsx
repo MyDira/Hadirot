@@ -3,7 +3,7 @@ import { useParams, useNavigate, Link } from "react-router-dom";
 import { Upload, X, Star, ArrowLeft, Save } from "lucide-react";
 import * as Sentry from "@sentry/react";
 import { useAuth } from "@/hooks/useAuth";
-import { listingsService } from "../services/listings";
+import { listingsService, getExpirationDate } from "../services/listings";
 import { emailService } from "../services/email";
 import { reverseGeocode } from "../services/reverseGeocode";
 import { generateVideoThumbnail } from "../utils/videoUtils";
@@ -30,6 +30,7 @@ import {
   HeatingType,
   BuildingType,
   RentRollUnit,
+  SaleStatus,
 } from "../config/supabase";
 import { SalesListingFields } from "../components/listing/SalesListingFields";
 import { compressImage } from "../utils/imageUtils";
@@ -60,6 +61,7 @@ interface ListingFormData {
   latitude: number | null;
   longitude: number | null;
   listing_type: 'rental' | 'sale';
+  sale_status: SaleStatus | null;
   asking_price: number | null;
   building_type?: BuildingType | null;
   property_condition?: PropertyCondition | null;
@@ -152,6 +154,7 @@ export function EditListing() {
     latitude: null,
     longitude: null,
     listing_type: 'rental',
+    sale_status: null,
     asking_price: null,
     building_type: null,
     property_condition: null,
@@ -292,6 +295,7 @@ export function EditListing() {
         latitude: data.latitude || null,
         longitude: data.longitude || null,
         listing_type: data.listing_type || 'rental',
+        sale_status: (data.sale_status as SaleStatus) || null,
         asking_price: data.asking_price || null,
         building_type: data.building_type || null,
         property_condition: data.property_condition || null,
@@ -900,9 +904,16 @@ export function EditListing() {
         ].filter(Boolean);
         const fullAddress = addressParts.join(', ');
 
+        const saleStatusChanged = formData.sale_status !== (existingListing?.sale_status || 'available');
+        const newExpiresAt = saleStatusChanged
+          ? getExpirationDate('sale', formData.sale_status || 'available').toISOString()
+          : undefined;
+
         Object.assign(updatePayload, {
           asking_price: formData.call_for_price ? null : formData.asking_price,
           call_for_price: !!formData.call_for_price,
+          sale_status: formData.sale_status || 'available',
+          ...(newExpiresAt && { expires_at: newExpiresAt }),
           building_type: formData.building_type || null,
           property_condition: formData.property_condition || null,
           occupancy_status: formData.occupancy_status || null,
@@ -1870,6 +1881,45 @@ export function EditListing() {
           </div>
           )}
         </div>
+
+        {/* Sale Status Selector */}
+        {isSaleListing && existingListing?.is_active && (
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <h2 className="text-xl font-semibold text-[#273140] mb-4">
+              Sale Status
+            </h2>
+            <div className="max-w-sm">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Current Status
+              </label>
+              <select
+                name="sale_status"
+                value={formData.sale_status || 'available'}
+                onChange={(e) => {
+                  const newStatus = e.target.value as SaleStatus;
+                  if (newStatus === 'sold') {
+                    if (!confirm('Marking as "Sold" means this listing cannot be extended. It will remain visible for 30 days. Continue?')) {
+                      return;
+                    }
+                  }
+                  setFormData(prev => ({ ...prev, sale_status: newStatus }));
+                }}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
+              >
+                <option value="available">Available</option>
+                <option value="pending">Pending</option>
+                <option value="in_contract">In Contract</option>
+                <option value="sold">Sold</option>
+              </select>
+              <p className="text-xs text-gray-500 mt-1">
+                {formData.sale_status === 'available' && 'Listing stays active for 14 days.'}
+                {formData.sale_status === 'pending' && 'Listing stays active for 14 days.'}
+                {formData.sale_status === 'in_contract' && 'Listing stays active for 6 weeks.'}
+                {formData.sale_status === 'sold' && 'Listing stays visible for 30 days. Extensions not allowed.'}
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* Sales Listing Fields */}
         {isSaleListing && (

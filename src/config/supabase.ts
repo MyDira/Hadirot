@@ -35,6 +35,7 @@ export type DeliveryCondition = 'vacant_at_closing' | 'subject_to_lease' | 'nego
 export type BasementType = 'finished' | 'unfinished' | 'partially_finished' | 'walkout' | 'none';
 export type LaundryType = 'in_unit' | 'hookups_only' | 'common_area' | 'none';
 export type BuildingType = 'detached' | 'semi_attached' | 'fully_attached' | 'apartment';
+export type SaleStatus = 'available' | 'pending' | 'in_contract' | 'sold';
 
 export interface Profile {
   id: string;
@@ -131,6 +132,10 @@ export interface Listing {
   longitude?: number | null;
   admin_custom_agency_name?: string | null;
   admin_listing_type_display?: 'agent' | 'owner' | null;
+  expires_at?: string | null;
+  sale_status?: SaleStatus | null;
+  deactivated_at?: string | null;
+  featured_expires_at?: string | null;
   owner?: Profile;
   listing_images?: ListingImage[];
   is_favorited?: boolean;

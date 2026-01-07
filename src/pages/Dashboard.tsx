@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from "react";
-import { Link } from "react-router-dom";
+import React, { useState, useEffect, useMemo } from "react";
+import { Link, useSearchParams } from "react-router-dom";
 import {
   Edit,
   Eye,
@@ -11,16 +11,29 @@ import {
   Plus,
   EyeOff,
   AlertTriangle,
+  Clock,
+  Home,
+  DollarSign,
+  Info,
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
-import { Listing } from "../config/supabase";
-import { listingsService } from "../services/listings";
+import { Listing, SaleStatus } from "../config/supabase";
+import {
+  listingsService,
+  canExtendListing,
+  getDaysUntilExpiration,
+  LISTING_DURATION_DAYS,
+} from "../services/listings";
 import { profilesService } from "../services/profiles";
 import { emailService } from "../services/email";
 import { InquiriesModal, Inquiry } from "../components/listing/InquiriesModal";
+import { SaleStatusBadge } from "../components/listings/SaleStatusBadge";
+
+type DashboardTab = 'rentals' | 'sales';
 
 export default function Dashboard() {
   const { user, profile, loading: authLoading, refreshProfile } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [listings, setListings] = useState<Listing[]>([]);
   const [adminSettings, setAdminSettings] = useState<{
     max_featured_listings: number;
@@ -36,6 +49,41 @@ export default function Dashboard() {
   const [modalListingTitle, setModalListingTitle] = useState<string>('');
   const [modalInquiries, setModalInquiries] = useState<Inquiry[]>([]);
   const [modalLoading, setModalLoading] = useState(false);
+
+  const rentalListings = useMemo(
+    () => listings.filter((l) => l.listing_type !== 'sale'),
+    [listings]
+  );
+  const salesListings = useMemo(
+    () => listings.filter((l) => l.listing_type === 'sale'),
+    [listings]
+  );
+
+  const getDefaultTab = (): DashboardTab => {
+    const urlTab = searchParams.get('tab');
+    if (urlTab === 'rentals' || urlTab === 'sales') return urlTab;
+    if (salesListings.length > 0 && rentalListings.length === 0) return 'sales';
+    return 'rentals';
+  };
+
+  const [activeTab, setActiveTab] = useState<DashboardTab>(getDefaultTab);
+
+  useEffect(() => {
+    if (!loading) {
+      const urlTab = searchParams.get('tab');
+      if (!urlTab) {
+        const defaultTab = getDefaultTab();
+        setActiveTab(defaultTab);
+      }
+    }
+  }, [loading, salesListings.length, rentalListings.length]);
+
+  const handleTabChange = (tab: DashboardTab) => {
+    setActiveTab(tab);
+    setSearchParams({ tab });
+  };
+
+  const filteredListings = activeTab === 'sales' ? salesListings : rentalListings;
 
   useEffect(() => {
     if (user && !authLoading) {
@@ -169,37 +217,47 @@ export default function Dashboard() {
   const handleRenewListing = async (listingId: string) => {
     setActionLoading(listingId);
     try {
-      await listingsService.updateListing(listingId, {
-        last_published_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        is_active: true,
-      });
+      const listing = listings.find((l) => l.id === listingId);
+      const listingType = listing?.listing_type || 'rental';
+      const saleStatus = listing?.sale_status as SaleStatus | undefined;
+
+      await listingsService.renewListing(listingId, listingType, saleStatus);
 
       // Send email notification for listing reactivation
       try {
-        if (user?.email && profile?.full_name) {
-          const listing = listings.find((l) => l.id === listingId);
-          if (listing) {
-            await emailService.sendListingReactivationEmail(
-              user.email,
-              profile.full_name,
-              listing.title,
-            );
-            console.log("✅ Email sent: listing reactivation to", user.email);
-          }
+        if (user?.email && profile?.full_name && listing) {
+          await emailService.sendListingReactivationEmail(
+            user.email,
+            profile.full_name,
+            listing.title,
+          );
+          console.log("✅ Email sent: listing reactivation to", user.email);
         }
       } catch (emailError) {
         console.error(
           "❌ Email failed: listing reactivation -",
           emailError.message,
         );
-        // Don't block the user flow if email fails
       }
 
       await loadUserListings();
     } catch (error) {
       console.error("Error renewing listing:", error);
       alert("Failed to renew listing. Please try again.");
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleExtendSalesListing = async (listingId: string) => {
+    setActionLoading(listingId);
+    try {
+      await listingsService.extendSalesListing(listingId);
+      await loadUserListings();
+    } catch (error) {
+      console.error("Error extending listing:", error);
+      const message = error instanceof Error ? error.message : "Failed to extend listing. Please try again.";
+      alert(message);
     } finally {
       setActionLoading(null);
     }
@@ -382,33 +440,83 @@ export default function Dashboard() {
           </Link>
         </div>
 
+        {/* Tabs */}
+        <div className="border-b border-gray-200 mb-4">
+          <nav className="-mb-px flex space-x-8">
+            <button
+              onClick={() => handleTabChange('rentals')}
+              className={`py-3 px-1 border-b-2 font-medium text-sm flex items-center gap-2 transition-colors ${
+                activeTab === 'rentals'
+                  ? 'border-brand-600 text-brand-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              <Home className="w-4 h-4" />
+              Rentals
+              {rentalListings.length > 0 && (
+                <span className={`ml-1 px-2 py-0.5 text-xs rounded-full ${
+                  activeTab === 'rentals' ? 'bg-brand-100 text-brand-700' : 'bg-gray-100 text-gray-600'
+                }`}>
+                  {rentalListings.length}
+                </span>
+              )}
+            </button>
+            <button
+              onClick={() => handleTabChange('sales')}
+              className={`py-3 px-1 border-b-2 font-medium text-sm flex items-center gap-2 transition-colors ${
+                activeTab === 'sales'
+                  ? 'border-emerald-600 text-emerald-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              <DollarSign className="w-4 h-4" />
+              Sales
+              {salesListings.length > 0 && (
+                <span className={`ml-1 px-2 py-0.5 text-xs rounded-full ${
+                  activeTab === 'sales' ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-600'
+                }`}>
+                  {salesListings.length}
+                </span>
+              )}
+            </button>
+          </nav>
+        </div>
+
+        {/* Lifecycle notice */}
+        <div className="mb-4 p-3 bg-gray-50 border border-gray-200 rounded-lg flex items-start gap-2 text-sm text-gray-600">
+          <Info className="w-4 h-4 mt-0.5 flex-shrink-0 text-gray-400" />
+          {activeTab === 'rentals' ? (
+            <span>
+              Rental listings are active for {LISTING_DURATION_DAYS.RENTAL} days. After expiration, listings become inactive and are purged after 30 additional days.
+            </span>
+          ) : (
+            <span>
+              Sales listings are active for {LISTING_DURATION_DAYS.SALE_AVAILABLE} days (6 weeks for In Contract). Extend within 7 days of expiration to keep your listing active.
+            </span>
+          )}
+        </div>
+
         {loading ? (
           <div className="text-center py-8">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#273140] mx-auto"></div>
             <p className="text-gray-600 mt-4">Loading your listings...</p>
           </div>
-        ) : listings.length === 0 ? (
+        ) : filteredListings.length === 0 ? (
           <div className="text-center py-12 bg-white rounded-lg shadow-sm border border-gray-200">
             <div className="text-gray-400 mb-4">
-              <svg
-                className="mx-auto h-12 w-12"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
-                />
-              </svg>
+              {activeTab === 'sales' ? (
+                <DollarSign className="mx-auto h-12 w-12" />
+              ) : (
+                <Home className="mx-auto h-12 w-12" />
+              )}
             </div>
             <h3 className="text-lg font-medium text-gray-900 mb-2">
-              No listings yet
+              No {activeTab === 'sales' ? 'sale' : 'rental'} listings yet
             </h3>
             <p className="text-gray-500 mb-4">
-              Start by creating your first property listing.
+              {activeTab === 'sales'
+                ? 'Create your first property for sale listing.'
+                : 'Start by creating your first rental property listing.'}
             </p>
             <Link
               to="/post"
@@ -442,19 +550,27 @@ export default function Dashboard() {
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap" style={{ width: '140px' }}>
                       Status
                     </th>
+                    {activeTab === 'sales' && (
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap" style={{ width: '100px' }}>
+                        Expires
+                      </th>
+                    )}
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap" style={{ width: '140px' }}>
                       Created
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap" style={{ width: '180px' }}>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap" style={{ width: '200px' }}>
                       Actions
                     </th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {listings.map((listing) => {
+                  {filteredListings.map((listing) => {
                     const featuredImage =
                       listing.listing_images?.find((img) => img.is_featured) ||
                       listing.listing_images?.[0];
+                    const isSale = listing.listing_type === 'sale';
+                    const daysUntilExpiration = getDaysUntilExpiration(listing.expires_at);
+                    const extensionCheck = canExtendListing(listing);
 
                     return (
                       <tr key={listing.id} className="hover:bg-gray-50">
@@ -484,7 +600,9 @@ export default function Dashboard() {
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                           {listing.call_for_price
                             ? 'Call for Price'
-                            : `${formatPrice(listing.price)}/month`}
+                            : isSale
+                              ? formatPrice(listing.asking_price ?? listing.price)
+                              : `${formatPrice(listing.price)}/month`}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                           <div className="flex items-center gap-1.5">
@@ -541,8 +659,31 @@ export default function Dashboard() {
                                 Featured
                               </span>
                             )}
+                            {isSale && listing.sale_status && listing.sale_status !== 'available' && (
+                              <SaleStatusBadge status={listing.sale_status} size="sm" />
+                            )}
                           </div>
                         </td>
+                        {activeTab === 'sales' && (
+                          <td className="px-6 py-4 whitespace-nowrap text-sm">
+                            {listing.is_active && daysUntilExpiration !== null ? (
+                              <div className={`flex items-center gap-1 ${
+                                daysUntilExpiration <= 3
+                                  ? 'text-red-600 font-medium'
+                                  : daysUntilExpiration <= 7
+                                    ? 'text-amber-600'
+                                    : 'text-gray-600'
+                              }`}>
+                                <Clock className="w-3.5 h-3.5" />
+                                {daysUntilExpiration <= 0
+                                  ? 'Expired'
+                                  : `${daysUntilExpiration}d`}
+                              </div>
+                            ) : (
+                              <span className="text-gray-400">-</span>
+                            )}
+                          </td>
+                        )}
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                           <div>
                             <div className="whitespace-nowrap">
@@ -643,6 +784,28 @@ export default function Dashboard() {
                                 <RefreshCw className="w-4.5 h-4.5" />
                               </button>
                             )}
+
+                            {isSale && listing.is_active && (
+                              <button
+                                type="button"
+                                onClick={() => handleExtendSalesListing(listing.id)}
+                                disabled={
+                                  actionLoading === listing.id ||
+                                  !extensionCheck.canExtend
+                                }
+                                className={`transition-colors ${
+                                  extensionCheck.canExtend
+                                    ? 'text-emerald-600 hover:text-emerald-700'
+                                    : 'text-gray-300 cursor-not-allowed'
+                                }`}
+                                title={extensionCheck.canExtend
+                                  ? 'Extend 14 days'
+                                  : extensionCheck.reason || 'Cannot extend'}
+                              >
+                                <Clock className="w-4.5 h-4.5" />
+                              </button>
+                            )}
+
                             <button
                               type="button"
                               onClick={() => handleDeleteListing(listing.id)}

@@ -54,6 +54,7 @@ import { ListingContactForm } from "../components/listing/ListingContactForm";
 import { AdminListingBanner } from "../components/listing/AdminListingBanner";
 import { formatLeaseLength } from "../utils/formatters";
 import { ListingLocationMap } from "../components/listing/ListingLocationMap";
+import { SaleStatusBadge } from "../components/listings/SaleStatusBadge";
 
 const SCROLL_THRESHOLDS = [25, 50, 75, 100] as const;
 
@@ -760,22 +761,32 @@ export function ListingDetail() {
 
           {/* Price - Fourth on mobile */}
           <section id="ld-price" className="order-4 lg:order-none">
-            {listing.call_for_price ? (
-              <strong>Call for Price</strong>
-            ) : listing.listing_type === 'sale' ? (
-              listing.asking_price != null && (
-                <div className="text-3xl font-bold text-[#273140]">
-                  <span className="num-font">{formatPrice(listing.asking_price)}</span>
-                </div>
-              )
-            ) : (
-              listing.price != null && (
-                <div className="text-3xl font-bold text-[#273140]">
-                  <span className="num-font">{formatPrice(listing.price)}</span>
-                  <span className="text-lg font-normal text-gray-500">/month</span>
-                </div>
-              )
-            )}
+            <div className="flex items-center gap-3 flex-wrap">
+              {listing.call_for_price ? (
+                <strong>Call for Price</strong>
+              ) : listing.listing_type === 'sale' ? (
+                listing.asking_price != null && (
+                  <div className="text-3xl font-bold text-[#273140]">
+                    <span className="num-font">{formatPrice(listing.asking_price)}</span>
+                  </div>
+                )
+              ) : (
+                listing.price != null && (
+                  <div className="text-3xl font-bold text-[#273140]">
+                    <span className="num-font">{formatPrice(listing.price)}</span>
+                    <span className="text-lg font-normal text-gray-500">/month</span>
+                  </div>
+                )
+              )}
+              {isSaleListing && listing.sale_status && listing.sale_status !== 'available' && (
+                <SaleStatusBadge status={listing.sale_status} size="md" />
+              )}
+              {isSaleListing && (
+                <span className="inline-flex items-center bg-emerald-50 text-emerald-700 text-sm px-3 py-1 rounded-full border border-emerald-200">
+                  For Sale
+                </span>
+              )}
+            </div>
           </section>
 
           {/* Basic info - Fifth on mobile */}

@@ -1,6 +1,76 @@
 import * as Sentry from '@sentry/react';
-import { supabase, Listing } from '../config/supabase';
+import { supabase, Listing, SaleStatus } from '../config/supabase';
 import { capitalizeName } from '../utils/formatters';
+
+export const LISTING_DURATION_DAYS = {
+  RENTAL: 30,
+  SALE_AVAILABLE: 14,
+  SALE_PENDING: 14,
+  SALE_IN_CONTRACT: 42,
+  SALE_SOLD: 30,
+} as const;
+
+export const EXTENSION_WINDOW_DAYS = 7;
+
+export function getExpirationDate(listingType: 'rental' | 'sale', saleStatus?: SaleStatus | null): Date {
+  const now = new Date();
+  let days: number;
+
+  if (listingType === 'rental' || !listingType) {
+    days = LISTING_DURATION_DAYS.RENTAL;
+  } else {
+    switch (saleStatus) {
+      case 'pending':
+        days = LISTING_DURATION_DAYS.SALE_PENDING;
+        break;
+      case 'in_contract':
+        days = LISTING_DURATION_DAYS.SALE_IN_CONTRACT;
+        break;
+      case 'sold':
+        days = LISTING_DURATION_DAYS.SALE_SOLD;
+        break;
+      case 'available':
+      default:
+        days = LISTING_DURATION_DAYS.SALE_AVAILABLE;
+        break;
+    }
+  }
+
+  now.setDate(now.getDate() + days);
+  return now;
+}
+
+export function canExtendListing(listing: Listing): { canExtend: boolean; reason?: string } {
+  if (listing.listing_type !== 'sale') {
+    return { canExtend: false, reason: 'Only sale listings can be extended' };
+  }
+  if (!listing.is_active) {
+    return { canExtend: false, reason: 'Inactive listings cannot be extended' };
+  }
+  if (listing.sale_status === 'sold') {
+    return { canExtend: false, reason: 'Sold listings cannot be extended' };
+  }
+  if (!listing.expires_at) {
+    return { canExtend: true };
+  }
+
+  const expiresAt = new Date(listing.expires_at);
+  const now = new Date();
+  const daysUntilExpiration = Math.ceil((expiresAt.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+
+  if (daysUntilExpiration > EXTENSION_WINDOW_DAYS) {
+    return { canExtend: false, reason: `Extension available ${daysUntilExpiration - EXTENSION_WINDOW_DAYS} days before expiration` };
+  }
+
+  return { canExtend: true };
+}
+
+export function getDaysUntilExpiration(expiresAt: string | null | undefined): number | null {
+  if (!expiresAt) return null;
+  const expires = new Date(expiresAt);
+  const now = new Date();
+  return Math.ceil((expires.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+}
 
 export type SortOption = 'newest' | 'oldest' | 'price_asc' | 'price_desc' | 'bedrooms_asc' | 'bedrooms_desc' | 'bathrooms_asc' | 'bathrooms_desc';
 
@@ -1637,5 +1707,113 @@ async getInquiriesForListing(listingId: string): Promise<{ user_name: string; us
       neighborhood: row.neighborhood,
       owner: row.owner ? { role: row.owner.role, agency: row.owner.agency } : null,
     }));
+  },
+
+  async extendSalesListing(listingId: string): Promise<Listing> {
+    const { data: listing, error: fetchError } = await supabase
+      .from('listings')
+      .select('*')
+      .eq('id', listingId)
+      .maybeSingle();
+
+    if (fetchError || !listing) {
+      throw new Error('Listing not found');
+    }
+
+    if (listing.listing_type !== 'sale') {
+      throw new Error('Only sale listings can be extended');
+    }
+
+    if (!listing.is_active) {
+      throw new Error('Inactive listings cannot be extended');
+    }
+
+    if (listing.sale_status === 'sold') {
+      throw new Error('Sold listings cannot be extended');
+    }
+
+    const newExpiresAt = getExpirationDate('sale', listing.sale_status as SaleStatus);
+
+    const { data: updatedListing, error: updateError } = await supabase
+      .from('listings')
+      .update({
+        expires_at: newExpiresAt.toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', listingId)
+      .select()
+      .single();
+
+    if (updateError) {
+      console.error('Error extending listing:', updateError);
+      throw updateError;
+    }
+
+    return updatedListing;
+  },
+
+  async updateSaleStatus(listingId: string, newStatus: SaleStatus): Promise<Listing> {
+    const { data: listing, error: fetchError } = await supabase
+      .from('listings')
+      .select('*')
+      .eq('id', listingId)
+      .maybeSingle();
+
+    if (fetchError || !listing) {
+      throw new Error('Listing not found');
+    }
+
+    if (listing.listing_type !== 'sale') {
+      throw new Error('Only sale listings can have a sale status');
+    }
+
+    if (!listing.is_active) {
+      throw new Error('Cannot change status on inactive listings');
+    }
+
+    const newExpiresAt = getExpirationDate('sale', newStatus);
+
+    const { data: updatedListing, error: updateError } = await supabase
+      .from('listings')
+      .update({
+        sale_status: newStatus,
+        expires_at: newExpiresAt.toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', listingId)
+      .select()
+      .single();
+
+    if (updateError) {
+      console.error('Error updating sale status:', updateError);
+      throw updateError;
+    }
+
+    return updatedListing;
+  },
+
+  async renewListing(listingId: string, listingType: 'rental' | 'sale', saleStatus?: SaleStatus | null): Promise<Listing> {
+    const newExpiresAt = getExpirationDate(listingType, saleStatus);
+    const now = new Date().toISOString();
+
+    const { data: updatedListing, error } = await supabase
+      .from('listings')
+      .update({
+        is_active: true,
+        last_published_at: now,
+        expires_at: newExpiresAt.toISOString(),
+        deactivated_at: null,
+        updated_at: now,
+      })
+      .eq('id', listingId)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Error renewing listing:', error);
+      throw error;
+    }
+
+    return updatedListing;
   },
 };

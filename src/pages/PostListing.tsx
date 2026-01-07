@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { Upload, X, Star, CheckCircle } from "lucide-react";
 import * as Sentry from "@sentry/react";
 import { useAuth } from "@/hooks/useAuth";
-import { listingsService } from "../services/listings";
+import { listingsService, getExpirationDate } from "../services/listings";
 import { emailService, renderBrandEmail } from "../services/email";
 import { draftListingsService, DraftData, TempVideoData } from "../services/draftListings";
 import { agenciesService } from "../services/agencies";
@@ -1132,6 +1132,10 @@ export function PostListing() {
         }
       }
 
+      // Calculate expiration date based on listing type
+      const listingType = formData.listing_type || 'rental';
+      const expiresAt = getExpirationDate(listingType, listingType === 'sale' ? 'available' : undefined);
+
       // Create the listing first
       const payload = {
         ...formData,
@@ -1151,6 +1155,8 @@ export function PostListing() {
           : null,
         is_active: false,
         approved: false,
+        expires_at: expiresAt.toISOString(),
+        sale_status: listingType === 'sale' ? 'available' : null,
         // For rental listings: use price field
         // For sale listings: use asking_price field and set price to null
         price: formData.listing_type === 'sale'

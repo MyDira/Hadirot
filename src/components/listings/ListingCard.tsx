@@ -10,6 +10,7 @@ void gaEvent;
 import NumericText from "@/components/common/NumericText";
 import { computePrimaryListingImage } from "../../utils/stockImage";
 import { ShareButton } from "../shared/ShareButton";
+import { SaleStatusBadge } from "./SaleStatusBadge";
 
 interface ListingCardProps {
   listing: Listing;
@@ -307,14 +308,24 @@ export function ListingCard({
           />
         </div>
 
-        {/* Poster label and featured badge */}
+        {/* Poster label and badges */}
         <div className="mt-2 pt-2 border-t border-gray-100 flex items-center justify-between gap-2">
           <span className="text-xs text-gray-600 truncate">by {getPosterLabel()}</span>
-          {listing.is_featured && showFeaturedBadge && (
-            <span className="inline-flex items-center bg-accent-500 text-white text-xs px-2 py-0.5 rounded flex-shrink-0">
-              Featured
-            </span>
-          )}
+          <div className="flex items-center gap-1.5 flex-shrink-0">
+            {isSaleListing && listing.sale_status && listing.sale_status !== 'available' && (
+              <SaleStatusBadge status={listing.sale_status} size="sm" />
+            )}
+            {isSaleListing && (
+              <span className="inline-flex items-center bg-emerald-50 text-emerald-700 text-xs px-2 py-0.5 rounded border border-emerald-200">
+                For Sale
+              </span>
+            )}
+            {listing.is_featured && showFeaturedBadge && (
+              <span className="inline-flex items-center bg-accent-500 text-white text-xs px-2 py-0.5 rounded flex-shrink-0">
+                Featured
+              </span>
+            )}
+          </div>
         </div>
       </div>
     </Link>
