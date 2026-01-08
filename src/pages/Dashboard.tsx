@@ -722,19 +722,52 @@ export default function Dashboard() {
                             )}
                           </div>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm">
+                        <td className="px-6 py-4 text-sm">
                           {listing.is_active && daysUntilExpiration !== null ? (
-                            <div className={`flex items-center gap-1 ${
-                              daysUntilExpiration <= 3
-                                ? 'text-red-600 font-medium'
-                                : daysUntilExpiration <= 7
-                                  ? 'text-amber-600'
-                                  : 'text-gray-600'
-                            }`}>
-                              <Clock className="w-3.5 h-3.5" />
-                              {daysUntilExpiration <= 0
-                                ? 'Expired'
-                                : `${daysUntilExpiration}d`}
+                            <div className="flex flex-col gap-2">
+                              <div className={`flex items-center gap-1 ${
+                                daysUntilExpiration <= 3
+                                  ? 'text-red-600 font-medium'
+                                  : daysUntilExpiration <= 7
+                                    ? 'text-amber-600'
+                                    : 'text-gray-600'
+                              }`}>
+                                <Clock className="w-3.5 h-3.5" />
+                                {daysUntilExpiration <= 0
+                                  ? 'Expired'
+                                  : `${daysUntilExpiration}d`}
+                              </div>
+                              {!isSale && daysUntilExpiration <= 7 && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleRenewListing(listing.id)}
+                                  disabled={actionLoading === listing.id}
+                                  className="px-2.5 py-1.5 text-xs font-medium text-white bg-brand-600 hover:bg-brand-700 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+                                  title="Renew for 30 days"
+                                >
+                                  Renew
+                                </button>
+                              )}
+                              {isSale && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleExtendSalesListing(listing.id)}
+                                  disabled={
+                                    actionLoading === listing.id ||
+                                    !extensionCheck.canExtend
+                                  }
+                                  className={`px-2.5 py-1.5 text-xs font-medium text-white rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap ${
+                                    extensionCheck.canExtend
+                                      ? 'bg-emerald-600 hover:bg-emerald-700'
+                                      : 'bg-gray-300 cursor-not-allowed'
+                                  }`}
+                                  title={extensionCheck.canExtend
+                                    ? `Extend ${listing.sale_status === 'in_contract' ? '42' : '30'} days`
+                                    : extensionCheck.reason || 'Cannot extend'}
+                                >
+                                  Extend
+                                </button>
+                              )}
                             </div>
                           ) : (
                             <span className="text-gray-400">-</span>
@@ -838,39 +871,6 @@ export default function Dashboard() {
                                 title="Republish Listing"
                               >
                                 <RefreshCw className="w-4.5 h-4.5" />
-                              </button>
-                            )}
-
-                            {!isSale && listing.is_active && daysUntilExpiration !== null && daysUntilExpiration <= 7 && (
-                              <button
-                                type="button"
-                                onClick={() => handleRenewListing(listing.id)}
-                                disabled={actionLoading === listing.id}
-                                className="text-brand-600 hover:text-brand-700 transition-colors"
-                                title="Renew 30 days"
-                              >
-                                <Clock className="w-4.5 h-4.5" />
-                              </button>
-                            )}
-
-                            {isSale && listing.is_active && (
-                              <button
-                                type="button"
-                                onClick={() => handleExtendSalesListing(listing.id)}
-                                disabled={
-                                  actionLoading === listing.id ||
-                                  !extensionCheck.canExtend
-                                }
-                                className={`transition-colors ${
-                                  extensionCheck.canExtend
-                                    ? 'text-emerald-600 hover:text-emerald-700'
-                                    : 'text-gray-300 cursor-not-allowed'
-                                }`}
-                                title={extensionCheck.canExtend
-                                  ? `Extend ${listing.sale_status === 'in_contract' ? '42' : '30'} days`
-                                  : extensionCheck.reason || 'Cannot extend'}
-                              >
-                                <Clock className="w-4.5 h-4.5" />
                               </button>
                             )}
 
