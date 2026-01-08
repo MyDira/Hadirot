@@ -4,8 +4,8 @@ import { capitalizeName } from '../utils/formatters';
 
 export const LISTING_DURATION_DAYS = {
   RENTAL: 30,
-  SALE_AVAILABLE: 14,
-  SALE_PENDING: 14,
+  SALE_AVAILABLE: 30,
+  SALE_PENDING: 30,
   SALE_IN_CONTRACT: 42,
   SALE_SOLD: 30,
 } as const;

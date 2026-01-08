@@ -28,6 +28,7 @@ import { profilesService } from "../services/profiles";
 import { emailService } from "../services/email";
 import { InquiriesModal, Inquiry } from "../components/listing/InquiriesModal";
 import { SaleStatusBadge } from "../components/listings/SaleStatusBadge";
+import { SaleStatusSelector } from "../components/listings/SaleStatusSelector";
 
 type DashboardTab = 'rentals' | 'sales';
 
@@ -263,6 +264,53 @@ export default function Dashboard() {
     }
   };
 
+  const handleSaleStatusChange = async (listingId: string, newStatus: SaleStatus) => {
+    const listing = listings.find((l) => l.id === listingId);
+    if (!listing) return;
+
+    const oldStatus = listing.sale_status || 'available';
+
+    if (newStatus === 'sold') {
+      if (!confirm(
+        "Are you sure you want to mark this listing as SOLD? Sold listings cannot be extended and will automatically expire after 30 days."
+      )) {
+        return;
+      }
+    }
+
+    setActionLoading(listingId);
+    try {
+      const updatedListing = await listingsService.updateSaleStatus(listingId, newStatus);
+
+      try {
+        if (user?.email && profile?.full_name) {
+          await emailService.sendSaleStatusChangeEmail(
+            user.email,
+            profile.full_name,
+            listing.title,
+            oldStatus,
+            newStatus,
+            updatedListing.expires_at || new Date().toISOString(),
+          );
+          console.log("✅ Email sent: sale status change to", user.email);
+        }
+      } catch (emailError) {
+        console.error(
+          "❌ Email failed: sale status change -",
+          emailError instanceof Error ? emailError.message : emailError,
+        );
+      }
+
+      await loadUserListings();
+    } catch (error) {
+      console.error("Error updating sale status:", error);
+      const message = error instanceof Error ? error.message : "Failed to update sale status. Please try again.";
+      alert(message);
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
   const handleUnpublishListing = async (listingId: string) => {
     if (
       !confirm(
@@ -487,11 +535,11 @@ export default function Dashboard() {
           <Info className="w-4 h-4 mt-0.5 flex-shrink-0 text-gray-400" />
           {activeTab === 'rentals' ? (
             <span>
-              Rental listings are active for {LISTING_DURATION_DAYS.RENTAL} days. After expiration, listings become inactive and are purged after 30 additional days.
+              Rental listings are active for {LISTING_DURATION_DAYS.RENTAL} days. Renew within 7 days of expiration to keep your listing active. After expiration, listings become inactive and are purged after 30 additional days.
             </span>
           ) : (
             <span>
-              Sales listings are active for {LISTING_DURATION_DAYS.SALE_AVAILABLE} days (6 weeks for In Contract). Extend within 7 days of expiration to keep your listing active.
+              Sales listings are active for {LISTING_DURATION_DAYS.SALE_AVAILABLE} days (42 days for In Contract). Extend within 7 days of expiration to keep your listing active.
             </span>
           )}
         </div>
@@ -550,11 +598,9 @@ export default function Dashboard() {
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap" style={{ width: '140px' }}>
                       Status
                     </th>
-                    {activeTab === 'sales' && (
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap" style={{ width: '100px' }}>
-                        Expires
-                      </th>
-                    )}
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap" style={{ width: '100px' }}>
+                      Expires
+                    </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap" style={{ width: '140px' }}>
                       Created
                     </th>
@@ -638,52 +684,62 @@ export default function Dashboard() {
                           </button>
                         </td>
                         <td className="px-6 py-4">
-                          <div className="flex flex-wrap items-center gap-1.5">
-                            <span
-                              className={`px-2 py-1 text-xs rounded-full whitespace-nowrap ${
-                                listing.is_active
-                                  ? "bg-green-100 text-green-800"
-                                  : "bg-red-100 text-red-800"
-                              }`}
-                            >
-                              {listing.is_active ? "Active" : "Inactive"}
-                            </span>
-                            {!listing.approved && (
-                              <span className="px-2 py-1 text-xs bg-yellow-100 text-yellow-800 rounded-full whitespace-nowrap">
-                                Pending Approval
+                          <div className="flex flex-col gap-1.5">
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              <span
+                                className={`px-2 py-1 text-xs rounded-full whitespace-nowrap ${
+                                  listing.is_active
+                                    ? "bg-green-100 text-green-800"
+                                    : "bg-red-100 text-red-800"
+                                }`}
+                              >
+                                {listing.is_active ? "Active" : "Inactive"}
                               </span>
+                              {!listing.approved && (
+                                <span className="px-2 py-1 text-xs bg-yellow-100 text-yellow-800 rounded-full whitespace-nowrap">
+                                  Pending Approval
+                                </span>
+                              )}
+                              {isListingCurrentlyFeatured(listing) && (
+                                <span className="px-2 py-1 text-xs bg-accent-500 text-white rounded-full flex items-center whitespace-nowrap">
+                                  <Star className="w-3 h-3 mr-1" />
+                                  Featured
+                                </span>
+                              )}
+                            </div>
+                            {isSale && listing.is_active && (
+                              <div className="mt-1">
+                                <SaleStatusSelector
+                                  currentStatus={listing.sale_status}
+                                  listingId={listing.id}
+                                  onStatusChange={handleSaleStatusChange}
+                                  disabled={actionLoading === listing.id}
+                                />
+                              </div>
                             )}
-                            {isListingCurrentlyFeatured(listing) && (
-                              <span className="px-2 py-1 text-xs bg-accent-500 text-white rounded-full flex items-center whitespace-nowrap">
-                                <Star className="w-3 h-3 mr-1" />
-                                Featured
-                              </span>
-                            )}
-                            {isSale && listing.sale_status && listing.sale_status !== 'available' && (
+                            {isSale && !listing.is_active && listing.sale_status && (
                               <SaleStatusBadge status={listing.sale_status} size="sm" />
                             )}
                           </div>
                         </td>
-                        {activeTab === 'sales' && (
-                          <td className="px-6 py-4 whitespace-nowrap text-sm">
-                            {listing.is_active && daysUntilExpiration !== null ? (
-                              <div className={`flex items-center gap-1 ${
-                                daysUntilExpiration <= 3
-                                  ? 'text-red-600 font-medium'
-                                  : daysUntilExpiration <= 7
-                                    ? 'text-amber-600'
-                                    : 'text-gray-600'
-                              }`}>
-                                <Clock className="w-3.5 h-3.5" />
-                                {daysUntilExpiration <= 0
-                                  ? 'Expired'
-                                  : `${daysUntilExpiration}d`}
-                              </div>
-                            ) : (
-                              <span className="text-gray-400">-</span>
-                            )}
-                          </td>
-                        )}
+                        <td className="px-6 py-4 whitespace-nowrap text-sm">
+                          {listing.is_active && daysUntilExpiration !== null ? (
+                            <div className={`flex items-center gap-1 ${
+                              daysUntilExpiration <= 3
+                                ? 'text-red-600 font-medium'
+                                : daysUntilExpiration <= 7
+                                  ? 'text-amber-600'
+                                  : 'text-gray-600'
+                            }`}>
+                              <Clock className="w-3.5 h-3.5" />
+                              {daysUntilExpiration <= 0
+                                ? 'Expired'
+                                : `${daysUntilExpiration}d`}
+                            </div>
+                          ) : (
+                            <span className="text-gray-400">-</span>
+                          )}
+                        </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                           <div>
                             <div className="whitespace-nowrap">
@@ -785,6 +841,18 @@ export default function Dashboard() {
                               </button>
                             )}
 
+                            {!isSale && listing.is_active && daysUntilExpiration !== null && daysUntilExpiration <= 7 && (
+                              <button
+                                type="button"
+                                onClick={() => handleRenewListing(listing.id)}
+                                disabled={actionLoading === listing.id}
+                                className="text-brand-600 hover:text-brand-700 transition-colors"
+                                title="Renew 30 days"
+                              >
+                                <Clock className="w-4.5 h-4.5" />
+                              </button>
+                            )}
+
                             {isSale && listing.is_active && (
                               <button
                                 type="button"
@@ -799,7 +867,7 @@ export default function Dashboard() {
                                     : 'text-gray-300 cursor-not-allowed'
                                 }`}
                                 title={extensionCheck.canExtend
-                                  ? 'Extend 14 days'
+                                  ? `Extend ${listing.sale_status === 'in_contract' ? '42' : '30'} days`
                                   : extensionCheck.reason || 'Cannot extend'}
                               >
                                 <Clock className="w-4.5 h-4.5" />

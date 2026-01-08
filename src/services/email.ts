@@ -474,6 +474,61 @@ export const emailService = {
     console.log("[Email Service] Email send result:", result);
     return result;
   },
+
+  async sendSaleStatusChangeEmail(
+    userEmail: string,
+    userName: string,
+    listingTitle: string,
+    oldStatus: string,
+    newStatus: string,
+    newExpirationDate: string,
+  ): Promise<EmailResponse> {
+    const origin = typeof window !== "undefined" ? window.location.origin : "";
+
+    const statusLabels: Record<string, string> = {
+      available: "Available",
+      pending: "Pending",
+      in_contract: "In Contract",
+      sold: "Sold",
+    };
+
+    const statusDescriptions: Record<string, string> = {
+      available: "Your property is actively listed and available for buyers.",
+      pending: "Your property has an offer pending acceptance.",
+      in_contract: "Your property is under contract with a buyer.",
+      sold: "Your property has been sold. Congratulations!",
+    };
+
+    const oldStatusLabel = statusLabels[oldStatus] || oldStatus;
+    const newStatusLabel = statusLabels[newStatus] || newStatus;
+    const statusDescription = statusDescriptions[newStatus] || "";
+
+    const expiresText = newStatus === 'sold'
+      ? "<p>Note: Sold listings cannot be extended and will automatically expire after 30 days.</p>"
+      : `<p>Your listing will expire on <strong>${new Date(newExpirationDate).toLocaleDateString()}</strong>. You can extend it within 7 days of expiration.</p>`;
+
+    const html = renderBrandEmail({
+      title: "Sale Status Updated",
+      intro: `Hi ${userName},`,
+      bodyHtml: `
+        <p>The sale status of your listing "<strong>${listingTitle}</strong>" has been updated.</p>
+        <div style="margin:20px 0;padding:16px;background-color:#F3F4F6;border-radius:8px;">
+          <p style="margin:0;"><strong>Previous Status:</strong> ${oldStatusLabel}</p>
+          <p style="margin:8px 0 0 0;"><strong>New Status:</strong> ${newStatusLabel}</p>
+        </div>
+        <p>${statusDescription}</p>
+        ${expiresText}
+      `,
+      ctaLabel: "View My Dashboard",
+      ctaHref: `${origin}/dashboard?tab=sales`,
+    });
+
+    return this.sendEmail({
+      to: userEmail,
+      subject: `Sale Status Updated: ${listingTitle} - Hadirot`,
+      html,
+    });
+  },
 };
 
 export async function requestPasswordReset(
