@@ -679,14 +679,16 @@ export function ListingDetail() {
 
               <div className="space-y-3">
                 <div className="flex gap-2">
-                  <div className="flex-1">
-                    <ReportRentedButton
-                      listing={listing}
-                      userFullName={user?.user_metadata?.full_name || user?.email}
-                      userEmail={user?.email}
-                    />
-                  </div>
-                  <div className="flex-1">
+                  {!isSaleListing && (
+                    <div className="flex-1">
+                      <ReportRentedButton
+                        listing={listing}
+                        userFullName={user?.user_metadata?.full_name || user?.email}
+                        userEmail={user?.email}
+                      />
+                    </div>
+                  )}
+                  <div className={!isSaleListing ? "flex-1" : "w-full"}>
                     <ShareButton
                       listingId={listing.id}
                       listingTitle={listing.title}
@@ -882,14 +884,16 @@ export function ListingDetail() {
 
               <div className="space-y-3">
                 <div className="flex gap-2">
-                  <div className="flex-1">
-                    <ReportRentedButton
-                      listing={listing}
-                      userFullName={user?.user_metadata?.full_name || user?.email}
-                      userEmail={user?.email}
-                    />
-                  </div>
-                  <div className="flex-1">
+                  {!isSaleListing && (
+                    <div className="flex-1">
+                      <ReportRentedButton
+                        listing={listing}
+                        userFullName={user?.user_metadata?.full_name || user?.email}
+                        userEmail={user?.email}
+                      />
+                    </div>
+                  )}
+                  <div className={!isSaleListing ? "flex-1" : "w-full"}>
                     <ShareButton
                       listingId={listing.id}
                       listingTitle={listing.title}
