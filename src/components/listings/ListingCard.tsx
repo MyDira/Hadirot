@@ -315,7 +315,7 @@ export function ListingCard({
             {isSaleListing && listing.sale_status && listing.sale_status !== 'available' && (
               <SaleStatusBadge status={listing.sale_status} size="sm" />
             )}
-            {isSaleListing && (
+            {isSaleListing && listing.sale_status !== 'sold' && (
               <span className="inline-flex items-center bg-emerald-50 text-emerald-700 text-xs px-2 py-0.5 rounded border border-emerald-200">
                 For Sale
               </span>

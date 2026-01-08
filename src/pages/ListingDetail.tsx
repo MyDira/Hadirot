@@ -781,7 +781,7 @@ export function ListingDetail() {
               {isSaleListing && listing.sale_status && listing.sale_status !== 'available' && (
                 <SaleStatusBadge status={listing.sale_status} size="md" />
               )}
-              {isSaleListing && (
+              {isSaleListing && listing.sale_status !== 'sold' && (
                 <span className="inline-flex items-center bg-emerald-50 text-emerald-700 text-sm px-3 py-1 rounded-full border border-emerald-200">
                   For Sale
                 </span>
