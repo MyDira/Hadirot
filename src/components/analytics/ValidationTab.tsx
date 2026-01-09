@@ -62,7 +62,8 @@ export function ValidationTab({ loading: parentLoading }: ValidationTabProps) {
     setError(null);
     try {
       const { data, error: rpcError } = await supabase.rpc('analytics_validation_report', {
-        validation_date: selectedDate,
+        start_date: selectedDate,
+        end_date: selectedDate,
         tz: 'America/New_York',
       });
 

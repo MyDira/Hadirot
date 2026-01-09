@@ -108,19 +108,19 @@ export function InternalAnalytics() {
         supabase.rpc('analytics_session_quality', { days_back: dateRange * 2, tz }),
         supabase.rpc('analytics_kpis_with_sparkline', { tz }),
         supabase.rpc('analytics_engagement_funnel', { days_back: dateRange, tz }),
-        supabase.rpc('analytics_top_filters', { days_back: dateRange, limit_count: 15, tz }),
+        supabase.rpc('analytics_top_filters', { days_back: dateRange, tz, limit_count: 15 }),
         supabase.rpc('analytics_supply_stats', { days_back: dateRange, tz }),
-        supabase.rpc('analytics_listings_performance', { days_back: dateRange, limit_count: 20, tz }),
-        supabase.rpc('analytics_zero_inquiry_listings', { days_back: dateRange, min_views: 10, tz }),
+        supabase.rpc('analytics_listings_performance', { days_back: dateRange, tz, limit_count: 20 }),
+        supabase.rpc('analytics_zero_inquiry_listings', { days_back: dateRange, tz, min_views: 10 }),
         supabase.rpc('analytics_summary', { days_back: dateRange, tz }),
         supabase.rpc('analytics_inquiry_quality', { days_back: dateRange, tz }),
         supabase.rpc('analytics_inquiry_quality', { days_back: dateRange * 2, tz }),
         supabase.rpc('analytics_inquiry_trend', { days_back: dateRange, tz }),
         supabase.rpc('analytics_inquiry_velocity', { days_back: dateRange, tz }),
-        supabase.rpc('analytics_top_inquired_listings', { days_back: dateRange, limit_count: 10, tz }),
+        supabase.rpc('analytics_top_inquired_listings', { days_back: dateRange, tz, limit_count: 10 }),
         supabase.rpc('analytics_inquiry_demand', { days_back: dateRange, tz }),
         supabase.rpc('analytics_inquiry_timing', { days_back: dateRange, tz }),
-        supabase.rpc('analytics_abuse_signals', { days_back: dateRange, mild_threshold: 6, extreme_threshold: 15, tz }),
+        supabase.rpc('analytics_abuse_signals', { days_back: dateRange, tz, mild_threshold: 6, extreme_threshold: 15 }),
         supabase.rpc('analytics_contact_submissions_summary', { days_back: dateRange, tz }),
         supabase.rpc('analytics_contact_submissions_summary', { days_back: dateRange * 2, tz }),
       ]);
@@ -190,7 +190,7 @@ export function InternalAnalytics() {
           sessions: raw.total_sessions ?? 0,
           impressions: raw.total_impressions ?? 0,
           listing_views: raw.total_views ?? 0,
-          contact_attempts: raw.sessions_with_inquiry ?? 0,
+          contact_attempts: raw.total_inquiries ?? 0,
         });
       }
 
