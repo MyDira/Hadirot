@@ -794,6 +794,84 @@ export function AgencyPage() {
             </div>
           )}
 
+          {/* Pagination */}
+          {!listingsLoading && listings.length > 0 && totalPages > 1 && (
+            <div className="flex items-center justify-center space-x-2 py-6 border-t border-gray-200 mt-6">
+              <button
+                onClick={() => handlePageChange(currentPage - 1)}
+                disabled={currentPage === 1}
+                className="flex items-center px-3 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-md hover:bg-gray-50 hover:text-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                <ChevronLeft className="w-4 h-4 mr-1" />
+                Prev
+              </button>
+
+              <div className="flex space-x-1">
+                {currentPage > 1 && (
+                  <button
+                    onClick={() => handlePageChange(1)}
+                    className="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
+                  >
+                    1
+                  </button>
+                )}
+
+                {currentPage > 3 && (
+                  <span className="px-2 py-2 text-sm text-gray-500">...</span>
+                )}
+
+                {(() => {
+                  const startPage = Math.max(1, currentPage - 1);
+                  const endPage = Math.min(totalPages, currentPage + 1);
+                  const pages = [];
+
+                  for (let pageNum = startPage; pageNum <= endPage; pageNum++) {
+                    if (pageNum === 1 && currentPage > 1) continue;
+                    if (pageNum === totalPages && currentPage < totalPages) continue;
+
+                    pages.push(
+                      <button
+                        key={`page-${pageNum}`}
+                        onClick={() => handlePageChange(pageNum)}
+                        className={`px-3 py-2 text-sm font-medium rounded-md transition-colors ${
+                          pageNum === currentPage
+                            ? "bg-accent-500 text-white"
+                            : "text-gray-700 bg-white border border-gray-300 hover:bg-gray-50"
+                        }`}
+                      >
+                        {pageNum}
+                      </button>
+                    );
+                  }
+
+                  return pages;
+                })()}
+
+                {currentPage < totalPages - 2 && (
+                  <span className="px-2 py-2 text-sm text-gray-500">...</span>
+                )}
+
+                {currentPage < totalPages && (
+                  <button
+                    onClick={() => handlePageChange(totalPages)}
+                    className="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
+                  >
+                    {totalPages}
+                  </button>
+                )}
+              </div>
+
+              <button
+                onClick={() => handlePageChange(currentPage + 1)}
+                disabled={currentPage === totalPages}
+                className="flex items-center px-3 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-md hover:bg-gray-50 hover:text-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                Next
+                <ChevronRight className="w-4 h-4 ml-1" />
+              </button>
+            </div>
+          )}
+
         </div>
       </div>
 
