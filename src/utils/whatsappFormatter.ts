@@ -158,10 +158,24 @@ export class WhatsAppFormatter {
     shortCode?: string,
     sectionBy?: 'bedrooms' | 'property_type' | null
   ): FormattedListing {
-    // Format price
-    const price = listing.call_for_price
-      ? 'Call for Price'
-      : `$${listing.price?.toLocaleString()}`;
+    // Determine if this is a sale or rental listing
+    const isSale = listing.listing_type === 'sale';
+
+    // Format price based on listing type
+    let price: string;
+    if (listing.call_for_price) {
+      price = 'Call for Price';
+    } else if (isSale) {
+      // For sales, use asking_price
+      price = listing.asking_price
+        ? `$${listing.asking_price.toLocaleString()}`
+        : 'Call for Price';
+    } else {
+      // For rentals, use price with /month suffix
+      price = listing.price
+        ? `$${listing.price.toLocaleString()}/month`
+        : 'Price Not Available';
+    }
 
     // Format specs
     const specs: string[] = [];
@@ -176,8 +190,10 @@ export class WhatsAppFormatter {
     // Bathrooms
     specs.push(`${listing.bathrooms} bath`);
 
-    // Broker fee
-    specs.push(listing.broker_fee ? 'Fee' : 'No Fee');
+    // Broker fee (only for rentals)
+    if (!isSale) {
+      specs.push(listing.broker_fee ? 'Fee' : 'No Fee');
+    }
 
     // Property type
     if (listing.property_type) {
@@ -235,19 +251,35 @@ export class WhatsAppFormatter {
 
   /**
    * Format property type for display in WhatsApp digest
+   * Converts database property type strings to human-readable format
    */
   private static formatPropertyType(type: string): string {
     const typeMap: Record<string, string> = {
       'apartment_building': 'Apartment',
+      'apartment_in_building': 'Apartment',
       'apartment_house': 'Apartment',
+      'apartment_in_house': 'Apartment',
+      'single_family': 'Single Family',
       'full_house': 'Full House',
       'duplex': 'Duplex',
       'basement': 'Basement',
       'townhouse': 'Townhouse',
       'condo': 'Condo',
-      'studio': 'Studio'
+      'studio': 'Studio',
+      'multi_family': 'Multi Family',
+      'land': 'Land'
     };
-    return typeMap[type.toLowerCase()] || type;
+
+    const mapped = typeMap[type.toLowerCase()];
+    if (mapped) {
+      return mapped;
+    }
+
+    // Fallback: convert underscores to spaces and capitalize each word
+    return type
+      .split('_')
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+      .join(' ');
   }
 
   /**

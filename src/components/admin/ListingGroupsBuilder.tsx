@@ -217,6 +217,21 @@ export function ListingGroupsBuilder({ groups, onChange }: ListingGroupsBuilderP
 
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">
+                    Listing Type
+                  </label>
+                  <select
+                    value={group.filters.listing_type || ''}
+                    onChange={(e) => handleUpdateFilter(index, 'listing_type', e.target.value || undefined)}
+                    className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    <option value="">All Listings</option>
+                    <option value="rental">Rentals Only</option>
+                    <option value="sale">Sales Only</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">
                     Min Price
                   </label>
                   <input

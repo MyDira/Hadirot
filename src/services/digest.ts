@@ -531,6 +531,11 @@ export const digestService = {
       // Apply filters
       const filters = group.filters;
 
+      // Listing type filter (rental, sale, or undefined for both)
+      if (filters.listing_type) {
+        query = query.eq('listing_type', filters.listing_type);
+      }
+
       if (filters.bedrooms !== undefined) {
         if (Array.isArray(filters.bedrooms)) {
           query = query.in('bedrooms', filters.bedrooms);
@@ -547,12 +552,27 @@ export const digestService = {
         }
       }
 
+      // Price filters - handle both rental (price) and sale (asking_price) listings
       if (filters.price_min !== undefined) {
-        query = query.gte('price', filters.price_min);
+        if (filters.listing_type === 'sale') {
+          query = query.gte('asking_price', filters.price_min);
+        } else if (filters.listing_type === 'rental') {
+          query = query.gte('price', filters.price_min);
+        } else {
+          // If no listing_type specified, filter on both fields (OR condition via filter)
+          query = query.or(`price.gte.${filters.price_min},asking_price.gte.${filters.price_min}`);
+        }
       }
 
       if (filters.price_max !== undefined) {
-        query = query.lte('price', filters.price_max);
+        if (filters.listing_type === 'sale') {
+          query = query.lte('asking_price', filters.price_max);
+        } else if (filters.listing_type === 'rental') {
+          query = query.lte('price', filters.price_max);
+        } else {
+          // If no listing_type specified, filter on both fields (OR condition via filter)
+          query = query.or(`price.lte.${filters.price_max},asking_price.lte.${filters.price_max}`);
+        }
       }
 
       if (filters.broker_fee !== undefined) {

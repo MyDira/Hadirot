@@ -82,7 +82,9 @@ interface FilterPreset {
 interface Listing {
   id: string;
   title: string;
+  listing_type: 'rental' | 'sale';
   price: number | null;
+  asking_price: number | null;
   call_for_price: boolean;
   bedrooms: number;
   bathrooms: number;
@@ -153,7 +155,9 @@ async function buildListingsQuery(
     .select(`
       id,
       title,
+      listing_type,
       price,
+      asking_price,
       call_for_price,
       bedrooms,
       bathrooms,
@@ -376,16 +380,35 @@ function categorizeByBedrooms(
 // ============================================================================
 
 function formatPrice(listing: Listing): string {
+  // Determine if this is a sale or rental listing
+  const isSale = listing.listing_type === 'sale';
+
   if (listing.call_for_price) return "Call for Price";
-  if (listing.price != null) {
-    return new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: "USD",
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(listing.price);
+
+  if (isSale) {
+    // For sales, use asking_price
+    if (listing.asking_price != null) {
+      return new Intl.NumberFormat("en-US", {
+        style: "currency",
+        currency: "USD",
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0,
+      }).format(listing.asking_price);
+    }
+    return "Call for Price";
+  } else {
+    // For rentals, use price with /month suffix
+    if (listing.price != null) {
+      const formattedPrice = new Intl.NumberFormat("en-US", {
+        style: "currency",
+        currency: "USD",
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0,
+      }).format(listing.price);
+      return `${formattedPrice}/month`;
+    }
+    return "Price Not Available";
   }
-  return "Price Not Available";
 }
 
 function getBedroomDisplay(listing: Listing): string {
@@ -405,11 +428,32 @@ function getParkingDisplay(parking: string): string {
 }
 
 function getPropertyTypeDisplay(propertyType: string): string {
-  if (propertyType === "basement") return "Basement";
-  if (propertyType === "full_house") return "Full House";
-  if (propertyType === "duplex") return "Duplex";
-  if (propertyType === "apartment_in_building" || propertyType === "apartment_in_house") return "Apartment";
-  return "";
+  const typeMap: Record<string, string> = {
+    'apartment_building': 'Apartment',
+    'apartment_in_building': 'Apartment',
+    'apartment_house': 'Apartment',
+    'apartment_in_house': 'Apartment',
+    'single_family': 'Single Family',
+    'full_house': 'Full House',
+    'duplex': 'Duplex',
+    'basement': 'Basement',
+    'townhouse': 'Townhouse',
+    'condo': 'Condo',
+    'studio': 'Studio',
+    'multi_family': 'Multi Family',
+    'land': 'Land'
+  };
+
+  const mapped = typeMap[propertyType.toLowerCase()];
+  if (mapped) {
+    return mapped;
+  }
+
+  // Fallback: convert underscores to spaces and capitalize each word
+  return propertyType
+    .split('_')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(' ');
 }
 
 function getLeaseDisplay(leaseLength: string): string {
@@ -418,6 +462,7 @@ function getLeaseDisplay(leaseLength: string): string {
 }
 
 function renderListingCard(listing: Listing, listingUrl: string): string {
+  const isSale = listing.listing_type === 'sale';
   const hasParking = getParkingDisplay(listing.parking);
   const locationWithNeighborhood = listing.neighborhood
     ? `${listing.neighborhood}, ${listing.location}`
@@ -432,7 +477,11 @@ function renderListingCard(listing: Listing, listingUrl: string): string {
   if (hasParking) {
     specs += ` | ${hasParking}`;
   }
-  specs += ` | ${listing.broker_fee ? "Broker Fee" : "No Fee"}`;
+
+  // Only show broker fee for rentals
+  if (!isSale) {
+    specs += ` | ${listing.broker_fee ? "Broker Fee" : "No Fee"}`;
+  }
 
   const propertyType = getPropertyTypeDisplay(listing.property_type);
   const leaseType = getLeaseDisplay(listing.lease_length);
