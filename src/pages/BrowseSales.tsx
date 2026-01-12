@@ -5,6 +5,7 @@ import { ListingFiltersHorizontal } from "../components/listings/ListingFiltersH
 import { ListingsMapEnhanced } from "../components/listings/ListingsMapEnhanced";
 import { SmartSearchBar, SmartSearchBarRef } from "../components/listings/SmartSearchBar";
 import { MobileListingCarousel } from "../components/listings/MobileListingCarousel";
+import { Toast } from "../components/shared/Toast";
 import { Listing } from "../config/supabase";
 import { listingsService } from "../services/listings";
 import { useAuth } from "@/hooks/useAuth";
@@ -81,6 +82,7 @@ export function BrowseSales() {
   const preserveMapRef = useRef(false);
   const [shouldFitBounds, setShouldFitBounds] = useState(false);
   const [fitBoundsToAllPins, setFitBoundsToAllPins] = useState(false);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
   const { user } = useAuth();
   const { filters, currentPage, updateFilters, updatePage, markNavigatingToDetail, isReady } = useBrowseFilters('sales');
 
@@ -180,6 +182,19 @@ export function BrowseSales() {
         false,
       );
       setTotalCount(actualTotalCount);
+
+      // Check if current page exceeds available pages
+      const maxValidPage = Math.max(1, Math.ceil(actualTotalCount / NUM_STANDARD_SLOTS_PER_PAGE));
+      if (currentPage > maxValidPage && actualTotalCount > 0) {
+        // Show brief loading state to avoid jarring flash
+        setTimeout(() => {
+          // Redirect to last valid page using URL replace (don't pollute history)
+          updatePage(maxValidPage);
+          // Show toast notification
+          setToastMessage(`Showing page ${maxValidPage} of ${maxValidPage}`);
+        }, 250);
+        return; // Exit early to prevent invalid fetch
+      }
 
       let allFeaturedListings: Listing[] = [];
       try {
@@ -1252,6 +1267,14 @@ export function BrowseSales() {
           </div>
         )}
       </div>
+
+      {toastMessage && (
+        <Toast
+          message={toastMessage}
+          onClose={() => setToastMessage(null)}
+          duration={3000}
+        />
+      )}
     </div>
   );
 }

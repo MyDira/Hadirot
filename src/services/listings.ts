@@ -1623,6 +1623,21 @@ async getInquiriesForListing(listingId: string): Promise<{ user_name: string; us
 
     const { data, error, count } = await query;
 
+    // Check if the response is a PostgREST error object (happens with 416 Range Not Satisfiable)
+    if (data && typeof data === 'object' && 'code' in data && 'message' in data) {
+      // This is actually an error response, not data
+      console.warn('PostgREST error in getSaleListings:', data);
+
+      // For PGRST103 (416 Range Not Satisfiable), return empty data with total count
+      if ((data as any).code === 'PGRST103') {
+        return { data: [], totalCount: count || 0 };
+      }
+
+      // For other PostgREST errors, treat as error
+      Sentry.captureException(new Error(`PostgREST error: ${(data as any).message}`));
+      return { data: [], totalCount: 0 };
+    }
+
     if (error) {
       console.error('Error fetching sale listings:', error);
       Sentry.captureException(error);
