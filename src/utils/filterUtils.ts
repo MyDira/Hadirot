@@ -6,6 +6,7 @@ export interface MapPin {
   asking_price: number | null;
   listing_type: string | null;
   bedrooms: number;
+  bathrooms?: number | null;
   property_type: string | null;
   broker_fee: boolean | null;
   parking: string | null;
@@ -22,6 +23,7 @@ interface MapBoundsFilter {
 
 export interface FilterState {
   bedrooms?: number[];
+  min_bathrooms?: number;
   poster_type?: string;
   agency_name?: string;
   property_type?: string;
@@ -44,6 +46,7 @@ export interface FilterableListing {
   price: number | null;
   asking_price?: number | null;
   bedrooms: number;
+  bathrooms?: number | null;
   property_type: string | null;
   building_type?: string | null;
   broker_fee: boolean | null;
@@ -84,6 +87,7 @@ export function applyFilters<T extends FilterableListing>(
   const hasPropertyTypeFilter = propertyTypes.length > 0;
   const hasBuildingTypeFilter = filters.building_types && filters.building_types.length > 0;
   const hasBedroomFilter = filters.bedrooms && filters.bedrooms.length > 0;
+  const hasMinBathroomsFilter = filters.min_bathrooms != null && filters.min_bathrooms > 0;
   const hasNeighborhoodFilter = filters.neighborhoods && filters.neighborhoods.length > 0;
   const hasLeaseTermFilter = filters.lease_terms && filters.lease_terms.length > 0;
   const hasMinPrice = filters.min_price != null;
@@ -92,6 +96,7 @@ export function applyFilters<T extends FilterableListing>(
 
   const hasAnyFilter =
     hasBedroomFilter ||
+    hasMinBathroomsFilter ||
     hasMinPrice ||
     hasMaxPrice ||
     hasPropertyTypeFilter ||
@@ -119,6 +124,10 @@ export function applyFilters<T extends FilterableListing>(
     }
 
     if (hasBedroomFilter && !filters.bedrooms!.includes(listing.bedrooms)) {
+      return false;
+    }
+
+    if (hasMinBathroomsFilter && (listing.bathrooms == null || listing.bathrooms < filters.min_bathrooms!)) {
       return false;
     }
 
@@ -214,6 +223,12 @@ export function doesPinMatchFilters(pin: MapPin, filters: FilterState): boolean 
 
   if (filters.bedrooms && filters.bedrooms.length > 0) {
     if (!filters.bedrooms.includes(pin.bedrooms)) {
+      return false;
+    }
+  }
+
+  if (filters.min_bathrooms != null && filters.min_bathrooms > 0) {
+    if (pin.bathrooms == null || pin.bathrooms < filters.min_bathrooms) {
       return false;
     }
   }

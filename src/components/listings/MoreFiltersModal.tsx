@@ -19,6 +19,7 @@ export type SortOption =
 
 interface FilterState {
   bedrooms?: number[];
+  min_bathrooms?: number;
   poster_type?: string;
   agency_name?: string;
   property_type?: string;

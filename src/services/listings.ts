@@ -83,6 +83,7 @@ export interface MapBounds {
 
 interface GetListingsFilters {
   bedrooms?: number[];
+  min_bathrooms?: number;
   property_type?: string;
   property_types?: string[];
   building_types?: string[];
@@ -166,6 +167,9 @@ export const listingsService = {
 
     if (filters.bedrooms !== undefined && filters.bedrooms.length > 0) {
       query = query.in('bedrooms', filters.bedrooms);
+    }
+    if (filters.min_bathrooms && filters.min_bathrooms > 0) {
+      query = query.gte('bathrooms', filters.min_bathrooms);
     }
     if (filters.property_types && filters.property_types.length > 0) {
       query = query.in('property_type', filters.property_types);
@@ -1537,6 +1541,9 @@ async getInquiriesForListing(listingId: string): Promise<{ user_name: string; us
     if (filters.bedrooms !== undefined && filters.bedrooms.length > 0) {
       query = query.in('bedrooms', filters.bedrooms);
     }
+    if (filters.min_bathrooms && filters.min_bathrooms > 0) {
+      query = query.gte('bathrooms', filters.min_bathrooms);
+    }
     if (filters.property_types && filters.property_types.length > 0) {
       query = query.in('property_type', filters.property_types);
     } else if (filters.property_type) {
@@ -1661,6 +1668,7 @@ async getInquiriesForListing(listingId: string): Promise<{ user_name: string; us
       asking_price,
       listing_type,
       bedrooms,
+      bathrooms,
       property_type,
       broker_fee,
       parking,
@@ -1701,6 +1709,7 @@ async getInquiriesForListing(listingId: string): Promise<{ user_name: string; us
       asking_price: row.asking_price,
       listing_type: row.listing_type,
       bedrooms: row.bedrooms,
+      bathrooms: row.bathrooms,
       property_type: row.property_type,
       broker_fee: row.broker_fee,
       parking: row.parking,

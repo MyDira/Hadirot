@@ -22,6 +22,7 @@ export type SortOption = 'newest' | 'oldest' | 'price_asc' | 'price_desc' | 'bed
 
 interface FilterState {
   bedrooms?: number[];
+  min_bathrooms?: number;
   poster_type?: string;
   agency_name?: string;
   property_type?: string;
@@ -107,6 +108,7 @@ export function BrowseSales() {
         asking_price: l.asking_price ?? null,
         listing_type: l.listing_type ?? null,
         bedrooms: l.bedrooms,
+        bathrooms: l.bathrooms ?? null,
         property_type: l.property_type,
         broker_fee: l.broker_fee ?? null,
         parking: l.parking,

@@ -12,6 +12,7 @@ export interface MapBounds {
 
 export interface FilterState {
   bedrooms?: number[];
+  min_bathrooms?: number;
   poster_type?: string;
   agency_name?: string;
   property_type?: string;
@@ -92,6 +93,12 @@ export function useBrowseFilters() {
       // Support both array (comma-separated) and single value for backward compatibility
       const bedroomValues = bedrooms.split(',').map(b => parseInt(b.trim())).filter(b => !isNaN(b));
       if (bedroomValues.length > 0) urlFilters.bedrooms = bedroomValues;
+    }
+
+    const min_bathrooms = params.get('min_bathrooms');
+    if (min_bathrooms) {
+      const bathValue = parseInt(min_bathrooms);
+      if (!isNaN(bathValue) && bathValue > 0) urlFilters.min_bathrooms = bathValue;
     }
 
     const poster_type = params.get('poster_type');
@@ -182,6 +189,9 @@ export function useBrowseFilters() {
         const params = new URLSearchParams();
         if (savedState.filters.bedrooms && savedState.filters.bedrooms.length > 0) {
           params.set('bedrooms', savedState.filters.bedrooms.join(','));
+        }
+        if (savedState.filters.min_bathrooms && savedState.filters.min_bathrooms > 0) {
+          params.set('min_bathrooms', savedState.filters.min_bathrooms.toString());
         }
         if (savedState.filters.poster_type) params.set('poster_type', savedState.filters.poster_type);
         if (savedState.filters.agency_name) params.set('agency_name', savedState.filters.agency_name);
@@ -286,6 +296,9 @@ export function useBrowseFilters() {
 
     if (newFilters.bedrooms && newFilters.bedrooms.length > 0) {
       params.set('bedrooms', newFilters.bedrooms.join(','));
+    }
+    if (newFilters.min_bathrooms && newFilters.min_bathrooms > 0) {
+      params.set('min_bathrooms', newFilters.min_bathrooms.toString());
     }
     if (newFilters.poster_type) params.set('poster_type', newFilters.poster_type);
     if (newFilters.agency_name) params.set('agency_name', newFilters.agency_name);

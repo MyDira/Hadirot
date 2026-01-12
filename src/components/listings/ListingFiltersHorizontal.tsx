@@ -22,6 +22,7 @@ interface MapBounds {
 
 interface FilterState {
   bedrooms?: number[];
+  min_bathrooms?: number;
   poster_type?: string;
   agency_name?: string;
   property_type?: string;
@@ -288,6 +289,14 @@ export function ListingFiltersHorizontal({
   }, [filters.bedrooms]);
 
   useEffect(() => {
+    if (filters.min_bathrooms && filters.min_bathrooms > 0) {
+      setTempBathMin(filters.min_bathrooms);
+    } else {
+      setTempBathMin(-1);
+    }
+  }, [filters.min_bathrooms]);
+
+  useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (
         containerRef.current &&
@@ -343,49 +352,69 @@ export function ListingFiltersHorizontal({
   };
 
   const handleBedsApply = () => {
+    const newFilters = { ...filters };
+
     if (tempBedrooms.length === 0) {
-      handleFilterChange("bedrooms", undefined);
+      delete newFilters.bedrooms;
     } else {
-      // If 4+ is selected, expand to full range
       const hasFourPlus = tempBedrooms.includes(4);
       if (hasFourPlus) {
         const otherBeds = tempBedrooms.filter(b => b < 4);
         const fourPlusBeds = [4, 5, 6, 7, 8, 9, 10];
-        handleFilterChange("bedrooms", [...otherBeds, ...fourPlusBeds]);
+        newFilters.bedrooms = [...otherBeds, ...fourPlusBeds];
       } else {
-        handleFilterChange("bedrooms", tempBedrooms);
+        newFilters.bedrooms = tempBedrooms;
       }
     }
+
+    if (tempBathMin > 0) {
+      newFilters.min_bathrooms = tempBathMin;
+    } else {
+      delete newFilters.min_bathrooms;
+    }
+
+    onFiltersChange(newFilters);
     setOpenDropdown(null);
   };
 
   const getBedroomsLabel = () => {
-    if (!filters.bedrooms || filters.bedrooms.length === 0) return "Beds & Baths";
+    const hasBeds = filters.bedrooms && filters.bedrooms.length > 0;
+    const hasBaths = filters.min_bathrooms && filters.min_bathrooms > 0;
 
-    // Get unique bedroom counts excluding the 4+ expansion
-    const uniqueBeds = Array.from(new Set(filters.bedrooms.filter(b => b < 4)));
-    const hasFourPlus = filters.bedrooms.includes(4);
+    if (!hasBeds && !hasBaths) return "Beds & Baths";
 
-    if (uniqueBeds.length === 0 && hasFourPlus) {
-      return "4+ Beds";
+    let bedsLabel = "";
+    if (hasBeds) {
+      const uniqueBeds = Array.from(new Set(filters.bedrooms!.filter(b => b < 4)));
+      const hasFourPlus = filters.bedrooms!.includes(4);
+
+      if (uniqueBeds.length === 0 && hasFourPlus) {
+        bedsLabel = "4+ Beds";
+      } else if (uniqueBeds.length === 1 && !hasFourPlus) {
+        const bed = uniqueBeds[0];
+        bedsLabel = bed === 0 ? "Studio" : `${bed} Bed${bed > 1 ? "s" : ""}`;
+      } else {
+        const allSelected = [...uniqueBeds];
+        if (hasFourPlus) allSelected.push(4);
+        allSelected.sort((a, b) => a - b);
+
+        if (allSelected.length <= 3) {
+          bedsLabel = allSelected.map(b => b === 0 ? "Studio" : b === 4 ? "4+" : b).join(", ") + " Beds";
+        } else {
+          bedsLabel = `${allSelected.length} Beds`;
+        }
+      }
     }
 
-    if (uniqueBeds.length === 1 && !hasFourPlus) {
-      const bed = uniqueBeds[0];
-      if (bed === 0) return "Studio";
-      return `${bed} Bed${bed > 1 ? "s" : ""}`;
+    let bathsLabel = "";
+    if (hasBaths) {
+      bathsLabel = `${filters.min_bathrooms}+ Baths`;
     }
 
-    // Multiple selections
-    const allSelected = [...uniqueBeds];
-    if (hasFourPlus) allSelected.push(4);
-    allSelected.sort((a, b) => a - b);
-
-    if (allSelected.length <= 3) {
-      return allSelected.map(b => b === 0 ? "Studio" : b === 4 ? "4+" : b).join(", ") + " Beds";
+    if (bedsLabel && bathsLabel) {
+      return `${bedsLabel}, ${bathsLabel}`;
     }
-
-    return `${allSelected.length} Selected`;
+    return bedsLabel || bathsLabel;
   };
 
   const getPriceLabel = () => {
@@ -411,6 +440,7 @@ export function ListingFiltersHorizontal({
 
   const hasActiveFilters = !!(
     (filters.bedrooms && filters.bedrooms.length > 0) ||
+    (filters.min_bathrooms && filters.min_bathrooms > 0) ||
     filters.poster_type ||
     filters.property_type ||
     filters.property_types?.length ||
@@ -482,11 +512,20 @@ export function ListingFiltersHorizontal({
           <h3 className="text-base font-semibold text-gray-900 mb-4">Baths</h3>
           <div className="flex border border-gray-200 rounded-xl overflow-hidden">
             {BATH_OPTIONS.map((option) => {
-              const isSelected = option.value === tempBathMin;
+              const isSelected =
+                option.value === -1
+                  ? !filters.min_bathrooms || filters.min_bathrooms <= 0
+                  : filters.min_bathrooms === option.value;
               return (
                 <button
                   key={option.value}
-                  onClick={() => setTempBathMin(option.value)}
+                  onClick={() => {
+                    if (option.value === -1) {
+                      handleFilterChange("min_bathrooms", undefined);
+                    } else {
+                      handleFilterChange("min_bathrooms", option.value);
+                    }
+                  }}
                   className={`flex-1 py-3 text-sm font-medium transition-colors border-r border-gray-200 last:border-r-0 ${
                     isSelected
                       ? "bg-green-600 text-white"
@@ -1021,7 +1060,7 @@ export function ListingFiltersHorizontal({
         <FilterDropdown
           label="Beds & Baths"
           value={getBedroomsLabel()}
-          isActive={!!filters.bedrooms && filters.bedrooms.length > 0}
+          isActive={!!(filters.bedrooms && filters.bedrooms.length > 0) || !!(filters.min_bathrooms && filters.min_bathrooms > 0)}
           isOpen={openDropdown === "bedrooms"}
           onToggle={() => toggleDropdown("bedrooms")}
         >
@@ -1102,6 +1141,11 @@ export function ListingFiltersHorizontal({
                 onClick={() => {
                   setTempBedrooms([]);
                   setTempBathMin(-1);
+                  const newFilters = { ...filters };
+                  delete newFilters.bedrooms;
+                  delete newFilters.min_bathrooms;
+                  onFiltersChange(newFilters);
+                  setOpenDropdown(null);
                 }}
                 className="text-green-600 hover:text-green-700 font-medium text-sm"
               >
