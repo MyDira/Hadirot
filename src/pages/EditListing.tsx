@@ -108,6 +108,58 @@ interface ProcessedImage {
 const SUPABASE_STORAGE_BASE_URL =
   "https://pxlxdlrjmrkxyygdhvku.supabase.co/storage/v1/object/public/listing-images/";
 
+function parseFullAddress(fullAddress: string | null | undefined): {
+  street_address: string;
+  city: string;
+  state: string;
+  zip_code: string;
+} {
+  const defaults = {
+    street_address: '',
+    city: 'Brooklyn',
+    state: 'NY',
+    zip_code: '',
+  };
+
+  if (!fullAddress || typeof fullAddress !== 'string') {
+    return defaults;
+  }
+
+  const parts = fullAddress.split(',').map(part => part.trim());
+
+  if (parts.length >= 4) {
+    return {
+      street_address: parts[0] || '',
+      city: parts[1] || 'Brooklyn',
+      state: parts[2] || 'NY',
+      zip_code: parts[3] || '',
+    };
+  } else if (parts.length === 3) {
+    return {
+      street_address: parts[0] || '',
+      city: parts[1] || 'Brooklyn',
+      state: 'NY',
+      zip_code: parts[2] || '',
+    };
+  } else if (parts.length === 2) {
+    return {
+      street_address: parts[0] || '',
+      city: parts[1] || 'Brooklyn',
+      state: 'NY',
+      zip_code: '',
+    };
+  } else if (parts.length === 1) {
+    return {
+      street_address: parts[0] || '',
+      city: 'Brooklyn',
+      state: 'NY',
+      zip_code: '',
+    };
+  }
+
+  return defaults;
+}
+
 export function EditListing() {
   const { id } = useParams<{ id: string }>();
   const { user, profile, loading: authLoading } = useAuth();
@@ -269,6 +321,10 @@ export function EditListing() {
       setMediaFiles(loadedMedia);
 
       // Pre-fill form data
+      // For sale listings, parse address components from full_address
+      const isSaleListingData = data.listing_type === 'sale';
+      const parsedAddress = isSaleListingData ? parseFullAddress(data.full_address) : null;
+
       setFormData({
         title: data.title,
         description: data.description || "",
@@ -324,11 +380,11 @@ export function EditListing() {
         rent_roll_data: data.rent_roll_data || [],
         utilities_included: data.utilities_included || [],
         tenant_notes: data.tenant_notes || null,
-        street_address: data.street_address || null,
-        unit_number: data.unit_number || null,
-        city: data.city || null,
-        state: data.state || null,
-        zip_code: data.zip_code || null,
+        street_address: parsedAddress?.street_address || null,
+        unit_number: null,
+        city: parsedAddress?.city || data.city || null,
+        state: parsedAddress?.state || 'NY',
+        zip_code: parsedAddress?.zip_code || data.zip_code || null,
         unit_count: data.unit_count || null,
       });
       // Check if using custom neighborhood
@@ -935,10 +991,7 @@ export function EditListing() {
           rent_roll_data: formData.rent_roll_data && formData.rent_roll_data.length > 0 ? formData.rent_roll_data : null,
           utilities_included: formData.utilities_included && formData.utilities_included.length > 0 ? formData.utilities_included : null,
           tenant_notes: formData.tenant_notes || null,
-          street_address: formData.street_address || null,
-          unit_number: formData.unit_number || null,
           city: formData.city || null,
-          state: formData.state || null,
           zip_code: formData.zip_code || null,
           unit_count: formData.unit_count || null,
           full_address: fullAddress,
