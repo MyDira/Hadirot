@@ -2,16 +2,39 @@
 import type { Listing, CategoryGroup, FilterLinkWithCount } from "./types.ts";
 
 export function formatPrice(listing: Listing): string {
+  // Determine if this is a sale or rental listing
+  const isSale = listing.listing_type === 'sale';
+
   if (listing.call_for_price) return "Call for Price";
-  if (listing.price != null) {
-    return new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: "USD",
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(listing.price);
+
+  if (isSale) {
+    // For sales, use asking_price with abbreviation
+    if (listing.asking_price != null) {
+      // Abbreviate sale prices
+      if (listing.asking_price >= 1000000) {
+        const millions = listing.asking_price / 1000000;
+        return `$${millions.toFixed(1).replace(/\.0$/, '')}M`;
+      } else if (listing.asking_price >= 1000) {
+        const thousands = listing.asking_price / 1000;
+        return `$${Math.round(thousands)}K`;
+      } else {
+        return `$${listing.asking_price}`;
+      }
+    }
+    return "Call for Price";
+  } else {
+    // For rentals, use price with /month suffix
+    if (listing.price != null) {
+      const formattedPrice = new Intl.NumberFormat("en-US", {
+        style: "currency",
+        currency: "USD",
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0,
+      }).format(listing.price);
+      return `${formattedPrice}/month`;
+    }
+    return "Price Not Available";
   }
-  return "Price Not Available";
 }
 
 export function getBedroomDisplay(listing: Listing): string {

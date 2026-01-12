@@ -15,6 +15,7 @@ export interface FormattedListing {
   url: string;
   sectionKey?: string;
   sectionLabel?: string;
+  listingType: 'rental' | 'sale';
 }
 
 export interface WhatsAppDigestOptions {
@@ -50,7 +51,7 @@ export class WhatsAppFormatter {
     if (options.listings && options.listings.length > 0) {
       const listingsText = options.sectionByFilter
         ? this.formatSectionedListings(options.listings, options.sectionByFilter)
-        : this.formatListings(options.listings);
+        : this.formatListingsWithAutoSplit(options.listings);
       sections.push(listingsText);
       sections.push('');
     }
@@ -91,6 +92,50 @@ export class WhatsAppFormatter {
     return listings
       .map(listing => this.formatSingleListing(listing))
       .join('\n\n');
+  }
+
+  /**
+   * Format listings with automatic section splitting for mixed rental/sale collections
+   * If the collection contains both rentals and sales, automatically splits them into sections
+   */
+  private static formatListingsWithAutoSplit(listings: FormattedListing[]): string {
+    // Check if we have both rental and sale listings
+    const hasRentals = listings.some(l => l.listingType === 'rental');
+    const hasSales = listings.some(l => l.listingType === 'sale');
+
+    // If only one type, format normally without section headers
+    if (!hasRentals || !hasSales) {
+      return this.formatListings(listings);
+    }
+
+    // Split into sale and rental sections
+    const saleListings = listings.filter(l => l.listingType === 'sale');
+    const rentalListings = listings.filter(l => l.listingType === 'rental');
+
+    const sections: string[] = [];
+
+    // Sales section
+    if (saleListings.length > 0) {
+      sections.push('*🏠 FOR SALE*');
+      sections.push('');
+      sections.push(this.formatListings(saleListings));
+    }
+
+    // Separator
+    if (saleListings.length > 0 && rentalListings.length > 0) {
+      sections.push('');
+      sections.push('---');
+      sections.push('');
+    }
+
+    // Rentals section
+    if (rentalListings.length > 0) {
+      sections.push('*🔑 FOR RENT*');
+      sections.push('');
+      sections.push(this.formatListings(rentalListings));
+    }
+
+    return sections.join('\n');
   }
 
   /**
@@ -166,9 +211,9 @@ export class WhatsAppFormatter {
     if (listing.call_for_price) {
       price = 'Call for Price';
     } else if (isSale) {
-      // For sales, use asking_price
+      // For sales, use asking_price with abbreviation
       price = listing.asking_price
-        ? `$${listing.asking_price.toLocaleString()}`
+        ? this.abbreviateSalePrice(listing.asking_price)
         : 'Call for Price';
     } else {
       // For rentals, use price with /month suffix
@@ -245,7 +290,8 @@ export class WhatsAppFormatter {
       postedBy,
       url,
       sectionKey,
-      sectionLabel
+      sectionLabel,
+      listingType: listing.listing_type
     };
   }
 
@@ -280,6 +326,23 @@ export class WhatsAppFormatter {
       .split('_')
       .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
       .join(' ');
+  }
+
+  /**
+   * Abbreviate large numbers for sale prices
+   * Under $1M: "$249K"
+   * Over $1M: "$1.6M"
+   */
+  private static abbreviateSalePrice(price: number): string {
+    if (price >= 1000000) {
+      const millions = price / 1000000;
+      return `$${millions.toFixed(1).replace(/\.0$/, '')}M`;
+    } else if (price >= 1000) {
+      const thousands = price / 1000;
+      return `$${Math.round(thousands)}K`;
+    } else {
+      return `$${price}`;
+    }
   }
 
   /**

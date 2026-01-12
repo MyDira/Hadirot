@@ -386,14 +386,18 @@ function formatPrice(listing: Listing): string {
   if (listing.call_for_price) return "Call for Price";
 
   if (isSale) {
-    // For sales, use asking_price
+    // For sales, use asking_price with abbreviation
     if (listing.asking_price != null) {
-      return new Intl.NumberFormat("en-US", {
-        style: "currency",
-        currency: "USD",
-        minimumFractionDigits: 0,
-        maximumFractionDigits: 0,
-      }).format(listing.asking_price);
+      // Abbreviate sale prices
+      if (listing.asking_price >= 1000000) {
+        const millions = listing.asking_price / 1000000;
+        return `$${millions.toFixed(1).replace(/\.0$/, '')}M`;
+      } else if (listing.asking_price >= 1000) {
+        const thousands = listing.asking_price / 1000;
+        return `$${Math.round(thousands)}K`;
+      } else {
+        return `$${listing.asking_price}`;
+      }
     }
     return "Call for Price";
   } else {

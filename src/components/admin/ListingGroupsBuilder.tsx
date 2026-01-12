@@ -16,11 +16,25 @@ interface ListingGroupsBuilderProps {
 
 export function ListingGroupsBuilder({ groups, onChange }: ListingGroupsBuilderProps) {
   const handleAddGroup = () => {
+    // Determine default listing_type based on existing groups
+    const hasRentalGroup = groups.some(g => g.filters.listing_type === 'rental');
+    const hasSaleGroup = groups.some(g => g.filters.listing_type === 'sale');
+
+    let defaultListingType = undefined;
+    if (!hasRentalGroup && !hasSaleGroup) {
+      // First group: default to rentals
+      defaultListingType = 'rental';
+    } else if (hasRentalGroup && !hasSaleGroup) {
+      // Has rentals, suggest sales next
+      defaultListingType = 'sale';
+    }
+    // Otherwise leave undefined for flexibility
+
     const newGroup: ListingGroup = {
       id: `group-${Date.now()}`,
       enabled: true,
       limit: 10,
-      filters: {},
+      filters: defaultListingType ? { listing_type: defaultListingType } : {},
       time_filter: 'all'
     };
 
