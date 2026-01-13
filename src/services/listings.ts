@@ -1841,3 +1841,69 @@ async getInquiriesForListing(listingId: string): Promise<{ user_name: string; us
     return updatedListing;
   },
 };
+
+export const SMS_RENEWAL_DAYS = 14;
+
+export function getSMSRenewalExpirationDate(): Date {
+  const now = new Date();
+  now.setDate(now.getDate() + SMS_RENEWAL_DAYS);
+  return now;
+}
+
+export function formatListingIdentifier(listing: Listing): string {
+  let priceStr: string;
+  if (!listing.price) {
+    priceStr = 'Call for price';
+  } else if (listing.listing_type === 'sale') {
+    if (listing.price >= 1000000) {
+      priceStr = `$${(listing.price / 1000000).toFixed(1)}M`;
+    } else {
+      priceStr = `$${Math.round(listing.price / 1000)}K`;
+    }
+  } else {
+    priceStr = `$${listing.price.toLocaleString()}`;
+  }
+
+  let locationStr: string;
+  if (listing.listing_type === 'sale' && listing.full_address) {
+    locationStr = listing.full_address;
+  } else {
+    locationStr = listing.location || listing.neighborhood || 'your listing';
+  }
+
+  return `${locationStr} for ${priceStr}`;
+}
+
+export async function renewListingViaSMS(listingId: string): Promise<Listing> {
+  const { data: listing, error: fetchError } = await supabase
+    .from('listings')
+    .select('*')
+    .eq('id', listingId)
+    .maybeSingle();
+
+  if (fetchError || !listing) {
+    throw new Error('Listing not found');
+  }
+
+  const newExpiresAt = getSMSRenewalExpirationDate();
+  const now = new Date().toISOString();
+
+  const { data: updatedListing, error: updateError } = await supabase
+    .from('listings')
+    .update({
+      is_active: true,
+      last_published_at: now,
+      expires_at: newExpiresAt.toISOString(),
+      deactivated_at: null,
+      updated_at: now,
+    })
+    .eq('id', listingId)
+    .select()
+    .single();
+
+  if (updateError || !updatedListing) {
+    throw new Error('Failed to renew listing via SMS');
+  }
+
+  return updatedListing;
+}
