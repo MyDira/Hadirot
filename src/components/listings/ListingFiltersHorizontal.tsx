@@ -198,6 +198,14 @@ export function ListingFiltersHorizontal({
   const minInputRef = useRef<HTMLInputElement>(null);
   const maxInputRef = useRef<HTMLInputElement>(null);
 
+  const [localFilters, setLocalFilters] = useState<FilterState>(filters);
+
+  useEffect(() => {
+    if (isMobile) {
+      setLocalFilters(filters);
+    }
+  }, [filters, isMobile]);
+
   // Generate maximum price options based on current minimum
   const generateMaxPriceOptions = () => {
     if (listingType === "sale") {
@@ -476,20 +484,20 @@ export function ListingFiltersHorizontal({
             {BEDROOM_OPTIONS.map((option) => {
               const isSelected =
                 option.value === -1
-                  ? !filters.bedrooms || filters.bedrooms.length === 0
+                  ? !localFilters.bedrooms || localFilters.bedrooms.length === 0
                   : option.value === 4
-                  ? filters.bedrooms?.includes(4)
-                  : filters.bedrooms?.includes(option.value);
+                  ? localFilters.bedrooms?.includes(4)
+                  : localFilters.bedrooms?.includes(option.value);
               return (
                 <button
                   key={option.value}
                   onClick={() => {
                     if (option.value === -1) {
-                      handleFilterChange("bedrooms", undefined);
+                      setLocalFilters(prev => ({ ...prev, bedrooms: undefined }));
                     } else if (option.value >= 4) {
-                      handleFilterChange("bedrooms", [4, 5, 6, 7, 8, 9, 10]);
+                      setLocalFilters(prev => ({ ...prev, bedrooms: [4, 5, 6, 7, 8, 9, 10] }));
                     } else {
-                      handleFilterChange("bedrooms", [option.value]);
+                      setLocalFilters(prev => ({ ...prev, bedrooms: [option.value] }));
                     }
                   }}
                   className={`flex-1 py-3 text-sm font-medium transition-colors border-r border-gray-200 last:border-r-0 ${
@@ -514,16 +522,16 @@ export function ListingFiltersHorizontal({
             {BATH_OPTIONS.map((option) => {
               const isSelected =
                 option.value === -1
-                  ? !filters.min_bathrooms || filters.min_bathrooms <= 0
-                  : filters.min_bathrooms === option.value;
+                  ? !localFilters.min_bathrooms || localFilters.min_bathrooms <= 0
+                  : localFilters.min_bathrooms === option.value;
               return (
                 <button
                   key={option.value}
                   onClick={() => {
                     if (option.value === -1) {
-                      handleFilterChange("min_bathrooms", undefined);
+                      setLocalFilters(prev => ({ ...prev, min_bathrooms: undefined }));
                     } else {
-                      handleFilterChange("min_bathrooms", option.value);
+                      setLocalFilters(prev => ({ ...prev, min_bathrooms: option.value }));
                     }
                   }}
                   className={`flex-1 py-3 text-sm font-medium transition-colors border-r border-gray-200 last:border-r-0 ${
@@ -586,8 +594,10 @@ export function ListingFiltersHorizontal({
                       onClick={() => {
                         if (option.value === undefined) {
                           setTempPriceMin("");
+                          setLocalFilters(prev => ({ ...prev, min_price: undefined }));
                         } else {
                           setTempPriceMin(option.value.toString());
+                          setLocalFilters(prev => ({ ...prev, min_price: option.value }));
                         }
                         setPriceInputFocus('max');
                         if (listingType === "sale") {
@@ -620,6 +630,7 @@ export function ListingFiltersHorizontal({
                       key={option.label}
                       onClick={() => {
                         setTempPriceMax(option.value.toString());
+                        setLocalFilters(prev => ({ ...prev, max_price: option.value }));
                       }}
                       className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
                         isSelected
@@ -639,15 +650,18 @@ export function ListingFiltersHorizontal({
           {listingType === "rental" && !priceInputFocus && (
             <div className="flex flex-wrap gap-2">
               {RENTAL_PRICE_PRESETS.map((preset) => {
-                const isSelected = filters.min_price === preset.minValue && filters.max_price === preset.maxValue;
+                const isSelected = localFilters.min_price === preset.minValue && localFilters.max_price === preset.maxValue;
                 return (
                   <button
                     key={preset.label}
                     onClick={() => {
                       setTempPriceMin(preset.minValue.toString());
                       setTempPriceMax(preset.maxValue.toString());
-                      handleFilterChange("min_price", preset.minValue);
-                      handleFilterChange("max_price", preset.maxValue);
+                      setLocalFilters(prev => ({
+                        ...prev,
+                        min_price: preset.minValue,
+                        max_price: preset.maxValue,
+                      }));
                     }}
                     className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
                       isSelected
@@ -670,7 +684,7 @@ export function ListingFiltersHorizontal({
           <div className="max-h-48 overflow-y-auto border border-gray-200 rounded-xl">
             {allNeighborhoods.map((neighborhood) => {
               const isSelected =
-                filters.neighborhoods?.includes(neighborhood) || false;
+                localFilters.neighborhoods?.includes(neighborhood) || false;
               return (
                 <label
                   key={neighborhood}
@@ -680,14 +694,14 @@ export function ListingFiltersHorizontal({
                     type="checkbox"
                     checked={isSelected}
                     onChange={() => {
-                      const current = filters.neighborhoods || [];
+                      const current = localFilters.neighborhoods || [];
                       const newNeighborhoods = isSelected
                         ? current.filter((n) => n !== neighborhood)
                         : [...current, neighborhood];
-                      handleFilterChange(
-                        "neighborhoods",
-                        newNeighborhoods.length > 0 ? newNeighborhoods : undefined
-                      );
+                      setLocalFilters(prev => ({
+                        ...prev,
+                        neighborhoods: newNeighborhoods.length > 0 ? newNeighborhoods : undefined,
+                      }));
                     }}
                     className="h-5 w-5 text-green-600 focus:ring-green-500 border-gray-300 rounded"
                   />
@@ -709,7 +723,7 @@ export function ListingFiltersHorizontal({
             <div className="max-h-48 overflow-y-auto border border-gray-200 rounded-xl">
               {availableLeaseTerms.map((term) => {
                 const isSelected =
-                  filters.lease_terms?.includes(term) || false;
+                  localFilters.lease_terms?.includes(term) || false;
                 return (
                   <label
                     key={term}
@@ -719,14 +733,14 @@ export function ListingFiltersHorizontal({
                       type="checkbox"
                       checked={isSelected}
                       onChange={() => {
-                        const current = filters.lease_terms || [];
+                        const current = localFilters.lease_terms || [];
                         const newLeaseTerms = isSelected
                           ? current.filter((t) => t !== term)
                           : [...current, term];
-                        handleFilterChange(
-                          "lease_terms",
-                          newLeaseTerms.length > 0 ? newLeaseTerms : undefined
-                        );
+                        setLocalFilters(prev => ({
+                          ...prev,
+                          lease_terms: newLeaseTerms.length > 0 ? newLeaseTerms : undefined,
+                        }));
                       }}
                       className="h-5 w-5 text-green-600 focus:ring-green-500 border-gray-300 rounded"
                     />
@@ -748,10 +762,13 @@ export function ListingFiltersHorizontal({
             <label className="flex items-center px-4 py-3 hover:bg-gray-50 cursor-pointer border-b border-gray-100">
               <input
                 type="radio"
-                checked={!filters.poster_type}
+                checked={!localFilters.poster_type}
                 onChange={() => {
-                  handleFilterChange("poster_type", undefined);
-                  handleFilterChange("agency_name", undefined);
+                  setLocalFilters(prev => ({
+                    ...prev,
+                    poster_type: undefined,
+                    agency_name: undefined,
+                  }));
                 }}
                 className="h-5 w-5 text-green-600 focus:ring-green-500 border-gray-300"
               />
@@ -760,10 +777,13 @@ export function ListingFiltersHorizontal({
             <label className="flex items-center px-4 py-3 hover:bg-gray-50 cursor-pointer border-b border-gray-100">
               <input
                 type="radio"
-                checked={filters.poster_type === "owner"}
+                checked={localFilters.poster_type === "owner"}
                 onChange={() => {
-                  handleFilterChange("poster_type", "owner");
-                  handleFilterChange("agency_name", undefined);
+                  setLocalFilters(prev => ({
+                    ...prev,
+                    poster_type: "owner",
+                    agency_name: undefined,
+                  }));
                 }}
                 className="h-5 w-5 text-green-600 focus:ring-green-500 border-gray-300"
               />
@@ -772,10 +792,13 @@ export function ListingFiltersHorizontal({
             <label className="flex items-center px-4 py-3 hover:bg-gray-50 cursor-pointer border-b border-gray-100">
               <input
                 type="radio"
-                checked={filters.poster_type === "agent" && !filters.agency_name}
+                checked={localFilters.poster_type === "agent" && !localFilters.agency_name}
                 onChange={() => {
-                  handleFilterChange("poster_type", "agent");
-                  handleFilterChange("agency_name", undefined);
+                  setLocalFilters(prev => ({
+                    ...prev,
+                    poster_type: "agent",
+                    agency_name: undefined,
+                  }));
                 }}
                 className="h-5 w-5 text-green-600 focus:ring-green-500 border-gray-300"
               />
@@ -790,12 +813,15 @@ export function ListingFiltersHorizontal({
                   <input
                     type="radio"
                     checked={
-                      filters.poster_type === "agent" &&
-                      filters.agency_name === agency
+                      localFilters.poster_type === "agent" &&
+                      localFilters.agency_name === agency
                     }
                     onChange={() => {
-                      handleFilterChange("poster_type", "agent");
-                      handleFilterChange("agency_name", agency);
+                      setLocalFilters(prev => ({
+                        ...prev,
+                        poster_type: "agent",
+                        agency_name: agency,
+                      }));
                     }}
                     className="h-5 w-5 text-green-600 focus:ring-green-500 border-gray-300"
                   />
@@ -812,10 +838,13 @@ export function ListingFiltersHorizontal({
           <div className="flex flex-wrap gap-3">
             <button
               onClick={() =>
-                handleFilterChange("parking_included", !filters.parking_included)
+                setLocalFilters(prev => ({
+                  ...prev,
+                  parking_included: !prev.parking_included,
+                }))
               }
               className={`px-5 py-3 rounded-xl text-sm font-medium transition-all border-2 ${
-                filters.parking_included
+                localFilters.parking_included
                   ? "border-green-600 bg-green-50 text-green-700"
                   : "border-gray-200 bg-white text-gray-600 hover:border-gray-300"
               }`}
@@ -825,10 +854,13 @@ export function ListingFiltersHorizontal({
             {listingType === "rental" && (
               <button
                 onClick={() =>
-                  handleFilterChange("no_fee_only", !filters.no_fee_only)
+                  setLocalFilters(prev => ({
+                    ...prev,
+                    no_fee_only: !prev.no_fee_only,
+                  }))
                 }
                 className={`px-5 py-3 rounded-xl text-sm font-medium transition-all border-2 ${
-                  filters.no_fee_only
+                  localFilters.no_fee_only
                     ? "border-green-600 bg-green-50 text-green-700"
                     : "border-gray-200 bg-white text-gray-600 hover:border-gray-300"
                 }`}
@@ -843,7 +875,7 @@ export function ListingFiltersHorizontal({
           <h3 className="text-base font-semibold text-gray-900 mb-4">Sort By</h3>
           <div className="max-h-48 overflow-y-auto border border-gray-200 rounded-xl">
             {SORT_OPTIONS.map((option) => {
-              const isSelected = (filters.sort || "newest") === option.value;
+              const isSelected = (localFilters.sort || "newest") === option.value;
               return (
                 <label
                   key={option.value}
@@ -852,7 +884,7 @@ export function ListingFiltersHorizontal({
                   <input
                     type="radio"
                     checked={isSelected}
-                    onChange={() => handleFilterChange("sort", option.value)}
+                    onChange={() => setLocalFilters(prev => ({ ...prev, sort: option.value as SortOption }))}
                     className="h-5 w-5 text-green-600 focus:ring-green-500 border-gray-300"
                   />
                   <span className="ml-3 text-sm text-gray-700">{option.label}</span>
@@ -863,18 +895,47 @@ export function ListingFiltersHorizontal({
         </div>
 
         <div className="pt-4 border-t border-gray-200 flex items-center gap-3">
-          {hasActiveFilters && (
-            <button
-              onClick={clearFilters}
-              className="flex items-center gap-2 px-5 py-3 bg-green-50 text-green-700 rounded-xl font-medium border border-green-300 hover:bg-green-100 transition-all"
-            >
-              <X className="w-4 h-4" />
-              Clear All Filters
-            </button>
-          )}
+          {(() => {
+            const hasActiveLocalFilters = !!(
+              (localFilters.bedrooms && localFilters.bedrooms.length > 0) ||
+              (localFilters.min_bathrooms && localFilters.min_bathrooms > 0) ||
+              localFilters.poster_type ||
+              localFilters.property_type ||
+              localFilters.property_types?.length ||
+              localFilters.building_types?.length ||
+              localFilters.min_price ||
+              localFilters.max_price ||
+              localFilters.parking_included ||
+              localFilters.no_fee_only ||
+              (localFilters.neighborhoods && localFilters.neighborhoods.length > 0) ||
+              localFilters.lease_terms?.length ||
+              localFilters.searchBounds
+            );
+            return hasActiveLocalFilters ? (
+              <button
+                onClick={() => {
+                  setLocalFilters({});
+                  setTempPriceMin("");
+                  setTempPriceMax("");
+                  setPriceInputFocus(null);
+                }}
+                className="flex items-center gap-2 px-5 py-3 bg-green-50 text-green-700 rounded-xl font-medium border border-green-300 hover:bg-green-100 transition-all"
+              >
+                <X className="w-4 h-4" />
+                Clear All Filters
+              </button>
+            ) : null;
+          })()}
           <div className="flex-1" />
           <button
-            onClick={() => onFiltersChange(filters)}
+            onClick={() => {
+              const finalFilters = {
+                ...localFilters,
+                min_price: tempPriceMin ? parseInt(tempPriceMin) : undefined,
+                max_price: tempPriceMax ? parseInt(tempPriceMax) : undefined,
+              };
+              onFiltersChange(finalFilters);
+            }}
             className="px-8 py-3 bg-gray-900 text-white rounded-xl font-semibold hover:bg-gray-800 transition-colors"
           >
             Done
