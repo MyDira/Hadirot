@@ -272,7 +272,7 @@ Deno.serve(async (req) => {
           })
           .eq("id", conv.id);
 
-        await sendSMS(`Extended ${SMS_RENEWAL_DAYS} days. New expiration: ${formatExpirationDate(newExpiresAt)}.`);
+        await sendSMS(`OK, we have extended your listing for another 2 weeks. It will expire on ${formatExpirationDate(newExpiresAt)}`);
         await advanceToNextInBatch();
 
       } else if (reply === 'no') {
