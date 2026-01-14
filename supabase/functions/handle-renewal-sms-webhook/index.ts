@@ -234,7 +234,7 @@ Deno.serve(async (req) => {
           .eq("id", nextConv.id);
 
         const remaining = (conv.total_in_batch || 0) - (nextConv.listing_index || 0) + 1;
-        await sendSMS(`Next (${remaining} remaining): Is the one at ${identifier} still available? Reply YES or NO if ${nextRentedSold}.`);
+        await sendSMS(`Next (${remaining} remaining): Is the listing at ${identifier} still available? Reply YES or NO.`);
       }
     }
 
@@ -316,11 +316,11 @@ Deno.serve(async (req) => {
           }
         } else {
           const identifier = formatListingIdentifier(listing as unknown as Listing);
-          await sendSMS(`Your listing at ${identifier} expires in 5 days. Reply YES to extend or NO if ${rentedSoldWord}.`);
+          await sendSMS(`Your listing at ${identifier} expires in 5 days. Is the listing still available? Reply YES or NO.`);
         }
 
       } else {
-        await sendSMS(`Please reply YES if available or NO if ${rentedSoldWord}.`);
+        await sendSMS(`Please reply YES if available or NO if not.`);
       }
 
     } else if (conv.state === "awaiting_hadirot_question") {

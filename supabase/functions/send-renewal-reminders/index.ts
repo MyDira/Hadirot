@@ -188,7 +188,7 @@ Deno.serve(async (req) => {
         let initialState: string;
 
         if (!isBatch) {
-          smsMessage = `Your listing at ${identifier} expires in 5 days. Reply YES to extend ${SMS_RENEWAL_DAYS} days or NO if ${listingTypeWord}.`;
+          smsMessage = `Your listing at ${identifier} expires in 5 days. Is the listing still available? Reply YES or NO.`;
           initialState = 'awaiting_availability';
         } else if (isFirstInBatch) {
           if (listings.length > MAX_BATCH_SIZE) {
