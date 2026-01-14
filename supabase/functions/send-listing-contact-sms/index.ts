@@ -106,7 +106,7 @@ Deno.serve(async (req) => {
     // Fetch listing details
     const { data: listing, error: listingError } = await supabase
       .from("listings")
-      .select("bedrooms, location, neighborhood, contact_phone")
+      .select("bedrooms, location, neighborhood, contact_phone, price, asking_price, listing_type, call_for_price")
       .eq("id", formData.listingId)
       .single();
 
@@ -121,6 +121,12 @@ Deno.serve(async (req) => {
       );
     }
 
+    console.log("Listing details:", {
+      listingType: listing.listing_type,
+      price: listing.price,
+      askingPrice: listing.asking_price,
+    });
+
     // Format phone number for SMS
     const formatPhoneForSMS = (phone: string): string => {
       const cleaned = phone.replace(/\D/g, "");
@@ -132,11 +138,72 @@ Deno.serve(async (req) => {
       return phone;
     };
 
+    // Format price for SMS
+    const formatPriceForSMS = (listing: {
+      price: number | null;
+      asking_price: number | null;
+      listing_type: string;
+      call_for_price: boolean;
+    }): string => {
+      if (listing.call_for_price) {
+        return "Call for Price";
+      }
+
+      const isSale = listing.listing_type === "sale";
+      const priceValue = isSale ? listing.asking_price : listing.price;
+
+      if (priceValue === null || priceValue === undefined) {
+        return "Price Not Available";
+      }
+
+      return new Intl.NumberFormat("en-US", {
+        style: "currency",
+        currency: "USD",
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0,
+      }).format(priceValue);
+    };
+
+    // Create short URL for the listing
+    const siteUrl = Deno.env.get("PUBLIC_SITE_URL") || "https://hadirot.com";
+    let shortCode: string | null = null;
+
+    try {
+      const { data: code, error: shortUrlError } = await supabase.rpc(
+        "create_short_url",
+        {
+          p_listing_id: formData.listingId,
+          p_original_url: `${siteUrl}/listing/${formData.listingId}`,
+          p_source: "sms_notification",
+          p_expires_days: 90,
+        }
+      );
+
+      if (shortUrlError) {
+        console.error("Error creating short URL:", shortUrlError);
+      } else {
+        shortCode = code;
+        console.log("Short URL created:", `${siteUrl}/l/${shortCode}`);
+      }
+    } catch (error) {
+      console.error("Failed to create short URL:", error);
+    }
+
     // Format the SMS message
     const bedroomText = listing.bedrooms === 0 ? "Studio" : `${listing.bedrooms} bd`;
     const locationText = listing.neighborhood || listing.location;
+    const formattedPrice = formatPriceForSMS(listing);
 
-    const smsMessage = `New Hadirot inquiry: ${formData.userName} (${formData.userPhone}) about the ${bedroomText} at ${locationText}`;
+    const messageParts = [
+      `Hadirot: ${formData.userName} wants a call about your ${bedroomText} at ${locationText} (${formattedPrice})`,
+      `Call: ${formData.userPhone}`,
+    ];
+
+    if (shortCode) {
+      messageParts.push(`${siteUrl}/l/${shortCode}`);
+    }
+
+    const smsMessage = messageParts.join("\n");
 
     console.log("Sending SMS to:", listing.contact_phone);
     console.log("Message:", smsMessage);
