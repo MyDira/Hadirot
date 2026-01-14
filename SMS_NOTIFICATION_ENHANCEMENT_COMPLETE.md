@@ -8,7 +8,7 @@ The listing inquiry SMS notification system has been enhanced to provide agents 
 
 ### Before
 ```
-New Hadirot inquiry: Sarah K. (917-555-1234) about the 2 bd at Ocean Pkwy & Ave J
+New Hadirot inquiry: Sarah K. (917-555-1234) about the 2 bd at Midwood
 ```
 
 ### After (Rental)
@@ -27,11 +27,12 @@ hadirot.com/l/xyz789
 
 ## Key Improvements
 
-1. **Price Display**: SMS now includes the listing price to help agents instantly identify which property is being inquired about
-2. **Better Formatting**: More readable 3-line structure optimized for mobile viewing
-3. **Short URLs**: Each SMS includes a trackable short URL (hadirot.com/l/{code}) that redirects to the listing details
-4. **Professional Tone**: "wants a call about your" is more engaging and action-oriented
-5. **Dual Listing Type Support**: Correctly formats prices for both rental listings (uses `price`) and sales listings (uses `asking_price`)
+1. **Specific Location Display**: Shows actual cross streets (e.g., "Ocean Pkwy & Ave J") instead of vague neighborhoods (e.g., "Midwood") so agents can immediately identify the exact property
+2. **Price Display**: SMS now includes the listing price to help agents further identify which property is being inquired about
+3. **Better Formatting**: More readable 3-line structure optimized for mobile viewing
+4. **Short URLs**: Each SMS includes a trackable short URL (hadirot.com/l/{code}) that redirects to the listing details
+5. **Professional Tone**: "wants a call about your" is more engaging and action-oriented
+6. **Dual Listing Type Support**: Correctly formats prices for both rental listings (uses `price`) and sales listings (uses `asking_price`)
 
 ## Technical Details
 
@@ -41,8 +42,8 @@ hadirot.com/l/xyz789
 ### Changes Made
 
 1. **Expanded Database Query** (Line 109):
-   - Added fields: `price`, `asking_price`, `listing_type`, `call_for_price`
-   - These fields are needed to format the price correctly for different listing types
+   - Added fields: `price`, `asking_price`, `listing_type`, `call_for_price`, `cross_street_a`, `cross_street_b`
+   - These fields are needed to format the price correctly and show actual street addresses
 
 2. **New Price Formatting Function** (Lines 141-165):
    - Handles "Call for Price" listings
@@ -57,14 +58,33 @@ hadirot.com/l/xyz789
    - Graceful error handling: If short URL creation fails, SMS still sends (just without the URL line)
    - Reuses existing short codes for the same listing (prevents database bloat)
 
-4. **Updated SMS Message Template** (Lines 192-206):
+4. **Smart Location Display** (Lines 195-201):
+   - Prioritizes cross streets (`cross_street_a & cross_street_b`) when available
+   - Falls back to `location` field for older listings
+   - Shows actual street intersections (e.g., "Ocean Pkwy & Ave J") instead of just neighborhood name
+
+5. **Updated SMS Message Template** (Lines 205-211):
    - Three-line format for better readability
-   - Line 1: Context with price
+   - Line 1: Context with specific street address and price
    - Line 2: Inquiry phone number for callback
    - Line 3: Short URL (only if successfully created)
 
-5. **Enhanced Logging** (Lines 124-128):
+6. **Enhanced Logging** (Lines 124-128):
    - Logs listing type and price information for debugging
+
+## Location Display Priority
+
+The SMS now shows specific street locations instead of vague neighborhood names:
+
+1. **First Priority**: Cross streets (`cross_street_a & cross_street_b`)
+   - Example: "Ocean Pkwy & Ave J"
+   - Used when both fields are populated
+
+2. **Fallback**: Location field
+   - Used for older listings without cross streets
+   - Maintains backward compatibility
+
+This ensures agents can immediately identify the exact property location in their SMS.
 
 ## Features
 
@@ -112,7 +132,9 @@ hadirot.com/l/xyz789
 - [ ] **Short URL Reuse**: Submit second inquiry for same listing, verify same short code is reused
 - [ ] **Neighborhood Display**: Verify location text prioritizes neighborhood over location when available
 - [ ] **Edge Case - Null Price**: Create test listing with null price, verify SMS shows "Price Not Available"
-- [ ] **Edge Case - Missing Location**: Test with listings having only location (no neighborhood)
+- [ ] **Cross Streets Display**: Verify listings with cross_street_a and cross_street_b show "Street A & Street B" format
+- [ ] **Legacy Listings**: Test with older listings that only have location field (no cross streets)
+- [ ] **Edge Case - Missing Location**: Test with listings having only location (no cross streets or neighborhood)
 
 ### Testing Tips
 

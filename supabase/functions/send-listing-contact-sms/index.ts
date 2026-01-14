@@ -106,7 +106,7 @@ Deno.serve(async (req) => {
     // Fetch listing details
     const { data: listing, error: listingError } = await supabase
       .from("listings")
-      .select("bedrooms, location, neighborhood, contact_phone, price, asking_price, listing_type, call_for_price")
+      .select("bedrooms, location, neighborhood, contact_phone, price, asking_price, listing_type, call_for_price, cross_street_a, cross_street_b")
       .eq("id", formData.listingId)
       .single();
 
@@ -191,7 +191,15 @@ Deno.serve(async (req) => {
 
     // Format the SMS message
     const bedroomText = listing.bedrooms === 0 ? "Studio" : `${listing.bedrooms} bd`;
-    const locationText = listing.neighborhood || listing.location;
+
+    // Prioritize cross streets over neighborhood for better specificity
+    let locationText: string;
+    if (listing.cross_street_a && listing.cross_street_b) {
+      locationText = `${listing.cross_street_a} & ${listing.cross_street_b}`;
+    } else {
+      locationText = listing.location;
+    }
+
     const formattedPrice = formatPriceForSMS(listing);
 
     const messageParts = [
