@@ -1885,7 +1885,9 @@ export async function renewListingViaSMS(listingId: string): Promise<Listing> {
     throw new Error('Listing not found');
   }
 
-  const newExpiresAt = getSMSRenewalExpirationDate();
+  const currentExpiresAt = listing.expires_at ? new Date(listing.expires_at) : new Date();
+  const newExpiresAt = new Date(currentExpiresAt);
+  newExpiresAt.setDate(newExpiresAt.getDate() + SMS_RENEWAL_DAYS);
   const now = new Date().toISOString();
 
   const { data: updatedListing, error: updateError } = await supabase

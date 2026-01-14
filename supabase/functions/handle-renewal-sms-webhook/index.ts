@@ -25,6 +25,7 @@ interface Listing {
   full_address: string | null;
   neighborhood: string;
   price: number | null;
+  expires_at: string | null;
 }
 
 const SMS_RENEWAL_DAYS = 14;
@@ -187,7 +188,7 @@ Deno.serve(async (req) => {
 
     const { data: listing, error: listingError } = await supabaseAdmin
       .from("listings")
-      .select("id, listing_type, location, full_address, neighborhood, price")
+      .select("id, listing_type, location, full_address, neighborhood, price, expires_at")
       .eq("id", conv.listing_id)
       .maybeSingle();
 
@@ -239,7 +240,8 @@ Deno.serve(async (req) => {
 
     if (conv.state === "awaiting_availability") {
       if (reply === 'yes') {
-        const newExpiresAt = new Date();
+        const currentExpiresAt = listing.expires_at ? new Date(listing.expires_at) : new Date();
+        const newExpiresAt = new Date(currentExpiresAt);
         newExpiresAt.setDate(newExpiresAt.getDate() + SMS_RENEWAL_DAYS);
 
         const { error: updateListingError } = await supabaseAdmin
