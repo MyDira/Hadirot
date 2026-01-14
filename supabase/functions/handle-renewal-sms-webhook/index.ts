@@ -55,12 +55,16 @@ function formatListingIdentifier(listing: Listing): string {
 
 function formatPhoneForSMS(phone: string): string {
   const cleaned = phone.replace(/\D/g, "");
+
   if (cleaned.length === 10) {
     return `+1${cleaned}`;
-  } else if (cleaned.length === 11 && cleaned.startsWith("1")) {
+  }
+
+  if (cleaned.length === 11 && cleaned.startsWith("1")) {
     return `+${cleaned}`;
   }
-  return phone;
+
+  return `+1${cleaned}`;
 }
 
 function normalizeReply(text: string): 'yes' | 'no' | 'help' | 'unknown' {
