@@ -423,6 +423,10 @@ export const digestService = {
         .eq('is_active', true);
 
       // Apply filters
+      if (filters.listing_type) {
+        query = query.eq('listing_type', filters.listing_type);
+      }
+
       if (filters.bedrooms !== undefined) {
         if (Array.isArray(filters.bedrooms)) {
           query = query.in('bedrooms', filters.bedrooms);

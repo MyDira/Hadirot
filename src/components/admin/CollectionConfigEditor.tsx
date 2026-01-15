@@ -173,6 +173,21 @@ export function CollectionConfigEditor({ collections, onChange }: CollectionConf
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Listing Type
+                </label>
+                <select
+                  value={collection.filters.listing_type || ''}
+                  onChange={(e) => handleUpdateFilter(index, 'listing_type', e.target.value || undefined)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                >
+                  <option value="">Both</option>
+                  <option value="rental">Rentals</option>
+                  <option value="sale">Sales</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
                   Bedrooms
                 </label>
                 <select

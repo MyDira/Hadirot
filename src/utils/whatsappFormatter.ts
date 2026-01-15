@@ -252,11 +252,10 @@ export class WhatsAppFormatter {
       : listing.location || 'Location not specified';
 
     // Format posted by
-    const ownerName = (listing as any).owner?.full_name || 'Unknown';
     const ownerAgency = (listing as any).owner?.agency;
     const postedBy = ownerAgency
       ? `Posted by ${ownerAgency}`
-      : `Posted by ${ownerName}`;
+      : `Posted by Owner`;
 
     // Format URL
     const url = shortCode
