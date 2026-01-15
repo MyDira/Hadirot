@@ -137,7 +137,7 @@ export const agenciesService = {
       return null;
     }
 
-    const { data, error } = await supabase
+    const { data: agency, error } = await supabase
       .from("agencies")
       .select("*")
       .eq("slug", normalizedSlug)
@@ -148,7 +148,32 @@ export const agenciesService = {
       throw error;
     }
 
-    return mapAgencyRow(data);
+    if (!agency) {
+      return null;
+    }
+
+    // Check if the agency owner has permission to manage agencies
+    const { data: profile, error: profileError } = await supabase
+      .from("profiles")
+      .select("can_manage_agency, is_admin")
+      .eq("id", agency.owner_profile_id)
+      .maybeSingle<{ can_manage_agency: boolean | null; is_admin: boolean }>();
+
+    if (profileError) {
+      console.error("[svc] getAgencyBySlug profile check error", profileError);
+      // If we can't check permissions, don't show the agency
+      return null;
+    }
+
+    // Allow access if user is admin OR has can_manage_agency permission
+    const hasPermission = profile?.is_admin === true || profile?.can_manage_agency === true;
+
+    if (!hasPermission) {
+      // Owner no longer has permission to manage this agency
+      return null;
+    }
+
+    return mapAgencyRow(agency);
   },
 
   async getAgencyOwnedByProfile(profileId: string): Promise<Agency | null> {
