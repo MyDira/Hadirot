@@ -7,8 +7,6 @@ import {
   MapPin,
   Star,
   Heart,
-  Phone,
-  User,
   Calendar,
   Home as HomeIcon,
   ArrowLeft,
@@ -24,15 +22,12 @@ import {
   Package,
   Building,
   Layers,
-  Ruler,
   LandPlot,
   CalendarDays,
   CheckCircle,
   Users,
   Key,
   Thermometer,
-  Trees,
-  Sofa,
   SquareStack,
   Receipt,
 } from "lucide-react";
@@ -55,6 +50,8 @@ import { AdminListingBanner } from "../components/listing/AdminListingBanner";
 import { formatLeaseLength } from "../utils/formatters";
 import { ListingLocationMap } from "../components/listing/ListingLocationMap";
 import { SaleStatusBadge } from "../components/listings/SaleStatusBadge";
+import { ContactProfileBubble } from "../components/common/ContactProfileBubble";
+import { PhoneNumberReveal } from "../components/common/PhoneNumberReveal";
 
 const SCROLL_THRESHOLDS = [25, 50, 75, 100] as const;
 
@@ -119,19 +116,6 @@ export function ListingDetail() {
       "Twentieth",
     ];
     return ordinals[num] || `${getOrdinalSuffixText(num)}`;
-  };
-
-  const formatPhoneNumber = (phone: string): string => {
-    // Remove all non-digit characters
-    const cleaned = phone.replace(/\D/g, "");
-
-    // Format as (XXX) XXX-XXXX if it's a 10-digit number
-    if (cleaned.length === 10) {
-      return `(${cleaned.slice(0, 3)}) ${cleaned.slice(3, 6)}-${cleaned.slice(6)}`;
-    }
-
-    // Return original if not 10 digits
-    return phone;
   };
 
   const formatSquareFootage = (sqft: number): string => {
@@ -660,18 +644,17 @@ export function ListingDetail() {
               <div className="space-y-4 mb-6">
                 <div className="flex items-start justify-between">
                   <div className="flex items-center">
-                    <User className="w-5 h-5 text-[#273140] mr-3 flex-shrink-0" />
+                    <ContactProfileBubble name={listing.contact_name} className="mr-3" />
                     <div>
                       <div className="font-semibold">
                         {listing.contact_name}
                         <span className="mx-2 text-gray-400">•</span>
-                        <a
-                          href={`tel:${listing.contact_phone}`}
-                          className="text-[#273140] hover:text-[#1e252f] font-medium transition-colors hover:underline"
-                          onClick={handleCallClick}
-                        >
-                          {formatPhoneNumber(listing.contact_phone)}
-                        </a>
+                        <PhoneNumberReveal
+                          phoneNumber={listing.contact_phone}
+                          listingId={listing.id}
+                          onReveal={handleCallClick}
+                          isMobile={true}
+                        />
                       </div>
                       <div className="text-sm text-gray-500">{getRoleLabel()}</div>
                     </div>
@@ -869,14 +852,17 @@ export function ListingDetail() {
               <div className="space-y-4 mb-6">
                 <div className="flex items-start justify-between">
                   <div className="flex items-center">
-                    <User className="w-5 h-5 text-[#273140] mr-3 flex-shrink-0" />
+                    <ContactProfileBubble name={listing.contact_name} className="mr-3" />
                     <div>
                       <div className="font-semibold">
                         {listing.contact_name}
                         <span className="mx-2 text-gray-400">•</span>
-                        <span className="text-[#273140] font-medium">
-                          {formatPhoneNumber(listing.contact_phone)}
-                        </span>
+                        <PhoneNumberReveal
+                          phoneNumber={listing.contact_phone}
+                          listingId={listing.id}
+                          onReveal={handleCallClick}
+                          isMobile={false}
+                        />
                       </div>
                       <div className="text-sm text-gray-500">{getRoleLabel()}</div>
                     </div>
