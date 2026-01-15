@@ -249,7 +249,7 @@ export function ListingDetail() {
 
     try {
       setError(null);
-      const data = await listingsService.getListing(id, user?.id);
+      const data = await listingsService.getListing(id, user?.id, profile?.is_admin);
       if (data) {
         setListing(data);
       } else {
@@ -527,6 +527,11 @@ export function ListingDetail() {
     }, 1500);
   };
 
+  const handleApprove = () => {
+    // Update local state to reflect approved status
+    setListing((prev) => prev ? { ...prev, approved: true, is_active: true } : null);
+  };
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       {/* Back Button */}
@@ -546,6 +551,7 @@ export function ListingDetail() {
           userId={user.id}
           isAdmin={profile?.is_admin}
           onUnpublish={handleUnpublish}
+          onApprove={handleApprove}
         />
       )}
 

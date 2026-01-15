@@ -334,7 +334,7 @@ export const listingsService = {
     return { data: data ?? [], count: count ?? 0 };
   },
 
-  async getListing(id: string, userId?: string) {
+  async getListing(id: string, userId?: string, isAdmin: boolean = false) {
     let query = supabase
       .from('listings')
       .select(`
@@ -348,8 +348,13 @@ export const listingsService = {
 
     // Apply access conditions based on authentication
     if (userId) {
-      // For authenticated users: show approved+active listings OR their own listings
-      query = query.or(`and(is_active.eq.true,approved.eq.true),user_id.eq.${userId}`);
+      if (isAdmin) {
+        // Admins can see ALL listings (no access filter applied)
+        // Don't add any approved/is_active filters
+      } else {
+        // For regular authenticated users: show approved+active listings OR their own listings
+        query = query.or(`and(is_active.eq.true,approved.eq.true),user_id.eq.${userId}`);
+      }
     } else {
       // For unauthenticated users: only show approved+active listings
       query = query.eq('approved', true).eq('is_active', true);
