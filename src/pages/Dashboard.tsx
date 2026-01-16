@@ -535,7 +535,7 @@ export default function Dashboard() {
           <Info className="w-4 h-4 mt-0.5 flex-shrink-0 text-gray-400" />
           {activeTab === 'rentals' ? (
             <span>
-              Rental listings are active for {LISTING_DURATION_DAYS.RENTAL} days. Renew within 7 days of expiration to keep your listing active. After expiration, listings become inactive and are purged after 30 additional days.
+              Rental listings are active for {LISTING_DURATION_DAYS.RENTAL} days. Renew within 7 days of expiration to keep your listing active for another 14 days. After expiration, listings become inactive and are purged after 30 additional days.
             </span>
           ) : (
             <span>
@@ -743,7 +743,7 @@ export default function Dashboard() {
                                   onClick={() => handleRenewListing(listing.id)}
                                   disabled={actionLoading === listing.id}
                                   className="px-2.5 py-1.5 text-xs font-medium text-white bg-brand-600 hover:bg-brand-700 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
-                                  title="Renew for 30 days"
+                                  title="Renew for 14 days"
                                 >
                                   Renew
                                 </button>

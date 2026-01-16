@@ -101,6 +101,26 @@ Deno.serve(async (req) => {
       auth: { autoRefreshToken: false, persistSession: false },
     });
 
+    const nyDayOfWeek = new Date().toLocaleDateString('en-US', {
+      timeZone: 'America/New_York',
+      weekday: 'long'
+    });
+
+    if (nyDayOfWeek === 'Friday' || nyDayOfWeek === 'Saturday') {
+      console.log(`Skipping SMS renewals - today is ${nyDayOfWeek} (Shabbat observance)`);
+      return new Response(
+        JSON.stringify({
+          success: true,
+          message: `SMS renewals skipped for Shabbat observance`,
+          day: nyDayOfWeek,
+          timestamp: new Date().toISOString()
+        }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    console.log(`Day check passed - ${nyDayOfWeek} is a valid SMS day`);
+
     const fiveDaysFromNow = new Date();
     fiveDaysFromNow.setDate(fiveDaysFromNow.getDate() + 5);
     const targetDateStart = new Date(fiveDaysFromNow);
