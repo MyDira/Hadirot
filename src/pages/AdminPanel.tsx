@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useSearchParams, useNavigate } from 'react-router-dom';
-import { Users, FileText, Eye, Trash2, Shield, TrendingUp, Home, Star, Power, ChevronDown, Search, ChevronRight, ChevronLeft, BarChart3, MessageSquare, UserCheck, ArrowRight, Mail, DollarSign, X, Edit } from 'lucide-react';
+import { Users, FileText, Eye, Trash2, Shield, TrendingUp, Home, Star, Power, ChevronDown, Search, ChevronRight, ChevronLeft, BarChart3, MessageSquare, UserCheck, ArrowRight, Mail, DollarSign, X, Edit, Clock } from 'lucide-react';
 import { listingsService } from '../services/listings';
 import { agenciesService } from '../services/agencies';
 import { salesService } from '../services/sales';
@@ -114,6 +114,8 @@ export function AdminPanel() {
   const [updatingSalesAccessId, setUpdatingSalesAccessId] = useState<string | null>(null);
   const [salesFeatureEnabled, setSalesFeatureEnabled] = useState(false);
   const [impersonatingUserId, setImpersonatingUserId] = useState<string | null>(null);
+  const [listingActiveDays, setListingActiveDays] = useState<number>(30);
+  const [savingLifecycle, setSavingLifecycle] = useState(false);
 
   useEffect(() => {
     const normalized: AdminTabKey = isValidAdminTab(rawTabParam) ? rawTabParam : 'overview';
@@ -326,6 +328,16 @@ export function AdminPanel() {
         activeUsers: usersRes.count || 0, // Simplified for now
       });
 
+      // Load listing lifecycle settings
+      const { data: settingsData } = await supabase
+        .from('admin_settings')
+        .select('listing_active_days')
+        .single();
+
+      if (settingsData && settingsData.listing_active_days) {
+        setListingActiveDays(settingsData.listing_active_days);
+      }
+
       // Load full data for tables
       const { data: allUsers } = await supabase
         .from('profiles')
@@ -414,6 +426,45 @@ export function AdminPanel() {
       ...prev,
       [field]: value
     }));
+  };
+
+  const handleSaveListingLifecycle = async () => {
+    // Validation
+    if (listingActiveDays < 7 || listingActiveDays > 365) {
+      setToast({ message: 'Duration must be between 7 and 365 days', tone: 'error' });
+      return;
+    }
+
+    if (!Number.isInteger(listingActiveDays)) {
+      setToast({ message: 'Duration must be a whole number', tone: 'error' });
+      return;
+    }
+
+    setSavingLifecycle(true);
+    try {
+      const { data: adminSettings } = await supabase
+        .from('admin_settings')
+        .select('id')
+        .single();
+
+      if (!adminSettings) {
+        throw new Error('Admin settings not found');
+      }
+
+      const { error } = await supabase
+        .from('admin_settings')
+        .update({ listing_active_days: listingActiveDays })
+        .eq('id', adminSettings.id);
+
+      if (error) throw error;
+
+      setToast({ message: 'Listing lifecycle settings saved', tone: 'success' });
+    } catch (error) {
+      console.error('Error saving listing lifecycle:', error);
+      setToast({ message: 'Failed to save settings', tone: 'error' });
+    } finally {
+      setSavingLifecycle(false);
+    }
   };
 
   // Pagination calculations
@@ -880,12 +931,40 @@ export function AdminPanel() {
                   value={stats.featuredListings}
                   color="bg-yellow-500"
                 />
-                <StatCard
-                  icon={TrendingUp}
-                  title="Active Users"
-                  value={stats.activeUsers}
-                  color="bg-gray-500"
-                />
+                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                  <div className="flex items-center mb-4">
+                    <div className="p-3 rounded-lg bg-orange-500 mr-4">
+                      <Clock className="w-6 h-6 text-white" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-gray-600">Listing Active Duration</p>
+                      <p className="text-xs text-gray-500 mt-1">Days before auto-deactivation</p>
+                    </div>
+                  </div>
+                  <div className="space-y-3">
+                    <div className="flex items-center space-x-2">
+                      <input
+                        type="number"
+                        min="7"
+                        max="365"
+                        value={listingActiveDays}
+                        onChange={(e) => setListingActiveDays(parseInt(e.target.value) || 30)}
+                        className="w-20 px-3 py-2 border border-gray-300 rounded-md focus:ring-[#4E4B43] focus:border-[#4E4B43]"
+                      />
+                      <span className="text-sm text-gray-600">days</span>
+                    </div>
+                    <button
+                      onClick={handleSaveListingLifecycle}
+                      disabled={savingLifecycle}
+                      className="w-full px-4 py-2 bg-[#4E4B43] text-white rounded-md hover:bg-[#3d3a35] disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-medium"
+                    >
+                      {savingLifecycle ? 'Saving...' : 'Save Duration'}
+                    </button>
+                    <p className="text-xs text-gray-500 italic">
+                      Changes take effect on next automated check (runs daily at 12:00 AM GMT)
+                    </p>
+                  </div>
+                </div>
               </div>
 
               {/* Quick Links to Other Admin Pages */}
