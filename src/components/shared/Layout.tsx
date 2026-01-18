@@ -245,7 +245,7 @@ export function Layout({ children }: LayoutProps) {
 
   return (
     <div className="min-h-screen flex flex-col">
-      <header className="sticky top-0 z-40 bg-brand-800 text-white border-b border-black/5 shadow-sm">
+      <header className="sticky top-0 z-[60] bg-brand-800 text-white border-b border-black/5 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 md:px-6 h-14 md:h-16 flex items-center justify-between">
           {/* Left spacer for balance */}
           <div className="flex-1"></div>
