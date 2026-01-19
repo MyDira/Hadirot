@@ -32,6 +32,35 @@ export function ReportRentedButton({ listing, userFullName, userEmail }: ReportR
     }
   }, [listing.id]);
 
+  const sendEmailFallback = async () => {
+    const response = await emailService.sendListingRentedReport(
+      {
+        id: listing.id,
+        title: listing.title,
+        location: listing.location,
+        neighborhood: listing.neighborhood,
+        price: listing.price,
+        call_for_price: listing.call_for_price,
+        bedrooms: listing.bedrooms,
+        bathrooms: listing.bathrooms,
+        property_type: listing.property_type,
+        contact_name: listing.contact_name,
+        contact_phone: listing.contact_phone,
+        created_at: listing.created_at,
+      },
+      {
+        name: userFullName || "Anonymous User",
+        email: userEmail || "anonymous@hadirot.com",
+      }
+    );
+
+    if (!response.success) {
+      throw new Error(response.error || "Failed to send report");
+    }
+
+    return "email";
+  };
+
   const handleReport = async () => {
     if (hasReported || isSubmitting) return;
 
@@ -40,31 +69,41 @@ export function ReportRentedButton({ listing, userFullName, userEmail }: ReportR
     try {
       console.log("Sending report for listing:", listing.id);
 
-      const response = await emailService.sendListingRentedReport(
-        {
-          id: listing.id,
-          title: listing.title,
-          location: listing.location,
-          neighborhood: listing.neighborhood,
-          price: listing.price,
-          call_for_price: listing.call_for_price,
-          bedrooms: listing.bedrooms,
-          bathrooms: listing.bathrooms,
-          property_type: listing.property_type,
-          contact_name: listing.contact_name,
-          contact_phone: listing.contact_phone,
-          created_at: listing.created_at,
-        },
-        {
-          name: userFullName || "Anonymous User",
-          email: userEmail || "anonymous@hadirot.com",
+      let method = "sms";
+
+      if (listing.contact_phone) {
+        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+
+        const response = await fetch(`${supabaseUrl}/functions/v1/send-report-rented-sms`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
+          },
+          body: JSON.stringify({
+            listingId: listing.id,
+            reporterName: userFullName || "Anonymous User",
+            reporterEmail: userEmail || "anonymous@hadirot.com"
+          })
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.error || "Failed to send report");
         }
-      );
 
-      console.log("Email service response:", response);
-
-      if (!response.success) {
-        throw new Error(response.error || "Failed to send report");
+        if (data.fallback) {
+          console.log("SMS not available, falling back to email");
+          method = await sendEmailFallback();
+        } else if (data.alreadyInactive) {
+          console.log("Listing already inactive");
+        } else {
+          console.log("SMS report sent:", data);
+        }
+      } else {
+        console.log("No contact phone, using email fallback");
+        method = await sendEmailFallback();
       }
 
       try {
@@ -79,6 +118,7 @@ export function ReportRentedButton({ listing, userFullName, userEmail }: ReportR
       gaEvent("listing_reported_as_rented", {
         listing_id: listing.id,
         user_authenticated: !!userEmail,
+        method,
       });
     } catch (error) {
       console.error("Error submitting report:", error);
@@ -121,7 +161,7 @@ export function ReportRentedButton({ listing, userFullName, userEmail }: ReportR
 
       {showToast && (
         <Toast
-          message="Thank you for reporting. An admin has been notified."
+          message="Thank you for reporting. The listing owner has been notified."
           onClose={() => setShowToast(false)}
         />
       )}

@@ -202,13 +202,21 @@ Deno.serve(async (req) => {
 
     const formattedPrice = formatPriceForSMS(listing);
 
+    const isSale = listing.listing_type === 'sale';
+
     const messageParts = [
-      `Hadirot: ${formData.userName} wants a call about your ${bedroomText} at ${locationText} (${formattedPrice})`,
+      `Hadirot Alert: ${formData.userName} wants a call about your ${bedroomText} at ${locationText} (${formattedPrice})`,
       `Call: ${formData.userPhone}`,
     ];
 
     if (shortCode) {
       messageParts.push(`${siteUrl}/l/${shortCode}`);
+    }
+
+    if (isSale) {
+      messageParts.push(`If this property is no longer available, please log into hadirot.com/dashboard to update the status.`);
+    } else {
+      messageParts.push(`If this property is no longer available, reply RENTED.`);
     }
 
     const smsMessage = messageParts.join("\n");

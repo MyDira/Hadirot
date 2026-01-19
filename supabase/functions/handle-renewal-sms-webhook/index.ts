@@ -6,9 +6,27 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Client-Info, Apikey",
 };
 
+interface ListingMetadata {
+  id: string;
+  index: number;
+  user_id: string;
+  listing_type: string;
+  location: string;
+  neighborhood: string;
+  price: number | null;
+  bedrooms: number;
+}
+
+interface ConversationMetadata {
+  listings?: ListingMetadata[];
+  reporter_name?: string;
+  reporter_email?: string;
+  report_type?: string;
+}
+
 interface RenewalConversation {
   id: string;
-  listing_id: string;
+  listing_id: string | null;
   user_id: string;
   phone_number: string;
   batch_id: string | null;
@@ -16,6 +34,7 @@ interface RenewalConversation {
   total_in_batch: number | null;
   expires_at: string;
   state: string;
+  metadata: ConversationMetadata | null;
 }
 
 interface Listing {
@@ -86,6 +105,25 @@ function formatExpirationDate(date: Date): string {
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
+function normalizeDeactivationReply(text: string): 'rented' | 'sold' | 'unknown' {
+  const normalized = text.toLowerCase().trim();
+
+  const rentedKeywords = ['rented', 'rent', 'tenant', 'tenants', 'leased',
+                          'no longer available', 'unavailable', 'taken'];
+  const soldKeywords = ['sold', 'sale', 'buyer', 'buyers', 'closed',
+                        'closing', 'in contract', 'pending', 'under contract'];
+
+  if (rentedKeywords.some(keyword => normalized.includes(keyword))) {
+    return 'rented';
+  }
+
+  if (soldKeywords.some(keyword => normalized.includes(keyword))) {
+    return 'sold';
+  }
+
+  return 'unknown';
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -127,7 +165,7 @@ Deno.serve(async (req) => {
       .from("listing_renewal_conversations")
       .select("*")
       .eq("phone_number", normalizedPhone)
-      .in("state", ["awaiting_availability", "awaiting_hadirot_question"])
+      .in("state", ["awaiting_availability", "awaiting_hadirot_question", "awaiting_listing_selection", "awaiting_report_response"])
       .order("updated_at", { ascending: false })
       .limit(1)
       .maybeSingle();
@@ -137,14 +175,7 @@ Deno.serve(async (req) => {
       return new Response(emptyTwiML, { headers: { "Content-Type": "text/xml" } });
     }
 
-    if (!conversation) {
-      console.log(`No active conversation found for ${normalizedPhone}`);
-      return new Response(emptyTwiML, { headers: { "Content-Type": "text/xml" } });
-    }
-
-    const conv = conversation as RenewalConversation;
-
-    async function sendSMS(message: string): Promise<void> {
+    async function sendSMS(toPhone: string, message: string): Promise<void> {
       const twilioUrl = `https://api.twilio.com/2010-04-01/Accounts/${twilioAccountSid}/Messages.json`;
       const twilioAuth = btoa(`${twilioAccountSid}:${twilioAuthToken}`);
       try {
@@ -155,7 +186,7 @@ Deno.serve(async (req) => {
             "Content-Type": "application/x-www-form-urlencoded",
           },
           body: new URLSearchParams({
-            To: normalizedPhone,
+            To: toPhone,
             From: twilioPhoneNumber!,
             Body: message,
           }),
@@ -168,6 +199,140 @@ Deno.serve(async (req) => {
         console.error("Error sending SMS:", error);
       }
     }
+
+    if (!conversation) {
+      console.log(`No active conversation found for ${normalizedPhone}`);
+
+      const deactivationType = normalizeDeactivationReply(body);
+
+      if (deactivationType !== 'unknown') {
+        console.log(`Detected unsolicited deactivation reply: ${deactivationType}`);
+
+        const { data: activeListings, error: listingsError } = await supabaseAdmin
+          .from("listings")
+          .select("id, user_id, listing_type, location, neighborhood, price, bedrooms, last_published_at")
+          .eq("contact_phone", normalizedPhone)
+          .eq("is_active", true)
+          .eq("approved", true)
+          .order("last_published_at", { ascending: false });
+
+        if (listingsError) {
+          console.error("Error querying listings:", listingsError);
+          return new Response(emptyTwiML, { headers: { "Content-Type": "text/xml" } });
+        }
+
+        if (!activeListings || activeListings.length === 0) {
+          console.log(`No active listings found for ${normalizedPhone}`);
+          await sendSMS(normalizedPhone, "Hadirot Alert: We couldn't find an active listing for this number. Please log into hadirot.com/dashboard to manage your listings.");
+          return new Response(emptyTwiML, { headers: { "Content-Type": "text/xml" } });
+        }
+
+        if (activeListings.length === 1) {
+          const singleListing = activeListings[0];
+          console.log(`Single listing found: ${singleListing.id}, deactivating...`);
+
+          const { error: updateError } = await supabaseAdmin
+            .from("listings")
+            .update({
+              is_active: false,
+              deactivated_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", singleListing.id);
+
+          if (updateError) {
+            console.error("Error deactivating listing:", updateError);
+            await sendSMS(normalizedPhone, "Hadirot Alert: Sorry, there was an error deactivating your listing. Please try again via hadirot.com/dashboard.");
+            return new Response(emptyTwiML, { headers: { "Content-Type": "text/xml" } });
+          }
+
+          const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+
+          await supabaseAdmin
+            .from("listing_renewal_conversations")
+            .insert({
+              listing_id: singleListing.id,
+              user_id: singleListing.user_id,
+              phone_number: normalizedPhone,
+              batch_id: null,
+              listing_index: null,
+              total_in_batch: null,
+              message_sent_at: new Date().toISOString(),
+              message_sid: messageSid,
+              expires_at: expiresAt.toISOString(),
+              state: 'awaiting_hadirot_question',
+              reply_received_at: new Date().toISOString(),
+              reply_text: body,
+              action_taken: 'deactivated',
+              metadata: null,
+            });
+
+          const listingTypeWord = singleListing.listing_type === 'sale' ? 'buyer' : 'tenant';
+          await sendSMS(normalizedPhone, `Hadirot Alert: Listing deactivated. Did the ${listingTypeWord} find you through Hadirot? Reply YES or NO.`);
+
+          return new Response(emptyTwiML, { headers: { "Content-Type": "text/xml" } });
+        }
+
+        if (activeListings.length >= 2 && activeListings.length <= 3) {
+          console.log(`Found ${activeListings.length} listings, requesting selection...`);
+
+          const listingOptions = activeListings.map((l, index) => {
+            const bedroomText = l.bedrooms === 0 ? 'Studio' : `${l.bedrooms} bd`;
+            const locationStr = l.neighborhood || l.location;
+            const priceText = l.price ? `$${l.price.toLocaleString()}` : 'Call';
+            return `${index + 1}. ${bedroomText} at ${locationStr} (${priceText})`;
+          });
+
+          let selectionMessage = `Hadirot Alert: You have ${activeListings.length} active listings. Which one is no longer available?\n\n`;
+          selectionMessage += listingOptions.join('\n');
+          selectionMessage += `\n\nReply with the number (1-${activeListings.length}).`;
+
+          const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+
+          await supabaseAdmin
+            .from("listing_renewal_conversations")
+            .insert({
+              listing_id: null,
+              user_id: activeListings[0].user_id,
+              phone_number: normalizedPhone,
+              batch_id: null,
+              listing_index: null,
+              total_in_batch: null,
+              message_sent_at: new Date().toISOString(),
+              message_sid: messageSid,
+              expires_at: expiresAt.toISOString(),
+              state: 'awaiting_listing_selection',
+              reply_received_at: new Date().toISOString(),
+              reply_text: body,
+              action_taken: null,
+              metadata: {
+                listings: activeListings.map((l, idx) => ({
+                  id: l.id,
+                  index: idx + 1,
+                  user_id: l.user_id,
+                  listing_type: l.listing_type,
+                  location: l.location,
+                  neighborhood: l.neighborhood,
+                  price: l.price,
+                  bedrooms: l.bedrooms
+                }))
+              },
+            });
+
+          await sendSMS(normalizedPhone, selectionMessage);
+          return new Response(emptyTwiML, { headers: { "Content-Type": "text/xml" } });
+        }
+
+        console.log(`Found ${activeListings.length} listings, directing to dashboard...`);
+        await sendSMS(normalizedPhone, `Hadirot Alert: You have ${activeListings.length} active listings. Please log into hadirot.com/dashboard to deactivate the unavailable one.`);
+        return new Response(emptyTwiML, { headers: { "Content-Type": "text/xml" } });
+      }
+
+      console.log(`No action taken for unsolicited reply from ${normalizedPhone}`);
+      return new Response(emptyTwiML, { headers: { "Content-Type": "text/xml" } });
+    }
+
+    const conv = conversation as RenewalConversation;
 
     if (new Date(conv.expires_at) < new Date()) {
       console.log(`Conversation ${conv.id} has expired`);
@@ -182,7 +347,7 @@ Deno.serve(async (req) => {
         })
         .eq("id", conv.id);
 
-      await sendSMS("This renewal link has expired. Please log into your Hadirot dashboard at hadirot.com/dashboard to manage your listings.");
+      await sendSMS(normalizedPhone, "Hadirot Alert: This renewal link has expired. Please log into your Hadirot dashboard at hadirot.com/dashboard to manage your listings.");
       return new Response(emptyTwiML, { headers: { "Content-Type": "text/xml" } });
     }
 
@@ -234,7 +399,7 @@ Deno.serve(async (req) => {
           .eq("id", nextConv.id);
 
         const remaining = (conv.total_in_batch || 0) - (nextConv.listing_index || 0) + 1;
-        await sendSMS(`Next (${remaining} remaining): Is the listing at ${identifier} still available? Reply YES or NO.`);
+        await sendSMS(normalizedPhone, `Hadirot Alert: Next (${remaining} remaining): Is the listing at ${identifier} still available? Reply YES or NO.`);
       }
     }
 
@@ -257,7 +422,7 @@ Deno.serve(async (req) => {
 
         if (updateListingError) {
           console.error("Error extending listing:", updateListingError);
-          await sendSMS("Sorry, there was an error extending your listing. Please try again via hadirot.com/dashboard.");
+          await sendSMS(normalizedPhone, "Hadirot Alert: Sorry, there was an error extending your listing. Please try again via hadirot.com/dashboard.");
           return new Response(emptyTwiML, { headers: { "Content-Type": "text/xml" } });
         }
 
@@ -272,7 +437,7 @@ Deno.serve(async (req) => {
           })
           .eq("id", conv.id);
 
-        await sendSMS(`OK, we have extended your listing for another 2 weeks. It will expire on ${formatExpirationDate(newExpiresAt)}`);
+        await sendSMS(normalizedPhone, `Hadirot Alert: OK, we have extended your listing for another 2 weeks. It will expire on ${formatExpirationDate(newExpiresAt)}`);
         await advanceToNextInBatch();
 
       } else if (reply === 'no') {
@@ -295,7 +460,7 @@ Deno.serve(async (req) => {
           })
           .eq("id", conv.id);
 
-        await sendSMS(`Listing deactivated. Did the ${listingTypeWord} find you through Hadirot? Reply YES or NO.`);
+        await sendSMS(normalizedPhone, `Hadirot Alert: Listing deactivated. Did the ${listingTypeWord} find you through Hadirot? Reply YES or NO.`);
 
       } else if (reply === 'help') {
         if (conv.batch_id) {
@@ -312,15 +477,15 @@ Deno.serve(async (req) => {
               const price = l?.price ? `$${l.price.toLocaleString()}` : 'N/A';
               return `${i + 1}. ${l?.location || 'Unknown'} (${price})`;
             });
-            await sendSMS(`Your expiring listings:\n${summaryLines.join('\n')}\n\nCurrently asking about listing ${conv.listing_index}. Reply YES or NO.`);
+            await sendSMS(normalizedPhone, `Hadirot Alert: Your expiring listings:\n${summaryLines.join('\n')}\n\nCurrently asking about listing ${conv.listing_index}. Reply YES or NO.`);
           }
         } else {
           const identifier = formatListingIdentifier(listing as unknown as Listing);
-          await sendSMS(`Your listing at ${identifier} expires in 5 days. Is the listing still available? Reply YES or NO.`);
+          await sendSMS(normalizedPhone, `Hadirot Alert: Your listing at ${identifier} expires in 5 days. Is the listing still available? Reply YES or NO.`);
         }
 
       } else {
-        await sendSMS(`Please reply YES if available or NO if not.`);
+        await sendSMS(normalizedPhone, `Hadirot Alert: Please reply YES if available or NO if not.`);
       }
 
     } else if (conv.state === "awaiting_hadirot_question") {
@@ -342,11 +507,122 @@ Deno.serve(async (req) => {
           })
           .eq("id", conv.id);
 
-        await sendSMS("Thank you! Your feedback helps us improve Hadirot.");
+        await sendSMS(normalizedPhone, "Hadirot Alert: Thank you! Your feedback helps us improve Hadirot.");
         await advanceToNextInBatch();
 
       } else {
-        await sendSMS("Please reply YES if they found you via Hadirot, or NO.");
+        await sendSMS(normalizedPhone, "Hadirot Alert: Please reply YES if they found you via Hadirot, or NO.");
+      }
+
+    } else if (conv.state === "awaiting_listing_selection") {
+      const selectionNumber = parseInt(body.trim(), 10);
+
+      if (!conv.metadata || !conv.metadata.listings || !Array.isArray(conv.metadata.listings)) {
+        console.error("Invalid metadata for listing selection");
+        await sendSMS(normalizedPhone, "Hadirot Alert: Sorry, there was an error. Please text RENTED again to restart.");
+        return new Response(emptyTwiML, { headers: { "Content-Type": "text/xml" } });
+      }
+
+      const availableListings = conv.metadata.listings;
+
+      if (isNaN(selectionNumber) || selectionNumber < 1 || selectionNumber > availableListings.length) {
+        await sendSMS(normalizedPhone, `Hadirot Alert: Please reply with a number from 1 to ${availableListings.length}.`);
+        return new Response(emptyTwiML, { headers: { "Content-Type": "text/xml" } });
+      }
+
+      const selectedListing = availableListings[selectionNumber - 1];
+      console.log(`User selected listing ${selectionNumber}: ${selectedListing.id}`);
+
+      const { error: updateError } = await supabaseAdmin
+        .from("listings")
+        .update({
+          is_active: false,
+          deactivated_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", selectedListing.id);
+
+      if (updateError) {
+        console.error("Error deactivating selected listing:", updateError);
+        await sendSMS(normalizedPhone, "Hadirot Alert: Sorry, there was an error deactivating your listing. Please try again via hadirot.com/dashboard.");
+        return new Response(emptyTwiML, { headers: { "Content-Type": "text/xml" } });
+      }
+
+      await supabaseAdmin
+        .from("listing_renewal_conversations")
+        .update({
+          listing_id: selectedListing.id,
+          state: "awaiting_hadirot_question",
+          action_taken: "deactivated",
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", conv.id);
+
+      const selectedListingTypeWord = selectedListing.listing_type === 'sale' ? 'buyer' : 'tenant';
+      await sendSMS(normalizedPhone, `Hadirot Alert: Listing deactivated. Did the ${selectedListingTypeWord} find you through Hadirot? Reply YES or NO.`);
+
+    } else if (conv.state === "awaiting_report_response") {
+      const reply = normalizeReply(body);
+
+      const { data: reportListing, error: reportListingError } = await supabaseAdmin
+        .from("listings")
+        .select("id, listing_type")
+        .eq("id", conv.listing_id)
+        .maybeSingle();
+
+      if (reportListingError || !reportListing) {
+        console.error("Error fetching listing for report response:", reportListingError);
+        await sendSMS(normalizedPhone, "Hadirot Alert: Sorry, there was an error. Please log into hadirot.com/dashboard to manage your listing.");
+        return new Response(emptyTwiML, { headers: { "Content-Type": "text/xml" } });
+      }
+
+      if (reply === 'yes') {
+        await supabaseAdmin
+          .from("listing_renewal_conversations")
+          .update({
+            state: "completed",
+            action_taken: "kept_active",
+            reply_received_at: new Date().toISOString(),
+            reply_text: body,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", conv.id);
+
+        await sendSMS(normalizedPhone, "Hadirot Alert: OK, we've kept your listing active. Thank you for confirming!");
+
+      } else if (reply === 'no') {
+        const { error: updateError } = await supabaseAdmin
+          .from("listings")
+          .update({
+            is_active: false,
+            deactivated_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", conv.listing_id);
+
+        if (updateError) {
+          console.error("Error deactivating listing:", updateError);
+          await sendSMS(normalizedPhone, "Hadirot Alert: Sorry, there was an error deactivating your listing. Please try again via hadirot.com/dashboard.");
+          return new Response(emptyTwiML, { headers: { "Content-Type": "text/xml" } });
+        }
+
+        await supabaseAdmin
+          .from("listing_renewal_conversations")
+          .update({
+            state: "awaiting_hadirot_question",
+            action_taken: "deactivated",
+            reply_received_at: new Date().toISOString(),
+            reply_text: body,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", conv.id);
+
+        const reportListingTypeWord = reportListing.listing_type === 'sale' ? 'buyer' : 'tenant';
+        await sendSMS(normalizedPhone, `Hadirot Alert: Listing deactivated. Did the ${reportListingTypeWord} find you through Hadirot? Reply YES or NO.`);
+
+      } else {
+        const rentedSoldWord = reportListing.listing_type === 'sale' ? 'sold' : 'rented';
+        await sendSMS(normalizedPhone, `Hadirot Alert: Please reply YES if the listing is still available, or NO if it has been ${rentedSoldWord}.`);
       }
     }
 

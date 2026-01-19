@@ -208,13 +208,13 @@ Deno.serve(async (req) => {
         let initialState: string;
 
         if (!isBatch) {
-          smsMessage = `Your listing at ${identifier} expires in 5 days. Is the listing still available? Reply YES or NO.`;
+          smsMessage = `Hadirot Alert: Your listing at ${identifier} expires in 5 days. Is the listing still available? Reply YES or NO.`;
           initialState = 'awaiting_availability';
         } else if (isFirstInBatch) {
           if (listings.length > MAX_BATCH_SIZE) {
-            smsMessage = `You have ${listings.length}+ listings expiring in 5 days. Let's go through the first ${MAX_BATCH_SIZE}. Is the one at ${identifier} still available? Reply YES or NO.`;
+            smsMessage = `Hadirot Alert: You have ${listings.length}+ listings expiring in 5 days. Let's go through the first ${MAX_BATCH_SIZE}. Is the one at ${identifier} still available? Reply YES or NO.`;
           } else {
-            smsMessage = `You have ${listings.length} listings expiring in 5 days. Is the one at ${identifier} still available? Reply YES or NO.`;
+            smsMessage = `Hadirot Alert: You have ${listings.length} listings expiring in 5 days. Is the one at ${identifier} still available? Reply YES or NO.`;
           }
           initialState = 'awaiting_availability';
         } else {
