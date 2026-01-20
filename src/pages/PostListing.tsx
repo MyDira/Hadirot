@@ -1862,21 +1862,22 @@ export function PostListing() {
                   </div>
                 )}
 
-                <div className="flex gap-3">
+                <div className="flex flex-wrap gap-3 mt-4">
                   <button
                     type="button"
                     onClick={handleAIParse}
                     disabled={aiParserLoading || !aiParserText.trim()}
-                    className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
+                    className="flex items-center justify-center gap-2 px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-semibold text-base shadow-sm"
+                    data-testid="ai-parse-button"
                   >
                     {aiParserLoading ? (
                       <>
-                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <Loader2 className="w-5 h-5 animate-spin" />
                         Parsing...
                       </>
                     ) : (
                       <>
-                        <Sparkles className="w-4 h-4" />
+                        <Sparkles className="w-5 h-5" />
                         Parse with AI
                       </>
                     )}
@@ -1886,7 +1887,7 @@ export function PostListing() {
                     <button
                       type="button"
                       onClick={handleClearAIData}
-                      className="px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition-colors font-medium"
+                      className="px-6 py-3 border-2 border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-semibold text-base shadow-sm"
                     >
                       Clear AI Data
                     </button>
