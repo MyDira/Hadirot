@@ -882,82 +882,115 @@ export function PostListing() {
       }
 
       const parsedData = await response.json();
-      console.log('AI Parsed Data:', parsedData);
+
+      console.log('========== N8N WEBHOOK RESPONSE ==========');
+      console.log('Full Response:', JSON.stringify(parsedData, null, 2));
+      console.log('Response Type:', typeof parsedData);
+      console.log('Response Keys:', Object.keys(parsedData));
+      console.log('==========================================');
+
+      // Handle different response structures
+      const data = parsedData.listing || parsedData.data || parsedData;
+
+      console.log('========== EXTRACTED DATA ==========');
+      console.log('Data to map:', JSON.stringify(data, null, 2));
+      console.log('Data Keys:', Object.keys(data));
+      console.log('====================================');
 
       const updatedFormData: Partial<ListingFormData> = {};
 
-      if (parsedData.listing_type) updatedFormData.listing_type = parsedData.listing_type;
-      if (parsedData.title) updatedFormData.title = parsedData.title;
-      if (parsedData.description) updatedFormData.description = parsedData.description;
-      if (parsedData.location) updatedFormData.location = parsedData.location;
-      if (parsedData.neighborhood) updatedFormData.neighborhood = parsedData.neighborhood;
+      // Basic fields with alternative names
+      if (data.listing_type) updatedFormData.listing_type = data.listing_type;
+      if (data.title) updatedFormData.title = data.title;
+      if (data.description) updatedFormData.description = data.description;
 
-      if (parsedData.bedrooms !== undefined) updatedFormData.bedrooms = Number(parsedData.bedrooms) || 1;
-      if (parsedData.bathrooms !== undefined) updatedFormData.bathrooms = Number(parsedData.bathrooms) || 1;
-      if (parsedData.floor !== undefined) updatedFormData.floor = Number(parsedData.floor);
-      if (parsedData.additional_rooms !== undefined) updatedFormData.additional_rooms = Number(parsedData.additional_rooms) || 0;
+      // Handle location - might be 'location', 'cross_streets', or 'address'
+      if (data.location) updatedFormData.location = data.location;
+      else if (data.cross_streets) updatedFormData.location = data.cross_streets;
+      else if (data.address) updatedFormData.location = data.address;
 
-      if (parsedData.price !== undefined) updatedFormData.price = Number(parsedData.price) || null;
-      if (parsedData.asking_price !== undefined) updatedFormData.asking_price = Number(parsedData.asking_price) || null;
-      if (parsedData.square_footage !== undefined) updatedFormData.square_footage = Number(parsedData.square_footage);
-      if (parsedData.property_age !== undefined) updatedFormData.property_age = Number(parsedData.property_age);
-      if (parsedData.year_built !== undefined) updatedFormData.year_built = Number(parsedData.year_built);
-      if (parsedData.year_renovated !== undefined) updatedFormData.year_renovated = Number(parsedData.year_renovated);
-      if (parsedData.hoa_fees !== undefined) updatedFormData.hoa_fees = Number(parsedData.hoa_fees);
-      if (parsedData.property_taxes !== undefined) updatedFormData.property_taxes = Number(parsedData.property_taxes);
-      if (parsedData.lot_size_sqft !== undefined) updatedFormData.lot_size_sqft = Number(parsedData.lot_size_sqft);
-      if (parsedData.building_size_sqft !== undefined) updatedFormData.building_size_sqft = Number(parsedData.building_size_sqft);
-      if (parsedData.unit_count !== undefined) updatedFormData.unit_count = Number(parsedData.unit_count);
-      if (parsedData.number_of_floors !== undefined) updatedFormData.number_of_floors = Number(parsedData.number_of_floors);
+      if (data.neighborhood) updatedFormData.neighborhood = data.neighborhood;
 
-      if (parsedData.call_for_price !== undefined) updatedFormData.call_for_price = Boolean(parsedData.call_for_price);
-      if (parsedData.washer_dryer_hookup !== undefined) updatedFormData.washer_dryer_hookup = Boolean(parsedData.washer_dryer_hookup);
-      if (parsedData.dishwasher !== undefined) updatedFormData.dishwasher = Boolean(parsedData.dishwasher);
-      if (parsedData.broker_fee !== undefined) updatedFormData.broker_fee = Boolean(parsedData.broker_fee);
-      if (parsedData.is_featured !== undefined) updatedFormData.is_featured = Boolean(parsedData.is_featured);
+      if (data.bedrooms !== undefined) updatedFormData.bedrooms = Number(data.bedrooms) || 1;
+      if (data.bathrooms !== undefined) updatedFormData.bathrooms = Number(data.bathrooms) || 1;
+      if (data.floor !== undefined) updatedFormData.floor = Number(data.floor);
+      if (data.additional_rooms !== undefined) updatedFormData.additional_rooms = Number(data.additional_rooms) || 0;
 
-      if (parsedData.parking) updatedFormData.parking = parsedData.parking;
-      if (parsedData.heat) updatedFormData.heat = parsedData.heat;
-      if (parsedData.heating_type) updatedFormData.heating_type = parsedData.heating_type;
-      if (parsedData.property_type) updatedFormData.property_type = parsedData.property_type;
-      if (parsedData.building_type) updatedFormData.building_type = parsedData.building_type;
-      if (parsedData.lease_length) updatedFormData.lease_length = parsedData.lease_length;
-      if (parsedData.ac_type) updatedFormData.ac_type = parsedData.ac_type;
-      if (parsedData.property_condition) updatedFormData.property_condition = parsedData.property_condition;
-      if (parsedData.occupancy_status) updatedFormData.occupancy_status = parsedData.occupancy_status;
-      if (parsedData.delivery_condition) updatedFormData.delivery_condition = parsedData.delivery_condition;
-      if (parsedData.laundry_type) updatedFormData.laundry_type = parsedData.laundry_type;
-      if (parsedData.basement_type) updatedFormData.basement_type = parsedData.basement_type;
+      // Handle price and rent (might be called different things)
+      if (data.price !== undefined) updatedFormData.price = Number(data.price) || null;
+      else if (data.rent !== undefined) updatedFormData.price = Number(data.rent) || null;
+      else if (data.monthly_rent !== undefined) updatedFormData.price = Number(data.monthly_rent) || null;
 
-      if (parsedData.apartment_conditions && Array.isArray(parsedData.apartment_conditions)) {
-        updatedFormData.apartment_conditions = parsedData.apartment_conditions;
+      if (data.asking_price !== undefined) updatedFormData.asking_price = Number(data.asking_price) || null;
+      if (data.square_footage !== undefined) updatedFormData.square_footage = Number(data.square_footage);
+      if (data.property_age !== undefined) updatedFormData.property_age = Number(data.property_age);
+      if (data.year_built !== undefined) updatedFormData.year_built = Number(data.year_built);
+      if (data.year_renovated !== undefined) updatedFormData.year_renovated = Number(data.year_renovated);
+      if (data.hoa_fees !== undefined) updatedFormData.hoa_fees = Number(data.hoa_fees);
+      if (data.property_taxes !== undefined) updatedFormData.property_taxes = Number(data.property_taxes);
+      if (data.lot_size_sqft !== undefined) updatedFormData.lot_size_sqft = Number(data.lot_size_sqft);
+      if (data.building_size_sqft !== undefined) updatedFormData.building_size_sqft = Number(data.building_size_sqft);
+      if (data.unit_count !== undefined) updatedFormData.unit_count = Number(data.unit_count);
+      if (data.number_of_floors !== undefined) updatedFormData.number_of_floors = Number(data.number_of_floors);
+
+      if (data.call_for_price !== undefined) updatedFormData.call_for_price = Boolean(data.call_for_price);
+      if (data.washer_dryer_hookup !== undefined) updatedFormData.washer_dryer_hookup = Boolean(data.washer_dryer_hookup);
+      if (data.dishwasher !== undefined) updatedFormData.dishwasher = Boolean(data.dishwasher);
+      if (data.broker_fee !== undefined) updatedFormData.broker_fee = Boolean(data.broker_fee);
+      if (data.is_featured !== undefined) updatedFormData.is_featured = Boolean(data.is_featured);
+
+      if (data.parking) updatedFormData.parking = data.parking;
+      if (data.heat) updatedFormData.heat = data.heat;
+      if (data.heating_type) updatedFormData.heating_type = data.heating_type;
+      if (data.property_type) updatedFormData.property_type = data.property_type;
+      if (data.building_type) updatedFormData.building_type = data.building_type;
+      if (data.lease_length) updatedFormData.lease_length = data.lease_length;
+      if (data.ac_type) updatedFormData.ac_type = data.ac_type;
+      if (data.property_condition) updatedFormData.property_condition = data.property_condition;
+      if (data.occupancy_status) updatedFormData.occupancy_status = data.occupancy_status;
+      if (data.delivery_condition) updatedFormData.delivery_condition = data.delivery_condition;
+      if (data.laundry_type) updatedFormData.laundry_type = data.laundry_type;
+      if (data.basement_type) updatedFormData.basement_type = data.basement_type;
+
+      if (data.apartment_conditions && Array.isArray(data.apartment_conditions)) {
+        updatedFormData.apartment_conditions = data.apartment_conditions;
       }
-      if (parsedData.outdoor_space && Array.isArray(parsedData.outdoor_space)) {
-        updatedFormData.outdoor_space = parsedData.outdoor_space;
+      if (data.outdoor_space && Array.isArray(data.outdoor_space)) {
+        updatedFormData.outdoor_space = data.outdoor_space;
       }
-      if (parsedData.interior_features && Array.isArray(parsedData.interior_features)) {
-        updatedFormData.interior_features = parsedData.interior_features;
+      if (data.interior_features && Array.isArray(data.interior_features)) {
+        updatedFormData.interior_features = data.interior_features;
       }
-      if (parsedData.utilities_included && Array.isArray(parsedData.utilities_included)) {
-        updatedFormData.utilities_included = parsedData.utilities_included;
+      if (data.utilities_included && Array.isArray(data.utilities_included)) {
+        updatedFormData.utilities_included = data.utilities_included;
       }
 
-      if (parsedData.contact_name) updatedFormData.contact_name = parsedData.contact_name;
-      if (parsedData.contact_phone) updatedFormData.contact_phone = parsedData.contact_phone;
+      if (data.contact_name) updatedFormData.contact_name = data.contact_name;
+      if (data.contact_phone) updatedFormData.contact_phone = data.contact_phone;
 
-      if (parsedData.street_address) updatedFormData.street_address = parsedData.street_address;
-      if (parsedData.unit_number) updatedFormData.unit_number = parsedData.unit_number;
-      if (parsedData.city) updatedFormData.city = parsedData.city;
-      if (parsedData.state) updatedFormData.state = parsedData.state;
-      if (parsedData.zip_code) updatedFormData.zip_code = parsedData.zip_code;
+      if (data.street_address) updatedFormData.street_address = data.street_address;
+      if (data.unit_number) updatedFormData.unit_number = data.unit_number;
+      if (data.city) updatedFormData.city = data.city;
+      if (data.state) updatedFormData.state = data.state;
+      if (data.zip_code) updatedFormData.zip_code = data.zip_code;
 
-      if (parsedData.latitude !== undefined) updatedFormData.latitude = Number(parsedData.latitude);
-      if (parsedData.longitude !== undefined) updatedFormData.longitude = Number(parsedData.longitude);
+      if (data.latitude !== undefined) updatedFormData.latitude = Number(data.latitude);
+      if (data.longitude !== undefined) updatedFormData.longitude = Number(data.longitude);
 
-      if (parsedData.basement_notes) updatedFormData.basement_notes = parsedData.basement_notes;
-      if (parsedData.tenant_notes) updatedFormData.tenant_notes = parsedData.tenant_notes;
+      if (data.basement_notes) updatedFormData.basement_notes = data.basement_notes;
+      if (data.tenant_notes) updatedFormData.tenant_notes = data.tenant_notes;
 
-      setFormData(prev => ({ ...prev, ...updatedFormData }));
+      console.log('========== MAPPED FORM DATA ==========');
+      console.log('Fields to update:', Object.keys(updatedFormData));
+      console.log('Updated form data:', JSON.stringify(updatedFormData, null, 2));
+      console.log('======================================');
+
+      console.log('Current formData before update:', formData);
+      setFormData(prev => {
+        const newFormData = { ...prev, ...updatedFormData };
+        console.log('New formData after merge:', newFormData);
+        return newFormData;
+      });
       setIsAIParsed(true);
       setAiParserSuccess(true);
 
