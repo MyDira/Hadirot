@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { Upload, X, Star, CheckCircle } from "lucide-react";
+import { Upload, X, Star, CheckCircle, Sparkles, Edit, Loader2, AlertCircle, CheckCircle2 } from "lucide-react";
 import * as Sentry from "@sentry/react";
 import { useAuth } from "@/hooks/useAuth";
 import { listingsService, getExpirationDate } from "../services/listings";
@@ -140,6 +140,12 @@ export function PostListing() {
   const [crossStreetAFeature, setCrossStreetAFeature] = useState<MapboxFeature | null>(null);
   const [crossStreetBFeature, setCrossStreetBFeature] = useState<MapboxFeature | null>(null);
   const [isLocationConfirmed, setIsLocationConfirmed] = useState(false);
+  const [showAIParser, setShowAIParser] = useState(false);
+  const [aiParserText, setAiParserText] = useState('');
+  const [aiParserLoading, setAiParserLoading] = useState(false);
+  const [aiParserError, setAiParserError] = useState<string | null>(null);
+  const [aiParserSuccess, setAiParserSuccess] = useState(false);
+  const [isAIParsed, setIsAIParsed] = useState(false);
   const [formData, setFormData] = useState<ListingFormData>({
     listing_type: "",
     title: "",
@@ -849,6 +855,198 @@ export function PostListing() {
       alert('Failed to submit request. Please try again.');
     } finally {
       setRequestingPermission(false);
+    }
+  };
+
+  const handleAIParse = async () => {
+    if (!aiParserText.trim()) {
+      setAiParserError('Please paste listing text first');
+      return;
+    }
+
+    try {
+      setAiParserLoading(true);
+      setAiParserError(null);
+      setAiParserSuccess(false);
+
+      const response = await fetch('https://n8n.srv1283324.hstgr.cloud/webhook/parse-listing', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ text: aiParserText }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const parsedData = await response.json();
+      console.log('AI Parsed Data:', parsedData);
+
+      const updatedFormData: Partial<ListingFormData> = {};
+
+      if (parsedData.listing_type) updatedFormData.listing_type = parsedData.listing_type;
+      if (parsedData.title) updatedFormData.title = parsedData.title;
+      if (parsedData.description) updatedFormData.description = parsedData.description;
+      if (parsedData.location) updatedFormData.location = parsedData.location;
+      if (parsedData.neighborhood) updatedFormData.neighborhood = parsedData.neighborhood;
+
+      if (parsedData.bedrooms !== undefined) updatedFormData.bedrooms = Number(parsedData.bedrooms) || 1;
+      if (parsedData.bathrooms !== undefined) updatedFormData.bathrooms = Number(parsedData.bathrooms) || 1;
+      if (parsedData.floor !== undefined) updatedFormData.floor = Number(parsedData.floor);
+      if (parsedData.additional_rooms !== undefined) updatedFormData.additional_rooms = Number(parsedData.additional_rooms) || 0;
+
+      if (parsedData.price !== undefined) updatedFormData.price = Number(parsedData.price) || null;
+      if (parsedData.asking_price !== undefined) updatedFormData.asking_price = Number(parsedData.asking_price) || null;
+      if (parsedData.square_footage !== undefined) updatedFormData.square_footage = Number(parsedData.square_footage);
+      if (parsedData.property_age !== undefined) updatedFormData.property_age = Number(parsedData.property_age);
+      if (parsedData.year_built !== undefined) updatedFormData.year_built = Number(parsedData.year_built);
+      if (parsedData.year_renovated !== undefined) updatedFormData.year_renovated = Number(parsedData.year_renovated);
+      if (parsedData.hoa_fees !== undefined) updatedFormData.hoa_fees = Number(parsedData.hoa_fees);
+      if (parsedData.property_taxes !== undefined) updatedFormData.property_taxes = Number(parsedData.property_taxes);
+      if (parsedData.lot_size_sqft !== undefined) updatedFormData.lot_size_sqft = Number(parsedData.lot_size_sqft);
+      if (parsedData.building_size_sqft !== undefined) updatedFormData.building_size_sqft = Number(parsedData.building_size_sqft);
+      if (parsedData.unit_count !== undefined) updatedFormData.unit_count = Number(parsedData.unit_count);
+      if (parsedData.number_of_floors !== undefined) updatedFormData.number_of_floors = Number(parsedData.number_of_floors);
+
+      if (parsedData.call_for_price !== undefined) updatedFormData.call_for_price = Boolean(parsedData.call_for_price);
+      if (parsedData.washer_dryer_hookup !== undefined) updatedFormData.washer_dryer_hookup = Boolean(parsedData.washer_dryer_hookup);
+      if (parsedData.dishwasher !== undefined) updatedFormData.dishwasher = Boolean(parsedData.dishwasher);
+      if (parsedData.broker_fee !== undefined) updatedFormData.broker_fee = Boolean(parsedData.broker_fee);
+      if (parsedData.is_featured !== undefined) updatedFormData.is_featured = Boolean(parsedData.is_featured);
+
+      if (parsedData.parking) updatedFormData.parking = parsedData.parking;
+      if (parsedData.heat) updatedFormData.heat = parsedData.heat;
+      if (parsedData.heating_type) updatedFormData.heating_type = parsedData.heating_type;
+      if (parsedData.property_type) updatedFormData.property_type = parsedData.property_type;
+      if (parsedData.building_type) updatedFormData.building_type = parsedData.building_type;
+      if (parsedData.lease_length) updatedFormData.lease_length = parsedData.lease_length;
+      if (parsedData.ac_type) updatedFormData.ac_type = parsedData.ac_type;
+      if (parsedData.property_condition) updatedFormData.property_condition = parsedData.property_condition;
+      if (parsedData.occupancy_status) updatedFormData.occupancy_status = parsedData.occupancy_status;
+      if (parsedData.delivery_condition) updatedFormData.delivery_condition = parsedData.delivery_condition;
+      if (parsedData.laundry_type) updatedFormData.laundry_type = parsedData.laundry_type;
+      if (parsedData.basement_type) updatedFormData.basement_type = parsedData.basement_type;
+
+      if (parsedData.apartment_conditions && Array.isArray(parsedData.apartment_conditions)) {
+        updatedFormData.apartment_conditions = parsedData.apartment_conditions;
+      }
+      if (parsedData.outdoor_space && Array.isArray(parsedData.outdoor_space)) {
+        updatedFormData.outdoor_space = parsedData.outdoor_space;
+      }
+      if (parsedData.interior_features && Array.isArray(parsedData.interior_features)) {
+        updatedFormData.interior_features = parsedData.interior_features;
+      }
+      if (parsedData.utilities_included && Array.isArray(parsedData.utilities_included)) {
+        updatedFormData.utilities_included = parsedData.utilities_included;
+      }
+
+      if (parsedData.contact_name) updatedFormData.contact_name = parsedData.contact_name;
+      if (parsedData.contact_phone) updatedFormData.contact_phone = parsedData.contact_phone;
+
+      if (parsedData.street_address) updatedFormData.street_address = parsedData.street_address;
+      if (parsedData.unit_number) updatedFormData.unit_number = parsedData.unit_number;
+      if (parsedData.city) updatedFormData.city = parsedData.city;
+      if (parsedData.state) updatedFormData.state = parsedData.state;
+      if (parsedData.zip_code) updatedFormData.zip_code = parsedData.zip_code;
+
+      if (parsedData.latitude !== undefined) updatedFormData.latitude = Number(parsedData.latitude);
+      if (parsedData.longitude !== undefined) updatedFormData.longitude = Number(parsedData.longitude);
+
+      if (parsedData.basement_notes) updatedFormData.basement_notes = parsedData.basement_notes;
+      if (parsedData.tenant_notes) updatedFormData.tenant_notes = parsedData.tenant_notes;
+
+      setFormData(prev => ({ ...prev, ...updatedFormData }));
+      setIsAIParsed(true);
+      setAiParserSuccess(true);
+
+      setTimeout(() => {
+        setShowAIParser(false);
+      }, 2000);
+
+    } catch (error) {
+      console.error('AI Parse Error:', error);
+      setAiParserError(
+        error instanceof Error
+          ? `Failed to parse listing: ${error.message}`
+          : 'Failed to connect to AI parser. Please try again.'
+      );
+    } finally {
+      setAiParserLoading(false);
+    }
+  };
+
+  const handleClearAIData = () => {
+    if (confirm('Are you sure you want to clear all AI-parsed data and start over?')) {
+      setFormData({
+        listing_type: "",
+        title: "",
+        description: "",
+        location: "",
+        neighborhood: "",
+        bedrooms: 1,
+        bathrooms: 1,
+        floor: undefined,
+        price: null,
+        call_for_price: false,
+        asking_price: null,
+        property_age: undefined,
+        year_built: undefined,
+        year_renovated: undefined,
+        hoa_fees: undefined,
+        property_taxes: undefined,
+        lot_size_sqft: undefined,
+        property_length_ft: undefined,
+        property_width_ft: undefined,
+        square_footage: undefined,
+        building_size_sqft: undefined,
+        building_length_ft: undefined,
+        building_width_ft: undefined,
+        unit_count: undefined,
+        number_of_floors: undefined,
+        parking: "no",
+        washer_dryer_hookup: false,
+        dishwasher: false,
+        lease_length: null,
+        heat: "tenant_pays",
+        heating_type: null,
+        property_type: "",
+        building_type: "",
+        contact_name: profile?.full_name || "",
+        contact_phone: profile?.phone || "",
+        is_featured: false,
+        broker_fee: false,
+        ac_type: null,
+        apartment_conditions: [],
+        additional_rooms: 0,
+        property_condition: "",
+        occupancy_status: "",
+        delivery_condition: "",
+        outdoor_space: [],
+        interior_features: [],
+        laundry_type: "",
+        basement_type: "",
+        basement_notes: "",
+        rent_roll_total: null,
+        rent_roll_data: [],
+        utilities_included: [],
+        tenant_notes: "",
+        street_address: "",
+        unit_number: "",
+        city: "Brooklyn",
+        state: "NY",
+        zip_code: "",
+        lot_size_input_mode: 'sqft',
+        building_size_input_mode: 'sqft',
+        terms_agreed: false,
+        latitude: null,
+        longitude: null,
+      });
+      setAiParserText('');
+      setIsAIParsed(false);
+      setAiParserSuccess(false);
+      setAiParserError(null);
     }
   };
 
@@ -1575,6 +1773,145 @@ export function PostListing() {
             )}
           </div>
         </div>
+
+        {/* AI Parser Section - Only visible to admins */}
+        {profile?.is_admin && (
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 border-l-4 border-l-purple-600 p-6">
+            <div className="flex items-start justify-between gap-3 mb-4">
+              <div className="flex items-start gap-3 flex-1">
+                <div className="flex-shrink-0">
+                  <div className="inline-flex items-center px-2.5 py-0.5 rounded-md bg-purple-50 text-purple-700 text-xs font-medium">
+                    Admin Only
+                  </div>
+                </div>
+                <div className="flex-1">
+                  <h2 className="text-xl font-semibold text-purple-700 mb-1">
+                    AI Quick Upload
+                  </h2>
+                  <p className="text-sm text-gray-600">
+                    Paste raw listing text and let AI pre-fill the form fields
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowAIParser(!showAIParser);
+                  if (showAIParser) {
+                    setAiParserError(null);
+                    setAiParserSuccess(false);
+                  }
+                }}
+                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-purple-700 bg-purple-50 hover:bg-purple-100 rounded-md transition-colors"
+              >
+                {showAIParser ? (
+                  <>
+                    <Edit className="w-4 h-4" />
+                    Fill Form Manually
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-4 h-4" />
+                    Try Easy AI Parser
+                  </>
+                )}
+              </button>
+            </div>
+
+            {showAIParser && (
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Paste Listing Text
+                  </label>
+                  <textarea
+                    value={aiParserText}
+                    onChange={(e) => {
+                      setAiParserText(e.target.value);
+                      setAiParserError(null);
+                    }}
+                    rows={10}
+                    disabled={aiParserLoading}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-purple-500 focus:border-purple-500 disabled:opacity-50 disabled:cursor-not-allowed font-mono text-sm"
+                    placeholder="Paste your listing text here (from email, message, or document)..."
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    The AI will extract property details like bedrooms, price, location, amenities, etc.
+                  </p>
+                </div>
+
+                {aiParserError && (
+                  <div className="flex items-start gap-2 p-3 bg-red-50 border border-red-200 rounded-md">
+                    <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-sm font-medium text-red-800">Parse Error</p>
+                      <p className="text-sm text-red-700 mt-1">{aiParserError}</p>
+                    </div>
+                  </div>
+                )}
+
+                {aiParserSuccess && (
+                  <div className="flex items-start gap-2 p-3 bg-green-50 border border-green-200 rounded-md">
+                    <CheckCircle2 className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-sm font-medium text-green-800">Success!</p>
+                      <p className="text-sm text-green-700 mt-1">
+                        Listing data parsed successfully! Form fields have been pre-filled.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex gap-3">
+                  <button
+                    type="button"
+                    onClick={handleAIParse}
+                    disabled={aiParserLoading || !aiParserText.trim()}
+                    className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
+                  >
+                    {aiParserLoading ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Parsing...
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="w-4 h-4" />
+                        Parse with AI
+                      </>
+                    )}
+                  </button>
+
+                  {isAIParsed && (
+                    <button
+                      type="button"
+                      onClick={handleClearAIData}
+                      className="px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition-colors font-medium"
+                    >
+                      Clear AI Data
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {!showAIParser && isAIParsed && (
+              <div className="flex items-center gap-2 p-3 bg-purple-50 border border-purple-200 rounded-md">
+                <CheckCircle2 className="w-5 h-5 text-purple-600" />
+                <p className="text-sm text-purple-700 font-medium">
+                  Form populated with AI-parsed data
+                </p>
+                <button
+                  type="button"
+                  onClick={handleClearAIData}
+                  className="ml-auto text-sm text-purple-600 hover:text-purple-800 underline"
+                >
+                  Clear & Start Over
+                </button>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Admin Listing Assignment - Only visible to admins */}
         {profile?.is_admin && (
