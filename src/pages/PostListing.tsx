@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { Upload, X, Star, CheckCircle, Sparkles, Edit, Loader2, AlertCircle, CheckCircle2 } from "lucide-react";
+import { Upload, X, Star, CheckCircle, Sparkles, Edit, Loader2, AlertCircle, CheckCircle2, ChevronDown, ChevronUp } from "lucide-react";
 import * as Sentry from "@sentry/react";
 import { useAuth } from "@/hooks/useAuth";
 import { listingsService, getExpirationDate } from "../services/listings";
@@ -146,6 +146,8 @@ export function PostListing() {
   const [aiParserError, setAiParserError] = useState<string | null>(null);
   const [aiParserSuccess, setAiParserSuccess] = useState(false);
   const [isAIParsed, setIsAIParsed] = useState(false);
+  const [originalParsedText, setOriginalParsedText] = useState('');
+  const [showOriginalText, setShowOriginalText] = useState(false);
   const [formData, setFormData] = useState<ListingFormData>({
     listing_type: "",
     title: "",
@@ -869,13 +871,20 @@ export function PostListing() {
       setAiParserError(null);
       setAiParserSuccess(false);
 
+      // Create timeout controller
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+
       const response = await fetch('https://n8n.srv1283324.hstgr.cloud/webhook/parse-listing', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ text: aiParserText }),
+        signal: controller.signal,
       });
+
+      clearTimeout(timeoutId);
 
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -991,6 +1000,9 @@ export function PostListing() {
         console.log('New formData after merge:', newFormData);
         return newFormData;
       });
+
+      // Store original text for reference
+      setOriginalParsedText(aiParserText);
       setIsAIParsed(true);
       setAiParserSuccess(true);
 
@@ -1000,11 +1012,15 @@ export function PostListing() {
 
     } catch (error) {
       console.error('AI Parse Error:', error);
-      setAiParserError(
-        error instanceof Error
-          ? `Failed to parse listing: ${error.message}`
-          : 'Failed to connect to AI parser. Please try again.'
-      );
+
+      // Better error messages for different error types
+      if (error instanceof Error && error.name === 'AbortError') {
+        setAiParserError('Request timed out after 30 seconds. Please try again or check your connection.');
+      } else if (error instanceof Error) {
+        setAiParserError(`Failed to parse listing: ${error.message}`);
+      } else {
+        setAiParserError('Failed to connect to AI parser. Please try again.');
+      }
     } finally {
       setAiParserLoading(false);
     }
@@ -1077,6 +1093,7 @@ export function PostListing() {
         longitude: null,
       });
       setAiParserText('');
+      setOriginalParsedText('');
       setIsAIParsed(false);
       setAiParserSuccess(false);
       setAiParserError(null);
@@ -1809,20 +1826,20 @@ export function PostListing() {
 
         {/* AI Parser Section - Only visible to admins */}
         {profile?.is_admin && (
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 border-l-4 border-l-purple-600 p-6">
+          <div className="bg-gray-50 rounded-lg shadow-sm border border-gray-200 border-l-4 border-l-blue-500 p-6">
             <div className="flex items-start justify-between gap-3 mb-4">
               <div className="flex items-start gap-3 flex-1">
                 <div className="flex-shrink-0">
-                  <div className="inline-flex items-center px-2.5 py-0.5 rounded-md bg-purple-50 text-purple-700 text-xs font-medium">
+                  <div className="inline-flex items-center px-2.5 py-0.5 rounded-md bg-blue-50 text-blue-700 text-xs font-medium">
                     Admin Only
                   </div>
                 </div>
                 <div className="flex-1">
-                  <h2 className="text-xl font-semibold text-purple-700 mb-1">
-                    AI Quick Upload
+                  <h2 className="text-xl font-semibold text-blue-700 mb-1">
+                    📋 Quick Fill from Text
                   </h2>
                   <p className="text-sm text-gray-600">
-                    Paste raw listing text and let AI pre-fill the form fields
+                    Paste a listing from WhatsApp, email, or any text source and AI will automatically fill the form
                   </p>
                 </div>
               </div>
@@ -1835,7 +1852,7 @@ export function PostListing() {
                     setAiParserSuccess(false);
                   }
                 }}
-                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-purple-700 bg-purple-50 hover:bg-purple-100 rounded-md transition-colors"
+                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-md transition-colors"
               >
                 {showAIParser ? (
                   <>
@@ -1845,7 +1862,7 @@ export function PostListing() {
                 ) : (
                   <>
                     <Sparkles className="w-4 h-4" />
-                    Try Easy AI Parser
+                    Use AI Parser
                   </>
                 )}
               </button>
@@ -1865,11 +1882,11 @@ export function PostListing() {
                     }}
                     rows={10}
                     disabled={aiParserLoading}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-purple-500 focus:border-purple-500 disabled:opacity-50 disabled:cursor-not-allowed font-mono text-sm"
-                    placeholder="Paste your listing text here (from email, message, or document)..."
+                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50 disabled:cursor-not-allowed font-mono text-sm bg-white"
+                    placeholder="Paste listing text here..."
                   />
-                  <p className="text-xs text-gray-500 mt-1">
-                    The AI will extract property details like bedrooms, price, location, amenities, etc.
+                  <p className="text-xs text-gray-500 mt-2">
+                    AI will extract property details like bedrooms, price, location, amenities, etc.
                   </p>
                 </div>
 
@@ -1884,13 +1901,42 @@ export function PostListing() {
                 )}
 
                 {aiParserSuccess && (
-                  <div className="flex items-start gap-2 p-3 bg-green-50 border border-green-200 rounded-md">
-                    <CheckCircle2 className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
-                    <div>
-                      <p className="text-sm font-medium text-green-800">Success!</p>
-                      <p className="text-sm text-green-700 mt-1">
-                        Listing data parsed successfully! Form fields have been pre-filled.
-                      </p>
+                  <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                    <div className="flex items-start gap-2">
+                      <CheckCircle2 className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+                      <div className="flex-1">
+                        <p className="text-sm font-semibold text-green-800">✅ Parsed successfully! Review the fields below.</p>
+
+                        {originalParsedText && (
+                          <div className="mt-3">
+                            <button
+                              type="button"
+                              onClick={() => setShowOriginalText(!showOriginalText)}
+                              className="flex items-center gap-2 text-sm text-green-700 hover:text-green-900 font-medium"
+                            >
+                              {showOriginalText ? (
+                                <>
+                                  <ChevronUp className="w-4 h-4" />
+                                  Hide original text
+                                </>
+                              ) : (
+                                <>
+                                  <ChevronDown className="w-4 h-4" />
+                                  View original text
+                                </>
+                              )}
+                            </button>
+
+                            {showOriginalText && (
+                              <div className="mt-2 p-3 bg-white border border-green-200 rounded-md">
+                                <pre className="text-xs text-gray-700 whitespace-pre-wrap font-mono max-h-48 overflow-y-auto">
+                                  {originalParsedText}
+                                </pre>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
                 )}
@@ -1900,7 +1946,7 @@ export function PostListing() {
                     type="button"
                     onClick={handleAIParse}
                     disabled={aiParserLoading || !aiParserText.trim()}
-                    className="flex items-center justify-center gap-2 px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-semibold text-base shadow-sm"
+                    className="flex items-center justify-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors font-semibold text-base shadow-md"
                     data-testid="ai-parse-button"
                   >
                     {aiParserLoading ? (
@@ -1911,7 +1957,7 @@ export function PostListing() {
                     ) : (
                       <>
                         <Sparkles className="w-5 h-5" />
-                        Parse with AI
+                        Auto-Fill Form
                       </>
                     )}
                   </button>
@@ -1922,7 +1968,7 @@ export function PostListing() {
                       onClick={handleClearAIData}
                       className="px-6 py-3 border-2 border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-semibold text-base shadow-sm"
                     >
-                      Clear AI Data
+                      Clear & Start Over
                     </button>
                   )}
                 </div>
@@ -1930,15 +1976,15 @@ export function PostListing() {
             )}
 
             {!showAIParser && isAIParsed && (
-              <div className="flex items-center gap-2 p-3 bg-purple-50 border border-purple-200 rounded-md">
-                <CheckCircle2 className="w-5 h-5 text-purple-600" />
-                <p className="text-sm text-purple-700 font-medium">
+              <div className="flex items-center gap-2 p-3 bg-blue-50 border border-blue-200 rounded-md">
+                <CheckCircle2 className="w-5 h-5 text-blue-600" />
+                <p className="text-sm text-blue-700 font-medium">
                   Form populated with AI-parsed data
                 </p>
                 <button
                   type="button"
                   onClick={handleClearAIData}
-                  className="ml-auto text-sm text-purple-600 hover:text-purple-800 underline"
+                  className="ml-auto text-sm text-blue-600 hover:text-blue-800 underline"
                 >
                   Clear & Start Over
                 </button>
