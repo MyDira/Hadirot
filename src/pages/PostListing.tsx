@@ -925,10 +925,17 @@ export function PostListing() {
       if (data.floor !== undefined) updatedFormData.floor = Number(data.floor);
       if (data.additional_rooms !== undefined) updatedFormData.additional_rooms = Number(data.additional_rooms) || 0;
 
-      // Handle price and rent (might be called different things)
-      if (data.price !== undefined) updatedFormData.price = Number(data.price) || null;
-      else if (data.rent !== undefined) updatedFormData.price = Number(data.rent) || null;
-      else if (data.monthly_rent !== undefined) updatedFormData.price = Number(data.monthly_rent) || null;
+      // Handle price and rent (might be called different things) - use nullish coalescing to preserve 0 values
+      if (data.price !== undefined && data.price !== null) {
+        const priceNum = Number(data.price);
+        updatedFormData.price = isNaN(priceNum) ? null : priceNum;
+      } else if (data.rent !== undefined && data.rent !== null) {
+        const rentNum = Number(data.rent);
+        updatedFormData.price = isNaN(rentNum) ? null : rentNum;
+      } else if (data.monthly_rent !== undefined && data.monthly_rent !== null) {
+        const monthlyRentNum = Number(data.monthly_rent);
+        updatedFormData.price = isNaN(monthlyRentNum) ? null : monthlyRentNum;
+      }
 
       if (data.asking_price !== undefined) updatedFormData.asking_price = Number(data.asking_price) || null;
       if (data.square_footage !== undefined) updatedFormData.square_footage = Number(data.square_footage);
@@ -942,9 +949,30 @@ export function PostListing() {
       if (data.unit_count !== undefined) updatedFormData.unit_count = Number(data.unit_count);
       if (data.number_of_floors !== undefined) updatedFormData.number_of_floors = Number(data.number_of_floors);
 
+      // Parse interior_features array for boolean fields FIRST (before processing arrays)
+      let hasWasherDryer = false;
+      let hasDishwasher = false;
+      let cleanedInteriorFeatures: string[] = [];
+
+      if (data.interior_features && Array.isArray(data.interior_features)) {
+        // Check if washer_dryer_in_unit or dishwasher are in the array
+        hasWasherDryer = data.interior_features.includes("washer_dryer_in_unit");
+        hasDishwasher = data.interior_features.includes("dishwasher");
+
+        // Remove boolean items from array, keep the rest
+        cleanedInteriorFeatures = data.interior_features.filter(
+          (f: string) => !["washer_dryer_in_unit", "dishwasher"].includes(f)
+        );
+      }
+
       if (data.call_for_price !== undefined) updatedFormData.call_for_price = Boolean(data.call_for_price);
-      if (data.washer_dryer_hookup !== undefined) updatedFormData.washer_dryer_hookup = Boolean(data.washer_dryer_hookup);
-      if (data.dishwasher !== undefined) updatedFormData.dishwasher = Boolean(data.dishwasher);
+      // Check extracted values from array first, then fall back to direct boolean fields
+      if (hasWasherDryer || data.washer_dryer_hookup !== undefined) {
+        updatedFormData.washer_dryer_hookup = hasWasherDryer || Boolean(data.washer_dryer_hookup);
+      }
+      if (hasDishwasher || data.dishwasher !== undefined) {
+        updatedFormData.dishwasher = hasDishwasher || Boolean(data.dishwasher);
+      }
       if (data.broker_fee !== undefined) updatedFormData.broker_fee = Boolean(data.broker_fee);
       if (data.is_featured !== undefined) updatedFormData.is_featured = Boolean(data.is_featured);
 
@@ -967,8 +995,9 @@ export function PostListing() {
       if (data.outdoor_space && Array.isArray(data.outdoor_space)) {
         updatedFormData.outdoor_space = data.outdoor_space;
       }
-      if (data.interior_features && Array.isArray(data.interior_features)) {
-        updatedFormData.interior_features = data.interior_features;
+      // Use cleaned interior_features array (with boolean items extracted)
+      if (cleanedInteriorFeatures.length > 0) {
+        updatedFormData.interior_features = cleanedInteriorFeatures;
       }
       if (data.utilities_included && Array.isArray(data.utilities_included)) {
         updatedFormData.utilities_included = data.utilities_included;
