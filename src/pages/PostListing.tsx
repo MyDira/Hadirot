@@ -913,12 +913,88 @@ export function PostListing() {
       if (data.title) updatedFormData.title = data.title;
       if (data.description) updatedFormData.description = data.description;
 
-      // Handle location - might be 'location', 'cross_streets', or 'address'
-      if (data.location) updatedFormData.location = data.location;
-      else if (data.cross_streets) updatedFormData.location = data.cross_streets;
-      else if (data.address) updatedFormData.location = data.address;
+      // Handle location fields based on listing type
+      const listingType = data.listing_type || formData.listing_type || 'rental';
 
-      if (data.neighborhood) updatedFormData.neighborhood = data.neighborhood;
+      if (listingType === 'rental') {
+        // For rentals: handle cross streets
+        if (data.cross_streets) {
+          // Update formData.location with combined string
+          updatedFormData.location = data.cross_streets;
+
+          // Split and create MapboxFeature objects for component state
+          const streets = data.cross_streets.split(' & ');
+          if (streets.length === 2) {
+            setCrossStreetAFeature({
+              id: 'ai-parsed-street-a',
+              text: streets[0].trim(),
+              place_name: streets[0].trim(),
+              center: [0, 0],
+              place_type: ['address']
+            });
+            setCrossStreetBFeature({
+              id: 'ai-parsed-street-b',
+              text: streets[1].trim(),
+              place_name: streets[1].trim(),
+              center: [0, 0],
+              place_type: ['address']
+            });
+          } else {
+            // Fallback: put entire string in location
+            updatedFormData.location = data.cross_streets;
+          }
+        } else if (data.location) {
+          // Handle legacy single location field
+          updatedFormData.location = data.location;
+          const streets = data.location.split(' & ');
+          if (streets.length === 2) {
+            setCrossStreetAFeature({
+              id: 'ai-parsed-street-a',
+              text: streets[0].trim(),
+              place_name: streets[0].trim(),
+              center: [0, 0],
+              place_type: ['address']
+            });
+            setCrossStreetBFeature({
+              id: 'ai-parsed-street-b',
+              text: streets[1].trim(),
+              place_name: streets[1].trim(),
+              center: [0, 0],
+              place_type: ['address']
+            });
+          }
+        }
+
+        // Also handle if webhook returns them separately
+        if (data.cross_street_a && data.cross_street_b) {
+          updatedFormData.location = `${data.cross_street_a} & ${data.cross_street_b}`;
+          setCrossStreetAFeature({
+            id: 'ai-parsed-street-a',
+            text: data.cross_street_a,
+            place_name: data.cross_street_a,
+            center: [0, 0],
+            place_type: ['address']
+          });
+          setCrossStreetBFeature({
+            id: 'ai-parsed-street-b',
+            text: data.cross_street_b,
+            place_name: data.cross_street_b,
+            center: [0, 0],
+            place_type: ['address']
+          });
+        }
+
+        // Neighborhood
+        if (data.neighborhood) updatedFormData.neighborhood = data.neighborhood;
+
+      } else if (listingType === 'sale') {
+        // For sales: map structured address fields
+        if (data.street_address) updatedFormData.street_address = data.street_address;
+        if (data.unit_number) updatedFormData.unit_number = data.unit_number;
+        if (data.city) updatedFormData.city = data.city;
+        if (data.state) updatedFormData.state = data.state;
+        if (data.zip_code) updatedFormData.zip_code = data.zip_code;
+      }
 
       if (data.bedrooms !== undefined) updatedFormData.bedrooms = Number(data.bedrooms) || 1;
       if (data.bathrooms !== undefined) updatedFormData.bathrooms = Number(data.bathrooms) || 1;
@@ -1005,12 +1081,6 @@ export function PostListing() {
 
       if (data.contact_name) updatedFormData.contact_name = data.contact_name;
       if (data.contact_phone) updatedFormData.contact_phone = data.contact_phone;
-
-      if (data.street_address) updatedFormData.street_address = data.street_address;
-      if (data.unit_number) updatedFormData.unit_number = data.unit_number;
-      if (data.city) updatedFormData.city = data.city;
-      if (data.state) updatedFormData.state = data.state;
-      if (data.zip_code) updatedFormData.zip_code = data.zip_code;
 
       if (data.latitude !== undefined) updatedFormData.latitude = Number(data.latitude);
       if (data.longitude !== undefined) updatedFormData.longitude = Number(data.longitude);
