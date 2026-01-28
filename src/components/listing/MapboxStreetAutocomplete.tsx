@@ -35,6 +35,26 @@ export function MapboxStreetAutocomplete({
   const debounceTimer = useRef<NodeJS.Timeout | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
+  // Sync internal state when value prop changes (e.g., from AI parser)
+  useEffect(() => {
+    console.log('🔄 MapboxStreetAutocomplete value prop changed:', value, 'current inputValue:', inputValue);
+    if (value !== undefined && value !== inputValue) {
+      console.log('✅ Updating inputValue to:', value);
+      setInputValue(value);
+      if (value) {
+        // When value is set externally, mark it as selected
+        setSelectedFeature({
+          id: 'external-value',
+          text: value,
+          place_name: value,
+          center: [0, 0],
+          place_type: ['address']
+        });
+        console.log('✅ Set selectedFeature for external value:', value);
+      }
+    }
+  }, [value]);
+
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (containerRef.current && !containerRef.current.contains(event.target as Node)) {

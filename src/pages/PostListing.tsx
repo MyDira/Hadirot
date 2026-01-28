@@ -916,9 +916,14 @@ export function PostListing() {
       // Handle location fields based on listing type
       const listingType = data.listing_type || formData.listing_type || 'rental';
 
+      console.log('🔍 Detected listing type:', listingType);
+      console.log('🔍 Has cross_streets?', !!data.cross_streets);
+      console.log('🔍 Has location?', !!data.location);
+
       if (listingType === 'rental') {
         // For rentals: handle cross streets
         if (data.cross_streets) {
+          console.log('📍 Processing data.cross_streets:', data.cross_streets);
           // Update formData.location with combined string
           updatedFormData.location = data.cross_streets;
 
@@ -939,11 +944,14 @@ export function PostListing() {
               center: [0, 0],
               place_type: ['address']
             });
+            console.log('✅ Set cross street A from cross_streets:', streets[0].trim());
+            console.log('✅ Set cross street B from cross_streets:', streets[1].trim());
           } else {
             // Fallback: put entire string in location
             updatedFormData.location = data.cross_streets;
           }
         } else if (data.location) {
+          console.log('📍 Processing data.location:', data.location);
           // Handle legacy single location field
           updatedFormData.location = data.location;
           const streets = data.location.split(' & ');
@@ -962,11 +970,14 @@ export function PostListing() {
               center: [0, 0],
               place_type: ['address']
             });
+            console.log('✅ Set cross street A from location:', streets[0].trim());
+            console.log('✅ Set cross street B from location:', streets[1].trim());
           }
         }
 
         // Also handle if webhook returns them separately
         if (data.cross_street_a && data.cross_street_b) {
+          console.log('📍 Processing separate cross_street_a/b fields');
           updatedFormData.location = `${data.cross_street_a} & ${data.cross_street_b}`;
           setCrossStreetAFeature({
             id: 'ai-parsed-street-a',
@@ -982,12 +993,15 @@ export function PostListing() {
             center: [0, 0],
             place_type: ['address']
           });
+          console.log('✅ Set cross street A from cross_street_a:', data.cross_street_a);
+          console.log('✅ Set cross street B from cross_street_b:', data.cross_street_b);
         }
 
         // Neighborhood
         if (data.neighborhood) updatedFormData.neighborhood = data.neighborhood;
 
       } else if (listingType === 'sale') {
+        console.log('🏢 Processing sales listing address fields');
         // For sales: map structured address fields
         if (data.street_address) updatedFormData.street_address = data.street_address;
         if (data.unit_number) updatedFormData.unit_number = data.unit_number;
