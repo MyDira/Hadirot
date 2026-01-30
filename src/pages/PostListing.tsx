@@ -356,6 +356,30 @@ export function PostListing() {
     }
   }, [hasDraft, canPostSales, formData.listing_type]);
 
+  // Sync heat field with utilities_included array for rental listings
+  useEffect(() => {
+    if (formData.listing_type === 'rental') {
+      const hasHeatIncluded = formData.utilities_included?.includes('heat');
+      const currentHeatValue = formData.heat;
+
+      // Sync: if utilities has heat, set heat field to 'included'
+      if (hasHeatIncluded && currentHeatValue !== 'included') {
+        setFormData(prev => ({ ...prev, heat: 'included' }));
+      } else if (!hasHeatIncluded && currentHeatValue === 'included') {
+        // If heat is 'included' but utilities doesn't have heat, set to 'tenant_pays'
+        setFormData(prev => ({ ...prev, heat: 'tenant_pays' }));
+      }
+    }
+  }, [formData.listing_type, formData.utilities_included, formData.heat]);
+
+  // Debug logging for utilities_included changes
+  useEffect(() => {
+    if (formData.utilities_included && formData.utilities_included.length > 0) {
+      console.log('🔧 Utilities included updated:', formData.utilities_included);
+      console.log('🔧 Heat field value:', formData.heat);
+    }
+  }, [formData.utilities_included, formData.heat]);
+
   const loadDraftData = async (): Promise<boolean> => {
     try {
       let draftData: DraftData | null = null;
@@ -581,7 +605,18 @@ export function PostListing() {
       const numValue = value === "" ? undefined : parseFloat(value);
       setFormData((prev) => ({ ...prev, [name]: numValue }));
     } else {
-      setFormData((prev) => ({ ...prev, [name]: value }));
+      // Special handling for heat field - sync with utilities_included
+      if (name === "heat") {
+        setFormData((prev) => {
+          const utilities = prev.utilities_included || [];
+          const newUtilities = value === "included"
+            ? utilities.includes('heat') ? utilities : [...utilities, 'heat']
+            : utilities.filter(u => u !== 'heat');
+          return { ...prev, [name]: value, utilities_included: newUtilities };
+        });
+      } else {
+        setFormData((prev) => ({ ...prev, [name]: value }));
+      }
     }
   };
 
@@ -1090,7 +1125,21 @@ export function PostListing() {
         updatedFormData.interior_features = cleanedInteriorFeatures;
       }
       if (data.utilities_included && Array.isArray(data.utilities_included)) {
-        updatedFormData.utilities_included = data.utilities_included;
+        // Normalize utility names to match UI format (lowercase with underscores)
+        const normalizedUtilities = data.utilities_included.map(utility =>
+          utility.toLowerCase().replace('/', '_').replace(/\s+/g, '_')
+        );
+        updatedFormData.utilities_included = normalizedUtilities;
+
+        // For rentals, sync heat field with utilities_included array
+        if (listingType === 'rental') {
+          if (normalizedUtilities.includes('heat')) {
+            updatedFormData.heat = 'included';
+          } else if (!data.heat) {
+            // Only set to tenant_pays if heat field wasn't explicitly provided
+            updatedFormData.heat = 'tenant_pays';
+          }
+        }
       }
 
       if (data.contact_name) updatedFormData.contact_name = data.contact_name;
@@ -2949,6 +2998,27 @@ export function PostListing() {
                       </span>
                     )}
                 </label>
+              </div>
+            </div>
+          )}
+
+          {formData.listing_type === 'rental' && (
+            <div className="mt-6">
+              <label className="block text-sm font-medium text-gray-700 mb-3">
+                Utilities Included
+              </label>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                {['Heat', 'Hot Water', 'Gas', 'Electric', 'Water/Sewer', 'Internet'].map((utility) => (
+                  <label key={utility} className="flex items-center">
+                    <input
+                      type="checkbox"
+                      checked={formData.utilities_included?.includes(utility.toLowerCase().replace('/', '_').replace(' ', '_')) || false}
+                      onChange={() => handleUtilityToggle(utility.toLowerCase().replace('/', '_').replace(' ', '_'))}
+                      className="h-4 w-4 text-brand-700 focus:ring-[#273140] border-gray-300 rounded mr-2"
+                    />
+                    <span className="text-sm text-gray-700">{utility}</span>
+                  </label>
+                ))}
               </div>
             </div>
           )}
