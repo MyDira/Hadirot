@@ -62,12 +62,17 @@ export function InternalAnalytics() {
   const [listingsPerformance, setListingsPerformance] = useState<any[]>([]);
   const [zeroInquiryListings, setZeroInquiryListings] = useState<any[]>([]);
   const [postingFunnel, setPostingFunnel] = useState<any>(null);
-  const [inquiryQuality, setInquiryQuality] = useState<any>(null);
+
+  // New dual-metric inquiry states
+  const [inquiryOverviewDual, setInquiryOverviewDual] = useState<any>(null);
+  const [inquiryConversionFunnel, setInquiryConversionFunnel] = useState<any>(null);
+  const [inquiryUserBehavior, setInquiryUserBehavior] = useState<any>(null);
+  const [inquiryListingsPerformanceDual, setInquiryListingsPerformanceDual] = useState<any[]>([]);
+  const [inquiryDemandBreakdownDual, setInquiryDemandBreakdownDual] = useState<any>(null);
+  const [inquiryQualityMetrics, setInquiryQualityMetrics] = useState<any>(null);
   const [inquiryTrend, setInquiryTrend] = useState<any[]>([]);
-  const [velocity, setVelocity] = useState<any[]>([]);
-  const [topInquired, setTopInquired] = useState<any[]>([]);
-  const [demand, setDemand] = useState<any>(null);
-  const [timing, setTiming] = useState<any[]>([]);
+  const [timingPhones, setTimingPhones] = useState<any[]>([]);
+  const [timingForms, setTimingForms] = useState<any[]>([]);
   const [abuseSignals, setAbuseSignals] = useState<any[]>([]);
 
   useEffect(() => {
@@ -113,16 +118,17 @@ export function InternalAnalytics() {
         supabase.rpc('analytics_listings_performance', { days_back: dateRange, tz, limit_count: 20 }),
         supabase.rpc('analytics_zero_inquiry_listings', { days_back: dateRange, tz, min_views: 10 }),
         supabase.rpc('analytics_summary', { days_back: dateRange, tz }),
-        supabase.rpc('analytics_inquiry_quality', { days_back: dateRange, tz }),
-        supabase.rpc('analytics_inquiry_quality', { days_back: dateRange * 2, tz }),
+        // New dual-metric inquiry functions
+        supabase.rpc('analytics_inquiry_overview_dual', { days_back: dateRange, tz }),
+        supabase.rpc('analytics_inquiry_conversion_funnel', { days_back: dateRange, tz }),
+        supabase.rpc('analytics_inquiry_user_behavior', { days_back: dateRange, tz }),
+        supabase.rpc('analytics_inquiry_listings_performance_dual', { days_back: dateRange, tz, limit_count: 20 }),
+        supabase.rpc('analytics_inquiry_demand_breakdown_dual', { days_back: dateRange, tz }),
         supabase.rpc('analytics_inquiry_trend', { days_back: dateRange, tz }),
-        supabase.rpc('analytics_inquiry_velocity', { days_back: dateRange, tz }),
-        supabase.rpc('analytics_top_inquired_listings', { days_back: dateRange, tz, limit_count: 10 }),
-        supabase.rpc('analytics_inquiry_demand', { days_back: dateRange, tz }),
+        supabase.rpc('analytics_inquiry_timing_phones', { days_back: dateRange, tz }),
         supabase.rpc('analytics_inquiry_timing', { days_back: dateRange, tz }),
+        supabase.rpc('analytics_inquiry_quality_metrics', { days_back: dateRange, tz }),
         supabase.rpc('analytics_abuse_signals', { days_back: dateRange, tz, mild_threshold: 6, extreme_threshold: 15 }),
-        supabase.rpc('analytics_contact_submissions_summary', { days_back: dateRange, tz }),
-        supabase.rpc('analytics_contact_submissions_summary', { days_back: dateRange * 2, tz }),
       ]);
 
       const firstError = results.find(r => r.error);
@@ -146,16 +152,16 @@ export function InternalAnalytics() {
         performanceResult,
         zeroInquiryResult,
         summaryResult,
-        inquiryQualityResult,
-        inquiryQualityPrevResult,
+        inquiryOverviewDualResult,
+        inquiryConversionFunnelResult,
+        inquiryUserBehaviorResult,
+        inquiryListingsPerformanceDualResult,
+        inquiryDemandBreakdownDualResult,
         inquiryTrendResult,
-        velocityResult,
-        topInquiredResult,
-        demandResult,
-        timingResult,
+        inquiryTimingPhonesResult,
+        inquiryTimingFormsResult,
+        inquiryQualityMetricsResult,
         abuseResult,
-        contactSummaryResult,
-        contactSummaryPrevResult,
       ] = results;
 
       if (sessionQualityResult.data?.[0]) {
@@ -169,8 +175,7 @@ export function InternalAnalytics() {
 
       const currentSession = sessionQualityResult.data?.[0];
       const prevSession = sessionQualityPrevResult.data?.[0];
-      const currentContact = contactSummaryResult.data?.[0];
-      const prevContact = contactSummaryPrevResult.data?.[0];
+      const currentInquiryOverview = inquiryOverviewDualResult.data?.[0];
 
       setGlobalSnapshot({
         sessions: currentSession?.total_sessions || 0,
@@ -180,8 +185,8 @@ export function InternalAnalytics() {
         returningRate: currentSession?.returning_visitor_rate || 0,
         returningRatePrev: prevSession?.returning_visitor_rate || 0,
         activeListings: supplyResult.data?.[0]?.active_count || 0,
-        inquiries: currentContact?.total_submissions || 0,
-        inquiriesPrev: prevContact?.total_submissions || 0,
+        inquiries: (currentInquiryOverview?.phone_reveals || 0) + (currentInquiryOverview?.contact_forms || 0),
+        inquiriesPrev: (currentInquiryOverview?.phone_reveals_prev || 0) + (currentInquiryOverview?.contact_forms_prev || 0),
       });
 
       if (engagementResult.data?.[0]) {
@@ -215,19 +220,41 @@ export function InternalAnalytics() {
         });
       }
 
-      if (inquiryQualityResult.data?.[0]) {
-        setInquiryQuality(inquiryQualityResult.data[0]);
+      // New dual-metric inquiry data assignments
+      if (inquiryOverviewDualResult.data?.[0]) {
+        setInquiryOverviewDual(inquiryOverviewDualResult.data[0]);
+      }
+
+      if (inquiryConversionFunnelResult.data?.[0]) {
+        setInquiryConversionFunnel(inquiryConversionFunnelResult.data[0]);
+      }
+
+      if (inquiryUserBehaviorResult.data?.[0]) {
+        setInquiryUserBehavior(inquiryUserBehaviorResult.data[0]);
+      }
+
+      setInquiryListingsPerformanceDual(inquiryListingsPerformanceDualResult.data || []);
+
+      if (inquiryDemandBreakdownDualResult.data?.[0]) {
+        const demand = inquiryDemandBreakdownDualResult.data[0];
+        setInquiryDemandBreakdownDual({
+          by_price_band_phones: demand.by_price_band_phones || [],
+          by_price_band_forms: demand.by_price_band_forms || [],
+          by_bedrooms_phones: demand.by_bedrooms_phones || [],
+          by_bedrooms_forms: demand.by_bedrooms_forms || [],
+          by_neighborhood_phones: demand.by_neighborhood_phones || [],
+          by_neighborhood_forms: demand.by_neighborhood_forms || [],
+        });
       }
 
       setInquiryTrend(inquiryTrendResult.data || []);
-      setVelocity(velocityResult.data || []);
-      setTopInquired(topInquiredResult.data || []);
+      setTimingPhones(inquiryTimingPhonesResult.data || []);
+      setTimingForms(inquiryTimingFormsResult.data || []);
 
-      if (demandResult.data?.[0]) {
-        setDemand(demandResult.data[0]);
+      if (inquiryQualityMetricsResult.data?.[0]) {
+        setInquiryQualityMetrics(inquiryQualityMetricsResult.data[0]);
       }
 
-      setTiming(timingResult.data || []);
       setAbuseSignals(abuseResult.data || []);
 
     } catch (err) {
@@ -354,12 +381,15 @@ export function InternalAnalytics() {
 
       {activeTab === 'inquiries' && (
         <InquiriesTab
-          inquiryQuality={inquiryQuality}
+          inquiryOverview={inquiryOverviewDual}
+          conversionFunnel={inquiryConversionFunnel}
+          userBehavior={inquiryUserBehavior}
+          listingsPerformanceDual={inquiryListingsPerformanceDual}
+          demandBreakdown={inquiryDemandBreakdownDual}
           inquiryTrend={inquiryTrend}
-          velocity={velocity}
-          topInquired={topInquired}
-          demand={demand}
-          timing={timing}
+          timingPhones={timingPhones}
+          timingForms={timingForms}
+          qualityMetrics={inquiryQualityMetrics}
           abuseSignals={abuseSignals}
           onListingClick={handleListingClick}
           loading={dataLoading}
