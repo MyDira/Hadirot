@@ -333,6 +333,10 @@ function buildFilterUrl(filterParams: Record<string, any>): string {
     params.set('leaseLength', filterParams.lease_length);
   }
 
+  if (filterParams.listing_type === 'sale') {
+    return `/browse-sales?${params.toString()}`;
+  }
+
   return `/browse?${params.toString()}`;
 }
 
