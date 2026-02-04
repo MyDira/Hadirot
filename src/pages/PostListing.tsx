@@ -1101,7 +1101,27 @@ export function PostListing() {
       if (data.broker_fee !== undefined) updatedFormData.broker_fee = Boolean(data.broker_fee);
       if (data.is_featured !== undefined) updatedFormData.is_featured = Boolean(data.is_featured);
 
-      if (data.parking) updatedFormData.parking = data.parking;
+      // FIX #1: Convert parking boolean to string format expected by UI
+      if (data.parking !== undefined) {
+        // Convert boolean to string format expected by UI
+        if (typeof data.parking === 'boolean') {
+          updatedFormData.parking = data.parking ? 'yes' : 'no';
+          console.log(`✅ Mapped parking: [${data.parking}] → [${updatedFormData.parking}]`);
+        } else if (typeof data.parking === 'string') {
+          // Validate it's a valid option
+          const validParkingRental = ['no', 'yes', 'included', 'optional'];
+          const validParkingSale = ['no', 'yes', 'included', 'optional', 'carport'];
+          const validParking = listingType === 'sale' ? validParkingSale : validParkingRental;
+
+          if (validParking.includes(data.parking)) {
+            updatedFormData.parking = data.parking;
+            console.log(`✅ Mapped parking: [${data.parking}] → [${updatedFormData.parking}]`);
+          } else {
+            console.warn(`Invalid parking value: ${data.parking}, defaulting to 'no'`);
+            updatedFormData.parking = 'no';
+          }
+        }
+      }
       if (data.heat) updatedFormData.heat = data.heat;
       if (data.heating_type) updatedFormData.heating_type = data.heating_type;
       if (data.property_type) updatedFormData.property_type = data.property_type;
@@ -1114,15 +1134,72 @@ export function PostListing() {
       if (data.laundry_type) updatedFormData.laundry_type = data.laundry_type;
       if (data.basement_type) updatedFormData.basement_type = data.basement_type;
 
+      // FIX #4: Normalize apartment_conditions
       if (data.apartment_conditions && Array.isArray(data.apartment_conditions)) {
-        updatedFormData.apartment_conditions = data.apartment_conditions;
+        // Valid UI options (note: uses 'high_ceilings' without '_10ft' suffix)
+        const validConditions = ['modern', 'renovated', 'large_rooms', 'high_ceilings', 'large_closets'];
+
+        // Normalize: lowercase and replace spaces with underscores
+        const normalized = data.apartment_conditions.map(condition =>
+          condition.toLowerCase().replace(/\s+/g, '_')
+        ).filter(condition => validConditions.includes(condition));
+
+        updatedFormData.apartment_conditions = normalized;
+        console.log(`✅ Mapped apartment_conditions: [${data.apartment_conditions}] → [${normalized}]`);
       }
+      // FIX #2: Normalize and filter outdoor_space values
       if (data.outdoor_space && Array.isArray(data.outdoor_space)) {
-        updatedFormData.outdoor_space = data.outdoor_space;
+        // Valid UI options
+        const validOutdoorSpaces = ['balcony', 'terrace', 'patio', 'backyard', 'roof_deck', 'shared_yard'];
+
+        // Normalize and map webhook values to UI values
+        const normalized = data.outdoor_space.map(space => {
+          const cleaned = space.toLowerCase().replace(/\s+/g, '_');
+          // Map variations to valid values
+          if (cleaned === 'backyard_access') return 'backyard';
+          if (cleaned === 'rooftop' || cleaned === 'rooftop_deck') return 'roof_deck';
+          if (cleaned === 'deck') return 'roof_deck';
+          if (cleaned === 'garden') return 'backyard';
+          if (cleaned === 'yard') return 'shared_yard';
+          return cleaned;
+        }).filter(space => validOutdoorSpaces.includes(space));
+
+        updatedFormData.outdoor_space = normalized;
+        console.log(`✅ Mapped outdoor_space: [${data.outdoor_space}] → [${normalized}]`);
       }
-      // Use cleaned interior_features array (with boolean items extracted)
+      // FIX #3: Filter and normalize interior_features
       if (cleanedInteriorFeatures.length > 0) {
-        updatedFormData.interior_features = cleanedInteriorFeatures;
+        // Valid UI options
+        const validInteriorFeatures = [
+          'modern', 'renovated', 'large_rooms', 'high_ceilings_10ft', 'large_closets',
+          'hardwood_floors', 'crown_molding', 'fireplace', 'walk_in_closet',
+          'built_in_storage', 'exposed_brick', 'herringbone_floors', 'coffered_ceilings'
+        ];
+
+        // Track filtered values for logging
+        const filteredOut: string[] = [];
+
+        // Map and filter to valid values
+        const normalized = cleanedInteriorFeatures.map(feature => {
+          const cleaned = feature.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
+
+          // Map variations to valid values
+          if (cleaned === 'high_ceilings') return 'high_ceilings_10ft';
+
+          // Filter out appliances and features not in UI (these are handled elsewhere)
+          if (['modern_kitchen', 'stainless_steel_appliances', 'central_ac', 'dishwasher'].includes(cleaned)) {
+            filteredOut.push(feature);
+            return null;
+          }
+
+          return cleaned;
+        }).filter(feature => feature !== null && validInteriorFeatures.includes(feature));
+
+        updatedFormData.interior_features = normalized;
+        console.log(`✅ Mapped interior_features: [${cleanedInteriorFeatures}] → [${normalized}]`);
+        if (filteredOut.length > 0) {
+          console.log(`🔍 Filtered out invalid values: [${filteredOut}]`);
+        }
       }
       if (data.utilities_included && Array.isArray(data.utilities_included)) {
         // Normalize utility names to match UI format (lowercase with underscores)
@@ -1150,6 +1227,9 @@ export function PostListing() {
 
       if (data.basement_notes) updatedFormData.basement_notes = data.basement_notes;
       if (data.tenant_notes) updatedFormData.tenant_notes = data.tenant_notes;
+
+      // Mapping Summary
+      console.log(`📊 Mapping Summary: ${Object.keys(updatedFormData).length} fields updated successfully`);
 
       console.log('========== MAPPED FORM DATA ==========');
       console.log('Fields to update:', Object.keys(updatedFormData));
