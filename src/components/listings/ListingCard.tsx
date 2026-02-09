@@ -155,7 +155,9 @@ export function ListingCard({
   return (
     <Link
       to={`/listing/${listing.id}`}
-      className="group block bg-white border border-gray-200 rounded-lg shadow-sm hover:shadow transition overflow-hidden"
+      className={`group block bg-white border border-gray-200 rounded-lg shadow-sm hover:shadow transition overflow-hidden ${
+        showFeaturedBadge && listing.is_featured ? 'ring-1 ring-accent-500/40 shadow-[0_0_8px_rgba(124,179,66,0.15)]' : ''
+      }`}
       onClick={handleCardClick}
     >
       <div className="relative aspect-[3/2]">
@@ -212,7 +214,13 @@ export function ListingCard({
           )}
         </div>
 
-        {isStock && (
+        {showFeaturedBadge && listing.is_featured && (
+          <div className="absolute top-3 left-3 z-10 bg-accent-500 text-white text-xs font-medium px-2 py-0.5 rounded">
+            Sponsored
+          </div>
+        )}
+
+        {isStock && !(showFeaturedBadge && listing.is_featured) && (
           <div className="absolute bottom-3 left-3 rounded-full bg-black/35 px-3 py-1 text-xs font-medium text-white backdrop-blur-sm">
             Stock photo
           </div>
@@ -318,11 +326,6 @@ export function ListingCard({
             {isSaleListing && listing.sale_status !== 'sold' && (
               <span className="inline-flex items-center bg-emerald-50 text-emerald-700 text-xs px-2 py-0.5 rounded border border-emerald-200">
                 For Sale
-              </span>
-            )}
-            {listing.is_featured && showFeaturedBadge && (
-              <span className="inline-flex items-center bg-accent-500 text-white text-xs px-2 py-0.5 rounded flex-shrink-0">
-                Featured
               </span>
             )}
           </div>

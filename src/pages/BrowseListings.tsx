@@ -51,6 +51,45 @@ type ViewMode = 'split' | 'list' | 'map';
 
 const isMobileDevice = () => window.innerWidth < 768;
 
+function applyClientSideFilters(listings: Listing[], filters: FilterState): Listing[] {
+  let result = listings;
+  if (filters.poster_type === "owner") {
+    result = result.filter(
+      (l) => l.owner && (l.owner.role === "landlord" || l.owner.role === "tenant"),
+    );
+  }
+  if (filters.poster_type === "agent") {
+    result = result.filter(
+      (l) => l.owner && l.owner.role === "agent",
+    );
+  }
+  if (filters.agency_name) {
+    result = result.filter(
+      (l) => l.owner && l.owner.agency === filters.agency_name,
+    );
+  }
+  if (filters.lease_terms && filters.lease_terms.length > 0) {
+    const selectedTerms = filters.lease_terms;
+    const hasLongTermSelected = selectedTerms.includes('long_term_annual');
+    const specialTerms = selectedTerms.filter(t => t !== 'long_term_annual');
+    const hasSpecialTermsSelected = specialTerms.length > 0;
+
+    result = result.filter((l) => {
+      const listingLeaseLength = l.lease_length;
+      const isNullOrLongTerm = !listingLeaseLength || listingLeaseLength === 'long_term_annual';
+      if (hasLongTermSelected && hasSpecialTermsSelected) {
+        return isNullOrLongTerm || specialTerms.includes(listingLeaseLength!);
+      } else if (hasLongTermSelected) {
+        return isNullOrLongTerm;
+      } else if (hasSpecialTermsSelected) {
+        return listingLeaseLength && specialTerms.includes(listingLeaseLength);
+      }
+      return true;
+    });
+  }
+  return result;
+}
+
 export function BrowseListings() {
   const navigate = useNavigate();
   const [displayListings, setDisplayListings] = useState<
@@ -92,9 +131,7 @@ export function BrowseListings() {
   });
 
   const ITEMS_PER_PAGE = 20;
-  const NUM_FEATURED_INJECTED_SLOTS = 4;
-  const NUM_STANDARD_SLOTS_PER_PAGE = ITEMS_PER_PAGE - NUM_FEATURED_INJECTED_SLOTS;
-  const totalPages = Math.ceil(totalCount / NUM_STANDARD_SLOTS_PER_PAGE);
+  const totalPages = Math.ceil(totalCount / ITEMS_PER_PAGE);
 
   const filteredListingsForMap = useMemo(() => {
     return applyFilters(allListingsForMap, filters as FilterStateFromUtils);
@@ -192,135 +229,115 @@ export function BrowseListings() {
       );
       setTotalCount(actualTotalCount);
 
+      const maxValidPage = Math.max(1, Math.ceil(actualTotalCount / ITEMS_PER_PAGE));
+      if (currentPage > maxValidPage && actualTotalCount > 0) {
+        setTimeout(() => {
+          updatePage(maxValidPage);
+        }, 250);
+        return;
+      }
+
       let allFeaturedListings: Listing[] = [];
       try {
-        const { data: featuredData } = await listingsService.getListings(
-          { ...serviceFilters, is_featured_only: true },
-          undefined,
+        allFeaturedListings = await listingsService.getFeaturedListingsForSearch(
+          serviceFilters,
+          'rental',
           user?.id,
-          0,
-          false,
         );
-        allFeaturedListings = featuredData || [];
-        if (filters.lease_terms && filters.lease_terms.length > 0) {
-          const selectedTerms = filters.lease_terms;
-          const hasLongTermSelected = selectedTerms.includes('long_term_annual');
-          const specialTerms = selectedTerms.filter(t => t !== 'long_term_annual');
-          const hasSpecialTermsSelected = specialTerms.length > 0;
-
-          allFeaturedListings = allFeaturedListings.filter((l) => {
-            const listingLeaseLength = l.lease_length;
-            const isNullOrLongTerm = !listingLeaseLength || listingLeaseLength === 'long_term_annual';
-
-            if (hasLongTermSelected && hasSpecialTermsSelected) {
-              return isNullOrLongTerm || specialTerms.includes(listingLeaseLength!);
-            } else if (hasLongTermSelected) {
-              return isNullOrLongTerm;
-            } else if (hasSpecialTermsSelected) {
-              return listingLeaseLength && specialTerms.includes(listingLeaseLength);
-            }
-            return true;
-          });
-        }
+        allFeaturedListings = applyClientSideFilters(allFeaturedListings, filters);
       } catch (error) {
         console.error("Error loading featured listings:", error);
       }
 
-      const featuredSlotsPerPage = NUM_FEATURED_INJECTED_SLOTS;
-      const startIndex = ((currentPage - 1) * featuredSlotsPerPage) % allFeaturedListings.length;
-      let featuredForThisPage: Listing[] = [];
+      const hourSeed = Math.floor(Date.now() / (1000 * 60 * 60));
+      const zoneB = [6, 7, 8];
+      const zoneC = [11, 12, 13];
+      const injectionPositions = [
+        0,
+        1,
+        zoneB[hourSeed % zoneB.length],
+        zoneC[(hourSeed + 1) % zoneC.length],
+      ];
+
+      const slotsPerPage = Math.min(injectionPositions.length, allFeaturedListings.length);
+      const startIndex = allFeaturedListings.length > 0
+        ? ((currentPage - 1) * slotsPerPage) % allFeaturedListings.length
+        : 0;
+      const featuredForThisPage: Listing[] = [];
 
       if (allFeaturedListings.length > 0) {
-        for (let i = 0; i < featuredSlotsPerPage && allFeaturedListings.length > 0; i++) {
+        for (let i = 0; i < slotsPerPage; i++) {
           const index = (startIndex + i) % allFeaturedListings.length;
-          featuredForThisPage.push(allFeaturedListings[index]);
+          if (!featuredForThisPage.some(f => f.id === allFeaturedListings[index].id)) {
+            featuredForThisPage.push(allFeaturedListings[index]);
+          }
         }
       }
 
-      const standardOffset = (currentPage - 1) * NUM_STANDARD_SLOTS_PER_PAGE;
+      const numStandardNeeded = ITEMS_PER_PAGE - featuredForThisPage.length;
+      const standardOffset = (currentPage - 1) * ITEMS_PER_PAGE;
 
       const { data: rawStandardListings } = await listingsService.getListings(
         serviceFilters,
-        NUM_STANDARD_SLOTS_PER_PAGE,
+        numStandardNeeded,
         user?.id,
         standardOffset,
         true,
       );
 
-      let standardListings = rawStandardListings;
-      if (filters.poster_type === "owner") {
-        standardListings = standardListings.filter(
-          (l) => l.owner && (l.owner.role === "landlord" || l.owner.role === "tenant"),
-        );
-      }
-      if (filters.poster_type === "agent") {
-        standardListings = standardListings.filter(
-          (l) => l.owner && l.owner.role === "agent",
-        );
-      }
-      if (filters.agency_name) {
-        standardListings = standardListings.filter(
-          (l) => l.owner && l.owner.agency === filters.agency_name,
-        );
-      }
-      if (filters.lease_terms && filters.lease_terms.length > 0) {
-        const selectedTerms = filters.lease_terms;
-        const hasLongTermSelected = selectedTerms.includes('long_term_annual');
-        const specialTerms = selectedTerms.filter(t => t !== 'long_term_annual');
-        const hasSpecialTermsSelected = specialTerms.length > 0;
+      const standardListings = applyClientSideFilters(rawStandardListings, filters);
 
-        standardListings = standardListings.filter((l) => {
-          const listingLeaseLength = l.lease_length;
-          const isNullOrLongTerm = !listingLeaseLength || listingLeaseLength === 'long_term_annual';
-
-          if (hasLongTermSelected && hasSpecialTermsSelected) {
-            return isNullOrLongTerm || specialTerms.includes(listingLeaseLength!);
-          } else if (hasLongTermSelected) {
-            return isNullOrLongTerm;
-          } else if (hasSpecialTermsSelected) {
-            return listingLeaseLength && specialTerms.includes(listingLeaseLength);
-          }
-          return true;
-        });
+      const featuredPositionMap = new Map<string, number[]>();
+      let fIdx = 0;
+      for (let pos = 0; pos < ITEMS_PER_PAGE && fIdx < featuredForThisPage.length; pos++) {
+        if (injectionPositions.includes(pos) && fIdx < featuredForThisPage.length) {
+          const fId = featuredForThisPage[fIdx].id;
+          if (!featuredPositionMap.has(fId)) featuredPositionMap.set(fId, []);
+          featuredPositionMap.get(fId)!.push(pos);
+          fIdx++;
+        }
       }
 
-      const injectedFeaturedMap = new Map(
-        featuredForThisPage.map((listing) => [listing.id, listing]),
-      );
-
-      const featuredSlotPositions = [1, 3, 5, 7];
       const finalListings: (Listing & { showFeaturedBadge: boolean; key: string })[] = [];
       let featuredIndex = 0;
       let standardListingsCursor = 0;
 
-      for (let i = 0; i < ITEMS_PER_PAGE; i++) {
-        const isFeaturedSlot = featuredSlotPositions.includes(i);
+      for (let position = 0; position < ITEMS_PER_PAGE; position++) {
+        const isInjectionSlot = injectionPositions.includes(position) && featuredIndex < featuredForThisPage.length;
 
-        if (
-          isFeaturedSlot &&
-          featuredIndex < featuredForThisPage.length &&
-          !finalListings.some(
-            (l) => l.id === featuredForThisPage[featuredIndex].id && l.showFeaturedBadge,
-          )
-        ) {
-          const featuredListing = featuredForThisPage[featuredIndex];
+        if (isInjectionSlot) {
           finalListings.push({
-            ...featuredListing,
+            ...featuredForThisPage[featuredIndex],
             showFeaturedBadge: true,
-            key: featuredListing.id,
+            key: `sponsored-${featuredForThisPage[featuredIndex].id}`,
           });
           featuredIndex++;
         } else if (standardListingsCursor < standardListings.length) {
-          const standardListing = standardListings[standardListingsCursor];
-          const isAlsoInjected = injectedFeaturedMap.has(standardListing.id);
-          const key = isAlsoInjected ? `${standardListing.id}-natural` : standardListing.id;
-
-          finalListings.push({
-            ...standardListing,
-            showFeaturedBadge: false,
-            key: key,
-          });
-          standardListingsCursor++;
+          const stdListing = standardListings[standardListingsCursor];
+          const sponsoredPositions = featuredPositionMap.get(stdListing.id);
+          if (sponsoredPositions && sponsoredPositions.some(sp => Math.abs(sp - position) <= 2)) {
+            standardListingsCursor++;
+            if (standardListingsCursor < standardListings.length) {
+              const nextStd = standardListings[standardListingsCursor];
+              const nextKey = featuredPositionMap.has(nextStd.id)
+                ? `${nextStd.id}-natural` : nextStd.id;
+              finalListings.push({
+                ...nextStd,
+                showFeaturedBadge: false,
+                key: nextKey,
+              });
+              standardListingsCursor++;
+            }
+          } else {
+            const key = featuredPositionMap.has(stdListing.id)
+              ? `${stdListing.id}-natural` : stdListing.id;
+            finalListings.push({
+              ...stdListing,
+              showFeaturedBadge: false,
+              key: key,
+            });
+            standardListingsCursor++;
+          }
         } else {
           break;
         }

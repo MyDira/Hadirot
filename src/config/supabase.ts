@@ -136,6 +136,8 @@ export interface Listing {
   sale_status?: SaleStatus | null;
   deactivated_at?: string | null;
   featured_expires_at?: string | null;
+  featured_started_at?: string | null;
+  featured_plan?: string | null;
   owner?: Profile;
   listing_images?: ListingImage[];
   is_favorited?: boolean;

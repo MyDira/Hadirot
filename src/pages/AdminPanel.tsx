@@ -637,21 +637,22 @@ export function AdminPanel() {
   const toggleListingFeatured = async (listingId: string, isFeatured: boolean) => {
     try {
       const updates: any = { is_featured: !isFeatured };
-      
+
       if (!isFeatured) {
-        // Set featured until 30 days from now
-        const featuredUntil = new Date();
-        featuredUntil.setDate(featuredUntil.getDate() + 30);
-        updates.featured_until = featuredUntil.toISOString();
+        const expiresAt = new Date();
+        expiresAt.setDate(expiresAt.getDate() + 30);
+        updates.featured_expires_at = expiresAt.toISOString();
+        updates.featured_started_at = new Date().toISOString();
       } else {
-        updates.featured_until = null;
+        updates.featured_expires_at = null;
+        updates.featured_started_at = null;
       }
 
       await supabase
         .from('listings')
         .update(updates)
         .eq('id', listingId);
-      
+
       await loadAdminData();
     } catch (error) {
       console.error('Error updating listing status:', error);

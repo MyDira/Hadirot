@@ -555,14 +555,18 @@ export const listingsService = {
         }
       }
 
-      // Set expiration date to 1 week from now
       const oneWeekFromNow = new Date();
       oneWeekFromNow.setDate(oneWeekFromNow.getDate() + 7);
       payload.featured_expires_at = oneWeekFromNow.toISOString();
+      payload.featured_started_at = new Date().toISOString();
     }
 
-    // If unfeaturing a listing, clear the expiration date
     if (payload.is_featured === false) {
+      payload.featured_expires_at = null;
+    }
+
+    if (payload.is_active === false && currentListing?.is_featured) {
+      payload.is_featured = false;
       payload.featured_expires_at = null;
     }
 
@@ -794,20 +798,151 @@ export const listingsService = {
     return count || 0;
   },
 
+  async getActiveFeaturedListings(userId?: string): Promise<Listing[]> {
+    const now = new Date().toISOString();
+    let query = supabase
+      .from('listings')
+      .select('*,owner:profiles(id,full_name,role,agency),listing_images(*)')
+      .eq('is_active', true)
+      .eq('approved', true)
+      .eq('is_featured', true)
+      .gt('featured_expires_at', now)
+      .order('featured_started_at', { ascending: true });
+
+    const { data, error } = await query;
+
+    if (error) {
+      console.error('Error getting active featured listings:', error);
+      return [];
+    }
+
+    let listings = (data || []) as unknown as Listing[];
+
+    if (userId) {
+      const { data: favData } = await supabase
+        .from('favorites')
+        .select('listing_id')
+        .eq('user_id', userId);
+      const favIds = new Set((favData || []).map((f: any) => f.listing_id));
+      listings = listings.map(l => ({ ...l, is_favorited: favIds.has(l.id) }));
+    }
+
+    return listings;
+  },
+
+  async getFeaturedListingsForSearch(
+    filters: GetListingsFilters = {},
+    listingType: 'rental' | 'sale' = 'rental',
+    userId?: string,
+  ): Promise<Listing[]> {
+    const now = new Date().toISOString();
+    const posterType = filters?.poster_type as 'owner' | 'agent' | undefined;
+    const agencyName = (filters as any)?.agency_name || undefined;
+
+    const ownerSelect =
+      posterType === 'owner' || posterType === 'agent' || !!agencyName
+        ? 'owner:profiles!inner(id,full_name,role,agency)'
+        : 'owner:profiles(id,full_name,role,agency)';
+
+    let query = supabase
+      .from('listings')
+      .select(`*,${ownerSelect},listing_images(*)`)
+      .eq('is_active', true)
+      .eq('approved', true)
+      .eq('is_featured', true)
+      .gt('featured_expires_at', now);
+
+    if (listingType === 'sale') {
+      query = query.eq('listing_type', 'sale');
+    } else {
+      query = query.or('listing_type.eq.rental,listing_type.is.null');
+    }
+
+    if (filters.bedrooms !== undefined && filters.bedrooms.length > 0) {
+      query = query.in('bedrooms', filters.bedrooms);
+    }
+    if (filters.min_bathrooms && filters.min_bathrooms > 0) {
+      query = query.gte('bathrooms', filters.min_bathrooms);
+    }
+    if (filters.property_types && filters.property_types.length > 0) {
+      query = query.in('property_type', filters.property_types);
+    } else if (filters.property_type) {
+      query = query.eq('property_type', filters.property_type);
+    }
+    if (listingType === 'sale') {
+      if (filters.building_types && filters.building_types.length > 0) {
+        query = query.in('building_type', filters.building_types);
+      }
+      if (filters.min_price) query = query.gte('asking_price', filters.min_price);
+      if (filters.max_price) query = query.lte('asking_price', filters.max_price);
+    } else {
+      if (filters.min_price) query = query.gte('price', filters.min_price);
+      if (filters.max_price) query = query.lte('price', filters.max_price);
+    }
+    if (filters.parking_included) {
+      query = query.in('parking', ['yes', 'included']);
+    }
+    if (filters.neighborhoods && filters.neighborhoods.length > 0) {
+      query = query.in('neighborhood', filters.neighborhoods);
+    }
+    if (filters.noFeeOnly) {
+      query = query.eq('broker_fee', false);
+    }
+    if (filters.bounds) {
+      query = query
+        .gte('latitude', filters.bounds.south)
+        .lte('latitude', filters.bounds.north)
+        .gte('longitude', filters.bounds.west)
+        .lte('longitude', filters.bounds.east);
+    }
+
+    if (posterType === 'owner') {
+      query = query.or('role.eq.landlord,role.eq.tenant', { foreignTable: 'owner' });
+    } else if (posterType === 'agent') {
+      query = query.or('role.eq.agent', { foreignTable: 'owner' });
+      if (agencyName) {
+        query = query.eq('owner.agency', agencyName);
+      }
+    }
+
+    query = query.order('featured_started_at', { ascending: true });
+
+    const { data, error } = await query;
+
+    if (error) {
+      console.error('Error getting featured listings for search:', error);
+      return [];
+    }
+
+    let listings = (data || []) as unknown as Listing[];
+
+    if (userId) {
+      const { data: favData } = await supabase
+        .from('favorites')
+        .select('listing_id')
+        .eq('user_id', userId);
+      const favIds = new Set((favData || []).map((f: any) => f.listing_id));
+      listings = listings.map(l => ({ ...l, is_favorited: favIds.has(l.id) }));
+    }
+
+    return listings;
+  },
+
   async getAdminSettings() {
     const { data, error } = await supabase
       .from('admin_settings')
-      .select('max_featured_listings, max_featured_per_user')
+      .select('max_featured_listings, max_featured_per_user, max_featured_boost_positions')
       .single();
 
     if (error) {
       console.error('Error getting admin settings:', error);
-      return { max_featured_listings: 8, max_featured_per_user: 0 }; // defaults
+      return { max_featured_listings: 8, max_featured_per_user: 0, max_featured_boost_positions: 4 };
     }
 
     return {
       max_featured_listings: data.max_featured_listings || 8,
-      max_featured_per_user: data.max_featured_per_user || 0
+      max_featured_per_user: data.max_featured_per_user || 0,
+      max_featured_boost_positions: data.max_featured_boost_positions || 4,
     };
   },
 

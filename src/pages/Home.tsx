@@ -7,6 +7,7 @@ import {
   Home as HomeIcon,
   ChevronRight,
   Plus,
+  Sparkles,
 } from "lucide-react";
 import { ListingCard } from "../components/listings/ListingCard";
 import { Listing, HeroBanner } from "../config/supabase";
@@ -18,6 +19,7 @@ import { BannerCarousel } from "../components/shared/BannerCarousel";
 
 export function Home() {
   const [recentListings, setRecentListings] = useState<Listing[]>([]);
+  const [featuredListings, setFeaturedListings] = useState<Listing[]>([]);
   const [twoBedroomListings, setTwoBedroomListings] = useState<Listing[]>([]);
   const [threeBedroomListings, setThreeBedroomListings] = useState<Listing[]>(
     [],
@@ -32,6 +34,7 @@ export function Home() {
   // Set up impression tracking for all listings on home page
   const allListingIds = [
     ...recentListings.map(l => l.id),
+    ...featuredListings.map(l => l.id),
     ...twoBedroomListings.map(l => l.id),
     ...threeBedroomListings.map(l => l.id),
   ];
@@ -75,17 +78,21 @@ export function Home() {
 
   const loadListings = async () => {
     try {
-      // Load recently added listings
       const recentResult = await listingsService.getListings({}, 4, user?.id);
 
-      // Load 2 bedroom listings
+      let featured: Listing[] = [];
+      try {
+        featured = await listingsService.getActiveFeaturedListings(user?.id);
+      } catch (e) {
+        console.error("Error loading featured listings:", e);
+      }
+
       const twoBedroomResult = await listingsService.getListings(
         { bedrooms: [2] },
         4,
         user?.id,
       );
 
-      // Load 3 bedroom listings
       const threeBedroomResult = await listingsService.getListings(
         { bedrooms: [3] },
         4,
@@ -93,6 +100,7 @@ export function Home() {
       );
 
       setRecentListings(recentResult.data);
+      setFeaturedListings(featured);
       setTwoBedroomListings(twoBedroomResult.data);
       setThreeBedroomListings(threeBedroomResult.data);
     } catch (error) {
@@ -217,6 +225,45 @@ export function Home() {
           )}
         </div>
       </section>
+
+      {/* Featured Listings */}
+      {featuredListings.length > 0 && (
+        <section className="py-16 bg-[var(--bg-soft)] border-t border-accent-500/10">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="mb-8">
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-5 h-5 text-accent-500" />
+                <h2 className="text-3xl font-bold font-brand text-brand-700">
+                  Featured Listings
+                </h2>
+              </div>
+            </div>
+
+            <div className="overflow-x-auto">
+              <div className="flex gap-6 pb-4" style={{ width: "max-content" }}>
+                {featuredListings.map((listing) => (
+                  <div
+                    key={listing.id}
+                    className="flex-shrink-0 w-80"
+                    ref={(el) => {
+                      if (el) {
+                        observeElement(el, listing.id);
+                      }
+                    }}
+                  >
+                    <ListingCard
+                      listing={listing}
+                      isFavorited={userFavorites.includes(listing.id)}
+                      onFavoriteChange={handleFavoriteChange}
+                      showFeaturedBadge={true}
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* 2 Bedroom Listings */}
       <section className="py-16 bg-[#FAF7F3]">

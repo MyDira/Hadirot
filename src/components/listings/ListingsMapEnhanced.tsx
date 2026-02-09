@@ -123,6 +123,9 @@ export function ListingsMapEnhanced({
     const el = document.createElement("div");
     el.className = "price-marker";
 
+    const isBoosted = listing.is_featured && listing.featured_expires_at &&
+      new Date(listing.featured_expires_at) > new Date();
+
     const isSaleListing = listing.listing_type === "sale";
     const price = isSaleListing ? listing.asking_price : listing.price;
     const priceText = listing.call_for_price
@@ -136,15 +139,22 @@ export function ListingsMapEnhanced({
       ? "bg-brand-600 text-white"
       : "bg-white text-brand-800 border border-gray-300";
     const shadowClass = isHovered || isSelected ? "shadow-lg" : "shadow-sm hover:shadow-lg";
+    const boostedStyle = isBoosted
+      ? 'border: 2px solid #7CB342; box-shadow: 0 0 6px rgba(124,179,66,0.4);'
+      : '';
 
     el.innerHTML = `
       <div class="marker-inner ${innerStateClass}">
-        <div class="relative cursor-pointer ${colorClasses} ${shadowClass} px-2 py-0.5 rounded-full text-xs font-semibold whitespace-nowrap" style="font-family: var(--num-font);">
+        <div class="relative cursor-pointer ${colorClasses} ${shadowClass} px-2 py-0.5 rounded-full text-xs font-semibold whitespace-nowrap" style="font-family: var(--num-font); ${boostedStyle}">
           ${priceText}
         </div>
         <div class="absolute left-1/2 -translate-x-1/2 -bottom-1 w-0 h-0 border-l-4 border-r-4 border-t-4 ${isHovered || isSelected ? 'border-t-brand-600' : 'border-t-white'} border-l-transparent border-r-transparent"></div>
       </div>
     `;
+
+    if (isBoosted) {
+      el.dataset.isBoosted = 'true';
+    }
 
     return el;
   }, []);
@@ -152,6 +162,10 @@ export function ListingsMapEnhanced({
   const createPinMarkerElement = useCallback((pin: MapPin, isHovered: boolean, isSelected: boolean, isVisible: boolean): HTMLDivElement => {
     const el = document.createElement("div");
     el.className = `price-marker${isVisible ? '' : ' hidden'}`;
+
+    const matchingListing = listingsWithCoords.find(l => l.id === pin.id);
+    const isBoosted = matchingListing?.is_featured && matchingListing?.featured_expires_at &&
+      new Date(matchingListing.featured_expires_at) > new Date();
 
     const isSaleListing = pin.listing_type === "sale";
     const price = isSaleListing ? pin.asking_price : pin.price;
@@ -164,18 +178,25 @@ export function ListingsMapEnhanced({
       ? "bg-brand-600 text-white"
       : "bg-white text-brand-800 border border-gray-300";
     const shadowClass = isHovered || isSelected ? "shadow-lg" : "shadow-sm hover:shadow-lg";
+    const boostedStyle = isBoosted
+      ? 'border: 2px solid #7CB342; box-shadow: 0 0 6px rgba(124,179,66,0.4);'
+      : '';
 
     el.innerHTML = `
       <div class="marker-inner ${innerStateClass}">
-        <div class="relative cursor-pointer ${colorClasses} ${shadowClass} px-2 py-0.5 rounded-full text-xs font-semibold whitespace-nowrap" style="font-family: var(--num-font);">
+        <div class="relative cursor-pointer ${colorClasses} ${shadowClass} px-2 py-0.5 rounded-full text-xs font-semibold whitespace-nowrap" style="font-family: var(--num-font); ${boostedStyle}">
           ${priceText}
         </div>
         <div class="absolute left-1/2 -translate-x-1/2 -bottom-1 w-0 h-0 border-l-4 border-r-4 border-t-4 ${isHovered || isSelected ? 'border-t-brand-600' : 'border-t-white'} border-l-transparent border-r-transparent"></div>
       </div>
     `;
 
+    if (isBoosted) {
+      el.dataset.isBoosted = 'true';
+    }
+
     return el;
-  }, []);
+  }, [listingsWithCoords]);
 
   const createPopupContent = useCallback((listing: Listing): string => {
     const sortedImages = listing.listing_images
@@ -670,7 +691,12 @@ export function ListingsMapEnhanced({
               : "bg-white text-brand-800 border border-gray-300";
             const shadowClass = isHovered || isSelected ? "shadow-lg" : "shadow-sm hover:shadow-lg";
 
-            priceDiv.className = `relative cursor-pointer ${colorClasses} ${shadowClass} px-2 py-0.5 rounded-full text-xs font-semibold whitespace-nowrap`;
+            (priceDiv as HTMLElement).className = `relative cursor-pointer ${colorClasses} ${shadowClass} px-2 py-0.5 rounded-full text-xs font-semibold whitespace-nowrap`;
+
+            if (existingItem.element.dataset.isBoosted === 'true') {
+              (priceDiv as HTMLElement).style.border = '2px solid #7CB342';
+              (priceDiv as HTMLElement).style.boxShadow = '0 0 6px rgba(124,179,66,0.4)';
+            }
           }
 
           if (triangle) {
@@ -681,7 +707,6 @@ export function ListingsMapEnhanced({
       } else {
         const el = createPriceMarkerElement(listing, isHovered, isSelected);
 
-        // Initialize state tracking attributes
         el.dataset.isHovered = String(isHovered);
         el.dataset.isSelected = String(isSelected);
 
@@ -781,7 +806,12 @@ export function ListingsMapEnhanced({
               : "bg-white text-brand-800 border border-gray-300";
             const shadowClass = isHovered || isSelected ? "shadow-lg" : "shadow-sm hover:shadow-lg";
 
-            priceDiv.className = `relative cursor-pointer ${colorClasses} ${shadowClass} px-2 py-0.5 rounded-full text-xs font-semibold whitespace-nowrap`;
+            (priceDiv as HTMLElement).className = `relative cursor-pointer ${colorClasses} ${shadowClass} px-2 py-0.5 rounded-full text-xs font-semibold whitespace-nowrap`;
+
+            if (existingItem.element.dataset.isBoosted === 'true') {
+              (priceDiv as HTMLElement).style.border = '2px solid #7CB342';
+              (priceDiv as HTMLElement).style.boxShadow = '0 0 6px rgba(124,179,66,0.4)';
+            }
           }
 
           if (triangle) {

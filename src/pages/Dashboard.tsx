@@ -7,6 +7,7 @@ import {
   MessageSquare,
   Star,
   Trash2,
+  Zap,
   RefreshCw,
   Plus,
   EyeOff,
@@ -700,12 +701,17 @@ export default function Dashboard() {
                                   Pending Approval
                                 </span>
                               )}
-                              {isListingCurrentlyFeatured(listing) && (
-                                <span className="px-2 py-1 text-xs bg-accent-500 text-white rounded-full flex items-center whitespace-nowrap">
-                                  <Star className="w-3 h-3 mr-1" />
-                                  Featured
-                                </span>
-                              )}
+                              {isListingCurrentlyFeatured(listing) && (() => {
+                                const daysLeft = listing.featured_expires_at
+                                  ? Math.max(0, Math.ceil((new Date(listing.featured_expires_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
+                                  : 0;
+                                return (
+                                  <span className="px-2 py-1 text-xs bg-accent-50 text-accent-700 border border-accent-200 rounded-full flex items-center whitespace-nowrap">
+                                    <Zap className="w-3 h-3 mr-1" />
+                                    Sponsored {daysLeft > 0 ? `· ${daysLeft}d left` : '· Expiring'}
+                                  </span>
+                                );
+                              })()}
                             </div>
                             {isSale && listing.is_active && (
                               <div className="mt-1">

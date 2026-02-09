@@ -64,9 +64,9 @@ export function ContentManagement() {
   const [modalStats, setModalStats] = useState<{ [key: string]: { totalShown: number; totalClicked: number; totalDismissed: number; clickThroughRate: number } }>({});
   const [selectedModal, setSelectedModal] = useState<ModalPopup | null>(null);
 
-  // Featured Settings state
   const [globalFeaturedLimit, setGlobalFeaturedLimit] = useState<number>(9);
   const [perUserFeaturedLimit, setPerUserFeaturedLimit] = useState<number>(0);
+  const [maxBoostPositions, setMaxBoostPositions] = useState<number>(4);
   const [userSearchTerm, setUserSearchTerm] = useState('');
   const [savingGlobalSettings, setSavingGlobalSettings] = useState(false);
 
@@ -141,15 +141,15 @@ export function ContentManagement() {
           setUsers(data);
         }
 
-        // Load global settings
         const { data: settingsData } = await supabase
           .from('admin_settings')
-          .select('max_featured_listings, max_featured_per_user')
+          .select('max_featured_listings, max_featured_per_user, max_featured_boost_positions')
           .single();
 
         if (settingsData) {
           setGlobalFeaturedLimit(settingsData.max_featured_listings || 9);
           setPerUserFeaturedLimit(settingsData.max_featured_per_user || 0);
+          setMaxBoostPositions(settingsData.max_featured_boost_positions || 4);
         }
       } else if (activeTab === 'modals') {
         const allModals = await modalsService.getAllModals();
@@ -348,6 +348,7 @@ export function ContentManagement() {
         .update({
           max_featured_listings: globalFeaturedLimit,
           max_featured_per_user: perUserFeaturedLimit,
+          max_featured_boost_positions: maxBoostPositions,
         })
         .eq('id', (await supabase.from('admin_settings').select('id').single()).data?.id);
 
@@ -637,7 +638,7 @@ export function ContentManagement() {
                         <h2 className="text-xl font-bold text-gray-900">Global Limits</h2>
                       </div>
 
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-2">
                             Maximum Featured Listings (Platform-wide)
@@ -667,6 +668,23 @@ export function ContentManagement() {
                           />
                           <p className="mt-2 text-xs text-gray-500">
                             Maximum number of listings each user can feature simultaneously
+                          </p>
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Sponsored Slots Per Search Page
+                          </label>
+                          <input
+                            type="number"
+                            min="1"
+                            max="6"
+                            value={maxBoostPositions}
+                            onChange={(e) => setMaxBoostPositions(Math.max(1, Math.min(6, parseInt(e.target.value) || 4)))}
+                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-accent-500 focus:border-transparent text-2xl font-semibold text-center"
+                          />
+                          <p className="mt-2 text-xs text-gray-500">
+                            Number of sponsored boost positions shown per search results page (1-6)
                           </p>
                         </div>
                       </div>
