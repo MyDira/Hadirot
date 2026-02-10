@@ -18,6 +18,7 @@ import { LocationResult } from "../services/locationSearch";
 import { calculateGeographicCenter } from "../utils/geoUtils";
 import { isElementFullyVisible, scrollElementIntoView } from "../utils/viewportUtils";
 import { MapPin, applyFilters, FilterState as FilterStateFromUtils } from "../utils/filterUtils";
+import { getSessionSeed, seededShuffle } from "../utils/sessionSeed";
 
 export type SortOption = 'newest' | 'oldest' | 'price_asc' | 'price_desc' | 'bedrooms_asc' | 'bedrooms_desc' | 'bathrooms_asc' | 'bathrooms_desc';
 
@@ -236,19 +237,35 @@ export function BrowseSales() {
         zoneC[(hourSeed + 1) % zoneC.length],
       ];
 
-      const slotsPerPage = Math.min(injectionPositions.length, allFeaturedListings.length);
-      const startIndex = allFeaturedListings.length > 0
-        ? ((currentPage - 1) * slotsPerPage) % allFeaturedListings.length
-        : 0;
-      const featuredForThisPage: Listing[] = [];
+      // Session-seeded random shuffle for equal probability
+      const sessionSeed = getSessionSeed();
+      // Combine session seed with a hash of the current filter state so that
+      // changing filters produces a different shuffle (prevents the same listing
+      // always being first regardless of filter context)
+      const filterHash = JSON.stringify(serviceFilters).split('').reduce(
+        (hash, char) => ((hash << 5) - hash) + char.charCodeAt(0), 0
+      );
+      const combinedSeed = sessionSeed ^ filterHash;
 
-      if (allFeaturedListings.length > 0) {
+      const shuffledFeatured = seededShuffle(allFeaturedListings, combinedSeed);
+
+      // Page-based slicing from the shuffled array
+      const slotsPerPage = injectionPositions.length;
+      const startIndex = (currentPage - 1) * slotsPerPage;
+      let featuredForThisPage: Listing[] = [];
+
+      if (shuffledFeatured.length > 0) {
         for (let i = 0; i < slotsPerPage; i++) {
-          const index = (startIndex + i) % allFeaturedListings.length;
-          if (!featuredForThisPage.some(f => f.id === allFeaturedListings[index].id)) {
-            featuredForThisPage.push(allFeaturedListings[index]);
+          const index = startIndex + i;
+          if (index < shuffledFeatured.length) {
+            featuredForThisPage.push(shuffledFeatured[index]);
+          } else if (shuffledFeatured.length > 0) {
+            // Wrap around if more pages than featured listings
+            featuredForThisPage.push(shuffledFeatured[index % shuffledFeatured.length]);
           }
         }
+        // Deduplicate (in case wrapping caused same listing twice on one page)
+        featuredForThisPage = [...new Map(featuredForThisPage.map(f => [f.id, f])).values()];
       }
 
       const numStandardNeeded = ITEMS_PER_PAGE - featuredForThisPage.length;

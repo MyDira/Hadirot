@@ -905,7 +905,8 @@ export const listingsService = {
       }
     }
 
-    query = query.order('featured_started_at', { ascending: true });
+    // Order by created_at DESC as fallback since client-side shuffle overrides ordering anyway
+    query = query.order('created_at', { ascending: false });
 
     const { data, error } = await query;
 
