@@ -673,7 +673,7 @@ export function ContentManagement() {
 
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-2">
-                            Sponsored Slots Per Search Page
+                            Featured Slots Per Search Page
                           </label>
                           <input
                             type="number"

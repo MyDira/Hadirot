@@ -271,7 +271,7 @@ export function MobileMapListingPopup({
                 By {getPosterLabel()}
                 {listing.is_featured && listing.featured_expires_at &&
                   new Date(listing.featured_expires_at) > new Date() && (
-                  <span style={{ color: '#689F38', fontWeight: 500 }}> &middot; Sponsored</span>
+                  <span style={{ color: '#689F38', fontWeight: 500 }}> &middot; Featured</span>
                 )}
               </div>
             </div>

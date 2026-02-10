@@ -246,7 +246,7 @@ export function ListingsMapEnhanced({
     const isBoosted = listing.is_featured && listing.featured_expires_at &&
       new Date(listing.featured_expires_at) > new Date();
     const sponsoredHtml = isBoosted
-      ? ' <span style="color: #689F38; font-weight: 500;">&middot; Sponsored</span>'
+      ? ' <span style="color: #689F38; font-weight: 500;">&middot; Featured</span>'
       : '';
 
     const bedroomDisplay =

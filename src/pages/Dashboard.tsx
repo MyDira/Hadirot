@@ -708,7 +708,7 @@ export default function Dashboard() {
                                 return (
                                   <span className="px-2 py-1 text-xs bg-accent-50 text-accent-700 border border-accent-200 rounded-full flex items-center whitespace-nowrap">
                                     <Zap className="w-3 h-3 mr-1" />
-                                    Sponsored {daysLeft > 0 ? `· ${daysLeft}d left` : '· Expiring'}
+                                    Featured {daysLeft > 0 ? `· ${daysLeft}d left` : '· Expiring'}
                                   </span>
                                 );
                               })()}

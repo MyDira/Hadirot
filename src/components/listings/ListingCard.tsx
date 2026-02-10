@@ -313,7 +313,7 @@ export function ListingCard({
           <span className="text-xs text-gray-600 truncate">
             by {getPosterLabel()}
             {showFeaturedBadge && listing.is_featured && (
-              <span className="text-accent-600 font-medium"> &middot; Sponsored</span>
+              <span className="text-accent-600 font-medium"> &middot; Featured</span>
             )}
           </span>
           <div className="flex items-center gap-1.5 flex-shrink-0">
