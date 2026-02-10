@@ -387,6 +387,28 @@ export function EditListing() {
         zip_code: parsedAddress?.zip_code || data.zip_code || null,
         unit_count: data.unit_count || null,
       });
+
+      // Populate cross street features from saved data for rental listings
+      if (data.listing_type !== 'sale') {
+        if (data.cross_street_a) {
+          setCrossStreetAFeature({
+            id: 'loaded-a',
+            place_name: data.cross_street_a,
+            center: [data.longitude || 0, data.latitude || 0],
+            text: data.cross_street_a,
+            place_type: ['address'],
+          });
+        }
+        if (data.cross_street_b) {
+          setCrossStreetBFeature({
+            id: 'loaded-b',
+            place_name: data.cross_street_b,
+            center: [data.longitude || 0, data.latitude || 0],
+            text: data.cross_street_b,
+            place_type: ['address'],
+          });
+        }
+      }
       // Check if using custom neighborhood
       const standardNeighborhoods = [
         "Midwood",

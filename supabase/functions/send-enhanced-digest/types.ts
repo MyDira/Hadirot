@@ -84,6 +84,7 @@ export interface Listing {
   parking: string;
   broker_fee: boolean;
   location: string;
+  cross_streets: string | null;
   neighborhood: string | null;
   property_type: string;
   lease_length: string;

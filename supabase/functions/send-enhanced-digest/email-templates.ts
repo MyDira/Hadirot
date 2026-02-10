@@ -71,9 +71,10 @@ export function renderListingCard(
   listingUrl: string
 ): string {
   const hasParking = getParkingDisplay(listing.parking);
+  const displayLocation = listing.cross_streets || listing.location || 'Location not specified';
   const locationWithNeighborhood = listing.neighborhood
-    ? `${listing.neighborhood}, ${listing.location}`
-    : listing.location;
+    ? `${listing.neighborhood}, ${displayLocation}`
+    : displayLocation;
 
   const ownerDisplay =
     listing.owner?.role === "agent" && listing.owner?.agency

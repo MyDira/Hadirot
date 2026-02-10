@@ -247,9 +247,10 @@ export class WhatsAppFormatter {
     }
 
     // Format location
-    const location = listing.neighborhood && listing.street
-      ? `${listing.neighborhood}, ${listing.street}`
-      : listing.location || 'Location not specified';
+    const displayLocation = listing.cross_streets || listing.location || 'Location not specified';
+    const location = listing.neighborhood
+      ? `${listing.neighborhood}, ${displayLocation}`
+      : displayLocation;
 
     // Format posted by
     const ownerAgency = (listing as any).owner?.agency;

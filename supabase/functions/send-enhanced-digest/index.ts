@@ -91,6 +91,7 @@ interface Listing {
   parking: string;
   broker_fee: boolean;
   location: string;
+  cross_streets: string | null;
   neighborhood: string | null;
   property_type: string;
   lease_length: string;
@@ -472,9 +473,10 @@ function getLeaseDisplay(leaseLength: string): string {
 function renderListingCard(listing: Listing, listingUrl: string): string {
   const isSale = listing.listing_type === 'sale';
   const hasParking = getParkingDisplay(listing.parking);
+  const displayLocation = listing.cross_streets || listing.location || 'Location not specified';
   const locationWithNeighborhood = listing.neighborhood
-    ? `${listing.neighborhood}, ${listing.location}`
-    : listing.location;
+    ? `${listing.neighborhood}, ${displayLocation}`
+    : displayLocation;
 
   const ownerDisplay =
     listing.owner?.role === "agent" && listing.owner?.agency
