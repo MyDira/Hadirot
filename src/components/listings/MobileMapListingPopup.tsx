@@ -269,6 +269,10 @@ export function MobileMapListingPopup({
 
               <div className="mobile-map-popup-poster">
                 By {getPosterLabel()}
+                {listing.is_featured && listing.featured_expires_at &&
+                  new Date(listing.featured_expires_at) > new Date() && (
+                  <span style={{ color: '#689F38', fontWeight: 500 }}> &middot; Sponsored</span>
+                )}
               </div>
             </div>
           </div>

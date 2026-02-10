@@ -154,6 +154,7 @@ export function ListingsMapEnhanced({
 
     if (isBoosted) {
       el.dataset.isBoosted = 'true';
+      el.style.zIndex = '10';
     }
 
     return el;
@@ -193,6 +194,7 @@ export function ListingsMapEnhanced({
 
     if (isBoosted) {
       el.dataset.isBoosted = 'true';
+      el.style.zIndex = '10';
     }
 
     return el;
@@ -229,11 +231,23 @@ export function ListingsMapEnhanced({
     const hasParking = listing.parking === "yes" || listing.parking === "included";
 
     const getPosterLabel = () => {
+      if (listing.admin_custom_agency_name) {
+        return listing.admin_custom_agency_name;
+      }
+      if (listing.admin_listing_type_display === 'owner') {
+        return "Owner";
+      }
       if (listing.owner?.role === "agent" && listing.owner?.agency) {
         return capitalizeName(listing.owner?.agency || "");
       }
       return "Owner";
     };
+
+    const isBoosted = listing.is_featured && listing.featured_expires_at &&
+      new Date(listing.featured_expires_at) > new Date();
+    const sponsoredHtml = isBoosted
+      ? ' <span style="color: #689F38; font-weight: 500;">&middot; Sponsored</span>'
+      : '';
 
     const bedroomDisplay =
       listing.bedrooms === 0
@@ -283,7 +297,7 @@ export function ListingsMapEnhanced({
             </span>
           </div>
           <div style="display: flex; align-items: center; justify-content: space-between; padding-top: 10px; border-top: 1px solid #f3f4f6;">
-            <span style="font-size: 12px; color: #6b7280;">by ${getPosterLabel()}</span>
+            <span style="font-size: 12px; color: #6b7280;">by ${getPosterLabel()}${sponsoredHtml}</span>
             <button
               onclick="window.__mapPopupClick__('${listing.id}')"
               style="display: inline-flex; align-items: center; gap: 4px; background: #1E4A74; color: white; padding: ${isMobile ? '8px 12px' : '6px 12px'}; border-radius: 6px; font-size: 12px; font-weight: 500; border: none; cursor: pointer; min-height: ${isMobile ? '44px' : 'auto'};"

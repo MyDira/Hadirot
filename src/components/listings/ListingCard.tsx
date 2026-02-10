@@ -155,9 +155,7 @@ export function ListingCard({
   return (
     <Link
       to={`/listing/${listing.id}`}
-      className={`group block bg-white border border-gray-200 rounded-lg shadow-sm hover:shadow transition overflow-hidden ${
-        showFeaturedBadge && listing.is_featured ? 'ring-1 ring-accent-500/40 shadow-[0_0_8px_rgba(124,179,66,0.15)]' : ''
-      }`}
+      className="group block bg-white border border-gray-200 rounded-lg shadow-sm hover:shadow transition overflow-hidden"
       onClick={handleCardClick}
     >
       <div className="relative aspect-[3/2]">
@@ -214,13 +212,7 @@ export function ListingCard({
           )}
         </div>
 
-        {showFeaturedBadge && listing.is_featured && (
-          <div className="absolute top-3 left-3 z-10 bg-accent-500 text-white text-xs font-medium px-2 py-0.5 rounded">
-            Sponsored
-          </div>
-        )}
-
-        {isStock && !(showFeaturedBadge && listing.is_featured) && (
+        {isStock && (
           <div className="absolute bottom-3 left-3 rounded-full bg-black/35 px-3 py-1 text-xs font-medium text-white backdrop-blur-sm">
             Stock photo
           </div>
@@ -318,7 +310,12 @@ export function ListingCard({
 
         {/* Poster label and badges */}
         <div className="mt-2 pt-2 border-t border-gray-100 flex items-center justify-between gap-2">
-          <span className="text-xs text-gray-600 truncate">by {getPosterLabel()}</span>
+          <span className="text-xs text-gray-600 truncate">
+            by {getPosterLabel()}
+            {showFeaturedBadge && listing.is_featured && (
+              <span className="text-accent-600 font-medium"> &middot; Sponsored</span>
+            )}
+          </span>
           <div className="flex items-center gap-1.5 flex-shrink-0">
             {isSaleListing && listing.sale_status && listing.sale_status !== 'available' && (
               <SaleStatusBadge status={listing.sale_status} size="sm" />
