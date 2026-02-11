@@ -17,7 +17,7 @@ export const FEATURED_PLANS: FeaturedPlan[] = [
     duration: '7 days',
     days: 7,
     price: 25,
-    priceId: 'price_REPLACE_WITH_7DAY_PRICE_ID',
+    priceId: 'price_1SzMw9JvRPzH20A9CJA2SQ87',
   },
   {
     id: '14day',
@@ -25,7 +25,7 @@ export const FEATURED_PLANS: FeaturedPlan[] = [
     duration: '14 days',
     days: 14,
     price: 40,
-    priceId: 'price_REPLACE_WITH_14DAY_PRICE_ID',
+    priceId: 'price_1SzeDPJvRPzH20A9i8bj9rrN',
   },
   {
     id: '30day',
@@ -33,7 +33,7 @@ export const FEATURED_PLANS: FeaturedPlan[] = [
     duration: '30 days',
     days: 30,
     price: 75,
-    priceId: 'price_REPLACE_WITH_30DAY_PRICE_ID',
+    priceId: 'price_1SzMz3JvRPzH20A9pA8pBPwj',
   },
 ];
 
