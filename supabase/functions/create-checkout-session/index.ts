@@ -3,7 +3,7 @@ import Stripe from 'https://esm.sh/stripe@14?target=denonext';
 import { corsHeaders } from '../_shared/cors.ts';
 
 const stripe = new Stripe(Deno.env.get('STRIPE_API_KEY')!, {
-  apiVersion: '2024-11-20',
+  apiVersion: '2023-10-16',
 });
 
 const VALID_PLANS: Record<string, number> = {
