@@ -33,7 +33,7 @@ export const FEATURED_PLANS: FeaturedPlan[] = [
     duration: '30 days',
     days: 30,
     price: 75,
-    priceId: 'price_1SzMz3JvRPzH20A9pA8pBPwj',
+    priceId: 'price_1Szi9JJvRPzH20A92cRWUMlQ',
   },
 ];
 
