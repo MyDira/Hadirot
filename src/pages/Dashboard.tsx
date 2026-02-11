@@ -20,7 +20,7 @@ import {
   XCircle,
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
-import { Listing, SaleStatus } from "../config/supabase";
+import { Listing, SaleStatus, supabase } from "../config/supabase";
 import {
   listingsService,
   canExtendListing,
@@ -196,7 +196,41 @@ export default function Dashboard() {
   };
 
   const handleUnfeatureListing = async (listingId: string) => {
-    if (!confirm('Are you sure you want to remove the featured status from this listing?')) return;
+    // Check for active featured purchase with remaining time
+    try {
+      const { data: activePurchase, error } = await supabase
+        .from('featured_purchases')
+        .select('*')
+        .eq('listing_id', listingId)
+        .in('status', ['active', 'paid'])
+        .gt('featured_end', new Date().toISOString())
+        .order('featured_end', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (error) {
+        console.error('Error checking featured purchase:', error);
+      }
+
+      let confirmMessage = 'Are you sure you want to remove the featured status from this listing?';
+
+      if (activePurchase && activePurchase.featured_end) {
+        const now = Date.now();
+        const featuredEnd = new Date(activePurchase.featured_end).getTime();
+        const daysRemaining = Math.ceil((featuredEnd - now) / (1000 * 60 * 60 * 24));
+
+        if (daysRemaining > 0) {
+          confirmMessage = `⚠️ Warning: You have ${daysRemaining} day${daysRemaining === 1 ? '' : 's'} remaining on your featured period. If you unfeature this listing, you will lose the remaining time and need to purchase again to re-feature it. Are you sure you want to continue?`;
+        }
+      }
+
+      if (!confirm(confirmMessage)) return;
+    } catch (error) {
+      console.error('Error checking featured status:', error);
+      // Fallback to basic confirmation if query fails
+      if (!confirm('Are you sure you want to remove the featured status from this listing?')) return;
+    }
+
     setActionLoading(listingId);
     try {
       await listingsService.updateListing(listingId, { is_featured: false });
