@@ -16,6 +16,8 @@ import {
   Home,
   DollarSign,
   Info,
+  CheckCircle,
+  XCircle,
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { Listing, SaleStatus } from "../config/supabase";
@@ -30,6 +32,8 @@ import { emailService } from "../services/email";
 import { InquiriesModal, Inquiry } from "../components/listing/InquiriesModal";
 import { SaleStatusBadge } from "../components/listings/SaleStatusBadge";
 import { SaleStatusSelector } from "../components/listings/SaleStatusSelector";
+import { FeatureListingModal } from "../components/listings/FeatureListingModal";
+import { stripeService, FeaturedPurchase } from "../services/stripe";
 
 type DashboardTab = 'rentals' | 'sales';
 
@@ -51,6 +55,9 @@ export default function Dashboard() {
   const [modalListingTitle, setModalListingTitle] = useState<string>('');
   const [modalInquiries, setModalInquiries] = useState<Inquiry[]>([]);
   const [modalLoading, setModalLoading] = useState(false);
+  const [featureModalListing, setFeatureModalListing] = useState<Listing | null>(null);
+  const [featuredPurchases, setFeaturedPurchases] = useState<Record<string, FeaturedPurchase>>({});
+  const [featureBanner, setFeatureBanner] = useState<{ type: 'success' | 'cancelled'; message: string } | null>(null);
 
   const rentalListings = useMemo(
     () => listings.filter((l) => l.listing_type !== 'sale'),
@@ -93,8 +100,23 @@ export default function Dashboard() {
       loadAdminSettings();
       loadCurrentUserProfile();
       loadGlobalFeaturedCount();
+      loadFeaturedPurchases();
     }
   }, [user, authLoading]);
+
+  useEffect(() => {
+    const featuredParam = searchParams.get('featured');
+    if (featuredParam === 'success') {
+      setFeatureBanner({ type: 'success', message: 'Your listing has been featured! The feature period is now active.' });
+      searchParams.delete('featured');
+      searchParams.delete('session_id');
+      setSearchParams(searchParams, { replace: true });
+    } else if (featuredParam === 'cancelled') {
+      setFeatureBanner({ type: 'cancelled', message: 'Payment was cancelled. You can try again anytime.' });
+      searchParams.delete('featured');
+      setSearchParams(searchParams, { replace: true });
+    }
+  }, []);
 
   const loadAdminSettings = async () => {
     try {
@@ -125,6 +147,21 @@ export default function Dashboard() {
     }
   };
 
+  const loadFeaturedPurchases = async () => {
+    try {
+      const purchases = await stripeService.getUserPurchases();
+      const purchaseMap: Record<string, FeaturedPurchase> = {};
+      for (const p of purchases) {
+        if (!purchaseMap[p.listing_id] || ['active', 'paid', 'free'].includes(p.status)) {
+          purchaseMap[p.listing_id] = p;
+        }
+      }
+      setFeaturedPurchases(purchaseMap);
+    } catch (error) {
+      console.error('Error loading featured purchases:', error);
+    }
+  };
+
   const loadUserListings = async () => {
     if (!user) return;
 
@@ -150,70 +187,34 @@ export default function Dashboard() {
     }
   };
 
-  const handleToggleFeature = async (
-    listingId: string,
-    isFeatured: boolean,
-  ) => {
+  const handleFeatureClick = (listing: Listing) => {
+    if (isListingCurrentlyFeatured(listing)) {
+      handleUnfeatureListing(listing.id);
+    } else {
+      setFeatureModalListing(listing);
+    }
+  };
+
+  const handleUnfeatureListing = async (listingId: string) => {
+    if (!confirm('Are you sure you want to remove the featured status from this listing?')) return;
     setActionLoading(listingId);
     try {
-      const updates: any = { is_featured: !isFeatured };
-
-      // The service layer will handle setting featured_expires_at automatically
-
-      await listingsService.updateListing(listingId, updates);
-
-      // Send email notification for featured status change
-      try {
-        if (user?.email && profile?.full_name) {
-          const listing = listings.find((l) => l.id === listingId);
-          if (listing) {
-            await emailService.sendListingFeaturedEmail(
-              user.email,
-              profile.full_name,
-              listing.title,
-              !isFeatured, // New featured status (opposite of current)
-            );
-            console.log("✅ Email sent: featured status change to", user.email);
-          }
-        }
-      } catch (emailError) {
-        console.error(
-          "❌ Email failed: featured status change -",
-          emailError.message,
-        );
-        // Don't block the user flow if email fails
-      }
-
-      await loadUserListings();
-      // Refresh user profile to get updated permissions and limits
-      await refreshProfile();
+      await listingsService.updateListing(listingId, { is_featured: false });
+      await Promise.all([loadUserListings(), loadFeaturedPurchases(), loadGlobalFeaturedCount()]);
     } catch (error) {
-      console.error("Error toggling featured status:", error);
-
-      // Show specific error messages based on the error
-      let errorMessage = "Failed to update listing. Please try again.";
-      if (error instanceof Error) {
-        if (error.message.includes("permission")) {
-          errorMessage =
-            "You do not have permission to feature listings. Please contact support to upgrade your account.";
-        } else if (
-          error.message.includes("sitewide maximum") ||
-          error.message.includes("platform only allows")
-        ) {
-          errorMessage =
-            "The website limit for featured listings has been reached. Please try again later.";
-        } else if (error.message.includes("You can only feature")) {
-          errorMessage = error.message;
-        }
-      }
-
-      alert(errorMessage);
+      console.error('Error removing featured status:', error);
+      alert('Failed to remove featured status. Please try again.');
     } finally {
       setActionLoading(null);
-      // Refresh global state to update UI limits
-      await loadAdminSettings();
-      await loadGlobalFeaturedCount();
     }
+  };
+
+  const getListingFeaturedStatus = (listing: Listing) => {
+    if (isListingCurrentlyFeatured(listing)) return 'active';
+    const purchase = featuredPurchases[listing.id];
+    if (purchase && purchase.status === 'paid' && !purchase.featured_start) return 'pending_approval';
+    if (purchase && purchase.status === 'pending') return 'pending_payment';
+    return 'none';
   };
 
   const handleRenewListing = async (listingId: string) => {
@@ -454,6 +455,31 @@ export default function Dashboard() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+      {featureBanner && (
+        <div className={`mb-6 rounded-lg p-4 flex items-center justify-between ${
+          featureBanner.type === 'success'
+            ? 'bg-green-50 border border-green-200'
+            : 'bg-gray-50 border border-gray-200'
+        }`}>
+          <div className="flex items-center gap-3">
+            {featureBanner.type === 'success' ? (
+              <CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0" />
+            ) : (
+              <XCircle className="w-5 h-5 text-gray-500 flex-shrink-0" />
+            )}
+            <p className={featureBanner.type === 'success' ? 'text-green-800' : 'text-gray-700'}>
+              {featureBanner.message}
+            </p>
+          </div>
+          <button
+            onClick={() => setFeatureBanner(null)}
+            className="text-gray-400 hover:text-gray-600 ml-4"
+          >
+            <XCircle className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
       {/* Banned User Warning Banner */}
       {(currentUserProfile || profile)?.is_banned && (
         <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4">
@@ -701,16 +727,28 @@ export default function Dashboard() {
                                   Pending Approval
                                 </span>
                               )}
-                              {isListingCurrentlyFeatured(listing) && (() => {
-                                const daysLeft = listing.featured_expires_at
-                                  ? Math.max(0, Math.ceil((new Date(listing.featured_expires_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
-                                  : 0;
-                                return (
-                                  <span className="px-2 py-1 text-xs bg-accent-50 text-accent-700 border border-accent-200 rounded-full flex items-center whitespace-nowrap">
-                                    <Zap className="w-3 h-3 mr-1" />
-                                    Featured {daysLeft > 0 ? `· ${daysLeft}d left` : '· Expiring'}
-                                  </span>
-                                );
+                              {(() => {
+                                const featuredStatus = getListingFeaturedStatus(listing);
+                                if (featuredStatus === 'active') {
+                                  const daysLeft = listing.featured_expires_at
+                                    ? Math.max(0, Math.ceil((new Date(listing.featured_expires_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
+                                    : 0;
+                                  return (
+                                    <span className="px-2 py-1 text-xs bg-accent-50 text-accent-700 border border-accent-200 rounded-full flex items-center whitespace-nowrap">
+                                      <Zap className="w-3 h-3 mr-1" />
+                                      Featured {daysLeft > 0 ? `· ${daysLeft}d left` : '· Expiring'}
+                                    </span>
+                                  );
+                                }
+                                if (featuredStatus === 'pending_approval') {
+                                  return (
+                                    <span className="px-2 py-1 text-xs bg-amber-50 text-amber-700 border border-amber-200 rounded-full flex items-center whitespace-nowrap">
+                                      <Clock className="w-3 h-3 mr-1" />
+                                      Featured · Starts on approval
+                                    </span>
+                                  );
+                                }
+                                return null;
                               })()}
                             </div>
                             {isSale && listing.is_active && (
@@ -817,36 +855,29 @@ export default function Dashboard() {
 
                             <button
                               type="button"
-                              onClick={() =>
-                                handleToggleFeature(
-                                  listing.id,
-                                  isListingCurrentlyFeatured(listing),
-                                )
-                              }
+                              onClick={() => handleFeatureClick(listing)}
                               disabled={
                                 actionLoading === listing.id ||
-                                (!isListingCurrentlyFeatured(listing) &&
-                                  (!canFeatureMore || globalLimitReached))
+                                getListingFeaturedStatus(listing) === 'pending_approval' ||
+                                getListingFeaturedStatus(listing) === 'pending_payment'
                               }
                               className={`transition-colors ${
                                 isListingCurrentlyFeatured(listing)
                                   ? "text-accent-500 hover:text-accent-600"
-                                  : !canFeatureMore || globalLimitReached
-                                    ? "text-gray-300 cursor-not-allowed"
+                                  : getListingFeaturedStatus(listing) === 'pending_approval'
+                                    ? "text-amber-400 cursor-not-allowed"
                                     : "text-gray-400 hover:text-accent-500"
                               }`}
                               title={
                                 isListingCurrentlyFeatured(listing)
                                   ? "Remove Featured"
-                                  : globalLimitReached
-                                    ? "The sitewide maximum for featured listings has been reached"
-                                    : !canFeatureMore
-                                      ? `You have reached your featured listing limit (${currentUserFeaturedCount}/${effectiveUserFeaturedLimit})`
-                                      : "Make Featured"
+                                  : getListingFeaturedStatus(listing) === 'pending_approval'
+                                    ? "Featured - activates on approval"
+                                    : "Feature This Listing"
                               }
                             >
                               <Star
-                                className={`w-4.5 h-4.5 ${isListingCurrentlyFeatured(listing) ? "fill-current" : ""}`}
+                                className={`w-4.5 h-4.5 ${isListingCurrentlyFeatured(listing) || getListingFeaturedStatus(listing) === 'pending_approval' ? "fill-current" : ""}`}
                               />
                             </button>
 
@@ -908,6 +939,14 @@ export default function Dashboard() {
         inquiries={modalInquiries}
         loading={modalLoading}
       />
+
+      {featureModalListing && (
+        <FeatureListingModal
+          isOpen={!!featureModalListing}
+          onClose={() => setFeatureModalListing(null)}
+          listing={featureModalListing}
+        />
+      )}
     </div>
   );
 }

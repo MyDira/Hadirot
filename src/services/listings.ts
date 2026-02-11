@@ -1979,6 +1979,32 @@ async getInquiriesForListing(listingId: string): Promise<{ user_name: string; us
       throw error;
     }
 
+    const { data: activePurchase } = await supabase
+      .from('featured_purchases')
+      .select('featured_start, featured_end, plan')
+      .eq('listing_id', listingId)
+      .in('status', ['active', 'free'])
+      .gt('featured_end', now)
+      .order('featured_end', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (activePurchase) {
+      const { data: resumedListing } = await supabase
+        .from('listings')
+        .update({
+          is_featured: true,
+          featured_started_at: activePurchase.featured_start,
+          featured_expires_at: activePurchase.featured_end,
+          featured_plan: activePurchase.plan,
+        })
+        .eq('id', listingId)
+        .select()
+        .single();
+
+      if (resumedListing) return resumedListing;
+    }
+
     return updatedListing;
   },
 };

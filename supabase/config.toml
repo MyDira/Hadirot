@@ -19,3 +19,6 @@ enable_confirmations = false
 
 [functions.send-deactivation-emails]
 verify_jwt = false
+
+[functions.stripe-webhook]
+verify_jwt = false

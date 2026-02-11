@@ -9,6 +9,7 @@ import { useAdminSignInAsUser } from '@/hooks/useAdminSignInAsUser';
 import { supabase, Profile, Listing } from '../config/supabase';
 import { formatPhoneForDisplay } from '@/utils/phone';
 import { SalesManagement } from '@/components/admin/SalesManagement';
+import { AdminFeatureModal } from '@/components/admin/AdminFeatureModal';
 
 const ADMIN_TAB_KEYS = [
   'overview',
@@ -116,6 +117,7 @@ export function AdminPanel() {
   const [impersonatingUserId, setImpersonatingUserId] = useState<string | null>(null);
   const [listingActiveDays, setListingActiveDays] = useState<number>(30);
   const [savingLifecycle, setSavingLifecycle] = useState(false);
+  const [featureModalListing, setFeatureModalListing] = useState<Listing | null>(null);
 
   useEffect(() => {
     const normalized: AdminTabKey = isValidAdminTab(rawTabParam) ? rawTabParam : 'overview';
@@ -634,29 +636,8 @@ export function AdminPanel() {
     }
   };
 
-  const toggleListingFeatured = async (listingId: string, isFeatured: boolean) => {
-    try {
-      const updates: any = { is_featured: !isFeatured };
-
-      if (!isFeatured) {
-        const expiresAt = new Date();
-        expiresAt.setDate(expiresAt.getDate() + 30);
-        updates.featured_expires_at = expiresAt.toISOString();
-        updates.featured_started_at = new Date().toISOString();
-      } else {
-        updates.featured_expires_at = null;
-        updates.featured_started_at = null;
-      }
-
-      await supabase
-        .from('listings')
-        .update(updates)
-        .eq('id', listingId);
-
-      await loadAdminData();
-    } catch (error) {
-      console.error('Error updating listing status:', error);
-    }
+  const handleFeatureClick = (listing: Listing) => {
+    setFeatureModalListing(listing);
   };
 
   const deleteListing = async (listingId: string, listingTitle: string) => {
@@ -1690,7 +1671,7 @@ export function AdminPanel() {
                                 <Edit className="w-5 h-5" />
                               </Link>
                               <button
-                                onClick={() => toggleListingFeatured(listing.id, listing.is_featured)}
+                                onClick={() => handleFeatureClick(listing)}
                                 className={`transition-colors ${
                                   listing.is_featured
                                     ? 'text-yellow-500 hover:text-yellow-600'
@@ -1991,6 +1972,15 @@ export function AdminPanel() {
         </>
       )}
 
+      {featureModalListing && user && (
+        <AdminFeatureModal
+          isOpen={!!featureModalListing}
+          onClose={() => setFeatureModalListing(null)}
+          listing={featureModalListing}
+          adminId={user.id}
+          onSuccess={loadAdminData}
+        />
+      )}
     </div>
   );
 }
