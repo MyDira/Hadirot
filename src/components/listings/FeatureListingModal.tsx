@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Star, Clock, Zap, AlertCircle, Loader2, Check } from 'lucide-react';
+import { X, Star, Clock, Zap, AlertCircle, Loader2, Check, CheckCircle } from 'lucide-react';
 import { FEATURED_PLANS, stripeService } from '../../services/stripe';
 import type { Listing } from '../../config/supabase';
 
@@ -7,9 +7,10 @@ interface FeatureListingModalProps {
   isOpen: boolean;
   onClose: () => void;
   listing: Listing;
+  showSuccessBanner?: boolean;
 }
 
-export function FeatureListingModal({ isOpen, onClose, listing }: FeatureListingModalProps) {
+export function FeatureListingModal({ isOpen, onClose, listing, showSuccessBanner = false }: FeatureListingModalProps) {
   const [selectedPlan, setSelectedPlan] = useState<string>('14day');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -51,6 +52,17 @@ export function FeatureListingModal({ isOpen, onClose, listing }: FeatureListing
             <X className="w-5 h-5" />
           </button>
         </div>
+
+        {showSuccessBanner && (
+          <div className="mx-6 mt-5 bg-green-50 border-l-4 border-green-500 p-3 rounded">
+            <div className="flex items-center gap-2">
+              <CheckCircle className="w-5 h-5 text-green-600" />
+              <p className="text-green-800 font-semibold text-sm">
+                Listing Posted Successfully!
+              </p>
+            </div>
+          </div>
+        )}
 
         <div className="px-6 py-5">
           <div className="bg-gray-50 rounded-lg px-4 py-3 mb-5">
@@ -117,24 +129,6 @@ export function FeatureListingModal({ isOpen, onClose, listing }: FeatureListing
             </div>
           )}
 
-          <button
-            onClick={handleCheckout}
-            disabled={loading}
-            className="w-full py-3 px-4 bg-brand-600 hover:bg-brand-700 text-white font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-          >
-            {loading ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin" />
-                Redirecting to checkout...
-              </>
-            ) : (
-              <>
-                <Star className="w-4 h-4" />
-                Feature This Listing
-              </>
-            )}
-          </button>
-
           <div className="mt-6 space-y-2">
             <div className="flex items-center gap-2 text-sm text-gray-700">
               <Check className="w-4 h-4 text-green-600 flex-shrink-0" />
@@ -157,6 +151,23 @@ export function FeatureListingModal({ isOpen, onClose, listing }: FeatureListing
           <p className="text-xs text-gray-400 text-center mt-4">
             Promo codes can be entered at checkout
           </p>
+
+          <button
+            onClick={handleCheckout}
+            disabled={!selectedPlan || loading}
+            className="w-full mt-6 border-2 border-green-600 bg-transparent text-black font-bold py-3 px-6 rounded-lg transition-all duration-300 hover:bg-green-600 hover:text-white hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+          >
+            {loading ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Redirecting to checkout...
+              </>
+            ) : !selectedPlan ? (
+              "Select a Plan Above"
+            ) : (
+              `Get Featured → ${selectedPlan === '7day' ? '7 Days' : selectedPlan === '14day' ? '14 Days' : '30 Days'}`
+            )}
+          </button>
         </div>
       </div>
     </div>

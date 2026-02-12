@@ -59,6 +59,7 @@ export default function Dashboard() {
   const [featuredPurchases, setFeaturedPurchases] = useState<Record<string, FeaturedPurchase>>({});
   const [featureBanner, setFeatureBanner] = useState<{ type: 'success' | 'cancelled'; message: string } | null>(null);
   const [newListingBanner, setNewListingBanner] = useState<{ listingId: string; title: string } | null>(null);
+  const [showSuccessBanner, setShowSuccessBanner] = useState(false);
 
   const rentalListings = useMemo(
     () => listings.filter((l) => l.listing_type !== 'sale'),
@@ -125,12 +126,16 @@ export default function Dashboard() {
       const listing = listings.find(l => l.id === listingIdParam);
       if (listing) {
         setNewListingBanner({ listingId: listingIdParam, title: listing.title });
+        setFeatureModalListing(listing);
+        setShowSuccessBanner(true);
       } else {
         setTimeout(() => {
           loadUserListings().then(() => {
             const foundListing = listings.find(l => l.id === listingIdParam);
             if (foundListing) {
               setNewListingBanner({ listingId: listingIdParam, title: foundListing.title });
+              setFeatureModalListing(foundListing);
+              setShowSuccessBanner(true);
             }
           });
         }, 500);
@@ -215,6 +220,7 @@ export default function Dashboard() {
       handleUnfeatureListing(listing.id);
     } else {
       setFeatureModalListing(listing);
+      setShowSuccessBanner(false);
     }
   };
 
@@ -552,6 +558,7 @@ export default function Dashboard() {
                 const listing = listings.find(l => l.id === newListingBanner.listingId);
                 if (listing) {
                   setFeatureModalListing(listing);
+                  setShowSuccessBanner(false);
                 }
               }}
               className="px-4 py-2 bg-accent-600 hover:bg-accent-700 text-white font-medium rounded-lg transition-colors flex items-center gap-2 whitespace-nowrap ml-4"
@@ -811,6 +818,18 @@ export default function Dashboard() {
                               >
                                 {listing.is_active ? "Active" : "Inactive"}
                               </span>
+                              {listing.is_active && listing.approved && !isListingCurrentlyFeatured(listing) && (
+                                <button
+                                  onClick={() => {
+                                    setFeatureModalListing(listing);
+                                    setShowSuccessBanner(false);
+                                  }}
+                                  className="text-xs bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded font-medium whitespace-nowrap transition-colors"
+                                  title="Boost to top of search results"
+                                >
+                                  Get Featured
+                                </button>
+                              )}
                               {!listing.approved && (
                                 <span className="px-2 py-1 text-xs bg-yellow-100 text-yellow-800 rounded-full whitespace-nowrap">
                                   Pending Approval
@@ -1032,8 +1051,12 @@ export default function Dashboard() {
       {featureModalListing && (
         <FeatureListingModal
           isOpen={!!featureModalListing}
-          onClose={() => setFeatureModalListing(null)}
+          onClose={() => {
+            setFeatureModalListing(null);
+            setShowSuccessBanner(false);
+          }}
           listing={featureModalListing}
+          showSuccessBanner={showSuccessBanner}
         />
       )}
     </div>
