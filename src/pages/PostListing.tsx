@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { Upload, X, Star, CheckCircle, Sparkles, Edit, Loader2, AlertCircle, CheckCircle2, ChevronDown, ChevronUp } from "lucide-react";
+import { Upload, X, CheckCircle, Sparkles, Edit, Loader2, AlertCircle, CheckCircle2, ChevronDown, ChevronUp } from "lucide-react";
 import * as Sentry from "@sentry/react";
 import { useAuth } from "@/hooks/useAuth";
 import { listingsService, getExpirationDate } from "../services/listings";
@@ -1645,6 +1645,7 @@ export function PostListing() {
           : null,
         is_active: false,
         approved: false,
+        is_featured: false,
         expires_at: expiresAt.toISOString(),
         sale_status: listingType === 'sale' ? 'available' : null,
         // For rental listings: use price field
@@ -1884,7 +1885,7 @@ export function PostListing() {
             neighborhood: formData.neighborhood || neighborhoodSelectValue,
             parking: formData.parking,
             lease_length: formData.lease_length,
-            is_featured: formData.is_featured,
+            is_featured: false,
             call_for_price: formData.call_for_price,
             has_price: formData.price !== null,
             ac_type: formData.ac_type,
@@ -1911,7 +1912,7 @@ export function PostListing() {
         neighborhood: formData.neighborhood || neighborhoodSelectValue,
         parking: formData.parking,
         lease_length: formData.lease_length,
-        is_featured: formData.is_featured,
+        is_featured: false,
         call_for_price: formData.call_for_price,
         price: formData.price,
       });
@@ -1919,12 +1920,7 @@ export function PostListing() {
       // Show specific error messages based on the error
       let errorMessage = "Failed to create listing. Please try again.";
       if (error instanceof Error) {
-        if (error.message.includes("permission")) {
-          errorMessage =
-            "You do not have permission to feature listings. Please contact support to upgrade your account.";
-        } else if (error.message.includes("platform only allows")) {
-          errorMessage = error.message;
-        } else if (error.message.includes("You can only feature")) {
+        if (error.message.includes("platform only allows")) {
           errorMessage = error.message;
         } else if (error.message.includes("check constraint") || error.message.includes("constraint")) {
           errorMessage = "There was an issue with the listing data. Please check all fields and try again.";
@@ -3047,37 +3043,6 @@ export function PostListing() {
                 <p className="text-xs text-gray-500">
                   Check this if a broker fee applies.
                 </p>
-              </div>
-
-              <div className="flex items-center">
-                <input
-                  type="checkbox"
-                  name="is_featured"
-                  checked={formData.is_featured}
-                  onChange={handleInputChange}
-                  disabled={
-                    !profile?.is_admin &&
-                    (profile?.max_featured_listings_per_user ?? 0) <= 0
-                  }
-                  className="h-4 w-4 text-brand-700 focus:ring-[#273140] border-gray-300 rounded"
-                />
-                <label
-                  className={`ml-2 text-sm font-medium flex items-center ${
-                    !profile?.is_admin &&
-                    (profile?.max_featured_listings_per_user ?? 0) <= 0
-                      ? "text-gray-400"
-                      : "text-gray-700"
-                  }`}
-                >
-                  <Star className="w-4 h-4 mr-1 text-accent-600" />
-                  Feature this listing
-                  {!profile?.is_admin &&
-                    (profile?.max_featured_listings_per_user ?? 0) <= 0 && (
-                      <span className="ml-2 text-xs text-gray-400">
-                        (Contact support to upgrade)
-                      </span>
-                    )}
-                </label>
               </div>
             </div>
           )}
