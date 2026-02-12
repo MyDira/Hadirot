@@ -60,6 +60,7 @@ export default function Dashboard() {
   const [featureBanner, setFeatureBanner] = useState<{ type: 'success' | 'cancelled'; message: string } | null>(null);
   const [newListingBanner, setNewListingBanner] = useState<{ listingId: string; title: string } | null>(null);
   const [showSuccessBanner, setShowSuccessBanner] = useState(false);
+  const [pendingFeatureListingId, setPendingFeatureListingId] = useState<string | null>(null);
 
   const rentalListings = useMemo(
     () => listings.filter((l) => l.listing_type !== 'sale'),
@@ -106,10 +107,13 @@ export default function Dashboard() {
     }
   }, [user, authLoading]);
 
+  // Effect 1: Capture query params and store listing ID (runs on param changes)
   useEffect(() => {
     const featuredParam = searchParams.get('featured');
     const newListingParam = searchParams.get('new_listing');
     const listingIdParam = searchParams.get('listing_id');
+
+    console.log('[Dashboard] Query params detected:', { featuredParam, newListingParam, listingIdParam });
 
     if (featuredParam === 'success') {
       setFeatureBanner({ type: 'success', message: 'Your listing has been featured! The feature period is now active.' });
@@ -123,28 +127,34 @@ export default function Dashboard() {
     }
 
     if (newListingParam === 'true' && listingIdParam) {
-      const listing = listings.find(l => l.id === listingIdParam);
-      if (listing) {
-        setNewListingBanner({ listingId: listingIdParam, title: listing.title });
-        setFeatureModalListing(listing);
-        setShowSuccessBanner(true);
-      } else {
-        setTimeout(() => {
-          loadUserListings().then(() => {
-            const foundListing = listings.find(l => l.id === listingIdParam);
-            if (foundListing) {
-              setNewListingBanner({ listingId: listingIdParam, title: foundListing.title });
-              setFeatureModalListing(foundListing);
-              setShowSuccessBanner(true);
-            }
-          });
-        }, 500);
-      }
+      console.log('[Dashboard] New listing detected, storing ID:', listingIdParam);
+      setPendingFeatureListingId(listingIdParam);
+      // Clear params immediately to clean URL
       searchParams.delete('new_listing');
       searchParams.delete('listing_id');
       setSearchParams(searchParams, { replace: true });
     }
-  }, [listings]);
+  }, [searchParams]);
+
+  // Effect 2: Open modal when listings load and we have a pending listing ID
+  useEffect(() => {
+    if (pendingFeatureListingId && listings.length > 0) {
+      console.log('[Dashboard] Checking for pending listing ID:', pendingFeatureListingId);
+      console.log('[Dashboard] Current listings count:', listings.length);
+
+      const listing = listings.find(l => l.id === pendingFeatureListingId);
+
+      if (listing) {
+        console.log('[Dashboard] Found listing, opening modal:', { id: listing.id, title: listing.title });
+        setNewListingBanner({ listingId: listing.id, title: listing.title });
+        setFeatureModalListing(listing);
+        setShowSuccessBanner(true);
+        setPendingFeatureListingId(null); // Clear after success
+      } else {
+        console.log('[Dashboard] Listing not found in array yet');
+      }
+    }
+  }, [pendingFeatureListingId, listings]);
 
   const loadAdminSettings = async () => {
     try {
