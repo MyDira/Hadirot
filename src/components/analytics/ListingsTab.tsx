@@ -236,7 +236,7 @@ export function ListingsTab({
                   >
                     <td className="py-3 px-4">
                       <div className="flex items-center gap-2">
-                        {listing.is_featured && <Star className="w-4 h-4 text-amber-500" />}
+                        {listing.is_featured && <Star className="w-4 h-4 text-accent-500" />}
                         <div>
                           <div className="font-medium text-gray-900 truncate max-w-[200px]">
                             {listing.location || '-'}
@@ -295,7 +295,7 @@ export function ListingsTab({
             className="w-full p-4 flex items-center justify-between hover:bg-gray-50 transition-colors"
           >
             <div className="flex items-center">
-              <AlertCircle className="w-5 h-5 text-amber-500 mr-2" />
+              <AlertCircle className="w-5 h-5 text-accent-500 mr-2" />
               <span className="font-medium text-gray-900">
                 Listings with Views but No Contact ({zeroInquiryListings.length})
               </span>
@@ -328,7 +328,7 @@ export function ListingsTab({
                       >
                         <td className="py-3 px-4">
                           <div className="flex items-center gap-2">
-                            {listing.is_featured && <Star className="w-4 h-4 text-amber-500" />}
+                            {listing.is_featured && <Star className="w-4 h-4 text-accent-500" />}
                             <div>
                               <div className="font-medium text-gray-900 truncate max-w-[200px]">
                                 {listing.location}

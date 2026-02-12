@@ -91,7 +91,7 @@ export function AdminFeatureModal({ isOpen, onClose, listing, adminId, onSuccess
       <div className="relative bg-white rounded-xl shadow-2xl max-w-md w-full mx-auto overflow-hidden">
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
           <div className="flex items-center gap-2">
-            <Star className="w-5 h-5 text-amber-500" />
+            <Star className="w-5 h-5 text-accent-500" />
             <h3 className="text-lg font-semibold text-[#273140]">Admin Feature Controls</h3>
           </div>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors p-1 rounded-lg hover:bg-gray-50">
@@ -104,7 +104,7 @@ export function AdminFeatureModal({ isOpen, onClose, listing, adminId, onSuccess
             <p className="text-xs text-gray-500">Listing</p>
             <p className="text-sm font-medium text-[#273140] truncate">{listing.title || listing.location}</p>
             {isCurrentlyFeatured && (
-              <p className="text-xs text-amber-600 mt-1">Currently featured - {daysLeft}d remaining</p>
+              <p className="text-xs text-accent-600 mt-1">Currently featured - {daysLeft}d remaining</p>
             )}
           </div>
 
@@ -120,7 +120,7 @@ export function AdminFeatureModal({ isOpen, onClose, listing, adminId, onSuccess
                 onClick={() => setMode('free')}
                 className="w-full flex items-center gap-3 px-4 py-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-left"
               >
-                <Star className="w-5 h-5 text-amber-500 flex-shrink-0" />
+                <Star className="w-5 h-5 text-accent-500 flex-shrink-0" />
                 <div>
                   <p className="text-sm font-medium text-[#273140]">Free Feature</p>
                   <p className="text-xs text-gray-500">Grant featured status at no charge</p>

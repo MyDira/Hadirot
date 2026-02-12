@@ -58,6 +58,7 @@ export default function Dashboard() {
   const [featureModalListing, setFeatureModalListing] = useState<Listing | null>(null);
   const [featuredPurchases, setFeaturedPurchases] = useState<Record<string, FeaturedPurchase>>({});
   const [featureBanner, setFeatureBanner] = useState<{ type: 'success' | 'cancelled'; message: string } | null>(null);
+  const [newListingBanner, setNewListingBanner] = useState<{ listingId: string; title: string } | null>(null);
 
   const rentalListings = useMemo(
     () => listings.filter((l) => l.listing_type !== 'sale'),
@@ -106,6 +107,9 @@ export default function Dashboard() {
 
   useEffect(() => {
     const featuredParam = searchParams.get('featured');
+    const newListingParam = searchParams.get('new_listing');
+    const listingIdParam = searchParams.get('listing_id');
+
     if (featuredParam === 'success') {
       setFeatureBanner({ type: 'success', message: 'Your listing has been featured! The feature period is now active.' });
       searchParams.delete('featured');
@@ -116,7 +120,26 @@ export default function Dashboard() {
       searchParams.delete('featured');
       setSearchParams(searchParams, { replace: true });
     }
-  }, []);
+
+    if (newListingParam === 'true' && listingIdParam) {
+      const listing = listings.find(l => l.id === listingIdParam);
+      if (listing) {
+        setNewListingBanner({ listingId: listingIdParam, title: listing.title });
+      } else {
+        setTimeout(() => {
+          loadUserListings().then(() => {
+            const foundListing = listings.find(l => l.id === listingIdParam);
+            if (foundListing) {
+              setNewListingBanner({ listingId: listingIdParam, title: foundListing.title });
+            }
+          });
+        }, 500);
+      }
+      searchParams.delete('new_listing');
+      searchParams.delete('listing_id');
+      setSearchParams(searchParams, { replace: true });
+    }
+  }, [listings]);
 
   const loadAdminSettings = async () => {
     try {
@@ -514,6 +537,38 @@ export default function Dashboard() {
         </div>
       )}
 
+      {newListingBanner && (
+        <div className="mb-6 rounded-lg p-4 flex items-center justify-between bg-green-50 border border-green-200">
+          <div className="flex items-center gap-3">
+            <CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0" />
+            <div className="flex-1">
+              <p className="text-green-800 font-medium">Your listing has been posted successfully!</p>
+              <p className="text-sm text-green-700 mt-0.5">
+                Get more views by featuring your listing at the top of search results.
+              </p>
+            </div>
+            <button
+              onClick={() => {
+                const listing = listings.find(l => l.id === newListingBanner.listingId);
+                if (listing) {
+                  setFeatureModalListing(listing);
+                }
+              }}
+              className="px-4 py-2 bg-accent-600 hover:bg-accent-700 text-white font-medium rounded-lg transition-colors flex items-center gap-2 whitespace-nowrap ml-4"
+            >
+              <Star className="w-4 h-4" />
+              Feature This Listing
+            </button>
+          </div>
+          <button
+            onClick={() => setNewListingBanner(null)}
+            className="text-gray-400 hover:text-gray-600 ml-4"
+          >
+            <XCircle className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
       {/* Banned User Warning Banner */}
       {(currentUserProfile || profile)?.is_banned && (
         <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4">
@@ -665,7 +720,7 @@ export default function Dashboard() {
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap" style={{ width: '140px' }}>
                       Created
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap" style={{ width: '200px' }}>
+                    <th className="sticky right-0 bg-gray-50 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap shadow-[-4px_0_6px_rgba(0,0,0,0.05)] z-10" style={{ width: '200px' }}>
                       Actions
                     </th>
                   </tr>
@@ -869,7 +924,7 @@ export default function Dashboard() {
                             )}
                           </div>
                         </td>
-                        <td className="px-6 py-4 text-sm font-medium">
+                        <td className="sticky right-0 bg-white px-6 py-4 text-sm font-medium shadow-[-4px_0_6px_rgba(0,0,0,0.05)] z-[5]">
                           <div className="flex items-center gap-3">
                             <Link
                               to={`/listing/${listing.id}`}
@@ -907,7 +962,7 @@ export default function Dashboard() {
                                   ? "Remove Featured"
                                   : getListingFeaturedStatus(listing) === 'pending_approval'
                                     ? "Featured - activates on approval"
-                                    : "Feature This Listing"
+                                    : "Boost to top of search results"
                               }
                             >
                               <Star

@@ -39,8 +39,8 @@ export function FeatureListingModal({ isOpen, onClose, listing }: FeatureListing
       <div className="relative bg-white rounded-xl shadow-2xl max-w-xl w-full mx-auto overflow-hidden">
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 bg-amber-50 rounded-lg flex items-center justify-center">
-              <Star className="w-4.5 h-4.5 text-amber-500" />
+            <div className="w-8 h-8 bg-accent-50 rounded-lg flex items-center justify-center">
+              <Star className="w-4.5 h-4.5 text-accent-500" />
             </div>
             <h3 className="text-lg font-semibold text-[#273140]">Feature Your Listing</h3>
           </div>
@@ -87,7 +87,9 @@ export function FeatureListingModal({ isOpen, onClose, listing }: FeatureListing
                     <p className={`text-2xl font-bold mt-1 ${isSelected ? 'text-brand-700' : 'text-[#273140]'}`}>
                       ${plan.price}
                     </p>
-                    <p className="text-xs text-gray-400 mt-1">{plan.duration}</p>
+                    <p className="text-xs text-gray-400 mt-1">
+                      {plan.id === '7day' ? 'Quick boost' : plan.id === '30day' ? 'Maximum exposure' : plan.duration}
+                    </p>
                   </div>
                   {isSelected && (
                     <div className="absolute top-2 right-2 w-5 h-5 bg-brand-600 rounded-full flex items-center justify-center">
@@ -97,17 +99,6 @@ export function FeatureListingModal({ isOpen, onClose, listing }: FeatureListing
                 </button>
               );
             })}
-          </div>
-
-          <div className="space-y-2.5 mb-5">
-            <div className="flex items-start gap-2.5 text-sm text-gray-500">
-              <Zap className="w-4 h-4 text-amber-500 mt-0.5 flex-shrink-0" />
-              <span>Featured listings appear at the top of search results and the homepage</span>
-            </div>
-            <div className="flex items-start gap-2.5 text-sm text-gray-500">
-              <Clock className="w-4 h-4 text-gray-400 mt-0.5 flex-shrink-0" />
-              <span>Promo codes can be entered at checkout</span>
-            </div>
           </div>
 
           {isPendingApproval && (
@@ -139,13 +130,32 @@ export function FeatureListingModal({ isOpen, onClose, listing }: FeatureListing
             ) : (
               <>
                 <Star className="w-4 h-4" />
-                Feature Now - ${FEATURED_PLANS.find(p => p.id === selectedPlan)?.price}
+                Feature This Listing
               </>
             )}
           </button>
 
-          <p className="text-xs text-gray-400 text-center mt-3">
-            Secure payment powered by Stripe
+          <div className="mt-6 space-y-2">
+            <div className="flex items-center gap-2 text-sm text-gray-700">
+              <Check className="w-4 h-4 text-green-600 flex-shrink-0" />
+              <span>Extra boosted placement in search results</span>
+            </div>
+            <div className="flex items-center gap-2 text-sm text-gray-700">
+              <Check className="w-4 h-4 text-green-600 flex-shrink-0" />
+              <span>Stand out with a featured badge on the map</span>
+            </div>
+            <div className="flex items-center gap-2 text-sm text-gray-700">
+              <Check className="w-4 h-4 text-green-600 flex-shrink-0" />
+              <span>Get featured in the homepage carousel</span>
+            </div>
+            <div className="flex items-center gap-2 text-sm text-gray-700">
+              <Check className="w-4 h-4 text-green-600 flex-shrink-0" />
+              <span>More views means more inquiries</span>
+            </div>
+          </div>
+
+          <p className="text-xs text-gray-400 text-center mt-4">
+            Promo codes can be entered at checkout
           </p>
         </div>
       </div>

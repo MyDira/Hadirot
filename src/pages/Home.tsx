@@ -176,59 +176,9 @@ export function Home() {
         <BannerCarousel banners={banners} autoPlayInterval={5000} />
       </div>
 
-      {/* Recently Added Listings */}
-      <section className="py-16 bg-[var(--bg-soft)]">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="mb-8">
-            <h2 className="text-3xl font-bold font-brand text-brand-700">
-              Recently Added
-            </h2>
-          </div>
-
-          {loading ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              {[1, 2, 3, 4].map((i) => (
-                <div
-                  key={i}
-                  className="bg-white rounded-lg shadow-sm animate-pulse"
-                >
-                  <div className="h-48 bg-gray-200 rounded-t-lg"></div>
-                  <div className="p-4">
-                    <div className="h-4 bg-gray-200 rounded mb-2"></div>
-                    <div className="h-4 bg-gray-200 rounded w-3/4"></div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <div className="flex gap-6 pb-4" style={{ width: "max-content" }}>
-                {recentListings.map((listing) => (
-                  <div 
-                    key={listing.id} 
-                    className="flex-shrink-0 w-80"
-                    ref={(el) => {
-                      if (el) {
-                        observeElement(el, listing.id);
-                      }
-                    }}
-                  >
-                    <ListingCard
-                      listing={listing}
-                      isFavorited={userFavorites.includes(listing.id)}
-                      onFavoriteChange={handleFavoriteChange}
-                    />
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-      </section>
-
       {/* Featured Listings */}
       {featuredListings.length > 0 && (
-        <section className="py-16 bg-[var(--bg-soft)] border-t border-accent-500/10">
+        <section className="py-16 bg-[var(--bg-soft)]">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="mb-8">
               <div className="flex items-center gap-2">
@@ -264,6 +214,56 @@ export function Home() {
           </div>
         </section>
       )}
+
+      {/* Recently Added Listings */}
+      <section className="py-16 bg-[var(--bg-soft)] border-t border-accent-500/10">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="mb-8">
+            <h2 className="text-3xl font-bold font-brand text-brand-700">
+              Recently Added
+            </h2>
+          </div>
+
+          {loading ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              {[1, 2, 3, 4].map((i) => (
+                <div
+                  key={i}
+                  className="bg-white rounded-lg shadow-sm animate-pulse"
+                >
+                  <div className="h-48 bg-gray-200 rounded-t-lg"></div>
+                  <div className="p-4">
+                    <div className="h-4 bg-gray-200 rounded mb-2"></div>
+                    <div className="h-4 bg-gray-200 rounded w-3/4"></div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <div className="flex gap-6 pb-4" style={{ width: "max-content" }}>
+                {recentListings.map((listing) => (
+                  <div
+                    key={listing.id}
+                    className="flex-shrink-0 w-80"
+                    ref={(el) => {
+                      if (el) {
+                        observeElement(el, listing.id);
+                      }
+                    }}
+                  >
+                    <ListingCard
+                      listing={listing}
+                      isFavorited={userFavorites.includes(listing.id)}
+                      onFavoriteChange={handleFavoriteChange}
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </section>
 
       {/* 2 Bedroom Listings */}
       <section className="py-16 bg-[#FAF7F3]">

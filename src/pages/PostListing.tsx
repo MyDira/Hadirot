@@ -1814,7 +1814,7 @@ export function PostListing() {
         // Don't block the flow if draft deletion fails
       }
 
-      navigate(`/listing/${listing.id}`);
+      navigate(`/dashboard?new_listing=true&listing_id=${listing.id}`);
 
       // Send email notifications
       try {
