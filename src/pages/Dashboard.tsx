@@ -709,7 +709,7 @@ export default function Dashboard() {
           </div>
         ) : (
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-            <div className="overflow-x-auto lg:max-w-[1100px] xl:max-w-[1200px]">
+            <div className="overflow-x-auto">
               <table className="w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
