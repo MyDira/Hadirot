@@ -834,7 +834,7 @@ export default function Dashboard() {
                                     setFeatureModalListing(listing);
                                     setShowSuccessBanner(false);
                                   }}
-                                  className="text-xs bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded font-medium whitespace-nowrap transition-colors"
+                                  className="text-xs bg-accent-500 hover:bg-accent-600 text-white px-3 py-1 rounded font-medium whitespace-nowrap transition-colors"
                                   title="Boost to top of search results"
                                 >
                                   Get Featured
@@ -954,50 +954,24 @@ export default function Dashboard() {
                           </div>
                         </td>
                         <td className="sticky right-0 bg-white px-6 py-4 text-sm font-medium shadow-[-4px_0_6px_rgba(0,0,0,0.05)] z-[5]">
-                          <div className="flex items-center gap-3">
+                          <div className="flex items-center gap-2.5">
                             <Link
                               to={`/listing/${listing.id}`}
                               title="View Listing"
-                              className="text-gray-500 hover:text-[#273140] transition-colors"
+                              className="flex flex-col items-center gap-1 p-1.5 text-gray-500 hover:text-[#273140] transition-colors"
                             >
                               <Eye className="w-4.5 h-4.5" />
+                              <span className="text-[10px] leading-tight text-gray-600">View</span>
                             </Link>
 
                             <Link
                               to={`/edit/${listing.id}`}
-                              className="text-gray-500 hover:text-blue-600 transition-colors"
+                              className="flex flex-col items-center gap-1 p-1.5 text-gray-500 hover:text-blue-600 transition-colors"
                               title="Edit Listing"
                             >
                               <Edit className="w-4.5 h-4.5" />
+                              <span className="text-[10px] leading-tight text-gray-600">Edit</span>
                             </Link>
-
-                            <button
-                              type="button"
-                              onClick={() => handleFeatureClick(listing)}
-                              disabled={
-                                actionLoading === listing.id ||
-                                getListingFeaturedStatus(listing) === 'pending_approval' ||
-                                getListingFeaturedStatus(listing) === 'pending_payment'
-                              }
-                              className={`transition-colors ${
-                                isListingCurrentlyFeatured(listing)
-                                  ? "text-accent-500 hover:text-accent-600"
-                                  : getListingFeaturedStatus(listing) === 'pending_approval'
-                                    ? "text-amber-400 cursor-not-allowed"
-                                    : "text-gray-400 hover:text-accent-500"
-                              }`}
-                              title={
-                                isListingCurrentlyFeatured(listing)
-                                  ? "Remove Featured"
-                                  : getListingFeaturedStatus(listing) === 'pending_approval'
-                                    ? "Featured - activates on approval"
-                                    : "Boost to top of search results"
-                              }
-                            >
-                              <Star
-                                className={`w-4.5 h-4.5 ${isListingCurrentlyFeatured(listing) || getListingFeaturedStatus(listing) === 'pending_approval' ? "fill-current" : ""}`}
-                              />
-                            </button>
 
                             {listing.is_active ? (
                               <button
@@ -1009,10 +983,11 @@ export default function Dashboard() {
                                   actionLoading === listing.id ||
                                   !listing.approved
                                 }
-                                className="text-gray-500 hover:text-orange-600 transition-colors"
+                                className="flex flex-col items-center gap-1 p-1.5 text-gray-500 hover:text-orange-600 transition-colors"
                                 title="Unpublish Listing"
                               >
                                 <EyeOff className="w-4.5 h-4.5" />
+                                <span className="text-[10px] leading-tight text-gray-600">Deactivate</span>
                               </button>
                             ) : (
                               <button
@@ -1022,10 +997,11 @@ export default function Dashboard() {
                                   actionLoading === listing.id ||
                                   !listing.approved
                                 }
-                                className="text-gray-500 hover:text-blue-600 transition-colors"
+                                className="flex flex-col items-center gap-1 p-1.5 text-gray-500 hover:text-blue-600 transition-colors"
                                 title="Republish Listing"
                               >
                                 <RefreshCw className="w-4.5 h-4.5" />
+                                <span className="text-[10px] leading-tight text-gray-600">Reactivate</span>
                               </button>
                             )}
 
@@ -1033,7 +1009,7 @@ export default function Dashboard() {
                               type="button"
                               onClick={() => handleDeleteListing(listing.id)}
                               disabled={actionLoading === listing.id}
-                              className="text-gray-500 hover:text-red-600 transition-colors"
+                              className="flex flex-col items-center gap-1 p-1.5 text-gray-500 hover:text-red-600 transition-colors"
                               title="Delete Listing"
                             >
                               <Trash2 className="w-4.5 h-4.5" />

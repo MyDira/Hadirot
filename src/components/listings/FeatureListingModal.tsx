@@ -155,7 +155,7 @@ export function FeatureListingModal({ isOpen, onClose, listing, showSuccessBanne
           <button
             onClick={handleCheckout}
             disabled={!selectedPlan || loading}
-            className="w-full mt-6 border-2 border-green-600 bg-transparent text-black font-bold py-3 px-6 rounded-lg transition-all duration-300 hover:bg-green-600 hover:text-white hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            className="w-full mt-6 border-2 border-accent-500 bg-transparent text-black font-bold py-3 px-6 rounded-lg transition-all duration-300 hover:bg-accent-600 hover:text-white hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >
             {loading ? (
               <>
@@ -168,6 +168,10 @@ export function FeatureListingModal({ isOpen, onClose, listing, showSuccessBanne
               `Get Featured → ${selectedPlan === '7day' ? '7 Days' : selectedPlan === '14day' ? '14 Days' : '30 Days'}`
             )}
           </button>
+
+          <p className="text-xs text-gray-500 text-center mt-2">
+            You'll be securely redirected to Stripe for checkout
+          </p>
         </div>
       </div>
     </div>
