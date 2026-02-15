@@ -17,7 +17,7 @@ export const FEATURED_PLANS: FeaturedPlan[] = [
     duration: '7 days',
     days: 7,
     price: 25,
-    priceId: 'price_1Szi8QJvRPzH20A9F7OyDcMm',
+    priceId: 'price_1SzMw9JvRPzH20A9CJA2SQ87',
   },
   {
     id: '14day',
