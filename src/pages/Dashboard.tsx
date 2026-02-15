@@ -714,31 +714,31 @@ export default function Dashboard() {
                 <table className="w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" style={{ minWidth: '200px', maxWidth: '300px', width: '25%' }}>
+                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" style={{ minWidth: '180px', maxWidth: '280px', width: '22%' }}>
                       Property
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap" style={{ width: '120px' }}>
+                    <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap" style={{ width: '100px' }}>
                       Price
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap" style={{ width: '110px' }}>
-                      Impressions
+                    <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap" style={{ width: '95px' }}>
+                      Views
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap" style={{ width: '120px' }}>
-                      Direct Views
+                    <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap" style={{ width: '95px' }}>
+                      Clicks
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap" style={{ width: '100px' }}>
+                    <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap" style={{ width: '85px' }}>
                       Inquiries
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap" style={{ width: '140px' }}>
+                    <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap" style={{ width: '130px' }}>
                       Status
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap" style={{ width: '100px' }}>
+                    <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap" style={{ width: '85px' }}>
                       Expires
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap" style={{ width: '140px' }}>
+                    <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap" style={{ width: '110px' }}>
                       Created
                     </th>
-                    <th className="sticky right-0 bg-gray-50 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap shadow-[-4px_0_6px_rgba(0,0,0,0.05)] z-10" style={{ width: '200px' }}>
+                    <th className="sticky right-0 bg-gray-50 px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap shadow-[-4px_0_6px_rgba(0,0,0,0.05)] z-10" style={{ width: '170px' }}>
                       Actions
                     </th>
                   </tr>
@@ -754,13 +754,13 @@ export default function Dashboard() {
 
                     return (
                       <tr key={listing.id} className="hover:bg-gray-50">
-                        <td className="px-6 py-4" style={{ maxWidth: '300px' }}>
+                        <td className="px-3 py-3" style={{ maxWidth: '280px' }}>
                           <div className="flex items-center min-w-0">
                             {featuredImage && (
                               <img
                                 src={featuredImage.image_url}
                                 alt={listing.title}
-                                className="w-12 h-12 object-cover rounded-lg mr-4 flex-shrink-0"
+                                className="w-10 h-10 object-cover rounded-lg mr-2 flex-shrink-0"
                               />
                             )}
                             <div className="min-w-0 flex-1">
@@ -777,15 +777,15 @@ export default function Dashboard() {
                             </div>
                           </div>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        <td className="px-2 py-3 whitespace-nowrap text-sm text-gray-900">
                           {listing.call_for_price
                             ? 'Call for Price'
                             : isSale
                               ? formatPrice(listing.asking_price ?? listing.price)
                               : `${formatPrice(listing.price)}/month`}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          <div className="flex items-center gap-1.5">
+                        <td className="px-2 py-3 whitespace-nowrap text-sm text-gray-900">
+                          <div className="flex items-center gap-1">
                             <Eye className="h-4 w-4 opacity-70" aria-hidden />
                             <span>
                               {loading
@@ -794,8 +794,8 @@ export default function Dashboard() {
                             </span>
                           </div>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          <div className="flex items-center gap-1.5">
+                        <td className="px-2 py-3 whitespace-nowrap text-sm text-gray-900">
+                          <div className="flex items-center gap-1">
                             <MousePointerClick className="h-4 w-4 opacity-70" aria-hidden />
                             <span>
                               {loading
@@ -804,11 +804,11 @@ export default function Dashboard() {
                             </span>
                           </div>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        <td className="px-2 py-3 whitespace-nowrap text-sm text-gray-900">
                           <button
                             type="button"
                             onClick={() => handleOpenInquiries(listing.id, listing.title)}
-                            className="flex items-center gap-1.5 hover:text-accent-600 transition-colors cursor-pointer"
+                            className="flex items-center gap-1 hover:text-accent-600 transition-colors cursor-pointer"
                             title="View inquiries"
                           >
                             <MessageSquare className="h-4 w-4 opacity-70" aria-hidden />
@@ -817,11 +817,11 @@ export default function Dashboard() {
                             </span>
                           </button>
                         </td>
-                        <td className="px-6 py-4">
-                          <div className="flex flex-col gap-1.5">
-                            <div className="flex flex-wrap items-center gap-1.5">
+                        <td className="px-2 py-3">
+                          <div className="flex flex-col gap-1">
+                            <div className="flex flex-wrap items-center gap-1">
                               <span
-                                className={`px-2 py-1 text-xs rounded-full whitespace-nowrap ${
+                                className={`px-1.5 py-0.5 text-xs rounded-full whitespace-nowrap ${
                                   listing.is_active
                                     ? "bg-green-100 text-green-800"
                                     : "bg-red-100 text-red-800"
@@ -835,15 +835,15 @@ export default function Dashboard() {
                                     setFeatureModalListing(listing);
                                     setShowSuccessBanner(false);
                                   }}
-                                  className="text-xs bg-accent-500 hover:bg-accent-600 text-white px-3 py-1 rounded font-medium whitespace-nowrap transition-colors"
+                                  className="text-xs bg-accent-500 hover:bg-accent-600 text-white px-2 py-0.5 rounded font-medium whitespace-nowrap transition-colors"
                                   title="Boost to top of search results"
                                 >
-                                  Get Featured
+                                  Feature
                                 </button>
                               )}
                               {!listing.approved && (
-                                <span className="px-2 py-1 text-xs bg-yellow-100 text-yellow-800 rounded-full whitespace-nowrap">
-                                  Pending Approval
+                                <span className="px-1.5 py-0.5 text-xs bg-yellow-100 text-yellow-800 rounded-full whitespace-nowrap">
+                                  Pending
                                 </span>
                               )}
                               {(() => {
@@ -853,17 +853,17 @@ export default function Dashboard() {
                                     ? Math.max(0, Math.ceil((new Date(listing.featured_expires_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
                                     : 0;
                                   return (
-                                    <span className="px-2 py-1 text-xs bg-accent-50 text-accent-700 border border-accent-200 rounded-full flex items-center whitespace-nowrap">
-                                      <Zap className="w-3 h-3 mr-1" />
-                                      Featured {daysLeft > 0 ? `· ${daysLeft}d left` : '· Expiring'}
+                                    <span className="px-1.5 py-0.5 text-xs bg-accent-50 text-accent-700 border border-accent-200 rounded-full flex items-center whitespace-nowrap">
+                                      <Zap className="w-3 h-3 mr-0.5" />
+                                      {daysLeft}d
                                     </span>
                                   );
                                 }
                                 if (featuredStatus === 'pending_approval') {
                                   return (
-                                    <span className="px-2 py-1 text-xs bg-amber-50 text-amber-700 border border-amber-200 rounded-full flex items-center whitespace-nowrap">
-                                      <Clock className="w-3 h-3 mr-1" />
-                                      Featured · Starts on approval
+                                    <span className="px-1.5 py-0.5 text-xs bg-amber-50 text-amber-700 border border-amber-200 rounded-full flex items-center whitespace-nowrap">
+                                      <Clock className="w-3 h-3 mr-0.5" />
+                                      Pending
                                     </span>
                                   );
                                 }
@@ -885,10 +885,10 @@ export default function Dashboard() {
                             )}
                           </div>
                         </td>
-                        <td className="px-6 py-4 text-sm">
+                        <td className="px-2 py-3 text-sm">
                           {listing.is_active && daysUntilExpiration !== null ? (
-                            <div className="flex flex-col gap-2">
-                              <div className={`flex items-center gap-1 ${
+                            <div className="flex flex-col gap-1">
+                              <div className={`flex items-center gap-0.5 ${
                                 daysUntilExpiration <= 3
                                   ? 'text-red-600 font-medium'
                                   : daysUntilExpiration <= 7
@@ -905,7 +905,7 @@ export default function Dashboard() {
                                   type="button"
                                   onClick={() => handleRenewListing(listing.id)}
                                   disabled={actionLoading === listing.id}
-                                  className="px-2.5 py-1.5 text-xs font-medium text-white bg-brand-600 hover:bg-brand-700 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+                                  className="px-2 py-1 text-xs font-medium text-white bg-brand-600 hover:bg-brand-700 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
                                   title="Renew for 14 days"
                                 >
                                   Renew
@@ -919,7 +919,7 @@ export default function Dashboard() {
                                     actionLoading === listing.id ||
                                     !extensionCheck.canExtend
                                   }
-                                  className={`px-2.5 py-1.5 text-xs font-medium text-white rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap ${
+                                  className={`px-2 py-1 text-xs font-medium text-white rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap ${
                                     extensionCheck.canExtend
                                       ? 'bg-emerald-600 hover:bg-emerald-700'
                                       : 'bg-gray-300 cursor-not-allowed'
@@ -936,42 +936,40 @@ export default function Dashboard() {
                             <span className="text-gray-400">-</span>
                           )}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        <td className="px-2 py-3 whitespace-nowrap text-sm text-gray-500">
                           <div>
                             <div className="whitespace-nowrap">
-                              Posted:{" "}
                               {new Date(
                                 listing.created_at,
-                              ).toLocaleDateString()}
+                              ).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                             </div>
                             {listing.last_published_at && (
                               <div className="text-xs text-gray-400 whitespace-nowrap">
-                                Last Published:{" "}
                                 {new Date(
                                   listing.last_published_at,
-                                ).toLocaleDateString()}
+                                ).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                               </div>
                             )}
                           </div>
                         </td>
-                        <td className="sticky right-0 bg-white px-6 py-4 text-sm font-medium shadow-[-4px_0_6px_rgba(0,0,0,0.05)] z-[5]">
-                          <div className="flex items-center gap-2.5">
+                        <td className="sticky right-0 bg-white px-3 py-3 text-sm font-medium shadow-[-4px_0_6px_rgba(0,0,0,0.05)] z-[5]">
+                          <div className="flex items-center gap-1.5">
                             <Link
                               to={`/listing/${listing.id}`}
                               title="View Listing"
-                              className="flex flex-col items-center gap-1 p-1.5 text-gray-500 hover:text-[#273140] transition-colors"
+                              className="flex flex-col items-center gap-0.5 p-1 text-gray-500 hover:text-[#273140] transition-colors"
                             >
-                              <Eye className="w-4.5 h-4.5" />
-                              <span className="text-[10px] leading-tight text-gray-600">View</span>
+                              <Eye className="w-4 h-4" />
+                              <span className="text-[9px] leading-tight text-gray-600">View</span>
                             </Link>
 
                             <Link
                               to={`/edit/${listing.id}`}
-                              className="flex flex-col items-center gap-1 p-1.5 text-gray-500 hover:text-blue-600 transition-colors"
+                              className="flex flex-col items-center gap-0.5 p-1 text-gray-500 hover:text-blue-600 transition-colors"
                               title="Edit Listing"
                             >
-                              <Edit className="w-4.5 h-4.5" />
-                              <span className="text-[10px] leading-tight text-gray-600">Edit</span>
+                              <Edit className="w-4 h-4" />
+                              <span className="text-[9px] leading-tight text-gray-600">Edit</span>
                             </Link>
 
                             {listing.is_active ? (
@@ -984,11 +982,11 @@ export default function Dashboard() {
                                   actionLoading === listing.id ||
                                   !listing.approved
                                 }
-                                className="flex flex-col items-center gap-1 p-1.5 text-gray-500 hover:text-orange-600 transition-colors"
+                                className="flex flex-col items-center gap-0.5 p-1 text-gray-500 hover:text-orange-600 transition-colors disabled:opacity-50"
                                 title="Unpublish Listing"
                               >
-                                <EyeOff className="w-4.5 h-4.5" />
-                                <span className="text-[10px] leading-tight text-gray-600">Deactivate</span>
+                                <EyeOff className="w-4 h-4" />
+                                <span className="text-[9px] leading-tight text-gray-600">Hide</span>
                               </button>
                             ) : (
                               <button
@@ -998,11 +996,11 @@ export default function Dashboard() {
                                   actionLoading === listing.id ||
                                   !listing.approved
                                 }
-                                className="flex flex-col items-center gap-1 p-1.5 text-gray-500 hover:text-blue-600 transition-colors"
+                                className="flex flex-col items-center gap-0.5 p-1 text-gray-500 hover:text-blue-600 transition-colors disabled:opacity-50"
                                 title="Republish Listing"
                               >
-                                <RefreshCw className="w-4.5 h-4.5" />
-                                <span className="text-[10px] leading-tight text-gray-600">Reactivate</span>
+                                <RefreshCw className="w-4 h-4" />
+                                <span className="text-[9px] leading-tight text-gray-600">Show</span>
                               </button>
                             )}
 
@@ -1010,10 +1008,10 @@ export default function Dashboard() {
                               type="button"
                               onClick={() => handleDeleteListing(listing.id)}
                               disabled={actionLoading === listing.id}
-                              className="flex flex-col items-center gap-1 p-1.5 text-gray-500 hover:text-red-600 transition-colors"
+                              className="flex flex-col items-center gap-0.5 p-1 text-gray-500 hover:text-red-600 transition-colors disabled:opacity-50"
                               title="Delete Listing"
                             >
-                              <Trash2 className="w-4.5 h-4.5" />
+                              <Trash2 className="w-4 h-4" />
                             </button>
                           </div>
                         </td>
