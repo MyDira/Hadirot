@@ -864,3 +864,31 @@ h6,
     display: none;
   }
 }
+
+/* ============================================
+   Enhanced Table Scrollbar Styling
+   ============================================ */
+
+.table-scroll-visible {
+  scrollbar-width: thin;
+  scrollbar-color: #7CB342 #f1f1f1;
+}
+
+.table-scroll-visible::-webkit-scrollbar {
+  height: 10px;
+}
+
+.table-scroll-visible::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 10px;
+}
+
+.table-scroll-visible::-webkit-scrollbar-thumb {
+  background: #7CB342;
+  border-radius: 10px;
+  transition: background 0.2s ease;
+}
+
+.table-scroll-visible::-webkit-scrollbar-thumb:hover {
+  background: #689F38;
+}

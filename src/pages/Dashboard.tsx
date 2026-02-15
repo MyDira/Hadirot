@@ -709,8 +709,9 @@ export default function Dashboard() {
           </div>
         ) : (
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full divide-y divide-gray-200">
+            <div className="relative">
+              <div className="overflow-x-auto table-scroll-visible">
+                <table className="w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" style={{ minWidth: '200px', maxWidth: '300px', width: '25%' }}>
@@ -1022,6 +1023,9 @@ export default function Dashboard() {
                 </tbody>
               </table>
             </div>
+            {/* Gradient overlay on right edge to indicate more content */}
+            <div className="absolute top-0 right-0 h-full w-12 bg-gradient-to-l from-white to-transparent pointer-events-none" />
+          </div>
           </div>
         )}
       </div>
