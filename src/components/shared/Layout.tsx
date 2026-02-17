@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
-import { Home, Search, Plus, User, Heart, LogOut, Settings, LayoutDashboard, Menu, X, Building2, Paintbrush } from "lucide-react";
+import { Home, Search, Plus, User, Heart, LogOut, Settings, LayoutDashboard, Menu, X, Building2, Paintbrush, CreditCard } from "lucide-react";
 import { useAuth, AUTH_CONTEXT_ID } from "@/hooks/useAuth";
 import { useAnalyticsInit } from "@/hooks/useAnalyticsInit";
 import { Footer } from "./Footer";
@@ -310,9 +310,7 @@ export function Layout({ children }: LayoutProps) {
                   >
                     <User className="w-5 h-5" />
                     <span className="hidden sm:inline text-sm font-medium">
-                      {profile?.full_name
-                        ? capitalizeName(profile.full_name)
-                        : ""}
+                      My Account
                     </span>
                   </button>
 
@@ -326,21 +324,39 @@ export function Layout({ children }: LayoutProps) {
                           <span className="capitalize">{profile?.role}</span>
                         </div>
                         <Link
-                          to="/account-settings"
-                          className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                          onClick={() => setShowUserMenu(false)}
-                        >
-                          <User className="w-4 h-4 mr-2" />
-                          Account
-                        </Link>
-                        <Link
-                          to="/dashboard"
+                          to="/account?tab=listings"
                           className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
                           onClick={() => setShowUserMenu(false)}
                         >
                           <LayoutDashboard className="w-4 h-4 mr-2" />
-                          My Dashboard
+                          My Listings
                         </Link>
+                        <Link
+                          to="/account?tab=favorites"
+                          className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                          onClick={() => setShowUserMenu(false)}
+                        >
+                          <Heart className="w-4 h-4 mr-2" />
+                          Favorites
+                        </Link>
+                        <Link
+                          to="/account?tab=billing"
+                          className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                          onClick={() => setShowUserMenu(false)}
+                        >
+                          <CreditCard className="w-4 h-4 mr-2" />
+                          Billing
+                        </Link>
+                        <Link
+                          to="/account?tab=settings"
+                          className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                          onClick={() => setShowUserMenu(false)}
+                        >
+                          <Settings className="w-4 h-4 mr-2" />
+                          Settings
+                        </Link>
+                        {/* Agency feature temporarily disabled - do not delete */}
+                        {/*
                         {canAccessAgencyPage && agencySlug && (
                           <Link
                             to={`/agencies/${agencySlug}`}
@@ -361,15 +377,7 @@ export function Layout({ children }: LayoutProps) {
                             Agency Settings
                           </Link>
                         )}
-                        <Link
-                          to="/favorites"
-                          className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                          onClick={() => setShowUserMenu(false)}
-                        >
-                          <Heart className="w-4 h-4 mr-2" />
-                          My Favorites
-                        </Link>
-                        {/* Debug log to check profile and loading state */}
+                        */}
 
                         {!loading && profile?.is_admin && (
                           <>
@@ -518,27 +526,47 @@ export function Layout({ children }: LayoutProps) {
                       <div className="border-t border-gray-200 my-4"></div>
                       <div className="px-4 py-2">
                         <div className="text-sm font-medium text-gray-900">
-                          {profile?.full_name
-                            ? capitalizeName(profile.full_name)
-                            : ""}
+                          My Account
                         </div>
                         <div className="text-sm text-gray-500">
-                          {profile?.role === "agent" && agencyName && (
-                            <span className="block">{agencyName}</span>
-                          )}
                           <span className="capitalize">{profile?.role}</span>
                         </div>
                       </div>
 
                       <Link
-                        to="/account-settings"
+                        to="/account?tab=listings"
                         onClick={() => setIsMobileMenuOpen(false)}
                         className="flex items-center px-4 py-3 text-base font-medium text-gray-600 hover:text-[#273140] hover:bg-gray-50 rounded-md transition-colors"
                       >
-                        <User className="w-5 h-5 mr-3" />
-                        Account Settings
+                        <LayoutDashboard className="w-5 h-5 mr-3" />
+                        My Listings
                       </Link>
-                      
+                      <Link
+                        to="/account?tab=favorites"
+                        onClick={() => setIsMobileMenuOpen(false)}
+                        className="flex items-center px-4 py-3 text-base font-medium text-gray-600 hover:text-[#273140] hover:bg-gray-50 rounded-md transition-colors"
+                      >
+                        <Heart className="w-5 h-5 mr-3" />
+                        Favorites
+                      </Link>
+                      <Link
+                        to="/account?tab=billing"
+                        onClick={() => setIsMobileMenuOpen(false)}
+                        className="flex items-center px-4 py-3 text-base font-medium text-gray-600 hover:text-[#273140] hover:bg-gray-50 rounded-md transition-colors"
+                      >
+                        <CreditCard className="w-5 h-5 mr-3" />
+                        Billing
+                      </Link>
+                      <Link
+                        to="/account?tab=settings"
+                        onClick={() => setIsMobileMenuOpen(false)}
+                        className="flex items-center px-4 py-3 text-base font-medium text-gray-600 hover:text-[#273140] hover:bg-gray-50 rounded-md transition-colors"
+                      >
+                        <Settings className="w-5 h-5 mr-3" />
+                        Settings
+                      </Link>
+                      {/* Agency feature temporarily disabled - do not delete */}
+                      {/*
                       {canAccessAgencyPage && agencySlug && (
                         <Link
                           to={`/agencies/${agencySlug}`}
@@ -559,23 +587,7 @@ export function Layout({ children }: LayoutProps) {
                           Agency Settings
                         </Link>
                       )}
-
-                      <Link
-                        to="/dashboard"
-                        onClick={() => setIsMobileMenuOpen(false)}
-                        className="flex items-center px-4 py-3 text-base font-medium text-gray-600 hover:text-[#273140] hover:bg-gray-50 rounded-md transition-colors"
-                      >
-                        <LayoutDashboard className="w-5 h-5 mr-3" />
-                        My Dashboard
-                      </Link>
-                      <Link
-                        to="/favorites"
-                        onClick={() => setIsMobileMenuOpen(false)}
-                        className="flex items-center px-4 py-3 text-base font-medium text-gray-600 hover:text-[#273140] hover:bg-gray-50 rounded-md transition-colors"
-                      >
-                        <Heart className="w-5 h-5 mr-3" />
-                        My Favorites
-                      </Link>
+                      */}
 
                       {!loading && profile?.is_admin && (
                         <>

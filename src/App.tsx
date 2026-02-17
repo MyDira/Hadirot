@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route, useLocation, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, useLocation, Navigate, useSearchParams } from 'react-router-dom';
 import { Layout } from './components/shared/Layout';
 import { ErrorBoundary } from './components/shared/ErrorBoundary';
 import { Home } from './pages/Home';
@@ -10,12 +10,11 @@ import PasswordRecoveryGate from './components/auth/PasswordRecoveryGate';
 import { PostListing } from './pages/PostListing';
 import { EditListing } from './pages/EditListing';
 import { ListingDetail } from './pages/ListingDetail';
-import { Favorites } from './pages/Favorites';
 import { AdminPanel } from './pages/AdminPanel';
 import { InternalAnalytics } from './pages/InternalAnalytics';
-import { Dashboard } from './pages/Dashboard';
 import { AgencySettings } from './pages/AgencySettings';
 import { AccountSettings } from './pages/AccountSettings';
+import { Account } from './pages/Account';
 import { About } from './pages/About';
 import { Contact } from './pages/Contact';
 import { Privacy } from './pages/Privacy';
@@ -50,6 +49,13 @@ function ScrollToTop() {
   return null;
 }
 
+function DashboardRedirect() {
+  const [searchParams] = useSearchParams();
+  const params = new URLSearchParams(searchParams);
+  params.set('tab', 'listings');
+  return <Navigate to={`/account?${params.toString()}`} replace />;
+}
+
 function ShouldMountSmoke() {
   const isDev = typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.PROD === false;
   const params = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
@@ -78,7 +84,7 @@ function App() {
                 <Route path="/edit/:id" element={<EditListing />} />
                 <Route path="/listing/:id" element={<ListingDetail />} />
                 <Route path="/l/:code" element={<ShortUrlRedirect />} />
-                <Route path="/favorites" element={<Favorites />} />
+                <Route path="/favorites" element={<Navigate to="/account?tab=favorites" replace />} />
                 <Route path="/admin" element={<AdminPanel />} />
                 <Route path="/admin/analytics" element={<InternalAnalytics />} />
                 <Route path="/admin/content-management" element={<ContentManagement />} />
@@ -87,9 +93,10 @@ function App() {
                 <Route path="/admin/digest-settings" element={<DigestGlobalSettings />} />
                 <Route path="/admin/static-pages" element={<Navigate to="/admin/content-management?tab=static-pages" replace />} />
                 <Route path="/admin/featured-settings" element={<Navigate to="/admin/content-management?tab=featured" replace />} />
-                <Route path="/dashboard" element={<Dashboard />} />
+                <Route path="/account" element={<Account />} />
+                <Route path="/dashboard" element={<DashboardRedirect />} />
                 <Route path="/dashboard/agency-settings" element={<AgencySettings />} />
-                <Route path="/account-settings" element={<AccountSettings />} />
+                <Route path="/account-settings" element={<Navigate to="/account?tab=settings" replace />} />
                 <Route path="/internal-analytics" element={<Navigate to="/admin/analytics" replace />} />
                 <Route path="/analytics" element={<Navigate to="/admin/analytics" replace />} />
                 <Route path="/static-pages" element={<Navigate to="/admin/content-management?tab=static-pages" replace />} />
