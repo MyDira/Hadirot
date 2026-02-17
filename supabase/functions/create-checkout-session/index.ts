@@ -76,7 +76,7 @@ Deno.serve(async (req) => {
 
     const { data: profile } = await supabaseAdmin
       .from('profiles')
-      .select('is_admin')
+      .select('is_admin, stripe_customer_id')
       .eq('id', user.id)
       .maybeSingle();
 
@@ -109,10 +109,33 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Find or create a Stripe Customer so the billing portal can access their history
+    let stripeCustomerId: string = profile?.stripe_customer_id || '';
+
+    if (!stripeCustomerId) {
+      // Check if a customer already exists in Stripe for this email
+      const existing = await stripe.customers.list({ email: user.email!, limit: 1 });
+      if (existing.data.length > 0) {
+        stripeCustomerId = existing.data[0].id;
+      } else {
+        const created = await stripe.customers.create({
+          email: user.email!,
+          metadata: { supabase_user_id: user.id },
+        });
+        stripeCustomerId = created.id;
+      }
+
+      await supabaseAdmin
+        .from('profiles')
+        .update({ stripe_customer_id: stripeCustomerId })
+        .eq('id', user.id);
+    }
+
     const origin = req.headers.get('origin') || 'https://hadirot.com';
 
     const session = await stripe.checkout.sessions.create({
       mode: 'payment',
+      customer: stripeCustomerId,
       line_items: [{ price: price_id, quantity: 1 }],
       metadata: {
         listing_id,
@@ -124,7 +147,6 @@ Deno.serve(async (req) => {
       allow_promotion_codes: true,
       success_url: `${origin}/dashboard?featured=success&session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${origin}/dashboard?featured=cancelled`,
-      customer_email: user.email,
     });
 
     const amountMap: Record<string, number> = { '7day': 2500, '14day': 4000, '30day': 7500 };
