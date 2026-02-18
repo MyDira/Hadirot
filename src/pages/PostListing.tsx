@@ -1484,16 +1484,20 @@ export function PostListing() {
     await submitListingContent();
   };
 
-  const handleAuthSuccess = async () => {
+  const handleAuthSuccess = () => {
     setShowAuthModal(false);
-    if (pendingSubmitAfterAuth) {
-      setPendingSubmitAfterAuth(false);
+  };
+
+  useEffect(() => {
+    if (!user || !pendingSubmitAfterAuth) return;
+    setPendingSubmitAfterAuth(false);
+    (async () => {
       const uploaded = await uploadPendingMedia();
       if (uploaded) {
         await submitListingContent();
       }
-    }
-  };
+    })();
+  }, [user]);
 
   const handleFirstInteraction = () => {
     hasInteractedRef.current = true;

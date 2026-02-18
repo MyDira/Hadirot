@@ -61,11 +61,6 @@ export function AuthForm({ onAuthSuccess }: AuthFormProps = {}) {
       } else {
         navigate(location.state?.from || "/");
       }
-      if (onAuthSuccess) {
-        onAuthSuccess();
-      } else {
-        navigate(location.state?.from || "/");
-      }
     } catch (err: any) {
       setError(err.message || "An error occurred");
     } finally {
