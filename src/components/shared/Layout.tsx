@@ -309,8 +309,13 @@ export function Layout({ children }: LayoutProps) {
                     className="flex items-center space-x-2 text-white hover:opacity-90 transition-opacity focus:outline-none focus:ring-2 focus:ring-white/40"
                   >
                     <User className="w-5 h-5" />
-                    <span className="hidden sm:inline text-sm font-medium">
-                      My Account
+                    <span className="hidden sm:flex flex-col leading-tight">
+                      <span className="text-sm font-medium">My Account</span>
+                      {(agencyName || profile?.full_name) && (
+                        <span className="text-xs text-white/70">
+                          {agencyName || capitalizeName(profile!.full_name)}
+                        </span>
+                      )}
                     </span>
                   </button>
 
@@ -529,7 +534,12 @@ export function Layout({ children }: LayoutProps) {
                           My Account
                         </div>
                         <div className="text-sm text-gray-500">
-                          <span className="capitalize">{profile?.role}</span>
+                          {agencyName
+                            ? agencyName
+                            : profile?.full_name
+                            ? capitalizeName(profile.full_name)
+                            : <span className="capitalize">{profile?.role}</span>
+                          }
                         </div>
                       </div>
 
