@@ -19,9 +19,7 @@ export function ContactAndSubmitSection({
   return (
     <>
       {/* Contact Information */}
-      <div className={`bg-white rounded-lg shadow-sm border border-gray-200 p-6 relative transition-all ${
-        !formData.listing_type ? 'opacity-40 pointer-events-none' : ''
-      }`}>
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 relative">
         <h2 className="text-xl font-semibold text-brand-700 mb-4">
           Contact Information
         </h2>
@@ -58,9 +56,7 @@ export function ContactAndSubmitSection({
       </div>
 
       {/* Terms & Conditions Agreement */}
-      <div className={`bg-white rounded-lg shadow-sm border border-gray-200 p-6 relative transition-all ${
-        !formData.listing_type ? 'opacity-40 pointer-events-none' : ''
-      }`}>
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 relative">
         <label className="flex items-start gap-3">
           <input
             type="checkbox"
@@ -78,7 +74,7 @@ export function ContactAndSubmitSection({
       <div className="flex justify-end">
         <button
           type="submit"
-          disabled={loading || uploadingMedia || !formData.listing_type || !formData.terms_agreed}
+          disabled={loading || uploadingMedia || !formData.terms_agreed}
           className="bg-accent-500 text-white px-8 py-3 rounded-md font-semibold hover:bg-accent-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-accent-400 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
           {loading ? "Creating Listing..." : uploadingMedia ? "Uploading Photos..." : "Post Listing"}

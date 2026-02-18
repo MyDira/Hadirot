@@ -53,6 +53,7 @@ export function PostListing() {
   const [customNeighborhoodInput, setCustomNeighborhoodInput] = useState("");
   const [ownedAgencyId, setOwnedAgencyId] = useState<string | null>(null);
   const [salesFeatureEnabled, setSalesFeatureEnabled] = useState(false);
+  const [salesUniversalAccess, setSalesUniversalAccess] = useState(false);
   const [canPostSales, setCanPostSales] = useState(false);
   const [showPermissionModal, setShowPermissionModal] = useState(false);
   const [permissionRequestMessage, setPermissionRequestMessage] = useState('');
@@ -165,6 +166,7 @@ export function PostListing() {
   // Load sales feature status on component mount
   useEffect(() => {
     salesService.isSalesFeatureEnabled().then(setSalesFeatureEnabled);
+    salesService.getSalesSettings().then(s => setSalesUniversalAccess(s?.sales_universal_access || false));
   }, []);
 
   // Check if user can post sales listings when user changes
@@ -216,12 +218,12 @@ export function PostListing() {
       return;
     }
 
-    // Priority 3: User lacks canPostSales - auto-select rental
+    // Priority 3: User lacks canPostSales AND universal access is off - auto-select rental
     // Priority 4: Otherwise leave empty to force explicit choice
-    if (!canPostSales && formData.listing_type === '') {
+    if (!canPostSales && !salesUniversalAccess && formData.listing_type === '') {
       setFormData(prev => ({ ...prev, listing_type: 'rental' }));
     }
-  }, [hasDraft, canPostSales, formData.listing_type]);
+  }, [hasDraft, canPostSales, salesUniversalAccess, formData.listing_type]);
 
   // Sync heat field with utilities_included array for rental listings
   useEffect(() => {
@@ -1552,7 +1554,8 @@ export function PostListing() {
                 <button
                   type="button"
                   onClick={() => {
-                    if (canPostSales) {
+                    const canAccess = canPostSales || salesUniversalAccess;
+                    if (canAccess) {
                       hasManuallySelectedTypeRef.current = true;
                       setFormData({ ...formData, listing_type: 'sale' });
                     } else {
@@ -1563,12 +1566,12 @@ export function PostListing() {
                     formData.listing_type === 'sale'
                       ? 'border-accent-500 bg-accent-50 shadow-md'
                       : 'border-gray-300 hover:border-accent-400 hover:bg-gray-50'
-                  } ${!canPostSales ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  } ${!(canPostSales || salesUniversalAccess) ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
                   <div className="text-lg font-bold text-brand-700">Sale Listing</div>
                   <div className="text-sm text-gray-600 mt-1">Post a property for sale</div>
                 </button>
-                {!canPostSales && (
+                {!(canPostSales || salesUniversalAccess) && (
                   <div className="absolute inset-0 flex items-center justify-center bg-gray-100 bg-opacity-90 rounded-lg pointer-events-none">
                     <div className="text-center p-4">
                       <p className="text-sm font-medium text-gray-700">
@@ -1578,7 +1581,11 @@ export function PostListing() {
                         type="button"
                         onClick={(e) => {
                           e.stopPropagation();
-                          setShowPermissionModal(true);
+                          if (!user) {
+                            setShowAuthModal(true);
+                          } else {
+                            setShowPermissionModal(true);
+                          }
                         }}
                         className="text-sm text-accent-600 underline font-medium mt-1 pointer-events-auto"
                       >
@@ -1634,10 +1641,10 @@ export function PostListing() {
           />
         )}
 
+        {formData.listing_type && (<>
+
         {/* Basic Information */}
-        <div className={`bg-white rounded-lg shadow-sm border border-gray-200 p-6 relative transition-all ${
-          !formData.listing_type ? 'opacity-40 pointer-events-none' : ''
-        }`}>
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 relative">
           <h2 className="text-xl font-semibold text-brand-700 mb-4">
             Basic Information
           </h2>
@@ -2064,7 +2071,7 @@ export function PostListing() {
         )}
 
         {/* Sales-Specific Fields */}
-        {formData.listing_type === 'sale' && canPostSales && (
+        {formData.listing_type === 'sale' && (canPostSales || salesUniversalAccess) && (
           <div className="space-y-6">
             <SalesListingFields
               formData={formData}
@@ -2085,9 +2092,7 @@ export function PostListing() {
         )}
 
         {/* Media Upload (Images & Videos) */}
-        <div className={`bg-white rounded-lg shadow-sm border border-gray-200 p-6 relative transition-all ${
-          !formData.listing_type ? 'opacity-40 pointer-events-none' : ''
-        }`}>
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 relative">
           <h2 className="text-xl font-semibold text-brand-700 mb-4">
             Media (Images & Video)
           </h2>
@@ -2118,6 +2123,8 @@ export function PostListing() {
           loading={loading}
           uploadingMedia={uploadingMedia}
         />
+
+        </>)}
       </form>
 
       {/* Authentication Modal */}
