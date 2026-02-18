@@ -6,6 +6,7 @@ interface ContactAndSubmitSectionProps {
   handleInputChange: (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => void;
   setFormData: React.Dispatch<React.SetStateAction<ListingFormData>>;
   loading: boolean;
+  uploadingMedia?: boolean;
 }
 
 export function ContactAndSubmitSection({
@@ -13,6 +14,7 @@ export function ContactAndSubmitSection({
   handleInputChange,
   setFormData,
   loading,
+  uploadingMedia = false,
 }: ContactAndSubmitSectionProps) {
   return (
     <>
@@ -76,10 +78,10 @@ export function ContactAndSubmitSection({
       <div className="flex justify-end">
         <button
           type="submit"
-          disabled={loading || !formData.listing_type || !formData.terms_agreed}
+          disabled={loading || uploadingMedia || !formData.listing_type || !formData.terms_agreed}
           className="bg-accent-500 text-white px-8 py-3 rounded-md font-semibold hover:bg-accent-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-accent-400 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
-          {loading ? "Creating Listing..." : "Post Listing"}
+          {loading ? "Creating Listing..." : uploadingMedia ? "Uploading Photos..." : "Post Listing"}
         </button>
       </div>
     </>

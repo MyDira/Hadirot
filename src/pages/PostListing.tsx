@@ -47,6 +47,7 @@ export function PostListing() {
   const [uploadingMedia, setUploadingMedia] = useState(false);
   const [savingDraft, setSavingDraft] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
+  const [pendingSubmitAfterAuth, setPendingSubmitAfterAuth] = useState(false);
   const [neighborhoodSelectValue, setNeighborhoodSelectValue] = useState<string>("");
   const [showCustomNeighborhood, setShowCustomNeighborhood] = useState(false);
   const [customNeighborhoodInput, setCustomNeighborhoodInput] = useState("");
@@ -834,11 +835,6 @@ export function PostListing() {
   const handleMediaAdd = async (files: File[]) => {
     handleFirstInteraction();
 
-    if (!user) {
-      alert("Please sign in to upload media");
-      return;
-    }
-
     if (mediaFiles.length + files.length > 11) {
       alert("Maximum 11 files allowed (images + videos)");
       return;
@@ -904,27 +900,42 @@ export function PostListing() {
             }
           }
 
-          try {
-            const { filePath, publicUrl } =
-              await listingsService.uploadTempListingImage(fileToUpload, user.id);
-
+          if (!user) {
+            const previewUrl = URL.createObjectURL(fileToUpload);
             const is_featured = !hasFeatured;
-            if (!hasFeatured) {
-              hasFeatured = true;
-            }
+            if (!hasFeatured) hasFeatured = true;
 
             newMedia.push({
               id: `img-${Date.now()}-${Math.random()}`,
               type: 'image',
-              url: publicUrl,
-              filePath,
-              publicUrl,
+              file: fileToUpload,
+              url: previewUrl,
               is_featured,
               originalName: file.name
             });
-          } catch (error) {
-            console.error("Error uploading temp image:", error);
-            alert(`Failed to upload ${file.name}. Please try again.`);
+          } else {
+            try {
+              const { filePath, publicUrl } =
+                await listingsService.uploadTempListingImage(fileToUpload, user.id);
+
+              const is_featured = !hasFeatured;
+              if (!hasFeatured) {
+                hasFeatured = true;
+              }
+
+              newMedia.push({
+                id: `img-${Date.now()}-${Math.random()}`,
+                type: 'image',
+                url: publicUrl,
+                filePath,
+                publicUrl,
+                is_featured,
+                originalName: file.name
+              });
+            } catch (error) {
+              console.error("Error uploading temp image:", error);
+              alert(`Failed to upload ${file.name}. Please try again.`);
+            }
           }
         }
       }
@@ -946,7 +957,7 @@ export function PostListing() {
     handleFirstInteraction();
     setMediaFiles((prev) => {
       const mediaToRemove = prev.find(m => m.id === id);
-      if (mediaToRemove?.type === 'video' && mediaToRemove.url.startsWith('blob:')) {
+      if (mediaToRemove?.url.startsWith('blob:')) {
         URL.revokeObjectURL(mediaToRemove.url);
       }
 
@@ -973,6 +984,38 @@ export function PostListing() {
         is_featured: m.id === id && m.type === 'image',
       })),
     );
+  };
+
+  const uploadPendingMedia = async (): Promise<boolean> => {
+    if (!user) return false;
+    const pending = mediaFiles.filter(m => m.type === 'image' && !m.filePath && m.file);
+    if (pending.length === 0) return true;
+
+    setUploadingMedia(true);
+    try {
+      const updates: { id: string; filePath: string; publicUrl: string }[] = [];
+      for (const entry of pending) {
+        try {
+          const { filePath, publicUrl } = await listingsService.uploadTempListingImage(entry.file!, user.id);
+          updates.push({ id: entry.id, filePath, publicUrl });
+        } catch (err) {
+          console.error(`Error uploading ${entry.originalName}:`, err);
+          alert(`Failed to upload ${entry.originalName || 'image'}. Please try again.`);
+          setUploadingMedia(false);
+          return false;
+        }
+      }
+      setMediaFiles(prev =>
+        prev.map(m => {
+          const update = updates.find(u => u.id === m.id);
+          if (!update) return m;
+          return { ...m, filePath: update.filePath, publicUrl: update.publicUrl, url: update.publicUrl };
+        })
+      );
+      return true;
+    } finally {
+      setUploadingMedia(false);
+    }
   };
 
   const submitListingContent = async () => {
@@ -1430,6 +1473,7 @@ export function PostListing() {
     if (loading) return;
 
     if (!user) {
+      setPendingSubmitAfterAuth(true);
       setShowAuthModal(true);
       return;
     }
@@ -1440,7 +1484,13 @@ export function PostListing() {
 
   const handleAuthSuccess = async () => {
     setShowAuthModal(false);
-    // User can now continue editing the form and add images
+    if (pendingSubmitAfterAuth) {
+      setPendingSubmitAfterAuth(false);
+      const uploaded = await uploadPendingMedia();
+      if (uploaded) {
+        await submitListingContent();
+      }
+    }
   };
 
   const handleFirstInteraction = () => {
@@ -2049,9 +2099,7 @@ export function PostListing() {
             onSetFeatured={handleSetFeatured}
             maxFiles={11}
             minFiles={formData.listing_type === 'sale' ? 2 : 0}
-            disabled={!user}
             uploading={uploadingMedia}
-            showAuthWarning={!user}
           />
 
           {/* Auto-save indicator */}
@@ -2068,6 +2116,7 @@ export function PostListing() {
           handleInputChange={handleInputChange}
           setFormData={setFormData}
           loading={loading}
+          uploadingMedia={uploadingMedia}
         />
       </form>
 

@@ -22,7 +22,6 @@ interface MediaUploaderProps {
   minFiles?: number;
   disabled?: boolean;
   uploading?: boolean;
-  showAuthWarning?: boolean;
 }
 
 export function MediaUploader({
@@ -34,7 +33,6 @@ export function MediaUploader({
   minFiles = 0,
   disabled = false,
   uploading = false,
-  showAuthWarning = false,
 }: MediaUploaderProps) {
   const [dragActive, setDragActive] = useState(false);
 
@@ -178,14 +176,6 @@ export function MediaUploader({
               )}
             </div>
           ))}
-        </div>
-      )}
-
-      {showAuthWarning && (
-        <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
-          <p className="text-sm text-yellow-800">
-            Please sign in to upload images and videos. Your form data will be saved automatically.
-          </p>
         </div>
       )}
 
