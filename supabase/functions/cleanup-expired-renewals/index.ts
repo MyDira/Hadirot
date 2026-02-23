@@ -34,7 +34,7 @@ Deno.serve(async (req) => {
     const { data: expiredConversations, error: queryError } = await supabaseAdmin
       .from("listing_renewal_conversations")
       .select("id, listing_id, state")
-      .in("state", ["pending", "awaiting_availability", "awaiting_hadirot_question", "awaiting_listing_selection", "awaiting_report_response"])
+      .in("state", ["pending", "awaiting_availability", "awaiting_hadirot_question", "awaiting_listing_selection", "awaiting_report_response", "callback_sent"])
       .lt("expires_at", now);
 
     if (queryError) {

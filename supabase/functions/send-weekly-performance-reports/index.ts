@@ -61,6 +61,8 @@ function buildPerformanceMessage(metrics: ContactMetrics): string {
   return lines.join('\n');
 }
 
+const BATCH_SIZE = 10;
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -95,173 +97,163 @@ Deno.serve(async (req) => {
       auth: { autoRefreshToken: false, persistSession: false },
     });
 
-    console.log("Querying listing metrics for the past 7 days...");
+    const { data: activeListings, error: listingsError } = await supabaseAdmin
+      .from('listings')
+      .select('id, contact_phone')
+      .eq('is_active', true)
+      .eq('approved', true)
+      .not('contact_phone', 'is', null)
+      .not('user_id', 'is', null);
 
-    const query = `
-      WITH listing_metrics AS (
-        SELECT
-          l.id as listing_id,
-          l.contact_phone,
-          (SELECT COUNT(*)
-           FROM analytics_events ae
-           WHERE ae.event_name = 'listing_impression_batch'
-             AND ae.occurred_at >= NOW() - INTERVAL '7 days'
-             AND l.id::text = ANY(
-               SELECT jsonb_array_elements_text(ae.event_props->'listing_ids')
-             )
-          ) as impressions,
-          (SELECT COUNT(*)
-           FROM analytics_events ae
-           WHERE ae.event_name = 'listing_view'
-             AND ae.event_props->>'listing_id' = l.id::text
-             AND ae.occurred_at >= NOW() - INTERVAL '7 days'
-          ) as views,
-          (SELECT COUNT(*)
-           FROM analytics_events ae
-           WHERE ae.event_name = 'phone_click'
-             AND ae.event_props->>'listing_id' = l.id::text
-             AND ae.occurred_at >= NOW() - INTERVAL '7 days'
-          ) as phone_clicks,
-          (SELECT COUNT(*)
-           FROM listing_contact_submissions lcs
-           WHERE lcs.listing_id = l.id
-             AND lcs.created_at >= NOW() - INTERVAL '7 days'
-          ) as callbacks
-        FROM listings l
-        WHERE l.is_active = true
-          AND l.approved = true
-          AND l.contact_phone IS NOT NULL
-          AND l.user_id IS NOT NULL
-      )
-      SELECT
-        contact_phone,
-        COUNT(*) as listing_count,
-        SUM(impressions) as total_impressions,
-        ROUND(AVG(impressions), 1) as avg_impressions,
-        SUM(views) as total_views,
-        ROUND(AVG(views), 1) as avg_views,
-        SUM(phone_clicks) as total_phone_clicks,
-        SUM(callbacks) as total_callbacks,
-        (SUM(phone_clicks) + SUM(callbacks)) as total_leads
-      FROM listing_metrics
-      GROUP BY contact_phone
-      HAVING SUM(impressions) >= 10
-      ORDER BY total_impressions DESC;
-    `;
+    if (listingsError) {
+      console.error("Error querying listings:", listingsError);
+      return new Response(
+        JSON.stringify({ error: "Failed to query listings" }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
-    const { data: metricsData, error: queryError } = await supabaseAdmin.rpc(
-      'exec_sql',
-      { sql: query }
-    ).select();
+    if (!activeListings || activeListings.length === 0) {
+      return new Response(
+        JSON.stringify({ success: true, message: "No active listings found", processed: 0 }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
-    if (queryError) {
-      console.log("Query error, trying direct query instead...");
+    console.log(`Found ${activeListings.length} active listings, running bulk queries...`);
 
-      const { data: rawData, error: rawError } = await supabaseAdmin
-        .from('listings')
-        .select('id, contact_phone, is_active, approved, user_id')
-        .eq('is_active', true)
-        .eq('approved', true)
-        .not('contact_phone', 'is', null)
-        .not('user_id', 'is', null);
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+    const listingIds = activeListings.map(l => l.id);
 
-      if (rawError) {
-        console.error("Error querying listings:", rawError);
-        return new Response(
-          JSON.stringify({ error: "Failed to query listings" }),
-          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
+    const [impressionsResult, viewsResult, phoneClicksResult, callbacksResult] = await Promise.all([
+      supabaseAdmin
+        .from('analytics_events')
+        .select('event_props')
+        .eq('event_name', 'listing_impression_batch')
+        .gte('occurred_at', sevenDaysAgo),
 
-      console.log(`Found ${rawData?.length || 0} active listings, aggregating metrics manually...`);
+      supabaseAdmin
+        .from('analytics_events')
+        .select('event_props')
+        .eq('event_name', 'listing_view')
+        .gte('occurred_at', sevenDaysAgo),
 
-      const contactMetricsMap = new Map<string, ContactMetrics>();
+      supabaseAdmin
+        .from('analytics_events')
+        .select('event_props')
+        .eq('event_name', 'phone_click')
+        .gte('occurred_at', sevenDaysAgo),
 
-      for (const listing of rawData || []) {
-        if (!contactMetricsMap.has(listing.contact_phone)) {
-          contactMetricsMap.set(listing.contact_phone, {
-            contact_phone: listing.contact_phone,
-            listing_count: 0,
-            total_impressions: 0,
-            avg_impressions: 0,
-            total_views: 0,
-            avg_views: 0,
-            total_phone_clicks: 0,
-            total_callbacks: 0,
-            total_leads: 0,
-          });
-        }
+      supabaseAdmin
+        .from('listing_contact_submissions')
+        .select('listing_id')
+        .gte('created_at', sevenDaysAgo),
+    ]);
 
-        const metrics = contactMetricsMap.get(listing.contact_phone)!;
-        metrics.listing_count++;
+    const listingIdSet = new Set(listingIds);
 
-        const { data: impressionEvents } = await supabaseAdmin
-          .from('analytics_events')
-          .select('id')
-          .eq('event_name', 'listing_impression_batch')
-          .gte('occurred_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString())
-          .contains('event_props', { listing_ids: [listing.id] });
-
-        const { data: viewEvents } = await supabaseAdmin
-          .from('analytics_events')
-          .select('id')
-          .eq('event_name', 'listing_view')
-          .eq('event_props->>listing_id', listing.id)
-          .gte('occurred_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString());
-
-        const { data: phoneEvents } = await supabaseAdmin
-          .from('analytics_events')
-          .select('id')
-          .eq('event_name', 'phone_click')
-          .eq('event_props->>listing_id', listing.id)
-          .gte('occurred_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString());
-
-        const { data: callbacks } = await supabaseAdmin
-          .from('listing_contact_submissions')
-          .select('id')
-          .eq('listing_id', listing.id)
-          .gte('created_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString());
-
-        metrics.total_impressions += impressionEvents?.length || 0;
-        metrics.total_views += viewEvents?.length || 0;
-        metrics.total_phone_clicks += phoneEvents?.length || 0;
-        metrics.total_callbacks += callbacks?.length || 0;
-      }
-
-      const metricsArray: ContactMetrics[] = [];
-      for (const [phone, metrics] of contactMetricsMap) {
-        if (metrics.total_impressions >= 10) {
-          metrics.avg_impressions = Math.round((metrics.total_impressions / metrics.listing_count) * 10) / 10;
-          metrics.avg_views = Math.round((metrics.total_views / metrics.listing_count) * 10) / 10;
-          metrics.total_leads = metrics.total_phone_clicks + metrics.total_callbacks;
-          metricsArray.push(metrics);
+    const impressionsByListing = new Map<string, number>();
+    if (impressionsResult.data) {
+      for (const event of impressionsResult.data) {
+        const ids = event.event_props?.listing_ids;
+        if (Array.isArray(ids)) {
+          for (const id of ids) {
+            if (listingIdSet.has(id)) {
+              impressionsByListing.set(id, (impressionsByListing.get(id) || 0) + 1);
+            }
+          }
         }
       }
+    }
 
-      console.log(`Found ${metricsArray.length} contacts with >= 10 impressions`);
+    const viewsByListing = new Map<string, number>();
+    if (viewsResult.data) {
+      for (const event of viewsResult.data) {
+        const id = event.event_props?.listing_id;
+        if (id && listingIdSet.has(id)) {
+          viewsByListing.set(id, (viewsByListing.get(id) || 0) + 1);
+        }
+      }
+    }
 
-      if (metricsArray.length === 0) {
-        return new Response(
-          JSON.stringify({
-            success: true,
-            message: "No contacts qualified for reports (< 10 impressions)",
-            processed: 0
-          }),
-          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
+    const phoneClicksByListing = new Map<string, number>();
+    if (phoneClicksResult.data) {
+      for (const event of phoneClicksResult.data) {
+        const id = event.event_props?.listing_id;
+        if (id && listingIdSet.has(id)) {
+          phoneClicksByListing.set(id, (phoneClicksByListing.get(id) || 0) + 1);
+        }
+      }
+    }
+
+    const callbacksByListing = new Map<string, number>();
+    if (callbacksResult.data) {
+      for (const sub of callbacksResult.data) {
+        if (sub.listing_id && listingIdSet.has(sub.listing_id)) {
+          callbacksByListing.set(sub.listing_id, (callbacksByListing.get(sub.listing_id) || 0) + 1);
+        }
+      }
+    }
+
+    const contactMetricsMap = new Map<string, ContactMetrics>();
+
+    for (const listing of activeListings) {
+      if (!contactMetricsMap.has(listing.contact_phone)) {
+        contactMetricsMap.set(listing.contact_phone, {
+          contact_phone: listing.contact_phone,
+          listing_count: 0,
+          total_impressions: 0,
+          avg_impressions: 0,
+          total_views: 0,
+          avg_views: 0,
+          total_phone_clicks: 0,
+          total_callbacks: 0,
+          total_leads: 0,
+        });
       }
 
-      let smsSent = 0;
-      let smsErrors = 0;
+      const metrics = contactMetricsMap.get(listing.contact_phone)!;
+      metrics.listing_count++;
+      metrics.total_impressions += impressionsByListing.get(listing.id) || 0;
+      metrics.total_views += viewsByListing.get(listing.id) || 0;
+      metrics.total_phone_clicks += phoneClicksByListing.get(listing.id) || 0;
+      metrics.total_callbacks += callbacksByListing.get(listing.id) || 0;
+    }
 
-      for (const metrics of metricsArray) {
-        const phoneNumber = formatPhoneForSMS(metrics.contact_phone);
-        const message = buildPerformanceMessage(metrics);
+    const metricsArray: ContactMetrics[] = [];
+    for (const metrics of contactMetricsMap.values()) {
+      if (metrics.total_impressions >= 10) {
+        metrics.avg_impressions = Math.round((metrics.total_impressions / metrics.listing_count) * 10) / 10;
+        metrics.avg_views = Math.round((metrics.total_views / metrics.listing_count) * 10) / 10;
+        metrics.total_leads = metrics.total_phone_clicks + metrics.total_callbacks;
+        metricsArray.push(metrics);
+      }
+    }
 
-        console.log(`Sending report to ${phoneNumber}:`);
-        console.log(message);
+    console.log(`Found ${metricsArray.length} contacts with >= 10 impressions`);
 
-        try {
+    if (metricsArray.length === 0) {
+      return new Response(
+        JSON.stringify({
+          success: true,
+          message: "No contacts qualified for reports (< 10 impressions)",
+          processed: 0
+        }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    let smsSent = 0;
+    let smsErrors = 0;
+
+    for (let i = 0; i < metricsArray.length; i += BATCH_SIZE) {
+      const batch = metricsArray.slice(i, i + BATCH_SIZE);
+
+      const results = await Promise.allSettled(
+        batch.map(async (metrics) => {
+          const phoneNumber = formatPhoneForSMS(metrics.contact_phone);
+          const message = buildPerformanceMessage(metrics);
+
           const twilioUrl = `https://api.twilio.com/2010-04-01/Accounts/${twilioAccountSid}/Messages.json`;
           const twilioAuth = btoa(`${twilioAccountSid}:${twilioAuthToken}`);
 
@@ -281,92 +273,33 @@ Deno.serve(async (req) => {
           const twilioData: TwilioResponse = await twilioResponse.json();
 
           if (!twilioResponse.ok) {
-            console.error(`Twilio error for ${phoneNumber}:`, twilioData);
-            smsErrors++;
-            continue;
+            throw new Error(`Twilio error for ${phoneNumber}: ${twilioData.error_message}`);
           }
 
+          try {
+            await supabaseAdmin.from("sms_messages").insert({
+              direction: "outbound",
+              phone_number: phoneNumber,
+              message_body: message,
+              message_sid: twilioData.sid,
+              message_source: "weekly_report",
+              status: "sent",
+            });
+          } catch (logErr) {
+            console.error("Error logging SMS:", logErr);
+          }
+
+          return twilioData.sid;
+        })
+      );
+
+      for (const result of results) {
+        if (result.status === "fulfilled") {
           smsSent++;
-          console.log(`SMS sent successfully to ${phoneNumber}: ${twilioData.sid}`);
-
-        } catch (error) {
-          console.error(`Network error sending SMS to ${phoneNumber}:`, error);
+        } else {
+          console.error("SMS send failed:", result.reason);
           smsErrors++;
         }
-      }
-
-      const summary = {
-        totalContacts: metricsArray.length,
-        smsSent,
-        smsErrors,
-        timestamp: new Date().toISOString(),
-      };
-
-      console.log("Weekly performance reports job completed:", summary);
-
-      return new Response(
-        JSON.stringify({ success: true, summary }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    console.log(`Query completed, processing results...`);
-
-    const metricsArray = metricsData as ContactMetrics[];
-    console.log(`Found ${metricsArray.length} contacts with >= 10 impressions`);
-
-    if (metricsArray.length === 0) {
-      return new Response(
-        JSON.stringify({
-          success: true,
-          message: "No contacts qualified for reports (< 10 impressions)",
-          processed: 0
-        }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    let smsSent = 0;
-    let smsErrors = 0;
-
-    for (const metrics of metricsArray) {
-      const phoneNumber = formatPhoneForSMS(metrics.contact_phone);
-      const message = buildPerformanceMessage(metrics);
-
-      console.log(`Sending report to ${phoneNumber}:`);
-      console.log(message);
-
-      try {
-        const twilioUrl = `https://api.twilio.com/2010-04-01/Accounts/${twilioAccountSid}/Messages.json`;
-        const twilioAuth = btoa(`${twilioAccountSid}:${twilioAuthToken}`);
-
-        const twilioResponse = await fetch(twilioUrl, {
-          method: "POST",
-          headers: {
-            "Authorization": `Basic ${twilioAuth}`,
-            "Content-Type": "application/x-www-form-urlencoded",
-          },
-          body: new URLSearchParams({
-            To: phoneNumber,
-            From: twilioPhoneNumber,
-            Body: message,
-          }),
-        });
-
-        const twilioData: TwilioResponse = await twilioResponse.json();
-
-        if (!twilioResponse.ok) {
-          console.error(`Twilio error for ${phoneNumber}:`, twilioData);
-          smsErrors++;
-          continue;
-        }
-
-        smsSent++;
-        console.log(`SMS sent successfully to ${phoneNumber}: ${twilioData.sid}`);
-
-      } catch (error) {
-        console.error(`Network error sending SMS to ${phoneNumber}:`, error);
-        smsErrors++;
       }
     }
 

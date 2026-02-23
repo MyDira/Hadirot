@@ -106,7 +106,7 @@ Deno.serve(async (req) => {
     // Fetch listing details
     const { data: listing, error: listingError } = await supabase
       .from("listings")
-      .select("bedrooms, location, neighborhood, contact_phone, price, asking_price, listing_type, call_for_price, cross_street_a, cross_street_b")
+      .select("bedrooms, location, neighborhood, contact_phone, price, asking_price, listing_type, call_for_price, cross_street_a, cross_street_b, user_id")
       .eq("id", formData.listingId)
       .single();
 
@@ -259,7 +259,20 @@ Deno.serve(async (req) => {
 
     console.log("SMS sent successfully:", twilioData.sid);
 
-    // Store the submission in the database
+    try {
+      await supabase.from("sms_messages").insert({
+        direction: "outbound",
+        phone_number: formatPhoneForSMS(listing.contact_phone),
+        message_body: smsMessage,
+        message_sid: twilioData.sid,
+        message_source: "contact_notification",
+        listing_id: formData.listingId,
+        status: "sent",
+      });
+    } catch (logErr) {
+      console.error("Error logging SMS:", logErr);
+    }
+
     const { error: insertError } = await supabase
       .from("listing_contact_submissions")
       .insert({
@@ -274,6 +287,32 @@ Deno.serve(async (req) => {
 
     if (insertError) {
       console.error("Error storing submission:", insertError);
+    }
+
+    if (!isSale && listing.user_id) {
+      const callbackExpires = new Date(Date.now() + 72 * 60 * 60 * 1000);
+      const { error: convError } = await supabase
+        .from("listing_renewal_conversations")
+        .insert({
+          listing_id: formData.listingId,
+          user_id: listing.user_id,
+          phone_number: formatPhoneForSMS(listing.contact_phone),
+          batch_id: null,
+          listing_index: null,
+          total_in_batch: null,
+          message_sent_at: new Date().toISOString(),
+          message_sid: twilioData.sid,
+          expires_at: callbackExpires.toISOString(),
+          state: "callback_sent",
+          conversation_type: "callback",
+          metadata: {
+            inquiry_from: formData.userName,
+            inquiry_phone: formData.userPhone,
+          },
+        });
+      if (convError) {
+        console.error("Error creating callback conversation:", convError);
+      }
     }
 
     return new Response(

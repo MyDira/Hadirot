@@ -171,9 +171,23 @@ Deno.serve(async (req) => {
 
     console.log("SMS sent successfully:", twilioData.sid);
 
+    try {
+      await supabase.from("sms_messages").insert({
+        direction: "outbound",
+        phone_number: formattedPhone,
+        message_body: smsMessage,
+        message_sid: twilioData.sid,
+        message_source: "report_rented",
+        listing_id: listing.id,
+        status: "sent",
+      });
+    } catch (logErr) {
+      console.error("Error logging SMS:", logErr);
+    }
+
     const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
-    const { error: insertError } = await supabase
+    const { data: newConv, error: insertError } = await supabase
       .from("listing_renewal_conversations")
       .insert({
         listing_id: listing.id,
@@ -186,15 +200,28 @@ Deno.serve(async (req) => {
         message_sid: twilioData.sid,
         expires_at: expiresAt.toISOString(),
         state: 'awaiting_report_response',
+        conversation_type: 'report',
         metadata: {
           reporter_name: requestData.reporterName,
           reporter_email: requestData.reporterEmail,
           report_type: 'user_report'
         },
-      });
+      })
+      .select("id")
+      .maybeSingle();
 
     if (insertError) {
       console.error("Error creating conversation:", insertError);
+    }
+
+    if (newConv) {
+      try {
+        await supabase.from("sms_messages").update({
+          conversation_id: newConv.id,
+        }).eq("message_sid", twilioData.sid);
+      } catch (linkErr) {
+        console.error("Error linking SMS to conversation:", linkErr);
+      }
     }
 
     return new Response(

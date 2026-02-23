@@ -267,6 +267,20 @@ Deno.serve(async (req) => {
             smsSent++;
             console.log(`SMS sent to ${phoneNumber} for listing ${listing.id}: ${messageSid}`);
 
+            try {
+              await supabaseAdmin.from("sms_messages").insert({
+                direction: "outbound",
+                phone_number: phoneNumber,
+                message_body: smsMessage,
+                message_sid: messageSid,
+                message_source: "renewal_reminder",
+                listing_id: listing.id,
+                status: "sent",
+              });
+            } catch (logErr) {
+              console.error("Error logging SMS:", logErr);
+            }
+
           } catch (error) {
             console.error(`Network error sending SMS for listing ${listing.id}:`, error);
             await supabaseAdmin
