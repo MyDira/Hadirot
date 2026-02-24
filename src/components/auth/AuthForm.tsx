@@ -3,6 +3,37 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { Eye, EyeOff } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { requestPasswordReset } from "../../services/email";
+import { listingsService } from "../../services/listings";
+
+const PENDING_AUTH_KEY = "hadirot_pending_auth";
+
+interface PendingAction {
+  type: "favorite";
+  listingId: string;
+  currentlyFavorited: boolean;
+}
+
+interface PendingAuthState {
+  from?: string;
+  pendingAction?: PendingAction;
+}
+
+function savePendingAuth(state: PendingAuthState) {
+  try {
+    sessionStorage.setItem(PENDING_AUTH_KEY, JSON.stringify(state));
+  } catch {}
+}
+
+function consumePendingAuth(): PendingAuthState | null {
+  try {
+    const raw = sessionStorage.getItem(PENDING_AUTH_KEY);
+    if (!raw) return null;
+    sessionStorage.removeItem(PENDING_AUTH_KEY);
+    return JSON.parse(raw) as PendingAuthState;
+  } catch {
+    return null;
+  }
+}
 
 interface AuthFormProps {
   onAuthSuccess?: () => void;
@@ -19,12 +50,13 @@ export function AuthForm({ onAuthSuccess }: AuthFormProps = {}) {
   const [resetEmail, setResetEmail] = useState("");
   const [resetLoading, setResetLoading] = useState(false);
   const [resetMessage, setResetMessage] = useState<string | null>(null);
-  const { signIn, signUp, signInWithGoogle } = useAuth();
+  const { signIn, signUp, signInWithGoogle, user, profile } = useAuth();
   const navigate = useNavigate();
   const emailInputRef = useRef<HTMLInputElement>(null);
   const [signInTemporarilyDisabled, setSignInTemporarilyDisabled] =
     useState(true);
   const mountTsRef = useRef<number>(0);
+  const pendingRoleRedirectRef = useRef(false);
 
   const [formData, setFormData] = useState({
     email: "",
@@ -34,6 +66,70 @@ export function AuthForm({ onAuthSuccess }: AuthFormProps = {}) {
     phone: "",
     agency: "",
   });
+
+  const getRoleDestination = (role: string | undefined | null): string => {
+    if (role === "agent" || role === "landlord") return "/dashboard";
+    return "/browse";
+  };
+
+  const executePendingFavorite = async (
+    action: PendingAction,
+    userId: string,
+  ) => {
+    if (action.type !== "favorite" || action.currentlyFavorited) return;
+    try {
+      await listingsService.addToFavorites(userId, action.listingId);
+    } catch {}
+  };
+
+  useEffect(() => {
+    if (!pendingRoleRedirectRef.current) return;
+    if (!user || profile === undefined) return;
+    pendingRoleRedirectRef.current = false;
+    navigate(getRoleDestination(profile?.role), { replace: true });
+  }, [profile, user]);
+
+  useEffect(() => {
+    if (onAuthSuccess) return;
+    if (!user) return;
+    const pending = consumePendingAuth();
+    if (!pending) return;
+    (async () => {
+      if (pending.pendingAction) {
+        await executePendingFavorite(pending.pendingAction, user.id);
+      }
+      if (pending.from) {
+        navigate(pending.from, { replace: true });
+      } else {
+        pendingRoleRedirectRef.current = true;
+        if (profile !== undefined) {
+          pendingRoleRedirectRef.current = false;
+          navigate(getRoleDestination(profile?.role), { replace: true });
+        }
+      }
+    })();
+  }, [user]);
+
+  const handlePostAuthRedirect = async (userId: string) => {
+    const stateFrom: string | undefined = location.state?.from;
+    const statePendingAction: PendingAction | undefined =
+      location.state?.pendingAction;
+
+    if (statePendingAction) {
+      await executePendingFavorite(statePendingAction, userId);
+    }
+
+    if (stateFrom) {
+      navigate(stateFrom, { replace: true });
+      return;
+    }
+
+    pendingRoleRedirectRef.current = true;
+    if (profile !== undefined) {
+      pendingRoleRedirectRef.current = false;
+      navigate(getRoleDestination(profile?.role), { replace: true });
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -45,21 +141,24 @@ export function AuthForm({ onAuthSuccess }: AuthFormProps = {}) {
     setError(null);
 
     try {
+      let userId: string;
       if (isSignUp) {
-        await signUp(formData.email, formData.password, {
+        const data = await signUp(formData.email, formData.password, {
           full_name: formData.full_name,
           role: formData.role,
           phone: formData.phone || undefined,
           agency: formData.role === "agent" ? formData.agency : undefined,
         });
+        userId = data.user?.id ?? "";
       } else {
-        await signIn(formData.email, formData.password);
+        const data = await signIn(formData.email, formData.password);
+        userId = data.user?.id ?? "";
       }
 
       if (onAuthSuccess) {
         onAuthSuccess();
       } else {
-        navigate(location.state?.from || "/");
+        await handlePostAuthRedirect(userId);
       }
     } catch (err: any) {
       setError(err.message || "An error occurred");
@@ -114,6 +213,14 @@ export function AuthForm({ onAuthSuccess }: AuthFormProps = {}) {
   const handleGoogleSignIn = async () => {
     setGoogleLoading(true);
     setError(null);
+
+    const stateFrom: string | undefined = location.state?.from;
+    const statePendingAction: PendingAction | undefined =
+      location.state?.pendingAction;
+
+    if (stateFrom || statePendingAction) {
+      savePendingAuth({ from: stateFrom, pendingAction: statePendingAction });
+    }
 
     try {
       await signInWithGoogle();
