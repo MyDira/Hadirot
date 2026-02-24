@@ -106,7 +106,7 @@ Deno.serve(async (req) => {
     // Fetch listing details
     const { data: listing, error: listingError } = await supabase
       .from("listings")
-      .select("bedrooms, location, neighborhood, contact_phone, price, asking_price, listing_type, call_for_price, cross_street_a, cross_street_b, user_id")
+      .select("bedrooms, location, neighborhood, contact_phone, price, asking_price, listing_type, call_for_price, cross_street_a, cross_street_b, user_id, is_featured, featured_expires_at")
       .eq("id", formData.listingId)
       .single();
 
@@ -314,6 +314,90 @@ Deno.serve(async (req) => {
         console.error("Error creating callback conversation:", convError);
       }
     }
+
+    // --- BOOST UPSELL SMS ---
+    // 3-second delay so the upsell arrives as a visually separate message
+    await new Promise((resolve) => setTimeout(resolve, 3000));
+
+    try {
+      const agentPhone = formatPhoneForSMS(listing.contact_phone);
+
+      // CHECK 1: Is this listing already featured?
+      const alreadyFeatured =
+        listing.is_featured &&
+        listing.featured_expires_at &&
+        new Date(listing.featured_expires_at) > new Date();
+
+      if (alreadyFeatured) {
+        console.log("Boost upsell skipped: listing is already featured");
+      } else {
+        // CHECK 2: Has this listing already received a boost upsell SMS?
+        const { data: existingUpsell } = await supabase
+          .from("sms_messages")
+          .select("id")
+          .eq("listing_id", formData.listingId)
+          .eq("message_source", "boost_upsell")
+          .limit(1)
+          .maybeSingle();
+
+        if (existingUpsell) {
+          console.log("Boost upsell skipped: listing already received upsell");
+        } else {
+          // CHECK 3: Has this phone received a previous callback notification before this one?
+          const { data: previousCallback } = await supabase
+            .from("sms_messages")
+            .select("id")
+            .eq("phone_number", agentPhone)
+            .eq("message_source", "contact_notification")
+            .neq("message_sid", twilioData.sid)
+            .limit(1)
+            .maybeSingle();
+
+          if (!previousCallback) {
+            console.log("Boost upsell skipped: this is their first-ever callback");
+          } else {
+            // All checks passed — send upsell
+            const street = listing.cross_street_a || listing.neighborhood || "your listing";
+            const bedroomUpsellText = listing.bedrooms ? `${listing.bedrooms}BR` : "listing";
+            const listingDesc = listing.bedrooms ? `${bedroomUpsellText} on ${street}` : street;
+            const upsellMessage = `Hadirot Tip: Want more inquiries on your ${listingDesc}? Boost it to the top of search results — starting at $25/wk: ${siteUrl}/boost/${formData.listingId}`;
+
+            const upsellTwilioResponse = await fetch(twilioUrl, {
+              method: "POST",
+              headers: {
+                "Authorization": `Basic ${twilioAuth}`,
+                "Content-Type": "application/x-www-form-urlencoded",
+              },
+              body: new URLSearchParams({
+                To: agentPhone,
+                From: twilioPhoneNumber,
+                Body: upsellMessage,
+              }),
+            });
+
+            const upsellTwilioData: TwilioResponse = await upsellTwilioResponse.json();
+
+            if (upsellTwilioResponse.ok) {
+              console.log("Boost upsell SMS sent:", upsellTwilioData.sid);
+              await supabase.from("sms_messages").insert({
+                direction: "outbound",
+                phone_number: agentPhone,
+                message_body: upsellMessage,
+                message_sid: upsellTwilioData.sid,
+                message_source: "boost_upsell",
+                listing_id: formData.listingId,
+                status: "sent",
+              });
+            } else {
+              console.error("Boost upsell Twilio error:", upsellTwilioData);
+            }
+          }
+        }
+      }
+    } catch (upsellErr) {
+      console.error("Boost upsell error (non-fatal):", upsellErr);
+    }
+    // --- END BOOST UPSELL SMS ---
 
     return new Response(
       JSON.stringify({

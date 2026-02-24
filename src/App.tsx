@@ -29,6 +29,8 @@ import { ContentManagement } from './pages/ContentManagement';
 import { DigestManager } from './pages/DigestManager';
 import { DigestGlobalSettings } from './pages/DigestGlobalSettings';
 import { ShortUrlRedirect } from './pages/ShortUrlRedirect';
+import { BoostListingPage } from './pages/BoostListingPage';
+import { BoostSuccessPage } from './pages/BoostSuccessPage';
 import { useAuth } from '@/hooks/useAuth';
 import GASmokeTest from '@/dev/gaSmokeTest';
 
@@ -109,6 +111,8 @@ function App() {
                 <Route path="/help/:categorySlug" element={<HelpCategory />} />
                 <Route path="/help/:categorySlug/:articleSlug" element={<HelpArticle />} />
                 <Route path="/agencies/:slug" element={<AgencyPage />} />
+                <Route path="/boost/success" element={<BoostSuccessPage />} />
+                <Route path="/boost/:listingId" element={<BoostListingPage />} />
                 <Route path="/:id" element={<StaticPage />} />
                 <Route
                   path="/auth"
