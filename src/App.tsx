@@ -31,6 +31,8 @@ import { DigestGlobalSettings } from './pages/DigestGlobalSettings';
 import { ShortUrlRedirect } from './pages/ShortUrlRedirect';
 import { BoostListingPage } from './pages/BoostListingPage';
 import { BoostSuccessPage } from './pages/BoostSuccessPage';
+import { Concierge } from './pages/Concierge';
+import { ConciergeSuccess } from './pages/ConciergeSuccess';
 import { useAuth } from '@/hooks/useAuth';
 import GASmokeTest from '@/dev/gaSmokeTest';
 
@@ -113,6 +115,8 @@ function App() {
                 <Route path="/agencies/:slug" element={<AgencyPage />} />
                 <Route path="/boost/success" element={<BoostSuccessPage />} />
                 <Route path="/boost/:listingId" element={<BoostListingPage />} />
+                <Route path="/concierge" element={<Concierge />} />
+                <Route path="/concierge/success" element={<ConciergeSuccess />} />
                 <Route path="/:id" element={<StaticPage />} />
                 <Route
                   path="/auth"

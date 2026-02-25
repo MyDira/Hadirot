@@ -9,6 +9,45 @@ export interface FeaturedPlan {
   priceId: string;
 }
 
+export interface ConciergePlan {
+  id: string;
+  tier: 'tier1_quick' | 'tier2_forward' | 'tier3_vip';
+  name: string;
+  price: number;
+  priceId: string;
+  mode: 'payment' | 'subscription';
+  interval?: string;
+}
+
+export const CONCIERGE_PLANS: ConciergePlan[] = [
+  {
+    id: 'tier1',
+    tier: 'tier1_quick',
+    name: 'Quick Post',
+    price: 25,
+    priceId: 'price_PLACEHOLDER_tier1',
+    mode: 'payment',
+  },
+  {
+    id: 'tier2',
+    tier: 'tier2_forward',
+    name: 'Forward & Post',
+    price: 125,
+    priceId: 'price_PLACEHOLDER_tier2',
+    mode: 'subscription',
+    interval: 'month',
+  },
+  {
+    id: 'tier3',
+    tier: 'tier3_vip',
+    name: 'VIP / Full Service',
+    price: 200,
+    priceId: 'price_PLACEHOLDER_tier3',
+    mode: 'subscription',
+    interval: 'month',
+  },
+];
+
 // IMPORTANT: Replace these price IDs with actual Stripe Price IDs from your catalog
 export const FEATURED_PLANS: FeaturedPlan[] = [
   {

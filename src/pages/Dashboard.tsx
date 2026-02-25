@@ -18,6 +18,8 @@ import {
   Info,
   CheckCircle,
   XCircle,
+  Briefcase,
+  X,
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { Listing, SaleStatus, supabase } from "../config/supabase";
@@ -706,6 +708,24 @@ export default function Dashboard() {
               <Plus className="w-4 h-4 mr-2" />
               Create Listing
             </Link>
+            {!localStorage.getItem('concierge_empty_dismissed') && (
+              <div className="mt-6 mx-auto max-w-md relative bg-[#F0F9FF] border border-[#1E4A74]/20 rounded-lg p-4">
+                <button
+                  onClick={() => { localStorage.setItem('concierge_empty_dismissed', '1'); window.dispatchEvent(new Event('storage')); }}
+                  className="absolute top-2 right-2 text-gray-400 hover:text-gray-600"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+                <div className="flex items-start gap-3">
+                  <Briefcase className="w-5 h-5 text-[#1E4A74] flex-shrink-0 mt-0.5" />
+                  <div className="text-left">
+                    <p className="text-sm font-medium text-gray-800">Too busy to post?</p>
+                    <p className="text-xs text-gray-600 mt-0.5">We'll handle it. Forward us your listings and we'll take care of everything.</p>
+                    <Link to="/concierge" className="text-xs font-semibold text-[#1E4A74] hover:underline mt-1.5 inline-block">Learn More</Link>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         ) : (
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
@@ -1029,6 +1049,22 @@ export default function Dashboard() {
           </div>
         )}
       </div>
+
+      {!localStorage.getItem('concierge_banner_dismissed') && filteredListings.length > 0 && (
+        <div className="mt-4 relative flex items-center justify-between bg-gray-50 border border-gray-200 rounded-lg px-4 py-3">
+          <Link to="/concierge" className="flex items-center gap-2 text-sm text-gray-600 hover:text-[#1E4A74] transition-colors">
+            <Briefcase className="w-4 h-4 text-gray-400" />
+            <span>Want us to handle your listings?</span>
+            <span className="font-medium text-[#1E4A74]">Hadirot Concierge</span>
+          </Link>
+          <button
+            onClick={() => { localStorage.setItem('concierge_banner_dismissed', '1'); window.dispatchEvent(new Event('storage')); }}
+            className="text-gray-400 hover:text-gray-600 ml-2"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
 
       <InquiriesModal
         isOpen={modalOpen}

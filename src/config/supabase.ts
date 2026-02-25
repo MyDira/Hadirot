@@ -295,3 +295,40 @@ export interface AdminSettings {
   max_featured_sales: number;
   updated_at: string;
 }
+
+export type ConciergeTier = 'tier1_quick' | 'tier2_forward' | 'tier3_vip';
+export type ConciergeStatus = 'pending' | 'active' | 'cancelled' | 'expired' | 'past_due';
+export type SubmissionStatus = 'pending' | 'paid' | 'processing' | 'posted' | 'rejected';
+
+export interface ConciergeSubscription {
+  id: string;
+  user_id: string;
+  tier: ConciergeTier;
+  status: ConciergeStatus;
+  stripe_subscription_id: string | null;
+  stripe_customer_id: string | null;
+  email_handle: string | null;
+  sources: string[] | null;
+  last_checked_at: string | null;
+  admin_notes: string | null;
+  created_at: string;
+  updated_at: string;
+  cancelled_at: string | null;
+  user?: Profile;
+}
+
+export interface ConciergeSubmission {
+  id: string;
+  user_id: string;
+  subscription_id: string | null;
+  blurb: string;
+  status: SubmissionStatus;
+  stripe_checkout_session_id: string | null;
+  stripe_payment_intent_id: string | null;
+  amount_cents: number;
+  admin_notes: string | null;
+  listing_id: string | null;
+  created_at: string;
+  updated_at: string;
+  user?: Profile;
+}

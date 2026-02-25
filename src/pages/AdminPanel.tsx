@@ -10,6 +10,8 @@ import { supabase, Profile, Listing } from '../config/supabase';
 import { formatPhoneForDisplay } from '@/utils/phone';
 import { SalesManagement } from '@/components/admin/SalesManagement';
 import { AdminFeatureModal } from '@/components/admin/AdminFeatureModal';
+import { ConciergeManagement } from '@/components/admin/ConciergeManagement';
+import { Briefcase } from 'lucide-react';
 
 const ADMIN_TAB_KEYS = [
   'overview',
@@ -17,6 +19,7 @@ const ADMIN_TAB_KEYS = [
   'listings',
   'pending',
   'sales',
+  'concierge',
 ] as const;
 
 type AdminTabKey = (typeof ADMIN_TAB_KEYS)[number];
@@ -30,6 +33,7 @@ const ADMIN_TABS: { id: AdminTabKey; label: string; icon: React.ElementType }[] 
   { id: 'listings', label: 'Listings', icon: Home },
   { id: 'pending', label: 'Pending', icon: Eye },
   { id: 'sales', label: 'Sales System', icon: DollarSign },
+  { id: 'concierge', label: 'Concierge', icon: Briefcase },
 ];
 
 interface AdminStats {
@@ -1969,6 +1973,8 @@ export function AdminPanel() {
           )}
 
           {activeTab === 'sales' && <SalesManagement />}
+
+          {activeTab === 'concierge' && <ConciergeManagement />}
         </>
       )}
 

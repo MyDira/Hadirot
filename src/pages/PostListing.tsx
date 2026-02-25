@@ -30,6 +30,12 @@ import {
 } from "../lib/analytics";
 import type { ListingFormData } from "./postListing/types";
 import { INITIAL_FORM_DATA } from "./postListing/types";
+import { TierCards } from "../components/concierge/TierCards";
+import { Tier1BlurbForm } from "../components/concierge/Tier1BlurbForm";
+import { Tier2Confirmation } from "../components/concierge/Tier2Confirmation";
+import { Tier3SourcesForm } from "../components/concierge/Tier3SourcesForm";
+import { conciergeService, generateEmailHandle } from "../services/concierge";
+import type { ConciergeSubscription } from "../config/supabase";
 import { mapAIParsedDataToFormFields, validatePrice } from "./postListing/aiParseMapper";
 import { AIParserSection } from "./postListing/AIParserSection";
 import { AdminAssignmentSection } from "./postListing/AdminAssignmentSection";
@@ -75,6 +81,10 @@ export function PostListing() {
   const [isAIParsed, setIsAIParsed] = useState(false);
   const [originalParsedText, setOriginalParsedText] = useState('');
   const [showOriginalText, setShowOriginalText] = useState(false);
+  const [postMode, setPostMode] = useState<'self' | 'concierge'>('self');
+  const [conciergeFlow, setConciergeFlow] = useState<null | 'tier1' | 'tier2' | 'tier3'>(null);
+  const [conciergeLoading, setConciergeLoading] = useState(false);
+  const [conciergeSub, setConciergeSub] = useState<ConciergeSubscription | null>(null);
   const [formData, setFormData] = useState<ListingFormData>({
     ...INITIAL_FORM_DATA,
     contact_name: profile?.full_name || "",
@@ -86,6 +96,12 @@ export function PostListing() {
   const startTrackedRef = useRef(false);
   const hasManuallySelectedTypeRef = useRef(false);
   const permissionsLoadedRef = useRef(false);
+
+  useEffect(() => {
+    if (user) {
+      conciergeService.getUserActiveSubscription().then(setConciergeSub).catch(() => {});
+    }
+  }, [user]);
 
   // Load draft data on component mount
   useEffect(() => {
@@ -1522,6 +1538,98 @@ export function PostListing() {
         </p>
       </div>
 
+      <div className="mb-6">
+        <div className="flex rounded-lg border border-gray-200 bg-gray-50 p-1">
+          <button
+            type="button"
+            onClick={() => { setPostMode('self'); setConciergeFlow(null); }}
+            className={`flex-1 py-2.5 px-4 rounded-md text-sm font-medium transition-all ${
+              postMode === 'self'
+                ? 'bg-white text-gray-900 shadow-sm'
+                : 'text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            Post it yourself
+          </button>
+          <button
+            type="button"
+            onClick={() => setPostMode('concierge')}
+            className={`flex-1 py-2.5 px-4 rounded-md text-sm font-medium transition-all ${
+              postMode === 'concierge'
+                ? 'bg-white text-gray-900 shadow-sm'
+                : 'text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            Let us handle it
+          </button>
+        </div>
+      </div>
+
+      {postMode === 'concierge' ? (
+        <div className="space-y-6">
+          {conciergeFlow === 'tier1' ? (
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+              <Tier1BlurbForm
+                onSubmit={async (blurb) => {
+                  setConciergeLoading(true);
+                  try {
+                    const { url } = await conciergeService.createCheckoutSession({ tier: 'tier1_quick', blurb });
+                    if (url) window.location.href = url;
+                  } catch { setConciergeLoading(false); }
+                }}
+                onBack={() => setConciergeFlow(null)}
+                loading={conciergeLoading}
+              />
+            </div>
+          ) : conciergeFlow === 'tier2' ? (
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+              <Tier2Confirmation
+                emailHandle={profile?.full_name ? generateEmailHandle(profile.full_name) : 'your-name'}
+                onConfirm={async () => {
+                  setConciergeLoading(true);
+                  try {
+                    const { url } = await conciergeService.createCheckoutSession({ tier: 'tier2_forward' });
+                    if (url) window.location.href = url;
+                  } catch { setConciergeLoading(false); }
+                }}
+                onBack={() => setConciergeFlow(null)}
+                loading={conciergeLoading}
+              />
+            </div>
+          ) : conciergeFlow === 'tier3' ? (
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+              <Tier3SourcesForm
+                onSubmit={async (sources) => {
+                  setConciergeLoading(true);
+                  try {
+                    const { url } = await conciergeService.createCheckoutSession({ tier: 'tier3_vip', sources });
+                    if (url) window.location.href = url;
+                  } catch { setConciergeLoading(false); }
+                }}
+                onBack={() => setConciergeFlow(null)}
+                loading={conciergeLoading}
+              />
+            </div>
+          ) : (
+            <TierCards
+              compact
+              activeSubscription={conciergeSub}
+              onSelectTier1={() => {
+                if (!user) { setShowAuthModal(true); return; }
+                setConciergeFlow('tier1');
+              }}
+              onSelectTier2={() => {
+                if (!user) { setShowAuthModal(true); return; }
+                setConciergeFlow('tier2');
+              }}
+              onSelectTier3={() => {
+                if (!user) { setShowAuthModal(true); return; }
+                setConciergeFlow('tier3');
+              }}
+            />
+          )}
+        </div>
+      ) : (
       <form
         onSubmit={handleSubmit}
         onFocus={handleFirstInteraction}
@@ -2130,6 +2238,7 @@ export function PostListing() {
 
         </>)}
       </form>
+      )}
 
       {/* Authentication Modal */}
       <Modal
