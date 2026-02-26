@@ -63,7 +63,7 @@ export function Tier1BlurbForm({ onSubmit, onBack, loading }: Tier1BlurbFormProp
         <button
           type="submit"
           disabled={!blurb.trim() || loading}
-          className="flex items-center gap-2 bg-[#1E4A74] text-white px-6 py-2.5 rounded-lg text-sm font-semibold hover:bg-[#163a5e] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          className="flex items-center gap-2 bg-accent-500 text-white px-6 py-2.5 rounded-lg text-sm font-semibold hover:bg-accent-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {loading ? (
             <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />

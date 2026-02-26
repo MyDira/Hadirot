@@ -49,7 +49,7 @@ export function Concierge() {
 
   const emailHandle = profile?.full_name
     ? generateEmailHandle(profile.full_name)
-    : 'your-name';
+    : 'yourname';
 
   const handleTier1Submit = async (blurb: string) => {
     setLoading(true);
@@ -82,7 +82,7 @@ export function Concierge() {
     }
   };
 
-  const handleTier3Submit = async (sources: string[]) => {
+  const handleTier3Submit = async (sources: { name: string; link: string }[]) => {
     setLoading(true);
     setError(null);
     try {

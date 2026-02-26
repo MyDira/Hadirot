@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { CheckCircle } from "lucide-react";
+import { CheckCircle, Briefcase } from "lucide-react";
 import * as Sentry from "@sentry/react";
 import { useAuth } from "@/hooks/useAuth";
 import { listingsService, getExpirationDate } from "../services/listings";
@@ -81,7 +81,7 @@ export function PostListing() {
   const [isAIParsed, setIsAIParsed] = useState(false);
   const [originalParsedText, setOriginalParsedText] = useState('');
   const [showOriginalText, setShowOriginalText] = useState(false);
-  const [postMode, setPostMode] = useState<'self' | 'concierge'>('self');
+  const [postMode, setPostMode] = useState<'none' | 'self' | 'concierge'>('none');
   const [conciergeFlow, setConciergeFlow] = useState<null | 'tier1' | 'tier2' | 'tier3'>(null);
   const [conciergeLoading, setConciergeLoading] = useState(false);
   const [conciergeSub, setConciergeSub] = useState<ConciergeSubscription | null>(null);
@@ -1538,34 +1538,59 @@ export function PostListing() {
         </p>
       </div>
 
-      <div className="mb-6">
-        <div className="flex rounded-lg border border-gray-200 bg-gray-50 p-1">
+      {postMode === 'none' ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
           <button
             type="button"
-            onClick={() => { setPostMode('self'); setConciergeFlow(null); }}
-            className={`flex-1 py-2.5 px-4 rounded-md text-sm font-medium transition-all ${
-              postMode === 'self'
-                ? 'bg-white text-gray-900 shadow-sm'
-                : 'text-gray-500 hover:text-gray-700'
-            }`}
+            onClick={() => setPostMode('self')}
+            className="group relative bg-white rounded-xl border-2 border-gray-200 hover:border-accent-500 p-8 text-left transition-all hover:shadow-md"
           >
-            Post it yourself
+            <div className="flex items-center gap-3 mb-3">
+              <div className="rounded-lg p-2.5 bg-accent-500/10 group-hover:bg-accent-500/20 transition-colors">
+                <CheckCircle className="w-6 h-6 text-accent-600" />
+              </div>
+              <h3 className="text-lg font-bold text-gray-900">Post it yourself</h3>
+            </div>
+            <p className="text-sm text-gray-500 leading-relaxed">
+              Fill out the listing form and manage every detail. Full control over your listing content and photos.
+            </p>
           </button>
           <button
             type="button"
             onClick={() => setPostMode('concierge')}
-            className={`flex-1 py-2.5 px-4 rounded-md text-sm font-medium transition-all ${
-              postMode === 'concierge'
-                ? 'bg-white text-gray-900 shadow-sm'
-                : 'text-gray-500 hover:text-gray-700'
-            }`}
+            className="group relative bg-white rounded-xl border-2 border-gray-200 hover:border-[#1E4A74] p-8 text-left transition-all hover:shadow-md"
           >
-            Let us handle it
+            <div className="flex items-center gap-3 mb-3">
+              <div className="rounded-lg p-2.5 bg-[#1E4A74]/10 group-hover:bg-[#1E4A74]/20 transition-colors">
+                <Briefcase className="w-6 h-6 text-[#1E4A74]" />
+              </div>
+              <h3 className="text-lg font-bold text-gray-900">Let us handle it</h3>
+            </div>
+            <p className="text-sm text-gray-500 leading-relaxed">
+              Our concierge team will create and manage your listing. Starting at $25 per listing.
+            </p>
           </button>
         </div>
-      </div>
-
-      {postMode === 'concierge' ? (
+      ) : postMode === 'concierge' ? (
+        <>
+        <div className="mb-6 flex items-center gap-2 text-sm">
+          <button
+            type="button"
+            onClick={() => { setPostMode('none'); setConciergeFlow(null); }}
+            className="text-[#1E4A74] hover:underline font-medium"
+          >
+            Post a Listing
+          </button>
+          <span className="text-gray-400">/</span>
+          <span className="text-gray-600 font-medium">Concierge Service</span>
+          <button
+            type="button"
+            onClick={() => { setPostMode('none'); setConciergeFlow(null); }}
+            className="ml-auto text-xs text-gray-400 hover:text-gray-600 transition-colors"
+          >
+            Change
+          </button>
+        </div>
         <div className="space-y-6">
           {conciergeFlow === 'tier1' ? (
             <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
@@ -1629,7 +1654,27 @@ export function PostListing() {
             />
           )}
         </div>
+        </>
       ) : (
+      <>
+      <div className="mb-6 flex items-center gap-2 text-sm">
+        <button
+          type="button"
+          onClick={() => { setPostMode('none'); setConciergeFlow(null); }}
+          className="text-[#1E4A74] hover:underline font-medium"
+        >
+          Post a Listing
+        </button>
+        <span className="text-gray-400">/</span>
+        <span className="text-gray-600 font-medium">Post it yourself</span>
+        <button
+          type="button"
+          onClick={() => { setPostMode('none'); setConciergeFlow(null); }}
+          className="ml-auto text-xs text-gray-400 hover:text-gray-600 transition-colors"
+        >
+          Change
+        </button>
+      </div>
       <form
         onSubmit={handleSubmit}
         onFocus={handleFirstInteraction}
@@ -1637,28 +1682,25 @@ export function PostListing() {
         className="space-y-8"
       >
         {/* Listing Type Selector - Always Visible */}
-        <div className="bg-white rounded-lg shadow-sm border-2 border-accent-500 p-6">
-          <h2 className="text-xl font-semibold text-brand-700 mb-2">
-            Choose Listing Type *
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+          <h2 className="text-base font-semibold text-brand-700 mb-3">
+            Listing Type *
           </h2>
-          <p className="text-sm text-gray-600 mb-4">
-            Select the type of listing you want to create to continue
-          </p>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 gap-3">
             <button
               type="button"
               onClick={() => {
                 hasManuallySelectedTypeRef.current = true;
                 setFormData({ ...formData, listing_type: 'rental' });
               }}
-              className={`p-6 border-2 rounded-lg transition-all ${
+              className={`px-4 py-3 border-2 rounded-lg transition-all text-left ${
                 formData.listing_type === 'rental'
-                  ? 'border-accent-500 bg-accent-50 shadow-md'
-                  : 'border-gray-300 hover:border-accent-400 hover:bg-gray-50'
+                  ? 'border-accent-500 bg-accent-50'
+                  : 'border-gray-200 hover:border-accent-400 hover:bg-gray-50'
               }`}
             >
-              <div className="text-lg font-bold text-brand-700">Rental Listing</div>
-              <div className="text-sm text-gray-600 mt-1">Post a property for rent</div>
+              <div className="text-sm font-bold text-brand-700">Rental</div>
+              <div className="text-xs text-gray-500 mt-0.5">Post a property for rent</div>
             </button>
 
             {salesFeatureEnabled ? (
@@ -1674,14 +1716,14 @@ export function PostListing() {
                       setShowPermissionModal(true);
                     }
                   }}
-                  className={`w-full p-6 border-2 rounded-lg transition-all ${
+                  className={`w-full px-4 py-3 border-2 rounded-lg transition-all text-left ${
                     formData.listing_type === 'sale'
-                      ? 'border-accent-500 bg-accent-50 shadow-md'
-                      : 'border-gray-300 hover:border-accent-400 hover:bg-gray-50'
+                      ? 'border-accent-500 bg-accent-50'
+                      : 'border-gray-200 hover:border-accent-400 hover:bg-gray-50'
                   } ${!(canPostSales || salesUniversalAccess) ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
-                  <div className="text-lg font-bold text-brand-700">Sale Listing</div>
-                  <div className="text-sm text-gray-600 mt-1">Post a property for sale</div>
+                  <div className="text-sm font-bold text-brand-700">Sale</div>
+                  <div className="text-xs text-gray-500 mt-0.5">Post a property for sale</div>
                 </button>
                 {!(canPostSales || salesUniversalAccess) && (
                   <div className="absolute inset-0 flex items-center justify-center bg-gray-100 bg-opacity-90 rounded-lg pointer-events-none">
@@ -1711,10 +1753,10 @@ export function PostListing() {
               <button
                 type="button"
                 disabled
-                className="p-6 border-2 rounded-lg transition-all border-gray-300 opacity-50 cursor-not-allowed"
+                className="px-4 py-3 border-2 rounded-lg transition-all border-gray-200 opacity-50 cursor-not-allowed text-left"
               >
-                <div className="text-lg font-bold text-gray-500">Sale Listing</div>
-                <div className="text-sm text-gray-500 mt-1">Coming soon</div>
+                <div className="text-sm font-bold text-gray-500">Sale</div>
+                <div className="text-xs text-gray-500 mt-0.5">Coming soon</div>
               </button>
             )}
           </div>
@@ -2238,6 +2280,7 @@ export function PostListing() {
 
         </>)}
       </form>
+      </>
       )}
 
       {/* Authentication Modal */}

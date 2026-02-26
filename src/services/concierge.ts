@@ -7,7 +7,7 @@ export function generateEmailHandle(fullName: string): string {
   if (firstName.length > 10) firstName = firstName.slice(0, 10);
   if (parts.length === 1) return firstName;
   const lastInitial = parts[parts.length - 1][0];
-  return `${firstName}-${lastInitial}`;
+  return `${firstName}${lastInitial}`;
 }
 
 export const conciergeService = {
@@ -38,7 +38,7 @@ export const conciergeService = {
   async createCheckoutSession(params: {
     tier: ConciergeTier;
     blurb?: string;
-    sources?: string[];
+    sources?: { name: string; link: string }[];
   }) {
     const { data, error } = await supabase.functions.invoke('create-concierge-checkout', {
       body: params,

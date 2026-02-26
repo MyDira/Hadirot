@@ -24,7 +24,7 @@ function generateEmailHandle(fullName: string): string {
   if (firstName.length > 10) firstName = firstName.slice(0, 10);
   if (parts.length === 1) return firstName;
   const lastInitial = parts[parts.length - 1][0];
-  return `${firstName}-${lastInitial}`;
+  return `${firstName}${lastInitial}`;
 }
 
 async function findUniqueHandle(
@@ -50,7 +50,7 @@ async function findUniqueHandle(
   if (!taken.has(base)) return base;
 
   for (let i = 2; i <= lastName.length; i++) {
-    const candidate = `${parts[0].length > 10 ? parts[0].slice(0, 10) : parts[0]}-${lastName.slice(0, i)}`;
+    const candidate = `${parts[0].length > 10 ? parts[0].slice(0, 10) : parts[0]}${lastName.slice(0, i)}`;
     if (!taken.has(candidate)) return candidate;
   }
 
@@ -59,7 +59,7 @@ async function findUniqueHandle(
     if (!taken.has(candidate)) return candidate;
   }
 
-  return `${base}-${Date.now().toString(36).slice(-4)}`;
+  return `${base}${Date.now().toString(36).slice(-4)}`;
 }
 
 Deno.serve(async (req) => {
@@ -110,7 +110,7 @@ Deno.serve(async (req) => {
     }
 
     if (tier === "tier3_vip") {
-      if (!sources || !Array.isArray(sources) || sources.filter((s: string) => s.trim()).length === 0) {
+      if (!sources || !Array.isArray(sources) || sources.filter((s: { name?: string }) => s.name?.trim()).length === 0) {
         return new Response(JSON.stringify({ error: "At least one source is required for VIP" }), {
           status: 400,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -162,7 +162,7 @@ Deno.serve(async (req) => {
         status: "pending",
         stripe_customer_id: stripeCustomerId,
         email_handle: null,
-        sources: tier === "tier3_vip" ? sources.filter((s: string) => s.trim()) : null,
+        sources: tier === "tier3_vip" ? sources.filter((s: { name?: string }) => s.name?.trim()) : null,
       })
       .select()
       .single();

@@ -67,7 +67,8 @@ export function ConciergeVIPTracking({ subscriptions, onRefresh }: ConciergeVIPT
               const isExpanded = expandedId === sub.id;
               const userName = (sub.user as any)?.full_name || 'Unknown';
               const status = getCheckStatus(sub.last_checked_at);
-              const sources = (sub.sources || []) as string[];
+              const rawSources = (sub.sources || []) as ({ name: string; link?: string } | string)[];
+              const sources = rawSources.map((s) => typeof s === 'string' ? { name: s, link: '' } : s);
 
               return (
                 <div key={sub.id}>
@@ -112,7 +113,12 @@ export function ConciergeVIPTracking({ subscriptions, onRefresh }: ConciergeVIPT
                           {sources.map((source, i) => (
                             <li key={i} className="text-sm text-gray-700 flex items-center gap-2">
                               <span className="w-1.5 h-1.5 rounded-full bg-gray-400 flex-shrink-0" />
-                              {source}
+                              <span>{source.name}</span>
+                              {source.link && (
+                                <a href={source.link} target="_blank" rel="noopener noreferrer" className="text-xs text-[#1E4A74] hover:underline truncate max-w-[200px]">
+                                  {source.link}
+                                </a>
+                              )}
                             </li>
                           ))}
                         </ul>

@@ -36,6 +36,8 @@ import { SaleStatusBadge } from "../components/listings/SaleStatusBadge";
 import { SaleStatusSelector } from "../components/listings/SaleStatusSelector";
 import { FeatureListingModal } from "../components/listings/FeatureListingModal";
 import { stripeService, FeaturedPurchase } from "../services/stripe";
+import { conciergeService } from "../services/concierge";
+import type { ConciergeSubscription } from "../config/supabase";
 
 type DashboardTab = 'rentals' | 'sales';
 
@@ -63,6 +65,7 @@ export default function Dashboard() {
   const [newListingBanner, setNewListingBanner] = useState<{ listingId: string; title: string } | null>(null);
   const [showSuccessBanner, setShowSuccessBanner] = useState(false);
   const [pendingFeatureListingId, setPendingFeatureListingId] = useState<string | null>(null);
+  const [conciergeSub, setConciergeSub] = useState<ConciergeSubscription | null>(null);
 
   const rentalListings = useMemo(
     () => listings.filter((l) => l.listing_type !== 'sale'),
@@ -106,6 +109,7 @@ export default function Dashboard() {
       loadCurrentUserProfile();
       loadGlobalFeaturedCount();
       loadFeaturedPurchases();
+      conciergeService.getUserActiveSubscription().then(setConciergeSub).catch(() => {});
     }
   }, [user, authLoading]);
 
@@ -679,6 +683,21 @@ export default function Dashboard() {
           )}
         </div>
 
+        {!conciergeSub && (
+          <div className="mb-4 bg-[#F0F9FF] border border-[#1E4A74]/20 rounded-lg p-3">
+            <Link to="/concierge" className="flex items-center gap-3 group">
+              <div className="rounded-lg p-2 bg-[#1E4A74]/10 group-hover:bg-[#1E4A74]/20 transition-colors flex-shrink-0">
+                <Briefcase className="w-4 h-4 text-[#1E4A74]" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-gray-800">Too busy to post your own listings?</p>
+                <p className="text-xs text-gray-600 mt-0.5">Let our Concierge team handle it for you. Starting at $25 per listing.</p>
+              </div>
+              <span className="text-xs font-semibold text-[#1E4A74] group-hover:underline flex-shrink-0">Learn More</span>
+            </Link>
+          </div>
+        )}
+
         {loading ? (
           <div className="text-center py-8">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#273140] mx-auto"></div>
@@ -1049,22 +1068,6 @@ export default function Dashboard() {
           </div>
         )}
       </div>
-
-      {!localStorage.getItem('concierge_banner_dismissed') && filteredListings.length > 0 && (
-        <div className="mt-4 relative flex items-center justify-between bg-gray-50 border border-gray-200 rounded-lg px-4 py-3">
-          <Link to="/concierge" className="flex items-center gap-2 text-sm text-gray-600 hover:text-[#1E4A74] transition-colors">
-            <Briefcase className="w-4 h-4 text-gray-400" />
-            <span>Want us to handle your listings?</span>
-            <span className="font-medium text-[#1E4A74]">Hadirot Concierge</span>
-          </Link>
-          <button
-            onClick={() => { localStorage.setItem('concierge_banner_dismissed', '1'); window.dispatchEvent(new Event('storage')); }}
-            className="text-gray-400 hover:text-gray-600 ml-2"
-          >
-            <X className="w-3.5 h-3.5" />
-          </button>
-        </div>
-      )}
 
       <InquiriesModal
         isOpen={modalOpen}

@@ -261,11 +261,15 @@ async function handleConciergeCheckout(session: Stripe.Checkout.Session) {
       .eq('id', subscription_id)
       .maybeSingle();
 
-    const sourcesList = (subRecord?.sources || []) as string[];
+    const sourcesList = (subRecord?.sources || []) as { name: string; link?: string }[];
 
     const adminEmails = await getAdminEmails(supabaseAdmin);
     if (adminEmails.length > 0) {
-      const sourcesHtml = sourcesList.map((s: string) => `<li>${s}</li>`).join('');
+      const sourcesHtml = sourcesList.map((s) => {
+        const label = typeof s === 'string' ? s : s.name;
+        const link = typeof s === 'string' ? '' : s.link;
+        return link ? `<li>${label} &mdash; <a href="${link}" style="color:#1E4A74;">${link}</a></li>` : `<li>${label}</li>`;
+      }).join('');
       const html = brandWrap(
         'New VIP Concierge Subscriber',
         `

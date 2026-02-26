@@ -74,7 +74,7 @@ export function ConciergeSubscribers({ subscriptions }: ConciergeSubscribersProp
                       )}
                       {sub.tier === 'tier3_vip' && sub.sources && (
                         <span className="text-xs text-gray-600">
-                          {(sub.sources as string[]).length} source{(sub.sources as string[]).length !== 1 ? 's' : ''}
+                          {(sub.sources as unknown[]).length} source{(sub.sources as unknown[]).length !== 1 ? 's' : ''}
                         </span>
                       )}
                     </td>
