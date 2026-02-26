@@ -1543,31 +1543,31 @@ export function PostListing() {
           <button
             type="button"
             onClick={() => setPostMode('self')}
-            className="group relative bg-white rounded-xl border-2 border-gray-200 hover:border-accent-500 p-8 text-left transition-all hover:shadow-md"
+            className="group relative bg-white rounded-xl border-2 border-gray-200 hover:border-gray-400 p-8 text-left transition-all hover:shadow-md"
           >
             <div className="flex items-center gap-3 mb-3">
-              <div className="rounded-lg p-2.5 bg-accent-500/10 group-hover:bg-accent-500/20 transition-colors">
-                <CheckCircle className="w-6 h-6 text-accent-600" />
+              <div className="rounded-lg p-2.5 bg-gray-100 group-hover:bg-gray-200 transition-colors">
+                <CheckCircle className="w-6 h-6 text-gray-500" />
               </div>
               <h3 className="text-lg font-bold text-gray-900">Post it yourself</h3>
             </div>
             <p className="text-sm text-gray-500 leading-relaxed">
-              Fill out the listing form and manage every detail. Full control over your listing content and photos.
+              Full control over your listing content and photos.
             </p>
           </button>
           <button
             type="button"
             onClick={() => setPostMode('concierge')}
-            className="group relative bg-white rounded-xl border-2 border-gray-200 hover:border-[#1E4A74] p-8 text-left transition-all hover:shadow-md"
+            className="group relative bg-white rounded-xl border-2 border-accent-200 hover:border-accent-500 p-8 text-left transition-all hover:shadow-md"
           >
             <div className="flex items-center gap-3 mb-3">
-              <div className="rounded-lg p-2.5 bg-[#1E4A74]/10 group-hover:bg-[#1E4A74]/20 transition-colors">
-                <Briefcase className="w-6 h-6 text-[#1E4A74]" />
+              <div className="rounded-lg p-2.5 bg-accent-500/10 group-hover:bg-accent-500/20 transition-colors">
+                <Briefcase className="w-6 h-6 text-accent-600" />
               </div>
               <h3 className="text-lg font-bold text-gray-900">Let us handle it</h3>
             </div>
             <p className="text-sm text-gray-500 leading-relaxed">
-              Our concierge team will create and manage your listing. Starting at $25 per listing.
+              Our team will create and manage your listing for you.
             </p>
           </button>
         </div>
@@ -1657,7 +1657,7 @@ export function PostListing() {
         </>
       ) : (
       <>
-      <div className="mb-6 flex items-center gap-2 text-sm">
+      <div className="mb-3 flex items-center gap-2 text-sm">
         <button
           type="button"
           onClick={() => { setPostMode('none'); setConciergeFlow(null); }}
@@ -1667,12 +1667,16 @@ export function PostListing() {
         </button>
         <span className="text-gray-400">/</span>
         <span className="text-gray-600 font-medium">Post it yourself</span>
+      </div>
+      <div className="mb-6 flex items-center gap-3 rounded-lg bg-accent-50 border border-accent-200 px-4 py-2.5">
+        <Briefcase className="w-4 h-4 text-accent-600 shrink-0" />
+        <span className="text-sm text-gray-600">Want us to handle everything?</span>
         <button
           type="button"
           onClick={() => { setPostMode('none'); setConciergeFlow(null); }}
-          className="ml-auto text-xs text-gray-400 hover:text-gray-600 transition-colors"
+          className="ml-auto text-sm font-semibold text-accent-600 hover:text-accent-700 transition-colors whitespace-nowrap"
         >
-          Change
+          Switch to Concierge Service →
         </button>
       </div>
       <form
