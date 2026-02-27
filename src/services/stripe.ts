@@ -25,7 +25,7 @@ export const CONCIERGE_PLANS: ConciergePlan[] = [
     tier: 'tier1_quick',
     name: 'Quick Post',
     price: 25,
-    priceId: 'price_PLACEHOLDER_tier1',
+    priceId: 'price_1T5TvZJvRPzH20A9ry7ZTpMk',
     mode: 'payment',
   },
   {
