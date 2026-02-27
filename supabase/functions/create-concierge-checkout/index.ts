@@ -218,6 +218,7 @@ Deno.serve(async (req) => {
       customer: stripeCustomerId,
       line_items: [{ price: config.priceId, quantity: 1 }],
       metadata,
+      allow_promotion_codes: true,
       success_url: `${origin}/concierge/success?tier=${tier}&session_id={CHECKOUT_SESSION_ID}${emailHandle ? `&handle=${emailHandle}` : ""}`,
       cancel_url: `${origin}/concierge?cancelled=true`,
     });
