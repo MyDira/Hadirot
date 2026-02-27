@@ -33,7 +33,7 @@ export const CONCIERGE_PLANS: ConciergePlan[] = [
     tier: 'tier2_forward',
     name: 'Forward & Post',
     price: 125,
-    priceId: 'price_PLACEHOLDER_tier2',
+    priceId: 'price_1T5Tx4JvRPzH20A995RVffU5',
     mode: 'subscription',
     interval: 'month',
   },
