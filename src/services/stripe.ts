@@ -42,7 +42,7 @@ export const CONCIERGE_PLANS: ConciergePlan[] = [
     tier: 'tier3_vip',
     name: 'VIP / Full Service',
     price: 200,
-    priceId: 'price_PLACEHOLDER_tier3',
+    priceId: 'price_1T5TybJvRPzH20A9GrEh0jTD',
     mode: 'subscription',
     interval: 'month',
   },
