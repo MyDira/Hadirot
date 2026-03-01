@@ -15,7 +15,7 @@ export const conciergeService = {
     const { data, error } = await supabase
       .from('concierge_subscriptions')
       .select('*')
-      .in('status', ['active', 'pending'])
+      .eq('status', 'active')
       .in('tier', ['tier2_forward', 'tier3_vip'])
       .order('created_at', { ascending: false })
       .limit(1)
@@ -35,10 +35,19 @@ export const conciergeService = {
     return data || [];
   },
 
+  async updateSubscriptionSources(sources: { name: string; link: string }[]) {
+    const { data, error } = await supabase.functions.invoke('update-concierge-sources', {
+      body: { sources },
+    });
+
+    if (error) throw error;
+    if (data?.error) throw new Error(data.error);
+    return data as { success: boolean };
+  },
+
   async createCheckoutSession(params: {
     tier: ConciergeTier;
     blurb?: string;
-    sources?: { name: string; link: string }[];
   }) {
     const { data, error } = await supabase.functions.invoke('create-concierge-checkout', {
       body: params,

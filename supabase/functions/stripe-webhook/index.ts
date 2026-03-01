@@ -151,8 +151,8 @@ async function handleFeaturedCheckout(session: Stripe.Checkout.Session) {
 }
 
 async function handleConciergeCheckout(session: Stripe.Checkout.Session) {
-  const { tier, subscription_id, submission_id, user_id, email_handle } = session.metadata || {};
-  if (!tier || !subscription_id || !user_id) {
+  const { tier, user_id, email_handle, blurb } = session.metadata || {};
+  if (!tier || !user_id) {
     console.error('Missing concierge metadata:', session.id);
     return;
   }
@@ -169,58 +169,87 @@ async function handleConciergeCheckout(session: Stripe.Checkout.Session) {
   const userEmail = profile?.email || '';
 
   if (tier === 'tier1_quick') {
-    await supabaseAdmin
-      .from('concierge_subscriptions')
-      .update({ status: 'active' })
-      .eq('id', subscription_id);
+    const { data: existingSub } = await supabaseAdmin
+      .from('concierge_submissions')
+      .select('id')
+      .eq('stripe_checkout_session_id', session.id)
+      .maybeSingle();
+    if (existingSub) {
+      console.log(`Idempotency: tier1 submission already exists for session ${session.id}`);
+      return;
+    }
 
-    if (submission_id) {
+    const { data: subscription } = await supabaseAdmin
+      .from('concierge_subscriptions')
+      .insert({
+        user_id,
+        tier: 'tier1_quick',
+        status: 'active',
+        stripe_customer_id: session.customer as string,
+      })
+      .select()
+      .single();
+
+    if (subscription) {
       await supabaseAdmin
         .from('concierge_submissions')
-        .update({
+        .insert({
+          user_id,
+          subscription_id: subscription.id,
+          blurb: blurb || '',
           status: 'paid',
+          stripe_checkout_session_id: session.id,
           stripe_payment_intent_id: session.payment_intent as string,
-        })
-        .eq('id', submission_id);
+        });
+    }
 
-      const { data: sub } = await supabaseAdmin
-        .from('concierge_submissions')
-        .select('blurb')
-        .eq('id', submission_id)
-        .maybeSingle();
-
-      const adminEmails = await getAdminEmails(supabaseAdmin);
-      if (adminEmails.length > 0) {
-        const origin = 'https://hadirot.com';
-        const html = brandWrap(
-          `New Concierge Submission`,
-          `
-          <p><strong>From:</strong> ${userName}</p>
-          <p><strong>Email:</strong> ${userEmail}</p>
-          <p><strong>Phone:</strong> ${profile?.phone || 'Not provided'}</p>
-          <hr style="border:none;border-top:1px solid #E5E7EB;margin:16px 0;" />
-          <p><strong>Listing Description:</strong></p>
-          <div style="background-color:#F9FAFB;border:1px solid #E5E7EB;border-radius:6px;padding:16px;margin:8px 0;white-space:pre-wrap;">${sub?.blurb || ''}</div>
-          <div style="text-align:center;margin:24px 0;">
-            <a href="${origin}/admin?tab=concierge" style="background-color:#1E4A74;color:#FFFFFF;padding:12px 24px;text-decoration:none;border-radius:6px;display:inline-block;font-weight:bold;">View in Admin Panel</a>
-          </div>
-          `,
-        );
-        await sendEmail(adminEmails, `New Concierge Submission \u2014 ${userName}`, html);
-      }
+    const adminEmails = await getAdminEmails(supabaseAdmin);
+    if (adminEmails.length > 0) {
+      const origin = 'https://hadirot.com';
+      const html = brandWrap(
+        'New Concierge Submission',
+        `
+        <p><strong>From:</strong> ${userName}</p>
+        <p><strong>Email:</strong> ${userEmail}</p>
+        <p><strong>Phone:</strong> ${profile?.phone || 'Not provided'}</p>
+        <hr style="border:none;border-top:1px solid #E5E7EB;margin:16px 0;" />
+        <p><strong>Listing Description:</strong></p>
+        <div style="background-color:#F9FAFB;border:1px solid #E5E7EB;border-radius:6px;padding:16px;margin:8px 0;white-space:pre-wrap;">${blurb || ''}</div>
+        <div style="text-align:center;margin:24px 0;">
+          <a href="${origin}/admin?tab=concierge" style="background-color:#1E4A74;color:#FFFFFF;padding:12px 24px;text-decoration:none;border-radius:6px;display:inline-block;font-weight:bold;">View in Admin Panel</a>
+        </div>
+        `,
+      );
+      await sendEmail(adminEmails, `New Concierge Submission \u2014 ${userName}`, html);
     }
     console.log(`Concierge Tier 1 paid for user ${user_id}`);
   }
 
   if (tier === 'tier2_forward') {
     const stripeSubId = session.subscription as string;
+
+    if (stripeSubId) {
+      const { data: existing } = await supabaseAdmin
+        .from('concierge_subscriptions')
+        .select('id')
+        .eq('stripe_subscription_id', stripeSubId)
+        .maybeSingle();
+      if (existing) {
+        console.log(`Idempotency: tier2 subscription already exists for stripe sub ${stripeSubId}`);
+        return;
+      }
+    }
+
     await supabaseAdmin
       .from('concierge_subscriptions')
-      .update({
+      .insert({
+        user_id,
+        tier: 'tier2_forward',
         status: 'active',
         stripe_subscription_id: stripeSubId || null,
-      })
-      .eq('id', subscription_id);
+        stripe_customer_id: session.customer as string,
+        email_handle: email_handle || null,
+      });
 
     const handle = email_handle || '';
     const fullEmail = `${handle}@list.hadirot.com`;
@@ -247,29 +276,32 @@ async function handleConciergeCheckout(session: Stripe.Checkout.Session) {
 
   if (tier === 'tier3_vip') {
     const stripeSubId = session.subscription as string;
+
+    if (stripeSubId) {
+      const { data: existing } = await supabaseAdmin
+        .from('concierge_subscriptions')
+        .select('id')
+        .eq('stripe_subscription_id', stripeSubId)
+        .maybeSingle();
+      if (existing) {
+        console.log(`Idempotency: tier3 subscription already exists for stripe sub ${stripeSubId}`);
+        return;
+      }
+    }
+
     await supabaseAdmin
       .from('concierge_subscriptions')
-      .update({
+      .insert({
+        user_id,
+        tier: 'tier3_vip',
         status: 'active',
         stripe_subscription_id: stripeSubId || null,
-      })
-      .eq('id', subscription_id);
-
-    const { data: subRecord } = await supabaseAdmin
-      .from('concierge_subscriptions')
-      .select('sources')
-      .eq('id', subscription_id)
-      .maybeSingle();
-
-    const sourcesList = (subRecord?.sources || []) as { name: string; link?: string }[];
+        stripe_customer_id: session.customer as string,
+        sources: null,
+      });
 
     const adminEmails = await getAdminEmails(supabaseAdmin);
     if (adminEmails.length > 0) {
-      const sourcesHtml = sourcesList.map((s) => {
-        const label = typeof s === 'string' ? s : s.name;
-        const link = typeof s === 'string' ? '' : s.link;
-        return link ? `<li>${label} &mdash; <a href="${link}" style="color:#1E4A74;">${link}</a></li>` : `<li>${label}</li>`;
-      }).join('');
       const html = brandWrap(
         'New VIP Concierge Subscriber',
         `
@@ -278,8 +310,7 @@ async function handleConciergeCheckout(session: Stripe.Checkout.Session) {
         <p><strong>Email:</strong> ${userEmail}</p>
         <p><strong>Phone:</strong> ${profile?.phone || 'Not provided'}</p>
         <hr style="border:none;border-top:1px solid #E5E7EB;margin:16px 0;" />
-        <p><strong>Listing Sources:</strong></p>
-        <ul style="margin:8px 0;">${sourcesHtml}</ul>
+        <p><strong>Listing Sources:</strong> Pending user setup</p>
         <p><strong>Subscription started:</strong> ${new Date().toLocaleDateString()}</p>
         `,
       );

@@ -1,27 +1,23 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import { Briefcase } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
-import { conciergeService, generateEmailHandle } from '../services/concierge';
+import { conciergeService } from '../services/concierge';
 import { TierCards } from '../components/concierge/TierCards';
 import { Tier1BlurbForm } from '../components/concierge/Tier1BlurbForm';
-import { Tier2Confirmation } from '../components/concierge/Tier2Confirmation';
-import { Tier3SourcesForm } from '../components/concierge/Tier3SourcesForm';
 import { Modal } from '../components/shared/Modal';
 import { AuthForm } from '../components/auth/AuthForm';
-import type { ConciergeSubscription } from '../config/supabase';
-
-type ActiveFlow = null | 'tier1' | 'tier2' | 'tier3';
+import type { ConciergeSubscription, ConciergeTier } from '../config/supabase';
 
 export function Concierge() {
-  const { user, profile } = useAuth();
-  const navigate = useNavigate();
+  const { user } = useAuth();
   const [searchParams] = useSearchParams();
-  const [activeFlow, setActiveFlow] = useState<ActiveFlow>(null);
+  const [showBlurbForm, setShowBlurbForm] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [loadingTier, setLoadingTier] = useState<ConciergeTier | null>(null);
   const [activeSub, setActiveSub] = useState<ConciergeSubscription | null>(null);
   const [showAuthModal, setShowAuthModal] = useState(false);
-  const [pendingTier, setPendingTier] = useState<ActiveFlow>(null);
+  const [pendingTier, setPendingTier] = useState<'tier1' | 'tier2' | 'tier3' | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -33,23 +29,44 @@ export function Concierge() {
   useEffect(() => {
     if (user && pendingTier) {
       setShowAuthModal(false);
-      setActiveFlow(pendingTier);
+      const tier = pendingTier;
       setPendingTier(null);
+      if (tier === 'tier1') {
+        setShowBlurbForm(true);
+      } else if (tier === 'tier2') {
+        handleDirectCheckout('tier2_forward');
+      } else if (tier === 'tier3') {
+        handleDirectCheckout('tier3_vip');
+      }
     }
   }, [user, pendingTier]);
 
-  const requireAuth = (tier: ActiveFlow) => {
+  const requireAuth = (tier: 'tier1' | 'tier2' | 'tier3') => {
     if (!user) {
       setPendingTier(tier);
       setShowAuthModal(true);
       return;
     }
-    setActiveFlow(tier);
+    if (tier === 'tier1') {
+      setShowBlurbForm(true);
+    } else if (tier === 'tier2') {
+      handleDirectCheckout('tier2_forward');
+    } else if (tier === 'tier3') {
+      handleDirectCheckout('tier3_vip');
+    }
   };
 
-  const emailHandle = profile?.full_name
-    ? generateEmailHandle(profile.full_name)
-    : 'yourname';
+  const handleDirectCheckout = async (tier: ConciergeTier) => {
+    setLoadingTier(tier);
+    setError(null);
+    try {
+      const { url } = await conciergeService.createCheckoutSession({ tier });
+      if (url) window.location.href = url;
+    } catch (err: any) {
+      setError(err.message || 'Something went wrong');
+      setLoadingTier(null);
+    }
+  };
 
   const handleTier1Submit = async (blurb: string) => {
     setLoading(true);
@@ -58,37 +75,6 @@ export function Concierge() {
       const { url } = await conciergeService.createCheckoutSession({
         tier: 'tier1_quick',
         blurb,
-      });
-      if (url) window.location.href = url;
-    } catch (err: any) {
-      setError(err.message || 'Something went wrong');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleTier2Confirm = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const { url } = await conciergeService.createCheckoutSession({
-        tier: 'tier2_forward',
-      });
-      if (url) window.location.href = url;
-    } catch (err: any) {
-      setError(err.message || 'Something went wrong');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleTier3Submit = async (sources: { name: string; link: string }[]) => {
-    setLoading(true);
-    setError(null);
-    try {
-      const { url } = await conciergeService.createCheckoutSession({
-        tier: 'tier3_vip',
-        sources,
       });
       if (url) window.location.href = url;
     } catch (err: any) {
@@ -126,34 +112,18 @@ export function Concierge() {
         </p>
       </div>
 
-      {activeFlow === 'tier1' ? (
+      {showBlurbForm ? (
         <div className="max-w-2xl mx-auto bg-white rounded-xl border border-gray-200 shadow-sm p-6 sm:p-8">
           <Tier1BlurbForm
             onSubmit={handleTier1Submit}
-            onBack={() => setActiveFlow(null)}
-            loading={loading}
-          />
-        </div>
-      ) : activeFlow === 'tier2' ? (
-        <div className="max-w-2xl mx-auto bg-white rounded-xl border border-gray-200 shadow-sm p-6 sm:p-8">
-          <Tier2Confirmation
-            emailHandle={emailHandle}
-            onConfirm={handleTier2Confirm}
-            onBack={() => setActiveFlow(null)}
-            loading={loading}
-          />
-        </div>
-      ) : activeFlow === 'tier3' ? (
-        <div className="max-w-2xl mx-auto bg-white rounded-xl border border-gray-200 shadow-sm p-6 sm:p-8">
-          <Tier3SourcesForm
-            onSubmit={handleTier3Submit}
-            onBack={() => setActiveFlow(null)}
+            onBack={() => setShowBlurbForm(false)}
             loading={loading}
           />
         </div>
       ) : (
         <TierCards
           activeSubscription={activeSub}
+          loadingTier={loadingTier}
           onSelectTier1={() => requireAuth('tier1')}
           onSelectTier2={() => requireAuth('tier2')}
           onSelectTier3={() => requireAuth('tier3')}

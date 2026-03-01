@@ -308,7 +308,7 @@ export interface ConciergeSubscription {
   stripe_subscription_id: string | null;
   stripe_customer_id: string | null;
   email_handle: string | null;
-  sources: string[] | null;
+  sources: { name: string; link: string }[] | null;
   last_checked_at: string | null;
   admin_notes: string | null;
   created_at: string;

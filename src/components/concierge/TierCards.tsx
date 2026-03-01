@@ -1,10 +1,11 @@
 import React from 'react';
-import { Check, Star, Mail, Crown } from 'lucide-react';
-import type { ConciergeSubscription } from '../../config/supabase';
+import { Check, Star, Mail, Crown, Loader2 } from 'lucide-react';
+import type { ConciergeSubscription, ConciergeTier } from '../../config/supabase';
 
 interface TierCardsProps {
   compact?: boolean;
   activeSubscription?: ConciergeSubscription | null;
+  loadingTier?: ConciergeTier | null;
   onSelectTier1: () => void;
   onSelectTier2: () => void;
   onSelectTier3: () => void;
@@ -66,6 +67,7 @@ const tiers = [
 export function TierCards({
   compact,
   activeSubscription,
+  loadingTier,
   onSelectTier1,
   onSelectTier2,
   onSelectTier3,
@@ -73,7 +75,7 @@ export function TierCards({
   const handlers = [onSelectTier1, onSelectTier2, onSelectTier3];
 
   const hasActiveSub = activeSubscription &&
-    (activeSubscription.status === 'active' || activeSubscription.status === 'pending');
+    activeSubscription.status === 'active';
 
   return (
     <div className={`grid gap-6 ${compact ? 'grid-cols-1 md:grid-cols-3' : 'grid-cols-1 md:grid-cols-3 lg:gap-8'}`}>
@@ -145,9 +147,17 @@ export function TierCards({
                 ) : (
                   <button
                     onClick={handlers[idx]}
-                    className="w-full py-2.5 px-4 rounded-lg text-sm font-semibold transition-colors bg-accent-500 text-white hover:bg-accent-600"
+                    disabled={!!loadingTier}
+                    className="w-full py-2.5 px-4 rounded-lg text-sm font-semibold transition-colors bg-accent-500 text-white hover:bg-accent-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                   >
-                    {tier.cta} &mdash; {tier.price}{tier.priceLabel !== 'per listing' ? '/mo' : ''}
+                    {loadingTier === tier.tier ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Redirecting...
+                      </>
+                    ) : (
+                      <>{tier.cta} &mdash; {tier.price}{tier.priceLabel !== 'per listing' ? '/mo' : ''}</>
+                    )}
                   </button>
                 )}
               </div>

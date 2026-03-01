@@ -49,7 +49,7 @@ Deno.serve(async (req) => {
 
     if (!stripeCustomerId) {
       return new Response(
-        JSON.stringify({ error: 'No billing account found. Complete a featured listing purchase first to access billing history.' }),
+        JSON.stringify({ error: 'No billing account found. Subscribe to a service or boost a listing to set up billing.' }),
         {
           status: 404,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },

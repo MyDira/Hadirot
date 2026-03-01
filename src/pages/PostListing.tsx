@@ -32,10 +32,8 @@ import type { ListingFormData } from "./postListing/types";
 import { INITIAL_FORM_DATA } from "./postListing/types";
 import { TierCards } from "../components/concierge/TierCards";
 import { Tier1BlurbForm } from "../components/concierge/Tier1BlurbForm";
-import { Tier2Confirmation } from "../components/concierge/Tier2Confirmation";
-import { Tier3SourcesForm } from "../components/concierge/Tier3SourcesForm";
-import { conciergeService, generateEmailHandle } from "../services/concierge";
-import type { ConciergeSubscription } from "../config/supabase";
+import { conciergeService } from "../services/concierge";
+import type { ConciergeSubscription, ConciergeTier } from "../config/supabase";
 import { mapAIParsedDataToFormFields, validatePrice } from "./postListing/aiParseMapper";
 import { AIParserSection } from "./postListing/AIParserSection";
 import { AdminAssignmentSection } from "./postListing/AdminAssignmentSection";
@@ -82,8 +80,9 @@ export function PostListing() {
   const [originalParsedText, setOriginalParsedText] = useState('');
   const [showOriginalText, setShowOriginalText] = useState(false);
   const [postMode, setPostMode] = useState<'none' | 'self' | 'concierge'>('none');
-  const [conciergeFlow, setConciergeFlow] = useState<null | 'tier1' | 'tier2' | 'tier3'>(null);
+  const [conciergeFlow, setConciergeFlow] = useState<null | 'tier1'>(null);
   const [conciergeLoading, setConciergeLoading] = useState(false);
+  const [conciergeLoadingTier, setConciergeLoadingTier] = useState<ConciergeTier | null>(null);
   const [conciergeSub, setConciergeSub] = useState<ConciergeSubscription | null>(null);
   const [formData, setFormData] = useState<ListingFormData>({
     ...INITIAL_FORM_DATA,
@@ -1606,50 +1605,30 @@ export function PostListing() {
                 loading={conciergeLoading}
               />
             </div>
-          ) : conciergeFlow === 'tier2' ? (
-            <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
-              <Tier2Confirmation
-                emailHandle={profile?.full_name ? generateEmailHandle(profile.full_name) : 'your-name'}
-                onConfirm={async () => {
-                  setConciergeLoading(true);
-                  try {
-                    const { url } = await conciergeService.createCheckoutSession({ tier: 'tier2_forward' });
-                    if (url) window.location.href = url;
-                  } catch { setConciergeLoading(false); }
-                }}
-                onBack={() => setConciergeFlow(null)}
-                loading={conciergeLoading}
-              />
-            </div>
-          ) : conciergeFlow === 'tier3' ? (
-            <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
-              <Tier3SourcesForm
-                onSubmit={async (sources) => {
-                  setConciergeLoading(true);
-                  try {
-                    const { url } = await conciergeService.createCheckoutSession({ tier: 'tier3_vip', sources });
-                    if (url) window.location.href = url;
-                  } catch { setConciergeLoading(false); }
-                }}
-                onBack={() => setConciergeFlow(null)}
-                loading={conciergeLoading}
-              />
-            </div>
           ) : (
             <TierCards
               compact
               activeSubscription={conciergeSub}
+              loadingTier={conciergeLoadingTier}
               onSelectTier1={() => {
                 if (!user) { setShowAuthModal(true); return; }
                 setConciergeFlow('tier1');
               }}
-              onSelectTier2={() => {
+              onSelectTier2={async () => {
                 if (!user) { setShowAuthModal(true); return; }
-                setConciergeFlow('tier2');
+                setConciergeLoadingTier('tier2_forward');
+                try {
+                  const { url } = await conciergeService.createCheckoutSession({ tier: 'tier2_forward' });
+                  if (url) window.location.href = url;
+                } catch { setConciergeLoadingTier(null); }
               }}
-              onSelectTier3={() => {
+              onSelectTier3={async () => {
                 if (!user) { setShowAuthModal(true); return; }
-                setConciergeFlow('tier3');
+                setConciergeLoadingTier('tier3_vip');
+                try {
+                  const { url } = await conciergeService.createCheckoutSession({ tier: 'tier3_vip' });
+                  if (url) window.location.href = url;
+                } catch { setConciergeLoadingTier(null); }
               }}
             />
           )}

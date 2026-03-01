@@ -47,14 +47,24 @@ export function Tier1BlurbForm({ onSubmit, onBack, loading }: Tier1BlurbFormProp
         </p>
       </div>
 
-      <textarea
-        value={blurb}
-        onChange={(e) => setBlurb(e.target.value)}
-        placeholder="e.g., Beautiful 2BR/1BA apartment on the corner of Ocean Ave and Ave J. Freshly renovated kitchen, hardwood floors throughout. $2,200/month. Contact: 718-555-1234"
-        rows={8}
-        className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm focus:border-[#1E4A74] focus:ring-1 focus:ring-[#1E4A74] outline-none resize-y"
-        required
-      />
+      <div>
+        <textarea
+          value={blurb}
+          onChange={(e) => {
+            if (e.target.value.length <= 500) setBlurb(e.target.value);
+          }}
+          maxLength={500}
+          placeholder="e.g., Beautiful 2BR/1BA apartment on the corner of Ocean Ave and Ave J. Freshly renovated kitchen, hardwood floors throughout. $2,200/month. Contact: 718-555-1234"
+          rows={8}
+          className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm focus:border-[#1E4A74] focus:ring-1 focus:ring-[#1E4A74] outline-none resize-y"
+          required
+        />
+        <div className="flex justify-end mt-1">
+          <span className={`text-xs ${blurb.length > 450 ? 'text-amber-600 font-medium' : 'text-gray-400'}`}>
+            {blurb.length} / 500
+          </span>
+        </div>
+      </div>
 
       <div className="flex items-center justify-between">
         <p className="text-xs text-gray-400">

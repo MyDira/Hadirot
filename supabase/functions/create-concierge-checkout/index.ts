@@ -93,7 +93,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    const { tier, blurb, sources } = await req.json();
+    const { tier, blurb } = await req.json();
 
     if (!tier || !TIER_CONFIG[tier]) {
       return new Response(JSON.stringify({ error: "Invalid tier" }), {
@@ -107,15 +107,6 @@ Deno.serve(async (req) => {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
-    }
-
-    if (tier === "tier3_vip") {
-      if (!sources || !Array.isArray(sources) || sources.filter((s: { name?: string }) => s.name?.trim()).length === 0) {
-        return new Response(JSON.stringify({ error: "At least one source is required for VIP" }), {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
     }
 
     const supabaseAdmin = createClient(
@@ -153,64 +144,16 @@ Deno.serve(async (req) => {
     const origin = req.headers.get("origin") || "https://hadirot.com";
 
     let emailHandle: string | null = null;
-
-    const { data: subscription, error: subError } = await supabaseAdmin
-      .from("concierge_subscriptions")
-      .insert({
-        user_id: user.id,
-        tier,
-        status: "pending",
-        stripe_customer_id: stripeCustomerId,
-        email_handle: null,
-        sources: tier === "tier3_vip" ? sources.filter((s: { name?: string }) => s.name?.trim()) : null,
-      })
-      .select()
-      .single();
-
-    if (subError || !subscription) {
-      return new Response(JSON.stringify({ error: "Failed to create subscription record" }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
     if (tier === "tier2_forward") {
       emailHandle = await findUniqueHandle(supabaseAdmin, profile?.full_name || user.email || "user");
-      await supabaseAdmin
-        .from("concierge_subscriptions")
-        .update({ email_handle: emailHandle })
-        .eq("id", subscription.id);
-    }
-
-    let submissionId: string | null = null;
-    if (tier === "tier1_quick") {
-      const { data: sub, error: subErr } = await supabaseAdmin
-        .from("concierge_submissions")
-        .insert({
-          user_id: user.id,
-          subscription_id: subscription.id,
-          blurb: blurb.trim(),
-          status: "pending",
-        })
-        .select()
-        .single();
-
-      if (subErr || !sub) {
-        return new Response(JSON.stringify({ error: "Failed to create submission" }), {
-          status: 500,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      submissionId = sub.id;
     }
 
     const metadata: Record<string, string> = {
       type: "concierge",
       tier,
-      subscription_id: subscription.id,
       user_id: user.id,
     };
-    if (submissionId) metadata.submission_id = submissionId;
+    if (tier === "tier1_quick") metadata.blurb = blurb.trim().slice(0, 500);
     if (emailHandle) metadata.email_handle = emailHandle;
 
     const session = await stripe.checkout.sessions.create({
@@ -222,13 +165,6 @@ Deno.serve(async (req) => {
       success_url: `${origin}/concierge/success?tier=${tier}&session_id={CHECKOUT_SESSION_ID}${emailHandle ? `&handle=${emailHandle}` : ""}`,
       cancel_url: `${origin}/concierge?cancelled=true`,
     });
-
-    if (tier === "tier1_quick" && submissionId) {
-      await supabaseAdmin
-        .from("concierge_submissions")
-        .update({ stripe_checkout_session_id: session.id })
-        .eq("id", submissionId);
-    }
 
     return new Response(
       JSON.stringify({ url: session.url, session_id: session.id, email_handle: emailHandle }),
