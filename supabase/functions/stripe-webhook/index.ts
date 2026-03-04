@@ -222,6 +222,22 @@ async function handleConciergeCheckout(session: Stripe.Checkout.Session) {
       );
       await sendEmail(adminEmails, `New Concierge Submission \u2014 ${userName}`, html);
     }
+    if (userEmail) {
+      const userHtml = brandWrap(
+        'Your Quick Post Has Been Submitted',
+        `
+        <p>Thank you for your submission, ${userName}! We've received your listing request.</p>
+        <p><strong>Here's what you submitted:</strong></p>
+        <div style="background-color:#F9FAFB;border:1px solid #E5E7EB;border-radius:6px;padding:16px;margin:8px 0;white-space:pre-wrap;">${blurb || ''}</div>
+        <hr style="border:none;border-top:1px solid #E5E7EB;margin:16px 0;" />
+        <p>Our team will review and post your listing shortly. You'll receive a notification once it's live.</p>
+        <div style="text-align:center;margin:24px 0;">
+          <a href="https://hadirot.com/account?tab=billing" style="background-color:#1E4A74;color:#FFFFFF;padding:12px 24px;text-decoration:none;border-radius:6px;display:inline-block;font-weight:bold;">View Your Account</a>
+        </div>
+        `,
+      );
+      await sendEmail(userEmail, 'Your Quick Post Has Been Submitted', userHtml);
+    }
     console.log(`Concierge Tier 1 paid for user ${user_id}`);
   }
 
@@ -271,6 +287,28 @@ async function handleConciergeCheckout(session: Stripe.Checkout.Session) {
       );
       await sendEmail(userEmail, 'Your Hadirot Listing Email is Ready', html);
     }
+    const adminEmails = await getAdminEmails(supabaseAdmin);
+    if (adminEmails.length > 0) {
+      const adminHtml = brandWrap(
+        `New Forward &amp; Post Subscriber`,
+        `
+        <p><strong>Name:</strong> ${userName}</p>
+        <p><strong>Agency:</strong> ${profile?.agency || 'None'}</p>
+        <p><strong>Email:</strong> ${userEmail}</p>
+        <p><strong>Phone:</strong> ${profile?.phone || 'Not provided'}</p>
+        <hr style="border:none;border-top:1px solid #E5E7EB;margin:16px 0;" />
+        <p><strong>Assigned email handle:</strong></p>
+        <div style="background-color:#F0F9FF;border:2px solid #1E4A74;border-radius:8px;padding:20px;margin:16px 0;text-align:center;">
+          <span style="font-size:20px;font-weight:bold;color:#1E4A74;letter-spacing:0.5px;">${fullEmail}</span>
+        </div>
+        <p><strong>Subscription started:</strong> ${new Date().toLocaleDateString()}</p>
+        <div style="text-align:center;margin:24px 0;">
+          <a href="https://hadirot.com/admin?tab=concierge" style="background-color:#1E4A74;color:#FFFFFF;padding:12px 24px;text-decoration:none;border-radius:6px;display:inline-block;font-weight:bold;">View in Admin Panel</a>
+        </div>
+        `,
+      );
+      await sendEmail(adminEmails, `New Forward & Post Subscriber \u2014 ${userName}`, adminHtml);
+    }
     console.log(`Concierge Tier 2 activated for user ${user_id}, handle: ${handle}`);
   }
 
@@ -315,6 +353,22 @@ async function handleConciergeCheckout(session: Stripe.Checkout.Session) {
         `,
       );
       await sendEmail(adminEmails, `New VIP Concierge Subscriber \u2014 ${userName}`, html);
+    }
+    if (userEmail) {
+      const userHtml = brandWrap(
+        'Welcome to Hadirot VIP Concierge',
+        `
+        <p>Welcome, ${userName}! You're now a Hadirot VIP Concierge member.</p>
+        <p>We'll handle posting your listings for you — but first, we need to know where to find them.</p>
+        <hr style="border:none;border-top:1px solid #E5E7EB;margin:16px 0;" />
+        <p><strong>Next step:</strong> Set up your listing sources so we know where to find your listings.</p>
+        <div style="text-align:center;margin:24px 0;">
+          <a href="https://hadirot.com/concierge/success?tier=tier3_vip" style="background-color:#1E4A74;color:#FFFFFF;padding:12px 24px;text-decoration:none;border-radius:6px;display:inline-block;font-weight:bold;">Set Up My Listing Sources</a>
+        </div>
+        <p style="color:#6B7280;font-size:14px;">You can also update your sources anytime from your <a href="https://hadirot.com/account?tab=billing" style="color:#1E4A74;">account billing page</a>.</p>
+        `,
+      );
+      await sendEmail(userEmail, 'Welcome to Hadirot VIP Concierge', userHtml);
     }
     console.log(`Concierge Tier 3 VIP activated for user ${user_id}`);
   }
