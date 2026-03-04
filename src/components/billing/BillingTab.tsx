@@ -5,7 +5,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/config/supabase";
 import { stripeService, type FeaturedPurchase } from "@/services/stripe";
 import { conciergeService } from "@/services/concierge";
-import type { ConciergeSubscription } from "@/config/supabase";
+import type { ConciergeSubscription, ConciergeSubmission } from "@/config/supabase";
 
 const PLAN_LABELS: Record<string, string> = {
   "7day": "1 Week",
@@ -21,6 +21,17 @@ const STATUS_STYLES: Record<string, string> = {
   cancelled: "bg-gray-100 text-gray-600",
   refunded: "bg-orange-100 text-orange-700",
   free: "bg-teal-100 text-teal-800",
+  processing: "bg-amber-100 text-amber-800",
+  posted: "bg-green-100 text-green-800",
+  rejected: "bg-red-100 text-red-800",
+};
+
+const SUBMISSION_STATUS_LABELS: Record<string, string> = {
+  paid: "Submitted",
+  processing: "Processing",
+  posted: "Posted",
+  rejected: "Rejected",
+  pending: "Pending",
 };
 
 const TIER_DISPLAY: Record<string, { name: string; price: string; icon: typeof Star }> = {
@@ -234,6 +245,45 @@ function ConciergeSubscriptionCard({ subscription, onManageBilling }: { subscrip
   );
 }
 
+function SubmissionRow({ submission }: { submission: ConciergeSubmission }) {
+  const blurbTitle = submission.blurb.length > 40
+    ? submission.blurb.slice(0, 40).trimEnd() + "…"
+    : submission.blurb;
+  const amount = `$${(submission.amount_cents / 100).toFixed(2)}`;
+  const statusLabel = SUBMISSION_STATUS_LABELS[submission.status] || submission.status;
+  const statusStyle = STATUS_STYLES[submission.status] || "bg-gray-100 text-gray-600";
+
+  return (
+    <tr className="hover:bg-gray-50 transition-colors">
+      <td className="py-3 pr-4">
+        <div className="font-medium text-[#273140] truncate max-w-[180px]" title={submission.blurb}>
+          {blurbTitle}
+        </div>
+        <div className="text-xs text-gray-400 mt-0.5">Concierge: Quick Post</div>
+      </td>
+      <td className="py-3 pr-4">
+        <span className="inline-flex items-center gap-1 text-gray-700">
+          <Briefcase className="w-3 h-3 text-[#1E4A74]" />
+          Quick Post
+        </span>
+      </td>
+      <td className="py-3 pr-4 text-gray-700 font-medium">{amount}</td>
+      <td className="py-3 pr-4 text-gray-500">
+        <span className="inline-flex items-center gap-1">
+          <Clock className="w-3 h-3" />
+          {formatDate(submission.created_at)}
+        </span>
+      </td>
+      <td className="py-3 pr-4 text-gray-500 whitespace-nowrap">&mdash;</td>
+      <td className="py-3">
+        <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${statusStyle}`}>
+          {statusLabel}
+        </span>
+      </td>
+    </tr>
+  );
+}
+
 function PurchaseRow({ purchase }: { purchase: FeaturedPurchase }) {
   const listingTitle =
     purchase.listings?.title || `Listing ${purchase.listing_id.slice(0, 8)}`;
@@ -290,6 +340,7 @@ function PurchaseRow({ purchase }: { purchase: FeaturedPurchase }) {
 export default function BillingTab() {
   const { user } = useAuth();
   const [purchases, setPurchases] = useState<FeaturedPurchase[]>([]);
+  const [submissions, setSubmissions] = useState<ConciergeSubmission[]>([]);
   const [billingLoading, setBillingLoading] = useState(true);
   const [billingError, setBillingError] = useState<string | null>(null);
   const [portalLoading, setPortalLoading] = useState(false);
@@ -304,9 +355,11 @@ export default function BillingTab() {
     Promise.all([
       stripeService.getUserPurchases().catch(() => [] as FeaturedPurchase[]),
       conciergeService.getUserActiveSubscription().catch(() => null),
-    ]).then(([purchasesData, sub]) => {
+      conciergeService.getUserSubmissions().catch(() => [] as ConciergeSubmission[]),
+    ]).then(([purchasesData, sub, submissionsData]) => {
       setPurchases(purchasesData);
       setConciergeSub(sub);
+      setSubmissions(submissionsData);
     }).catch(() => {
       setBillingError("Failed to load billing history.");
     }).finally(() => {
@@ -380,7 +433,7 @@ export default function BillingTab() {
       )}
 
       <p className="text-sm text-gray-500 mb-6">
-        View your featured listing purchase history. Use "Manage Billing" to access invoices and receipts.
+        View your featured listing purchases and concierge submissions. Use "Manage Billing" to access invoices and receipts.
       </p>
 
       {billingLoading ? (
@@ -393,12 +446,12 @@ export default function BillingTab() {
         <div className="p-4 rounded-md bg-red-50 border border-red-200 text-red-700 text-sm">
           {billingError}
         </div>
-      ) : purchases.length === 0 ? (
+      ) : purchases.length === 0 && submissions.length === 0 ? (
         <div className="text-center py-10 text-gray-500">
           <Receipt className="w-10 h-10 mx-auto mb-3 text-gray-300" />
           <p className="font-medium text-gray-600">No purchases yet</p>
           <p className="text-sm mt-1">
-            Feature a listing from your dashboard to boost its visibility.
+            Feature a listing from your dashboard or submit a concierge request to see your history here.
           </p>
         </div>
       ) : (
@@ -415,9 +468,18 @@ export default function BillingTab() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {purchases.map((p) => (
-                <PurchaseRow key={p.id} purchase={p} />
-              ))}
+              {[
+                ...purchases.map((p) => ({ type: "purchase" as const, date: p.purchased_at || p.created_at, data: p })),
+                ...submissions.map((s) => ({ type: "submission" as const, date: s.created_at, data: s })),
+              ]
+                .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+                .map((item) =>
+                  item.type === "purchase" ? (
+                    <PurchaseRow key={`purchase-${item.data.id}`} purchase={item.data} />
+                  ) : (
+                    <SubmissionRow key={`submission-${item.data.id}`} submission={item.data} />
+                  )
+                )}
             </tbody>
           </table>
         </div>
