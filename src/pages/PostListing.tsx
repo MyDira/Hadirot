@@ -102,6 +102,28 @@ export function PostListing() {
     }
   }, [user]);
 
+  const handleConciergeUpgrade = async () => {
+    setConciergeLoadingTier('tier3_vip');
+    try {
+      await conciergeService.updateSubscription('upgrade');
+      const updated = await conciergeService.getUserActiveSubscription();
+      setConciergeSub(updated);
+    } finally {
+      setConciergeLoadingTier(null);
+    }
+  };
+
+  const handleConciergeDowngrade = async () => {
+    setConciergeLoadingTier('tier2_forward');
+    try {
+      await conciergeService.updateSubscription('downgrade');
+      const updated = await conciergeService.getUserActiveSubscription();
+      setConciergeSub(updated);
+    } finally {
+      setConciergeLoadingTier(null);
+    }
+  };
+
   // Load draft data on component mount
   useEffect(() => {
     loadDraftData().then(setHasDraft);
@@ -1630,6 +1652,8 @@ export function PostListing() {
                   if (url) window.location.href = url;
                 } catch { setConciergeLoadingTier(null); }
               }}
+              onUpgrade={handleConciergeUpgrade}
+              onDowngrade={handleConciergeDowngrade}
             />
           )}
         </div>

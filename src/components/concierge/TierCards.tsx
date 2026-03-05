@@ -9,6 +9,16 @@ interface TierCardsProps {
   onSelectTier1: () => void;
   onSelectTier2: () => void;
   onSelectTier3: () => void;
+  onUpgrade?: () => void;
+  onDowngrade?: () => void;
+}
+
+function formatPeriodEnd(iso: string): string {
+  return new Date(iso).toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
 }
 
 const tiers = [
@@ -57,6 +67,7 @@ const tiers = [
       'We check your listing sources for you',
       'Twice-weekly monitoring',
       'New listings posted automatically',
+      'Forward listings via your own @list.hadirot.com email',
       'True zero-effort experience',
     ],
     cta: 'Subscribe',
@@ -71,19 +82,120 @@ export function TierCards({
   onSelectTier1,
   onSelectTier2,
   onSelectTier3,
+  onUpgrade,
+  onDowngrade,
 }: TierCardsProps) {
   const handlers = [onSelectTier1, onSelectTier2, onSelectTier3];
 
-  const hasActiveSub = activeSubscription &&
-    activeSubscription.status === 'active';
+  const isCancelled = activeSubscription?.status === 'cancelled';
+  const isActive = activeSubscription?.status === 'active';
+  const hasActiveSub = (isActive || isCancelled) && activeSubscription != null;
 
   return (
     <div className={`grid gap-6 ${compact ? 'grid-cols-1 md:grid-cols-3' : 'grid-cols-1 md:grid-cols-3 lg:gap-8'}`}>
       {tiers.map((tier, idx) => {
         const Icon = tier.icon;
-        const isCurrentPlan =
-          hasActiveSub && activeSubscription.tier === tier.tier;
+        const isCurrentPlan = hasActiveSub && activeSubscription!.tier === tier.tier;
         const isSubscriptionTier = tier.tier !== 'tier1_quick';
+
+        const isUpgradePath =
+          isActive &&
+          activeSubscription!.tier === 'tier2_forward' &&
+          tier.tier === 'tier3_vip';
+
+        const isDowngradePath =
+          isActive &&
+          activeSubscription!.tier === 'tier3_vip' &&
+          tier.tier === 'tier2_forward';
+
+        const renderButton = () => {
+          if (isCurrentPlan) {
+            if (isCancelled && activeSubscription!.current_period_end) {
+              return (
+                <div className="w-full py-2.5 px-4 rounded-lg bg-amber-50 border border-amber-200 text-center">
+                  <p className="text-amber-700 text-sm font-medium">Cancelling</p>
+                  <p className="text-amber-600 text-xs mt-0.5">
+                    Active until {formatPeriodEnd(activeSubscription!.current_period_end)}
+                  </p>
+                </div>
+              );
+            }
+            return (
+              <div className="w-full py-2.5 px-4 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 text-center text-sm font-medium">
+                Your Current Plan
+              </div>
+            );
+          }
+
+          if (isUpgradePath) {
+            return (
+              <button
+                onClick={onUpgrade}
+                disabled={!!loadingTier}
+                className="w-full py-2.5 px-4 rounded-lg text-sm font-semibold transition-colors bg-accent-500 text-white hover:bg-accent-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                {loadingTier === tier.tier ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Processing...
+                  </>
+                ) : (
+                  'Upgrade to VIP — $200/mo'
+                )}
+              </button>
+            );
+          }
+
+          if (isDowngradePath) {
+            return (
+              <div className="space-y-1.5">
+                <button
+                  onClick={onDowngrade}
+                  disabled={!!loadingTier}
+                  className="w-full py-2.5 px-4 rounded-lg text-sm font-semibold transition-colors border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  {loadingTier === tier.tier ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Processing...
+                    </>
+                  ) : (
+                    'Switch to Forward & Post'
+                  )}
+                </button>
+                <p className="text-xs text-gray-400 text-center">Takes effect next billing cycle</p>
+              </div>
+            );
+          }
+
+          if (isSubscriptionTier && isActive && !isCancelled) {
+            return (
+              <button
+                disabled
+                className="w-full py-2.5 px-4 rounded-lg bg-gray-100 text-gray-400 text-sm font-medium cursor-not-allowed"
+              >
+                {tier.cta}
+              </button>
+            );
+          }
+
+          return (
+            <button
+              onClick={handlers[idx]}
+              disabled={!!loadingTier}
+              className="w-full py-2.5 px-4 rounded-lg text-sm font-semibold transition-colors bg-accent-500 text-white hover:bg-accent-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            >
+              {loadingTier === tier.tier ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Redirecting...
+                </>
+              ) : (
+                <>{tier.cta} &mdash; {tier.price}{tier.priceLabel !== 'per listing' ? '/mo' : ''}</>
+              )}
+            </button>
+          );
+        };
 
         return (
           <div
@@ -133,33 +245,7 @@ export function TierCards({
               </ul>
 
               <div className="mt-auto pt-2">
-                {isCurrentPlan ? (
-                  <div className="w-full py-2.5 px-4 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 text-center text-sm font-medium">
-                    Your Current Plan
-                  </div>
-                ) : isSubscriptionTier && hasActiveSub ? (
-                  <button
-                    disabled
-                    className="w-full py-2.5 px-4 rounded-lg bg-gray-100 text-gray-400 text-sm font-medium cursor-not-allowed"
-                  >
-                    {tier.cta}
-                  </button>
-                ) : (
-                  <button
-                    onClick={handlers[idx]}
-                    disabled={!!loadingTier}
-                    className="w-full py-2.5 px-4 rounded-lg text-sm font-semibold transition-colors bg-accent-500 text-white hover:bg-accent-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                  >
-                    {loadingTier === tier.tier ? (
-                      <>
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        Redirecting...
-                      </>
-                    ) : (
-                      <>{tier.cta} &mdash; {tier.price}{tier.priceLabel !== 'per listing' ? '/mo' : ''}</>
-                    )}
-                  </button>
-                )}
+                {renderButton()}
               </div>
             </div>
           </div>

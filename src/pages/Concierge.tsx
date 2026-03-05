@@ -84,13 +84,58 @@ export function Concierge() {
     }
   };
 
+  const handleUpgrade = async () => {
+    setLoadingTier('tier3_vip');
+    setError(null);
+    try {
+      await conciergeService.updateSubscription('upgrade');
+      const updated = await conciergeService.getUserActiveSubscription();
+      setActiveSub(updated);
+    } catch (err: any) {
+      setError(err.message || 'Failed to upgrade subscription');
+    } finally {
+      setLoadingTier(null);
+    }
+  };
+
+  const handleDowngrade = async () => {
+    setLoadingTier('tier2_forward');
+    setError(null);
+    try {
+      await conciergeService.updateSubscription('downgrade');
+      const updated = await conciergeService.getUserActiveSubscription();
+      setActiveSub(updated);
+    } catch (err: any) {
+      setError(err.message || 'Failed to switch subscription');
+    } finally {
+      setLoadingTier(null);
+    }
+  };
+
+  const TIER_NAMES: Record<string, string> = {
+    tier2_forward: 'Forward & Post',
+    tier3_vip: 'VIP / Full Service',
+  };
+
   const cancelled = searchParams.get('cancelled') === 'true';
+  const subIsCancelling = activeSub?.status === 'cancelled';
 
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
       {cancelled && (
         <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
           Payment was cancelled. You can try again anytime.
+        </div>
+      )}
+
+      {subIsCancelling && activeSub && (
+        <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
+          Your {TIER_NAMES[activeSub.tier] || 'Concierge'} subscription is set to cancel on{' '}
+          {activeSub.current_period_end
+            ? new Date(activeSub.current_period_end).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+            : 'the end of your billing period'}
+          . You can resubscribe or{' '}
+          <a href="/account?tab=billing" className="underline font-medium">manage your subscription from your billing page</a>.
         </div>
       )}
 
@@ -127,6 +172,8 @@ export function Concierge() {
           onSelectTier1={() => requireAuth('tier1')}
           onSelectTier2={() => requireAuth('tier2')}
           onSelectTier3={() => requireAuth('tier3')}
+          onUpgrade={handleUpgrade}
+          onDowngrade={handleDowngrade}
         />
       )}
 

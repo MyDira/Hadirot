@@ -148,11 +148,74 @@ function EditSourcesForm({ initialSources, onSaved }: { initialSources: SourceEn
   );
 }
 
-function ConciergeSubscriptionCard({ subscription, onManageBilling }: { subscription: ConciergeSubscription; onManageBilling: () => void }) {
+interface ConciergeSubscriptionCardProps {
+  subscription: ConciergeSubscription;
+  onManageBilling: () => void;
+  onCancel: () => Promise<void>;
+  onUpgrade: () => Promise<void>;
+  onDowngrade: () => Promise<void>;
+}
+
+function ConciergeSubscriptionCard({
+  subscription,
+  onManageBilling,
+  onCancel,
+  onUpgrade,
+  onDowngrade,
+}: ConciergeSubscriptionCardProps) {
   const tierInfo = TIER_DISPLAY[subscription.tier] || TIER_DISPLAY.tier1_quick;
   const Icon = tierInfo.icon;
   const [showEditSources, setShowEditSources] = useState(false);
   const [currentSources, setCurrentSources] = useState(subscription.sources || []);
+  const [cancelLoading, setCancelLoading] = useState(false);
+  const [upgradeLoading, setUpgradeLoading] = useState(false);
+  const [downgradeLoading, setDowngradeLoading] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+
+  const isCancelled = subscription.status === 'cancelled';
+
+  const handleCancel = async () => {
+    const endDate = subscription.current_period_end
+      ? formatDate(subscription.current_period_end)
+      : 'end of billing period';
+    const confirmed = window.confirm(
+      `Are you sure you want to cancel? Your service will continue until ${endDate}.`
+    );
+    if (!confirmed) return;
+    setCancelLoading(true);
+    setActionError(null);
+    try {
+      await onCancel();
+    } catch (err: any) {
+      setActionError(err.message || 'Failed to cancel subscription');
+    } finally {
+      setCancelLoading(false);
+    }
+  };
+
+  const handleUpgrade = async () => {
+    setUpgradeLoading(true);
+    setActionError(null);
+    try {
+      await onUpgrade();
+    } catch (err: any) {
+      setActionError(err.message || 'Failed to upgrade subscription');
+    } finally {
+      setUpgradeLoading(false);
+    }
+  };
+
+  const handleDowngrade = async () => {
+    setDowngradeLoading(true);
+    setActionError(null);
+    try {
+      await onDowngrade();
+    } catch (err: any) {
+      setActionError(err.message || 'Failed to switch subscription');
+    } finally {
+      setDowngradeLoading(false);
+    }
+  };
 
   return (
     <div className="bg-white rounded-lg border border-gray-200 p-5 mb-6">
@@ -166,10 +229,31 @@ function ConciergeSubscriptionCard({ subscription, onManageBilling }: { subscrip
             <p className="text-sm text-gray-500">{tierInfo.price}</p>
           </div>
         </div>
-        <span className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-medium capitalize ${STATUS_STYLES[subscription.status] || 'bg-gray-100 text-gray-600'}`}>
-          {subscription.status}
-        </span>
+        <div className="text-right">
+          {isCancelled ? (
+            <>
+              <span className="inline-block px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
+                Cancelling
+              </span>
+              {subscription.current_period_end && (
+                <p className="text-xs text-amber-600 mt-1">
+                  Active until {formatDate(subscription.current_period_end)}
+                </p>
+              )}
+            </>
+          ) : (
+            <span className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-medium capitalize ${STATUS_STYLES[subscription.status] || 'bg-gray-100 text-gray-600'}`}>
+              {subscription.status}
+            </span>
+          )}
+        </div>
       </div>
+
+      {actionError && (
+        <div className="mt-3 p-3 rounded-md bg-red-50 border border-red-200 text-red-700 text-sm">
+          {actionError}
+        </div>
+      )}
 
       <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
         <div>
@@ -177,7 +261,7 @@ function ConciergeSubscriptionCard({ subscription, onManageBilling }: { subscrip
           <p className="font-medium text-gray-800">{formatDate(subscription.created_at)}</p>
         </div>
 
-        {subscription.tier === 'tier2_forward' && subscription.email_handle && (
+        {subscription.email_handle && (
           <div>
             <span className="text-gray-500">Your email address</span>
             <div className="mt-1 bg-[#F0F9FF] border border-[#1E4A74]/20 rounded-md px-3 py-1.5 inline-flex items-center gap-1.5">
@@ -232,14 +316,64 @@ function ConciergeSubscriptionCard({ subscription, onManageBilling }: { subscrip
         </>
       )}
 
-      <div className="mt-4 pt-4 border-t border-gray-100 flex gap-3">
+      {!isCancelled && subscription.tier === 'tier2_forward' && (
+        <div className="mt-3">
+          <button
+            onClick={handleUpgrade}
+            disabled={upgradeLoading}
+            className="text-sm text-[#1E4A74] hover:text-[#163a5e] font-medium transition-colors disabled:opacity-50"
+          >
+            {upgradeLoading ? 'Upgrading...' : 'Upgrade to VIP ($200/mo)'}
+          </button>
+        </div>
+      )}
+
+      {!isCancelled && subscription.tier === 'tier3_vip' && (
+        <div className="mt-3">
+          <button
+            onClick={handleDowngrade}
+            disabled={downgradeLoading}
+            className="text-sm text-gray-500 hover:text-gray-700 font-medium transition-colors disabled:opacity-50"
+          >
+            {downgradeLoading ? 'Switching...' : 'Switch to Forward & Post ($125/mo)'}
+          </button>
+          <span className="ml-2 text-xs text-gray-400">(next billing cycle)</span>
+        </div>
+      )}
+
+      <div className="mt-4 pt-4 border-t border-gray-100 flex flex-wrap items-center gap-3">
+        {!isCancelled && (
+          <button
+            onClick={onManageBilling}
+            className="inline-flex items-center px-3 py-1.5 text-sm font-medium rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 transition-colors"
+          >
+            <ExternalLink className="w-3.5 h-3.5 mr-1.5" />
+            Manage Subscription
+          </button>
+        )}
         <button
           onClick={onManageBilling}
           className="inline-flex items-center px-3 py-1.5 text-sm font-medium rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 transition-colors"
         >
           <ExternalLink className="w-3.5 h-3.5 mr-1.5" />
-          Manage Subscription
+          Manage Billing
         </button>
+        {!isCancelled && (
+          <button
+            onClick={handleCancel}
+            disabled={cancelLoading}
+            className="text-sm text-red-500 hover:text-red-700 font-medium transition-colors disabled:opacity-50 ml-auto"
+          >
+            {cancelLoading ? (
+              <span className="inline-flex items-center gap-1.5">
+                <span className="w-3.5 h-3.5 border-2 border-red-400 border-t-transparent rounded-full animate-spin inline-block" />
+                Cancelling...
+              </span>
+            ) : (
+              'Cancel Subscription'
+            )}
+          </button>
+        )}
       </div>
     </div>
   );
@@ -347,6 +481,11 @@ export default function BillingTab() {
   const [portalError, setPortalError] = useState<string | null>(null);
   const [conciergeSub, setConciergeSub] = useState<ConciergeSubscription | null>(null);
 
+  const refreshConciergeSub = async () => {
+    const sub = await conciergeService.getUserActiveSubscription().catch(() => null);
+    setConciergeSub(sub);
+  };
+
   useEffect(() => {
     if (!user) return;
     setBillingLoading(true);
@@ -415,6 +554,18 @@ export default function BillingTab() {
         <ConciergeSubscriptionCard
           subscription={conciergeSub}
           onManageBilling={handleManageBilling}
+          onCancel={async () => {
+            await conciergeService.updateSubscription('cancel');
+            await refreshConciergeSub();
+          }}
+          onUpgrade={async () => {
+            await conciergeService.updateSubscription('upgrade');
+            await refreshConciergeSub();
+          }}
+          onDowngrade={async () => {
+            await conciergeService.updateSubscription('downgrade');
+            await refreshConciergeSub();
+          }}
         />
       )}
 

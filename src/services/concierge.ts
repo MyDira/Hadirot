@@ -15,7 +15,7 @@ export const conciergeService = {
     const { data, error } = await supabase
       .from('concierge_subscriptions')
       .select('*')
-      .eq('status', 'active')
+      .in('status', ['active', 'cancelled'])
       .in('tier', ['tier2_forward', 'tier3_vip'])
       .order('created_at', { ascending: false })
       .limit(1)
