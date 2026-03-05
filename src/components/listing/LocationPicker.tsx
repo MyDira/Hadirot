@@ -268,15 +268,29 @@ export function LocationPicker({
             )}
           </button>
 
-          <button
-            type="button"
-            onClick={handleOpenModalManually}
-            disabled={disabled}
-            className="inline-flex items-center px-4 py-2 border border-[#273140] text-[#273140] text-sm font-medium rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          <span
+            title={
+              (crossStreetAFeature !== undefined || crossStreetBFeature !== undefined) &&
+              (!crossStreetAFeature || !crossStreetBFeature)
+                ? "Enter both cross streets first"
+                : undefined
+            }
           >
-            <MapPin className="w-4 h-4 mr-2" />
-            Set Pin Location
-          </button>
+            <button
+              type="button"
+              onClick={handleOpenModalManually}
+              disabled={
+                disabled ||
+                ((crossStreetAFeature !== undefined || crossStreetBFeature !== undefined)
+                  ? !crossStreetAFeature || !crossStreetBFeature
+                  : false)
+              }
+              className="inline-flex items-center px-4 py-2 border border-[#273140] text-[#273140] text-sm font-medium rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              <MapPin className="w-4 h-4 mr-2" />
+              Set Pin Location
+            </button>
+          </span>
 
           {isLocationSet && (
             <button

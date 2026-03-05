@@ -1096,6 +1096,12 @@ export function PostListing() {
           setLoading(false);
           return;
         }
+
+        if (!crossStreetAFeature || !crossStreetBFeature) {
+          alert("Please enter both cross streets before submitting your rental listing.");
+          setLoading(false);
+          return;
+        }
       }
 
     if (!formData.property_type || formData.property_type === "") {
