@@ -25,3 +25,6 @@ verify_jwt = false
 
 [functions.geocode-cross-streets]
 verify_jwt = false
+
+[functions.update-concierge-subscription]
+verify_jwt = true

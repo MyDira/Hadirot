@@ -108,4 +108,14 @@ export const conciergeService = {
 
     if (error) throw error;
   },
+
+  async updateSubscription(action: 'upgrade' | 'downgrade' | 'cancel') {
+    const { data, error } = await supabase.functions.invoke('update-concierge-subscription', {
+      body: { action },
+    });
+
+    if (error) throw error;
+    if (data?.error) throw new Error(data.error);
+    return data;
+  },
 };
