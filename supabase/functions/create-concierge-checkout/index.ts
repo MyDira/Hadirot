@@ -7,9 +7,9 @@ const stripe = new Stripe(Deno.env.get("STRIPE_API_KEY")!, {
 });
 
 const TIER_CONFIG: Record<string, { priceId: string; mode: "payment" | "subscription" }> = {
-  tier1_quick: { priceId: "price_PLACEHOLDER_tier1", mode: "payment" },
-  tier2_forward: { priceId: "price_PLACEHOLDER_tier2", mode: "subscription" },
-  tier3_vip: { priceId: "price_PLACEHOLDER_tier3", mode: "subscription" },
+  tier1_quick: { priceId: "price_1T5TvZJvRPzH20A9ry7ZTpMk", mode: "payment" },
+  tier2_forward: { priceId: "price_1T5Tx4JvRPzH20A995RVffU5", mode: "subscription" },
+  tier3_vip: { priceId: "price_1T5TybJvRPzH20A9GrEh0jTD", mode: "subscription" },
 };
 
 function generateEmailHandle(fullName: string): string {

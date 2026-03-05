@@ -6,8 +6,8 @@ const stripe = new Stripe(Deno.env.get("STRIPE_API_KEY")!, {
   apiVersion: "2023-10-16",
 });
 
-const TIER2_PRICE_ID = "price_PLACEHOLDER_tier2";
-const TIER3_PRICE_ID = "price_PLACEHOLDER_tier3";
+const TIER2_PRICE_ID = "price_1T5Tx4JvRPzH20A995RVffU5";
+const TIER3_PRICE_ID = "price_1T5TybJvRPzH20A9GrEh0jTD";
 
 function generateEmailHandle(fullName: string): string {
   const parts = fullName
