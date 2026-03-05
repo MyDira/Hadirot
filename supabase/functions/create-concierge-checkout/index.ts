@@ -144,7 +144,7 @@ Deno.serve(async (req) => {
     const origin = req.headers.get("origin") || "https://hadirot.com";
 
     let emailHandle: string | null = null;
-    if (tier === "tier2_forward") {
+    if (tier === "tier2_forward" || tier === "tier3_vip") {
       emailHandle = await findUniqueHandle(supabaseAdmin, profile?.full_name || user.email || "user");
     }
 

@@ -335,8 +335,12 @@ async function handleConciergeCheckout(session: Stripe.Checkout.Session) {
         status: 'active',
         stripe_subscription_id: stripeSubId || null,
         stripe_customer_id: session.customer as string,
+        email_handle: email_handle || null,
         sources: null,
       });
+
+    const handle = email_handle || '';
+    const fullEmail = `${handle}@list.hadirot.com`;
 
     const adminEmails = await getAdminEmails(supabaseAdmin);
     if (adminEmails.length > 0) {
@@ -348,8 +352,15 @@ async function handleConciergeCheckout(session: Stripe.Checkout.Session) {
         <p><strong>Email:</strong> ${userEmail}</p>
         <p><strong>Phone:</strong> ${profile?.phone || 'Not provided'}</p>
         <hr style="border:none;border-top:1px solid #E5E7EB;margin:16px 0;" />
+        ${handle ? `<p><strong>Assigned email handle:</strong></p>
+        <div style="background-color:#F0F9FF;border:2px solid #1E4A74;border-radius:8px;padding:20px;margin:16px 0;text-align:center;">
+          <span style="font-size:20px;font-weight:bold;color:#1E4A74;letter-spacing:0.5px;">${fullEmail}</span>
+        </div>` : ''}
         <p><strong>Listing Sources:</strong> Pending user setup</p>
         <p><strong>Subscription started:</strong> ${new Date().toLocaleDateString()}</p>
+        <div style="text-align:center;margin:24px 0;">
+          <a href="https://hadirot.com/admin?tab=concierge" style="background-color:#1E4A74;color:#FFFFFF;padding:12px 24px;text-decoration:none;border-radius:6px;display:inline-block;font-weight:bold;">View in Admin Panel</a>
+        </div>
         `,
       );
       await sendEmail(adminEmails, `New VIP Concierge Subscriber \u2014 ${userName}`, html);
@@ -360,6 +371,12 @@ async function handleConciergeCheckout(session: Stripe.Checkout.Session) {
         `
         <p>Welcome, ${userName}! You're now a Hadirot VIP Concierge member.</p>
         <p>We'll handle posting your listings for you — but first, we need to know where to find them.</p>
+        ${handle ? `<hr style="border:none;border-top:1px solid #E5E7EB;margin:16px 0;" />
+        <p>Your dedicated listing email address is:</p>
+        <div style="background-color:#F0F9FF;border:2px solid #1E4A74;border-radius:8px;padding:20px;margin:16px 0;text-align:center;">
+          <span style="font-size:22px;font-weight:bold;color:#1E4A74;letter-spacing:0.5px;">${fullEmail}</span>
+        </div>
+        <p>You can also forward listings directly to this address and we'll post them for you.</p>` : ''}
         <hr style="border:none;border-top:1px solid #E5E7EB;margin:16px 0;" />
         <p><strong>Next step:</strong> Set up your listing sources so we know where to find your listings.</p>
         <div style="text-align:center;margin:24px 0;">
@@ -370,7 +387,7 @@ async function handleConciergeCheckout(session: Stripe.Checkout.Session) {
       );
       await sendEmail(userEmail, 'Welcome to Hadirot VIP Concierge', userHtml);
     }
-    console.log(`Concierge Tier 3 VIP activated for user ${user_id}`);
+    console.log(`Concierge Tier 3 VIP activated for user ${user_id}, handle: ${handle}`);
   }
 }
 
@@ -386,17 +403,29 @@ async function handleSubscriptionUpdate(subscription: Stripe.Subscription) {
 
   if (!record) return;
 
-  const statusMap: Record<string, string> = {
-    active: 'active',
-    past_due: 'past_due',
-    canceled: 'cancelled',
-    unpaid: 'past_due',
-  };
+  const periodEnd = subscription.current_period_end
+    ? new Date(subscription.current_period_end * 1000).toISOString()
+    : null;
 
-  const newStatus = statusMap[subscription.status] || 'active';
-  const update: Record<string, unknown> = { status: newStatus };
-  if (subscription.status === 'canceled') {
+  const update: Record<string, unknown> = { current_period_end: periodEnd };
+
+  if (subscription.cancel_at_period_end === true) {
+    update.status = 'cancelled';
     update.cancelled_at = new Date().toISOString();
+  } else if (subscription.cancel_at_period_end === false && subscription.status === 'active') {
+    update.status = 'active';
+    update.cancelled_at = null;
+  } else {
+    const statusMap: Record<string, string> = {
+      active: 'active',
+      past_due: 'past_due',
+      canceled: 'cancelled',
+      unpaid: 'past_due',
+    };
+    update.status = statusMap[subscription.status] || 'active';
+    if (subscription.status === 'canceled') {
+      update.cancelled_at = new Date().toISOString();
+    }
   }
 
   await supabaseAdmin
@@ -404,7 +433,7 @@ async function handleSubscriptionUpdate(subscription: Stripe.Subscription) {
     .update(update)
     .eq('id', record.id);
 
-  console.log(`Concierge subscription ${record.id} status updated to ${newStatus}`);
+  console.log(`Concierge subscription ${record.id} status updated to ${update.status}`);
 }
 
 Deno.serve(async (req) => {
@@ -421,7 +450,7 @@ Deno.serve(async (req) => {
       event = await stripe.webhooks.constructEventAsync(
         body,
         signature,
-        Deno.env.get('STRIPE_WEBHOOK_SIGNING_SECRET')!,
+        Deno.env.get('STRIPE_WEBHOOK_SECRET')!,
         undefined,
         cryptoProvider
       );

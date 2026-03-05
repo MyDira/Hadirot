@@ -314,6 +314,7 @@ export interface ConciergeSubscription {
   created_at: string;
   updated_at: string;
   cancelled_at: string | null;
+  current_period_end: string | null;
   user?: Profile;
 }
 
