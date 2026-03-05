@@ -559,10 +559,18 @@ export default function BillingTab() {
             await refreshConciergeSub();
           }}
           onUpgrade={async () => {
+            const confirmed = window.confirm(
+              "Upgrade to VIP ($200/mo)? You'll be charged a prorated amount for the remainder of this billing cycle."
+            );
+            if (!confirmed) return;
             await conciergeService.updateSubscription('upgrade');
             await refreshConciergeSub();
           }}
           onDowngrade={async () => {
+            const confirmed = window.confirm(
+              "Switch to Forward & Post ($125/mo)? The change takes effect at your next billing cycle. You'll keep VIP service until then."
+            );
+            if (!confirmed) return;
             await conciergeService.updateSubscription('downgrade');
             await refreshConciergeSub();
           }}

@@ -198,9 +198,50 @@ Deno.serve(async (req) => {
 
     if (action === "cancel") {
       const stripeSubId = subscription.stripe_subscription_id;
-      const updatedSub = await stripe.subscriptions.update(stripeSubId, {
-        cancel_at_period_end: true,
+
+      console.log("[cancel] subscription record:", {
+        id: subscription.id,
+        tier: subscription.tier,
+        status: subscription.status,
+        stripe_subscription_id: stripeSubId,
       });
+
+      if (!stripeSubId) {
+        return new Response(JSON.stringify({ error: "No Stripe subscription ID found. Please cancel via the billing portal." }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      let updatedSub;
+      try {
+        updatedSub = await stripe.subscriptions.update(stripeSubId, {
+          cancel_at_period_end: true,
+        });
+        console.log("[cancel] Stripe response:", {
+          id: updatedSub.id,
+          cancel_at_period_end: updatedSub.cancel_at_period_end,
+          current_period_end: updatedSub.current_period_end,
+        });
+      } catch (stripeErr) {
+        console.error("[cancel] Stripe API error:", stripeErr);
+        throw stripeErr;
+      }
+
+      const periodEndIso = updatedSub.current_period_end
+        ? new Date(updatedSub.current_period_end * 1000).toISOString()
+        : null;
+
+      const { error: dbUpdateError } = await supabaseAdmin
+        .from("concierge_subscriptions")
+        .update({ status: "cancelled", current_period_end: periodEndIso })
+        .eq("id", subscription.id);
+
+      if (dbUpdateError) {
+        console.error("[cancel] DB update error:", dbUpdateError);
+      } else {
+        console.log("[cancel] DB updated: status=cancelled, current_period_end=", periodEndIso);
+      }
 
       return new Response(
         JSON.stringify({ success: true, cancel_at: updatedSub.current_period_end }),

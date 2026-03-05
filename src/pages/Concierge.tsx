@@ -85,6 +85,10 @@ export function Concierge() {
   };
 
   const handleUpgrade = async () => {
+    const confirmed = window.confirm(
+      "Upgrade to VIP ($200/mo)? You'll be charged a prorated amount for the remainder of this billing cycle."
+    );
+    if (!confirmed) return;
     setLoadingTier('tier3_vip');
     setError(null);
     try {
@@ -99,6 +103,10 @@ export function Concierge() {
   };
 
   const handleDowngrade = async () => {
+    const confirmed = window.confirm(
+      "Switch to Forward & Post ($125/mo)? The change takes effect at your next billing cycle. You'll keep VIP service until then."
+    );
+    if (!confirmed) return;
     setLoadingTier('tier2_forward');
     setError(null);
     try {

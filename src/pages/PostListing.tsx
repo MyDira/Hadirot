@@ -103,6 +103,10 @@ export function PostListing() {
   }, [user]);
 
   const handleConciergeUpgrade = async () => {
+    const confirmed = window.confirm(
+      "Upgrade to VIP ($200/mo)? You'll be charged a prorated amount for the remainder of this billing cycle."
+    );
+    if (!confirmed) return;
     setConciergeLoadingTier('tier3_vip');
     try {
       await conciergeService.updateSubscription('upgrade');
@@ -114,6 +118,10 @@ export function PostListing() {
   };
 
   const handleConciergeDowngrade = async () => {
+    const confirmed = window.confirm(
+      "Switch to Forward & Post ($125/mo)? The change takes effect at your next billing cycle. You'll keep VIP service until then."
+    );
+    if (!confirmed) return;
     setConciergeLoadingTier('tier2_forward');
     try {
       await conciergeService.updateSubscription('downgrade');
