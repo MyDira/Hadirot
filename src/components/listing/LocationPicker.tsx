@@ -271,8 +271,8 @@ export function LocationPicker({
           <span
             title={
               (crossStreetAFeature !== undefined || crossStreetBFeature !== undefined) &&
-              (!crossStreetAFeature || !crossStreetBFeature)
-                ? "Enter both cross streets first"
+              (!crossStreetAFeature || !crossStreetBFeature || !latitude || !longitude)
+                ? "Use 'Find on Map' first to locate your cross streets"
                 : undefined
             }
           >
@@ -282,7 +282,7 @@ export function LocationPicker({
               disabled={
                 disabled ||
                 ((crossStreetAFeature !== undefined || crossStreetBFeature !== undefined)
-                  ? !crossStreetAFeature || !crossStreetBFeature
+                  ? !crossStreetAFeature || !crossStreetBFeature || !latitude || !longitude
                   : false)
               }
               className="inline-flex items-center px-4 py-2 border border-[#273140] text-[#273140] text-sm font-medium rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
