@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useSearchParams, useNavigate } from 'react-router-dom';
-import { Users, FileText, Eye, Trash2, Shield, TrendingUp, Home, Star, Power, ChevronDown, Search, ChevronRight, ChevronLeft, BarChart3, MessageSquare, UserCheck, ArrowRight, Mail, DollarSign, X, Edit, Clock } from 'lucide-react';
+import { Users, FileText, Eye, Trash2, Shield, TrendingUp, Home, Star, Power, ChevronDown, Search, ChevronRight, ChevronLeft, BarChart3, MessageSquare, UserCheck, ArrowRight, Mail, DollarSign, X, Edit, Clock, Phone } from 'lucide-react';
 import { listingsService } from '../services/listings';
 import { agenciesService } from '../services/agencies';
 import { salesService } from '../services/sales';
@@ -122,6 +122,7 @@ export function AdminPanel() {
   const [listingActiveDays, setListingActiveDays] = useState<number>(30);
   const [savingLifecycle, setSavingLifecycle] = useState(false);
   const [featureModalListing, setFeatureModalListing] = useState<Listing | null>(null);
+  const [phoneSearch, setPhoneSearch] = useState('');
 
   useEffect(() => {
     const normalized: AdminTabKey = isValidAdminTab(rawTabParam) ? rawTabParam : 'overview';
@@ -222,6 +223,14 @@ export function AdminPanel() {
       const isActive = listingFilters.active === 'yes';
       filtered = filtered.filter(listing => listing.is_active === isActive);
     }
+    if (phoneSearch.trim()) {
+      const digits = phoneSearch.replace(/\D/g, '');
+      if (digits) {
+        filtered = filtered.filter(listing =>
+          (listing.contact_phone || '').replace(/\D/g, '').includes(digits)
+        );
+      }
+    }
 
     // Apply sorting
     filtered.sort((a, b) => {
@@ -265,7 +274,7 @@ export function AdminPanel() {
     setFilteredListings(filtered);
     // Reset to page 1 when filters or sorting change
     setCurrentPage(1);
-  }, [allListings, listingFilters, listingSorting]);
+  }, [allListings, listingFilters, listingSorting, phoneSearch]);
 
   const handleColumnSort = (field: ListingSorting['field']) => {
     setListingSorting(prev => {
@@ -421,10 +430,12 @@ export function AdminPanel() {
       status: '',
       active: '',
     });
+    setPhoneSearch('');
   };
 
   const getActiveFilterCount = () => {
-    return Object.values(listingFilters).filter(value => value !== '').length;
+    const filterCount = Object.values(listingFilters).filter(value => value !== '').length;
+    return filterCount + (phoneSearch.trim() ? 1 : 0);
   };
 
   const handleDateFilterChange = (field: 'startDate' | 'endDate', value: string) => {
@@ -1454,7 +1465,40 @@ export function AdminPanel() {
                   </div>
                 </div>
                 
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                  {/* Phone Search */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Search by Phone
+                    </label>
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <Phone className="h-4 w-4 text-gray-400" />
+                      </div>
+                      <input
+                        type="text"
+                        placeholder="Search by phone..."
+                        value={phoneSearch}
+                        onChange={(e) => {
+                          setPhoneSearch(e.target.value);
+                          setCurrentPage(1);
+                        }}
+                        className="w-full pl-10 pr-10 py-2 border border-gray-300 rounded-md focus:ring-[#4E4B43] focus:border-[#4E4B43]"
+                      />
+                      {phoneSearch && (
+                        <button
+                          onClick={() => {
+                            setPhoneSearch('');
+                            setCurrentPage(1);
+                          }}
+                          className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                        >
+                          <X className="h-4 w-4 text-gray-400 hover:text-gray-600" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
                   {/* Owner Role Filter */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -1569,7 +1613,10 @@ export function AdminPanel() {
                             <span className="text-gray-400">{getSortIcon('owner')}</span>
                           </div>
                         </th>
-                        <th 
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Contact Phone
+                        </th>
+                        <th
                           className={`px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider ${getSortableHeaderClass()}`}
                           onClick={() => handleColumnSort('price')}
                         >
@@ -1635,6 +1682,9 @@ export function AdminPanel() {
                                 </span>
                               )}
                             </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            {listing.contact_phone ? formatPhoneForDisplay(listing.contact_phone) : '—'}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                             {listing.call_for_price ? 'Call for Price' : `$${listing.price}/month`}
