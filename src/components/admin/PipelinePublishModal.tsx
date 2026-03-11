@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, AlertCircle } from 'lucide-react';
+import { X, AlertCircle, User, Building2 } from 'lucide-react';
 import type { ScrapedListing, PropertyType, ParkingType, HeatType, LeaseLength } from '@/config/supabase';
 import { pipelineService } from '@/services/pipeline';
 import { useAuth } from '@/hooks/useAuth';
@@ -72,6 +72,8 @@ export function PipelinePublishModal({ listing, onClose, onSuccess }: PipelinePu
     description: '',
     latitude: null as number | null,
     longitude: null as number | null,
+    poster_type: 'landlord' as 'landlord' | 'agency',
+    admin_custom_agency_name: '',
   });
 
   useEffect(() => {
@@ -99,6 +101,8 @@ export function PipelinePublishModal({ listing, onClose, onSuccess }: PipelinePu
       description: buildAdditionalNotes(listing),
       latitude: listing.latitude,
       longitude: listing.longitude,
+      poster_type: listing.agency_name ? 'agency' : ('landlord' as 'landlord' | 'agency'),
+      admin_custom_agency_name: listing.agency_name || '',
     });
   }, [listing]);
 
@@ -163,6 +167,11 @@ export function PipelinePublishModal({ listing, onClose, onSuccess }: PipelinePu
         description: form.description || null,
         latitude: form.latitude,
         longitude: form.longitude,
+        admin_listing_type_display: form.poster_type === 'agency' ? 'agent' : 'owner',
+        admin_custom_agency_name:
+          form.poster_type === 'agency' && form.admin_custom_agency_name.trim()
+            ? form.admin_custom_agency_name.trim()
+            : null,
       };
 
       await pipelineService.publishToListings(listing, payload, user.id);
@@ -202,6 +211,51 @@ export function PipelinePublishModal({ listing, onClose, onSuccess }: PipelinePu
                 {error}
               </div>
             )}
+
+            {/* Poster Type */}
+            <div className="p-4 bg-gray-50 border border-gray-200 rounded-md">
+              <p className="text-sm font-medium text-gray-700 mb-2">Poster Type</p>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => updateField('poster_type', 'landlord')}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium border transition-colors ${
+                    form.poster_type === 'landlord'
+                      ? 'bg-white border-gray-900 text-gray-900 shadow-sm'
+                      : 'bg-transparent border-gray-300 text-gray-500 hover:border-gray-400'
+                  }`}
+                >
+                  <User className="w-4 h-4" />
+                  Landlord
+                </button>
+                <button
+                  type="button"
+                  onClick={() => updateField('poster_type', 'agency')}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium border transition-colors ${
+                    form.poster_type === 'agency'
+                      ? 'bg-white border-gray-900 text-gray-900 shadow-sm'
+                      : 'bg-transparent border-gray-300 text-gray-500 hover:border-gray-400'
+                  }`}
+                >
+                  <Building2 className="w-4 h-4" />
+                  Agency
+                </button>
+              </div>
+              {form.poster_type === 'agency' && (
+                <div className="mt-3">
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Agency Name</label>
+                  <input
+                    type="text"
+                    value={form.admin_custom_agency_name}
+                    onChange={(e) => updateField('admin_custom_agency_name', e.target.value.slice(0, 100))}
+                    maxLength={100}
+                    placeholder="Enter agency name"
+                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                  <p className="text-xs text-gray-400 mt-1">This name will appear on the listing card.</p>
+                </div>
+              )}
+            </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div className="col-span-2">

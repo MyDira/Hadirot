@@ -1,5 +1,9 @@
 import React, { useState, useRef } from 'react';
-import { ExternalLink, Save, Eye, EyeOff, Phone, User, Building2, MapPin, BarChart3, FileText } from 'lucide-react';
+import {
+  ExternalLink, Save, Eye, EyeOff, Phone, User, Building2, MapPin,
+  BarChart3, FileText, BedDouble, Bath, DollarSign, Layers, Maximize2,
+  CalendarDays, Repeat2, Sofa, Tag, Clock, Calendar,
+} from 'lucide-react';
 import type { ScrapedListing, CallStatus } from '@/config/supabase';
 import { getValidTransitions, CALL_STATUS_LABELS, pipelineService } from '@/services/pipeline';
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog';
@@ -22,6 +26,25 @@ const FEATURE_PILLS: { key: keyof ScrapedListing; label: string }[] = [
   { key: 'separate_entrance', label: 'Separate entrance' },
 ];
 
+function DetailRow({ icon, label, value, mono }: { icon: React.ReactNode; label: string; value: React.ReactNode; mono?: boolean }) {
+  if (value === null || value === undefined || value === '' || value === '-') return null;
+  return (
+    <div className="flex items-start gap-2.5 py-1.5">
+      <span className="flex-shrink-0 w-4 h-4 mt-0.5 text-gray-400">{icon}</span>
+      <span className="w-24 flex-shrink-0 text-xs text-gray-500 pt-0.5">{label}</span>
+      <span className={`text-sm font-medium text-gray-900 ${mono ? 'font-mono' : ''}`}>{value}</span>
+    </div>
+  );
+}
+
+function SectionCard({ children, className }: { children: React.ReactNode; className?: string }) {
+  return (
+    <div className={`bg-white rounded-md border border-gray-200 px-4 py-3 divide-y divide-gray-100 ${className ?? ''}`}>
+      {children}
+    </div>
+  );
+}
+
 export function PipelineListingDetail({ listing, onStatusChange, onPublish, onRefresh }: PipelineListingDetailProps) {
   const [callNotes, setCallNotes] = useState(listing.call_notes ?? '');
   const [showRawText, setShowRawText] = useState(false);
@@ -38,7 +61,7 @@ export function PipelineListingDetail({ listing, onStatusChange, onPublish, onRe
       await pipelineService.updateCallNotes(listing.id, callNotes);
       lastSavedNotes.current = callNotes;
     } catch {
-      // silent fail, user can retry
+      // silent fail
     } finally {
       setSavingNotes(false);
     }
@@ -60,143 +83,210 @@ export function PipelineListingDetail({ listing, onStatusChange, onPublish, onRe
   const crossStreets = [listing.cross_street_1, listing.cross_street_2].filter(Boolean).join(' & ');
   const activePills = FEATURE_PILLS.filter((p) => listing[p.key] === true);
 
-  const geocodeBadge = listing.geocode_status === 'success'
-    ? { bg: 'bg-green-100', text: 'text-green-700', label: 'Geocoded' }
-    : { bg: 'bg-red-100', text: 'text-red-700', label: 'Failed' };
+  const geocodeBadge =
+    listing.geocode_status === 'success'
+      ? { bg: 'bg-green-100', text: 'text-green-700', label: 'Geocoded' }
+      : listing.geocode_status === 'pending'
+      ? { bg: 'bg-yellow-100', text: 'text-yellow-700', label: 'Pending' }
+      : { bg: 'bg-red-100', text: 'text-red-700', label: 'Failed' };
+
+  const formatSource = (s: string | null) =>
+    s ? s.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()) : '-';
+
+  const confidenceValue =
+    listing.parse_confidence != null
+      ? `${Math.round(listing.parse_confidence * 100)}%`
+      : null;
+
+  const confidenceColor =
+    listing.parse_confidence == null
+      ? 'text-gray-400'
+      : listing.parse_confidence >= 0.8
+      ? 'text-green-600'
+      : listing.parse_confidence >= 0.5
+      ? 'text-yellow-600'
+      : 'text-red-600';
 
   return (
-    <div className="bg-gray-50 border-t border-gray-200 px-6 py-5 space-y-5">
-      {/* Section A - Contact Info */}
-      <div>
-        <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-          <Phone className="w-3.5 h-3.5" /> Contact Info
-        </h4>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
-          <div>
-            <span className="text-gray-500">Phone</span>
-            <p className="font-medium text-gray-900">{listing.contact_phone_display || listing.contact_phone || '-'}</p>
-          </div>
-          <div>
-            <span className="text-gray-500">Name</span>
-            <p className="font-medium text-gray-900">{listing.contact_name || '-'}</p>
-          </div>
-          <div>
-            <span className="text-gray-500">Type</span>
-            <p className="font-medium text-gray-900 capitalize">{listing.contact_type || '-'}</p>
-          </div>
-          <div>
-            <span className="text-gray-500">Agency</span>
-            <p className="font-medium text-gray-900">{listing.agency_name || '-'}</p>
-          </div>
+    <div className="bg-gray-50 border-t border-gray-200 px-5 py-4 space-y-4">
+      {/* Top two-column grid: Contact + Location */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Section A — Contact */}
+        <div>
+          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+            <Phone className="w-3.5 h-3.5" /> Contact
+          </p>
+          <SectionCard>
+            <DetailRow
+              icon={<Phone className="w-4 h-4" />}
+              label="Phone"
+              value={listing.contact_phone_display || listing.contact_phone}
+              mono
+            />
+            <DetailRow
+              icon={<User className="w-4 h-4" />}
+              label="Name"
+              value={listing.contact_name}
+            />
+            <DetailRow
+              icon={<Building2 className="w-4 h-4" />}
+              label="Agency"
+              value={listing.agency_name}
+            />
+            <DetailRow
+              icon={<Tag className="w-4 h-4" />}
+              label="Type"
+              value={listing.contact_type ? <span className="capitalize">{listing.contact_type}</span> : null}
+            />
+          </SectionCard>
         </div>
-      </div>
 
-      {/* Section B - Property Details */}
-      <div>
-        <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-          <Building2 className="w-3.5 h-3.5" /> Property Details
-        </h4>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm mb-3">
-          <div>
-            <span className="text-gray-500">Bedrooms</span>
-            <p className="font-medium text-gray-900">{listing.bedrooms ?? '-'}</p>
-          </div>
-          <div>
-            <span className="text-gray-500">Bathrooms</span>
-            <p className="font-medium text-gray-900">{listing.bathrooms ?? '-'}</p>
-          </div>
-          <div>
-            <span className="text-gray-500">Price</span>
-            <p className="font-medium text-gray-900">
-              {listing.price ? `$${listing.price.toLocaleString()}` : listing.price_note || '-'}
-            </p>
-          </div>
-          <div>
-            <span className="text-gray-500">Floor</span>
-            <p className="font-medium text-gray-900">{listing.floor ?? '-'}</p>
-          </div>
-          <div>
-            <span className="text-gray-500">Sq. Ft.</span>
-            <p className="font-medium text-gray-900">{listing.square_footage ? listing.square_footage.toLocaleString() : '-'}</p>
-          </div>
-          <div>
-            <span className="text-gray-500">Rental Term</span>
-            <p className="font-medium text-gray-900 capitalize">{listing.rental_term?.replace('_', ' ') || '-'}</p>
-          </div>
-          <div>
-            <span className="text-gray-500">Furnished</span>
-            <p className="font-medium text-gray-900">{listing.is_furnished == null ? '-' : listing.is_furnished ? 'Yes' : 'No'}</p>
-          </div>
-        </div>
-        {activePills.length > 0 && (
-          <div className="flex flex-wrap gap-1.5">
-            {activePills.map((pill) => (
-              <span key={pill.key} className="px-2.5 py-1 text-xs font-medium rounded-full bg-teal-50 text-teal-700 border border-teal-200">
-                {pill.label}
+        {/* Section C — Location */}
+        <div>
+          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+            <MapPin className="w-3.5 h-3.5" /> Location
+          </p>
+          <SectionCard>
+            {crossStreets ? (
+              <DetailRow
+                icon={<MapPin className="w-4 h-4" />}
+                label="Cross streets"
+                value={<span className="font-semibold">{crossStreets}</span>}
+              />
+            ) : (
+              <>
+                <DetailRow icon={<MapPin className="w-4 h-4" />} label="Street 1" value={listing.cross_street_1} />
+                <DetailRow icon={<MapPin className="w-4 h-4" />} label="Street 2" value={listing.cross_street_2} />
+              </>
+            )}
+            <DetailRow
+              icon={<Building2 className="w-4 h-4" />}
+              label="Neighborhood"
+              value={listing.neighborhood}
+            />
+            <div className="flex items-start gap-2.5 py-1.5">
+              <span className="flex-shrink-0 w-4 h-4 mt-0.5 text-gray-400"><MapPin className="w-4 h-4" /></span>
+              <span className="w-24 flex-shrink-0 text-xs text-gray-500 pt-0.5">Geocode</span>
+              <span className={`inline-block px-2 py-0.5 text-xs font-medium rounded ${geocodeBadge.bg} ${geocodeBadge.text}`}>
+                {geocodeBadge.label}
               </span>
-            ))}
-          </div>
-        )}
+            </div>
+          </SectionCard>
+        </div>
       </div>
 
-      {/* Section C - Location */}
+      {/* Section B — Property Details */}
       <div>
-        <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-          <MapPin className="w-3.5 h-3.5" /> Location
-        </h4>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
-          <div>
-            <span className="text-gray-500">Cross Street 1</span>
-            <p className="font-medium text-gray-900">{listing.cross_street_1 || '-'}</p>
+        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+          <Building2 className="w-3.5 h-3.5" /> Property Details
+        </p>
+        <div className="bg-white rounded-md border border-gray-200 p-4">
+          {/* Stat chips row */}
+          <div className="flex flex-wrap gap-3 mb-3">
+            {listing.bedrooms != null && (
+              <div className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-50 rounded-md border border-gray-200">
+                <BedDouble className="w-4 h-4 text-gray-400" />
+                <span className="text-sm font-semibold text-gray-900">{listing.bedrooms}</span>
+                <span className="text-xs text-gray-500">bd</span>
+              </div>
+            )}
+            {listing.bathrooms != null && (
+              <div className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-50 rounded-md border border-gray-200">
+                <Bath className="w-4 h-4 text-gray-400" />
+                <span className="text-sm font-semibold text-gray-900">{listing.bathrooms}</span>
+                <span className="text-xs text-gray-500">ba</span>
+              </div>
+            )}
+            {(listing.price || listing.price_note) && (
+              <div className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-50 rounded-md border border-gray-200">
+                <DollarSign className="w-4 h-4 text-gray-400" />
+                <span className="text-sm font-semibold text-gray-900">
+                  {listing.price ? listing.price.toLocaleString() : listing.price_note}
+                </span>
+                {listing.price && <span className="text-xs text-gray-500">/mo</span>}
+              </div>
+            )}
+            {listing.floor != null && (
+              <div className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-50 rounded-md border border-gray-200">
+                <Layers className="w-4 h-4 text-gray-400" />
+                <span className="text-sm font-semibold text-gray-900">Floor {listing.floor}</span>
+              </div>
+            )}
+            {listing.square_footage != null && (
+              <div className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-50 rounded-md border border-gray-200">
+                <Maximize2 className="w-4 h-4 text-gray-400" />
+                <span className="text-sm font-semibold text-gray-900">{listing.square_footage.toLocaleString()}</span>
+                <span className="text-xs text-gray-500">ft²</span>
+              </div>
+            )}
+            {listing.rental_term && (
+              <div className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-50 rounded-md border border-gray-200">
+                <CalendarDays className="w-4 h-4 text-gray-400" />
+                <span className="text-sm font-semibold text-gray-900 capitalize">{listing.rental_term.replace('_', ' ')}</span>
+              </div>
+            )}
+            {listing.is_furnished && (
+              <div className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 rounded-md border border-amber-200">
+                <Sofa className="w-4 h-4 text-amber-500" />
+                <span className="text-sm font-semibold text-amber-700">Furnished</span>
+              </div>
+            )}
           </div>
-          <div>
-            <span className="text-gray-500">Cross Street 2</span>
-            <p className="font-medium text-gray-900">{listing.cross_street_2 || '-'}</p>
+
+          {/* Feature pills */}
+          {activePills.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 pt-2 border-t border-gray-100">
+              {activePills.map((pill) => (
+                <span key={pill.key} className="px-2.5 py-1 text-xs font-medium rounded-full bg-teal-50 text-teal-700 border border-teal-200">
+                  {pill.label}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Section D — Pipeline Metadata */}
+      <div>
+        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+          <BarChart3 className="w-3.5 h-3.5" /> Pipeline Info
+        </p>
+        <div className="bg-white rounded-md border border-gray-200 px-4 py-3 grid grid-cols-2 md:grid-cols-3 gap-x-6 divide-y md:divide-y-0">
+          <div className="flex items-center gap-2 py-1.5">
+            <BarChart3 className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+            <span className="text-xs text-gray-500">Confidence</span>
+            <span className={`text-sm font-semibold ml-auto ${confidenceColor}`}>{confidenceValue ?? '-'}</span>
           </div>
-          <div>
-            <span className="text-gray-500">Neighborhood</span>
-            <p className="font-medium text-gray-900">{listing.neighborhood || '-'}</p>
+          <div className="flex items-center gap-2 py-1.5">
+            <Repeat2 className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+            <span className="text-xs text-gray-500">Seen</span>
+            <span className="text-sm font-semibold text-gray-900 ml-auto">{listing.times_seen}x</span>
           </div>
-          <div>
-            <span className="text-gray-500">Geocode</span>
-            <span className={`inline-block px-2 py-0.5 text-xs font-medium rounded ${geocodeBadge.bg} ${geocodeBadge.text}`}>
-              {geocodeBadge.label}
+          <div className="flex items-center gap-2 py-1.5">
+            <Calendar className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+            <span className="text-xs text-gray-500">PDF date</span>
+            <span className="text-sm font-medium text-gray-900 ml-auto">
+              {listing.pdf_date ? new Date(listing.pdf_date).toLocaleDateString() : '-'}
             </span>
           </div>
-        </div>
-      </div>
-
-      {/* Section D - Pipeline Metadata */}
-      <div>
-        <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-          <BarChart3 className="w-3.5 h-3.5" /> Pipeline Metadata
-        </h4>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
-          <div>
-            <span className="text-gray-500">Confidence</span>
-            <p className="font-medium text-gray-900">
-              {listing.parse_confidence != null ? `${Math.round(listing.parse_confidence * 100)}%` : '-'}
-            </p>
+          <div className="flex items-center gap-2 py-1.5">
+            <Clock className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+            <span className="text-xs text-gray-500">First seen</span>
+            <span className="text-sm font-medium text-gray-900 ml-auto">
+              {listing.date_first_seen ? new Date(listing.date_first_seen).toLocaleDateString() : '-'}
+            </span>
           </div>
-          <div>
-            <span className="text-gray-500">Times Seen</span>
-            <p className="font-medium text-gray-900">{listing.times_seen}</p>
+          <div className="flex items-center gap-2 py-1.5">
+            <Clock className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+            <span className="text-xs text-gray-500">Last seen</span>
+            <span className="text-sm font-medium text-gray-900 ml-auto">
+              {listing.date_last_seen ? new Date(listing.date_last_seen).toLocaleDateString() : '-'}
+            </span>
           </div>
-          <div>
-            <span className="text-gray-500">First Seen</span>
-            <p className="font-medium text-gray-900">{listing.date_first_seen ? new Date(listing.date_first_seen).toLocaleDateString() : '-'}</p>
-          </div>
-          <div>
-            <span className="text-gray-500">Last Seen</span>
-            <p className="font-medium text-gray-900">{listing.date_last_seen ? new Date(listing.date_last_seen).toLocaleDateString() : '-'}</p>
-          </div>
-          <div>
-            <span className="text-gray-500">PDF Date</span>
-            <p className="font-medium text-gray-900">{listing.pdf_date ? new Date(listing.pdf_date).toLocaleDateString() : '-'}</p>
-          </div>
-          <div>
-            <span className="text-gray-500">Source</span>
-            <p className="font-medium text-gray-900">{listing.source || '-'}</p>
+          <div className="flex items-center gap-2 py-1.5">
+            <Tag className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+            <span className="text-xs text-gray-500">Source</span>
+            <span className="text-sm font-medium text-gray-900 ml-auto">{formatSource(listing.source)}</span>
           </div>
         </div>
       </div>

@@ -58,6 +58,19 @@ function MatchBadge({ status }: { status: string }) {
   return <span className="px-2 py-0.5 text-xs font-medium rounded bg-blue-100 text-blue-700">New lead</span>;
 }
 
+function formatSource(source: string | null): string {
+  if (!source) return 'Unknown';
+  return source.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+function SourceBadge({ source }: { source: string | null }) {
+  return (
+    <span className="inline-flex items-center px-1.5 py-0.5 text-xs font-medium rounded bg-slate-100 text-slate-600 whitespace-nowrap max-w-[100px] truncate" title={source || ''}>
+      {formatSource(source)}
+    </span>
+  );
+}
+
 function RunStatusBadge({ status }: { status: string }) {
   if (status === 'completed') return <span className="px-2 py-0.5 text-xs font-medium rounded bg-green-100 text-green-700">Completed</span>;
   if (status === 'failed') return <span className="px-2 py-0.5 text-xs font-medium rounded bg-red-100 text-red-700">Failed</span>;
@@ -282,6 +295,11 @@ export function PipelineManagement() {
                     {/* Confidence */}
                     <div className="flex-shrink-0 w-6 flex justify-center">
                       <ConfidenceDot confidence={listing.parse_confidence} />
+                    </div>
+
+                    {/* Source */}
+                    <div className="flex-shrink-0">
+                      <SourceBadge source={listing.source} />
                     </div>
 
                     {/* Contact */}
