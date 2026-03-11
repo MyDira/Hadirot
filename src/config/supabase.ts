@@ -296,6 +296,78 @@ export interface AdminSettings {
   updated_at: string;
 }
 
+export type CallStatus = 'pending_call' | 'called_no_answer' | 'called_declined' | 'approved' | 'published' | 'suppressed';
+export type GeocodeStatus = 'success' | 'failed';
+export type MatchStatus = 'no_match' | 'matched' | 'partial_match';
+export type ScrapedContactType = 'agent' | 'individual' | 'unknown';
+
+export interface ScrapedListing {
+  id: string;
+  title: string | null;
+  bedrooms: number | null;
+  bathrooms: number | null;
+  price: number | null;
+  price_note: string | null;
+  contact_phone: string | null;
+  contact_phone_display: string | null;
+  contact_name: string | null;
+  contact_type: ScrapedContactType | null;
+  agency_name: string | null;
+  cross_street_1: string | null;
+  cross_street_2: string | null;
+  cross_streets_raw: string | null;
+  neighborhood: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  geocode_status: GeocodeStatus | null;
+  match_status: MatchStatus;
+  existing_listing_id: string | null;
+  times_seen: number;
+  date_first_seen: string;
+  date_last_seen: string;
+  parse_confidence: number | null;
+  is_active: boolean;
+  raw_text: string | null;
+  additional_notes: string | null;
+  rental_term: string | null;
+  is_furnished: boolean | null;
+  parking: boolean | null;
+  washer_dryer: boolean | null;
+  section_8_ok: boolean | null;
+  heat_included: boolean | null;
+  utilities_included: boolean | null;
+  has_porch: boolean | null;
+  basement: boolean | null;
+  separate_entrance: boolean | null;
+  floor: number | null;
+  square_footage: number | null;
+  source: string | null;
+  pdf_date: string | null;
+  dedup_key: string | null;
+  call_status: CallStatus;
+  call_notes: string | null;
+  published_listing_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ScrapeRun {
+  id: string;
+  source: string | null;
+  pdf_date: string | null;
+  pdf_filename: string | null;
+  total_pages: number | null;
+  rental_pages_found: number | null;
+  listings_parsed: number;
+  listings_geocoded: number;
+  listings_inserted: number;
+  listings_updated: number;
+  errors: any | null;
+  started_at: string;
+  completed_at: string | null;
+  status: string;
+}
+
 export type ConciergeTier = 'tier1_quick' | 'tier2_forward' | 'tier3_vip';
 export type ConciergeStatus = 'pending' | 'active' | 'cancelled' | 'expired' | 'past_due';
 export type SubmissionStatus = 'pending' | 'paid' | 'processing' | 'posted' | 'rejected';

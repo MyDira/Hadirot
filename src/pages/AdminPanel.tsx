@@ -11,7 +11,8 @@ import { formatPhoneForDisplay } from '@/utils/phone';
 import { SalesManagement } from '@/components/admin/SalesManagement';
 import { AdminFeatureModal } from '@/components/admin/AdminFeatureModal';
 import { ConciergeManagement } from '@/components/admin/ConciergeManagement';
-import { Briefcase } from 'lucide-react';
+import { PipelineManagement } from '@/components/admin/PipelineManagement';
+import { Briefcase, GitBranch } from 'lucide-react';
 
 const ADMIN_TAB_KEYS = [
   'overview',
@@ -20,6 +21,7 @@ const ADMIN_TAB_KEYS = [
   'pending',
   'sales',
   'concierge',
+  'pipeline',
 ] as const;
 
 type AdminTabKey = (typeof ADMIN_TAB_KEYS)[number];
@@ -34,6 +36,7 @@ const ADMIN_TABS: { id: AdminTabKey; label: string; icon: React.ElementType }[] 
   { id: 'pending', label: 'Pending', icon: Eye },
   { id: 'sales', label: 'Sales System', icon: DollarSign },
   { id: 'concierge', label: 'Concierge', icon: Briefcase },
+  { id: 'pipeline', label: 'Pipeline', icon: GitBranch },
 ];
 
 interface AdminStats {
@@ -2025,6 +2028,8 @@ export function AdminPanel() {
           {activeTab === 'sales' && <SalesManagement />}
 
           {activeTab === 'concierge' && <ConciergeManagement />}
+
+          {activeTab === 'pipeline' && <PipelineManagement />}
         </>
       )}
 
