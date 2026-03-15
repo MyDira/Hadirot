@@ -12,32 +12,34 @@ export const LISTING_DURATION_DAYS = {
 
 export const EXTENSION_WINDOW_DAYS = 7;
 
-export function getExpirationDate(listingType: 'rental' | 'sale', saleStatus?: SaleStatus | null): Date {
+export function getExpirationDate(listingType: 'rental' | 'sale', saleStatus?: SaleStatus | null, activeDays?: number): Date {
   const now = new Date();
+  const defaultDays = activeDays ?? LISTING_DURATION_DAYS.RENTAL;
   let days: number;
 
   if (listingType === 'rental' || !listingType) {
-    days = LISTING_DURATION_DAYS.RENTAL;
+    days = defaultDays;
   } else {
     switch (saleStatus) {
-      case 'pending':
-        days = LISTING_DURATION_DAYS.SALE_PENDING;
-        break;
       case 'in_contract':
         days = LISTING_DURATION_DAYS.SALE_IN_CONTRACT;
         break;
-      case 'sold':
-        days = LISTING_DURATION_DAYS.SALE_SOLD;
-        break;
-      case 'available':
       default:
-        days = LISTING_DURATION_DAYS.SALE_AVAILABLE;
+        days = defaultDays;
         break;
     }
   }
 
   now.setDate(now.getDate() + days);
   return now;
+}
+
+async function getAdminActiveDays(): Promise<number> {
+  const { data } = await supabase
+    .from('admin_settings')
+    .select('listing_active_days')
+    .maybeSingle();
+  return data?.listing_active_days ?? LISTING_DURATION_DAYS.RENTAL;
 }
 
 export function canExtendListing(listing: Listing): { canExtend: boolean; reason?: string } {
@@ -1958,7 +1960,8 @@ async getInquiriesForListing(listingId: string): Promise<{ user_name: string; us
   },
 
   async renewListing(listingId: string, listingType: 'rental' | 'sale', saleStatus?: SaleStatus | null): Promise<Listing> {
-    const newExpiresAt = getExpirationDate(listingType, saleStatus);
+    const activeDays = await getAdminActiveDays();
+    const newExpiresAt = getExpirationDate(listingType, saleStatus, activeDays);
     const now = new Date().toISOString();
 
     const { data: updatedListing, error } = await supabase
