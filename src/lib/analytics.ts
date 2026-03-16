@@ -441,9 +441,19 @@ export function trackAgencyShare(agencyId: string): void {
   track('agency_share', { agency_id: agencyId });
 }
 
-export function trackPhoneClick(listingId: string): void {
+export function trackPhoneReveal(listingId: string): void {
   if (!listingId) return;
-  track('phone_click', { listing_id: listingId });
+  track('phone_reveal', { listing_id: listingId });
+}
+
+export function trackPhoneDial(listingId: string): void {
+  if (!listingId) return;
+  track('phone_dial', { listing_id: listingId });
+}
+
+export function trackMapPinClick(listingId: string): void {
+  if (!listingId) return;
+  track('map_pin_click', { listing_id: listingId });
 }
 
 function getPostingSession(): { attemptId: string; sessionId: string } {
@@ -608,7 +618,9 @@ export default {
   trackAgencyPageView,
   trackAgencyFilterApply,
   trackAgencyShare,
-  trackPhoneClick,
+  trackPhoneReveal,
+  trackPhoneDial,
+  trackMapPinClick,
   ensurePostAttempt,
   trackPostStart,
   trackPostSubmit,

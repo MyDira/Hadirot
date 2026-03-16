@@ -15,6 +15,7 @@ import { MapPin } from "../../utils/filterUtils";
 import { calculateIndicatorData, type IndicatorData } from "../../utils/mapIndicatorUtils";
 import { MobileMapListingPopup } from "./MobileMapListingPopup";
 import { isMobileViewport } from "../../utils/deviceDetection";
+import { trackMapPinClick } from "@/lib/analytics";
 
 const BROOKLYN_CENTER: [number, number] = [-73.9442, 40.6782];
 const DEFAULT_ZOOM = 12;
@@ -749,6 +750,7 @@ export function ListingsMapEnhanced({
         el.addEventListener("click", (e) => {
           e.stopPropagation();
 
+          trackMapPinClick(listing.id);
           const lngLat: [number, number] = [listing.longitude!, listing.latitude!];
           handleShowListing(listing, lngLat);
 
@@ -865,6 +867,7 @@ export function ListingsMapEnhanced({
             return;
           }
 
+          trackMapPinClick(pin.id);
           const listing = listingsWithCoords.find(l => l.id === pin.id);
           if (listing) {
             const lngLat: [number, number] = [pin.longitude, pin.latitude];

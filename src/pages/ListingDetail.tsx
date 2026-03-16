@@ -37,7 +37,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { SimilarListings } from "../components/listings/SimilarListings";
 import ImageCarousel from "@/components/listing/ImageCarousel";
 import { gaEvent, gaListing } from "@/lib/ga";
-import { trackListingView, trackPhoneClick } from "../lib/analytics";
+import { trackListingView, trackPhoneReveal } from "../lib/analytics";
 void gaEvent;
 import NumericText from "@/components/common/NumericText";
 import { ShareButton } from "../components/shared/ShareButton";
@@ -290,7 +290,7 @@ export function ListingDetail() {
   const handleCallClick = () => {
     if (!listing?.id) return;
     gaListing("listing_contact_click", listing.id, { contact_method: "phone" });
-    trackPhoneClick(listing.id);
+    trackPhoneReveal(listing.id);
   };
 
   const handleMessageClick = () => {

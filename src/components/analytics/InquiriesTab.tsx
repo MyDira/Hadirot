@@ -8,6 +8,8 @@ import { MessageSquare, Phone, Users, TrendingUp, AlertTriangle, PhoneCall, Mail
 interface InquiryOverview {
   phone_reveals: number;
   phone_reveals_prev: number;
+  phone_dials: number;
+  phone_dials_prev: number;
   contact_forms: number;
   contact_forms_prev: number;
   total_inquiries: number;
@@ -22,6 +24,8 @@ interface ConversionFunnel {
   phone_reveals: number;
   phone_reveal_session_rate: number;
   phone_reveal_view_rate: number;
+  phone_dials: number;
+  phone_dial_conversion_rate: number;
   contact_forms: number;
   contact_form_session_rate: number;
   contact_form_view_rate: number;
@@ -60,7 +64,7 @@ interface DemandBreakdown {
 interface InquiryTrend {
   date: string;
   inquiry_count: number;
-  phone_click_count: number;
+  phone_reveal_count: number;
 }
 
 interface TimingData {
@@ -122,7 +126,7 @@ function DualTrendLine({ data }: { data: InquiryTrend[] }) {
   }
 
   const maxInquiry = Math.max(...data.map((d) => d.inquiry_count), 1);
-  const maxPhone = Math.max(...data.map((d) => d.phone_click_count), 1);
+  const maxPhone = Math.max(...data.map((d) => d.phone_reveal_count), 1);
   const max = Math.max(maxInquiry, maxPhone);
 
   return (
@@ -146,7 +150,7 @@ function DualTrendLine({ data }: { data: InquiryTrend[] }) {
           strokeWidth="2"
           points={data.map((d, i) => {
             const x = (i / (data.length - 1)) * 100;
-            const y = 100 - (d.phone_click_count / max) * 100;
+            const y = 100 - (d.phone_reveal_count / max) * 100;
             return `${x},${y}`;
           }).join(' ')}
         />
@@ -277,6 +281,8 @@ export function InquiriesTab({
   const overview = inquiryOverview || {
     phone_reveals: 0,
     phone_reveals_prev: 0,
+    phone_dials: 0,
+    phone_dials_prev: 0,
     contact_forms: 0,
     contact_forms_prev: 0,
     total_inquiries: 0,
@@ -291,6 +297,8 @@ export function InquiriesTab({
     phone_reveals: 0,
     phone_reveal_session_rate: 0,
     phone_reveal_view_rate: 0,
+    phone_dials: 0,
+    phone_dial_conversion_rate: 0,
     contact_forms: 0,
     contact_form_session_rate: 0,
     contact_form_view_rate: 0,
@@ -428,6 +436,11 @@ export function InquiriesTab({
             <div className="text-xs text-gray-600">
               {funnel.phone_reveal_view_rate.toFixed(1)}% of listing views
             </div>
+            {funnel.phone_dials > 0 && (
+              <div className="mt-2 pt-2 border-t border-orange-200 text-xs text-gray-600">
+                <span className="font-medium text-orange-700">{funnel.phone_dials}</span> dials ({funnel.phone_dial_conversion_rate.toFixed(1)}% of reveals)
+              </div>
+            )}
           </div>
           <div className="bg-teal-50 rounded-lg p-4">
             <div className="flex items-center mb-2">

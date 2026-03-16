@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Eye, EyeOff } from 'lucide-react';
 import { formatPhoneNumber } from '@/utils/formatters';
+import { trackPhoneDial } from '@/lib/analytics';
 
 interface PhoneNumberRevealProps {
   phoneNumber: string;
@@ -68,6 +69,7 @@ export function PhoneNumberReveal({
         isMobile ? (
           <a
             href={`tel:${phoneNumber}`}
+            onClick={() => trackPhoneDial(listingId)}
             className="text-[#273140] hover:text-[#1e252f] font-medium transition-colors hover:underline"
           >
             {formattedPhone}

@@ -196,6 +196,11 @@ export function InternalAnalytics() {
           impressions: raw.total_impressions ?? 0,
           listing_views: raw.total_views ?? 0,
           contact_attempts: raw.total_inquiries ?? 0,
+          phone_reveals: raw.phone_reveals ?? 0,
+          phone_dials: raw.phone_dials ?? 0,
+          pin_clicks: raw.pin_clicks ?? 0,
+          phone_dial_rate: raw.phone_dial_rate ?? 0,
+          pin_click_rate: raw.pin_click_rate ?? 0,
         });
       }
 

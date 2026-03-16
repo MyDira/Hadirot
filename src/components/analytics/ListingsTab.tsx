@@ -19,7 +19,7 @@ interface ListingPerformance {
   impressions: number;
   ctr: number;
   inquiry_count: number;
-  phone_click_count: number;
+  phone_reveal_count: number;
   hours_to_first_inquiry: number | null;
   is_featured: boolean;
   posted_by: string;
@@ -272,7 +272,7 @@ export function ListingsTab({
                     <td className="py-3 px-4 text-right text-sm">
                       <div className="flex items-center justify-end gap-1">
                         <Phone className="w-3 h-3 text-gray-400" />
-                        {listing.phone_click_count ?? 0}
+                        {listing.phone_reveal_count ?? 0}
                       </div>
                     </td>
                     <td className="py-3 px-4 text-right text-sm text-gray-600">

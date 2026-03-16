@@ -8,7 +8,7 @@ interface ContactMetrics {
   avg_impressions: number;
   total_views: number;
   avg_views: number;
-  total_phone_clicks: number;
+  total_phone_reveals: number;
   total_callbacks: number;
   total_leads: number;
 }
@@ -54,7 +54,7 @@ function buildPerformanceMessage(metrics: ContactMetrics): string {
     lines.push(
       `${metrics.total_leads} leads total ` +
       `(${metrics.total_callbacks} callbacks, ` +
-      `${metrics.total_phone_clicks} requests for your phone number)`
+      `${metrics.total_phone_reveals} requests for your phone number)`
     );
   }
 
@@ -125,7 +125,7 @@ Deno.serve(async (req) => {
     const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
     const listingIds = activeListings.map(l => l.id);
 
-    const [impressionsResult, viewsResult, phoneClicksResult, callbacksResult] = await Promise.all([
+    const [impressionsResult, viewsResult, phoneRevealsResult, callbacksResult] = await Promise.all([
       supabaseAdmin
         .from('analytics_events')
         .select('event_props')
@@ -141,7 +141,7 @@ Deno.serve(async (req) => {
       supabaseAdmin
         .from('analytics_events')
         .select('event_props')
-        .eq('event_name', 'phone_click')
+        .eq('event_name', 'phone_reveal')
         .gte('occurred_at', sevenDaysAgo),
 
       supabaseAdmin
@@ -176,12 +176,12 @@ Deno.serve(async (req) => {
       }
     }
 
-    const phoneClicksByListing = new Map<string, number>();
-    if (phoneClicksResult.data) {
-      for (const event of phoneClicksResult.data) {
+    const phoneRevealsByListing = new Map<string, number>();
+    if (phoneRevealsResult.data) {
+      for (const event of phoneRevealsResult.data) {
         const id = event.event_props?.listing_id;
         if (id && listingIdSet.has(id)) {
-          phoneClicksByListing.set(id, (phoneClicksByListing.get(id) || 0) + 1);
+          phoneRevealsByListing.set(id, (phoneRevealsByListing.get(id) || 0) + 1);
         }
       }
     }
@@ -206,7 +206,7 @@ Deno.serve(async (req) => {
           avg_impressions: 0,
           total_views: 0,
           avg_views: 0,
-          total_phone_clicks: 0,
+          total_phone_reveals: 0,
           total_callbacks: 0,
           total_leads: 0,
         });
@@ -216,7 +216,7 @@ Deno.serve(async (req) => {
       metrics.listing_count++;
       metrics.total_impressions += impressionsByListing.get(listing.id) || 0;
       metrics.total_views += viewsByListing.get(listing.id) || 0;
-      metrics.total_phone_clicks += phoneClicksByListing.get(listing.id) || 0;
+      metrics.total_phone_reveals += phoneRevealsByListing.get(listing.id) || 0;
       metrics.total_callbacks += callbacksByListing.get(listing.id) || 0;
     }
 
@@ -225,7 +225,7 @@ Deno.serve(async (req) => {
       if (metrics.total_impressions >= 10) {
         metrics.avg_impressions = Math.round((metrics.total_impressions / metrics.listing_count) * 10) / 10;
         metrics.avg_views = Math.round((metrics.total_views / metrics.listing_count) * 10) / 10;
-        metrics.total_leads = metrics.total_phone_clicks + metrics.total_callbacks;
+        metrics.total_leads = metrics.total_phone_reveals + metrics.total_callbacks;
         metricsArray.push(metrics);
       }
     }

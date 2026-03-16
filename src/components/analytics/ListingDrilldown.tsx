@@ -14,7 +14,7 @@ interface DrilldownData {
   views: number;
   impressions: number;
   ctr: number;
-  phone_clicks: number;
+  phone_reveals: number;
   inquiry_count: number;
   hours_to_first_inquiry: number | null;
   views_by_day: { date: string; views: number }[];
@@ -193,8 +193,8 @@ export function ListingDrilldown({ listingId, onClose, daysBack = 14 }: ListingD
                   <div className="flex items-center">
                     <Phone className="w-4 h-4 text-orange-600 mr-2" />
                     <div>
-                      <div className="text-lg font-semibold">{data.phone_clicks}</div>
-                      <div className="text-xs text-gray-500">Phone Clicks</div>
+                      <div className="text-lg font-semibold">{data.phone_reveals}</div>
+                      <div className="text-xs text-gray-500">Phone Reveals</div>
                     </div>
                   </div>
                   <div className="flex items-center">

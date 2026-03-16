@@ -1,11 +1,16 @@
 import React from 'react';
-import { Users, Eye, FileText, MessageSquare, ArrowRight, Filter } from 'lucide-react';
+import { Users, Eye, FileText, MessageSquare, ArrowRight, Filter, MapPin, PhoneCall, Phone } from 'lucide-react';
 
 interface FunnelData {
   sessions: number;
   impressions: number;
   listing_views: number;
   contact_attempts: number;
+  phone_reveals?: number;
+  phone_dials?: number;
+  pin_clicks?: number;
+  phone_dial_rate?: number;
+  pin_click_rate?: number;
 }
 
 interface TopFilter {
@@ -144,6 +149,36 @@ export function EngagementTab({ funnelData, topFilters, loading }: EngagementTab
                 : '0'}%
             </span>
           </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+          <div className="flex items-center mb-2">
+            <MapPin className="w-4 h-4 text-blue-600 mr-2" />
+            <span className="text-sm font-medium text-gray-600">Pin Clicks</span>
+          </div>
+          <div className="text-2xl font-bold text-gray-900">{(funnel.pin_clicks ?? 0).toLocaleString()}</div>
+          {(funnel.pin_click_rate ?? 0) > 0 && (
+            <div className="text-xs text-gray-500 mt-1">{funnel.pin_click_rate?.toFixed(1)}% of sessions</div>
+          )}
+        </div>
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+          <div className="flex items-center mb-2">
+            <PhoneCall className="w-4 h-4 text-orange-600 mr-2" />
+            <span className="text-sm font-medium text-gray-600">Phone Reveals</span>
+          </div>
+          <div className="text-2xl font-bold text-gray-900">{(funnel.phone_reveals ?? 0).toLocaleString()}</div>
+        </div>
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+          <div className="flex items-center mb-2">
+            <Phone className="w-4 h-4 text-green-600 mr-2" />
+            <span className="text-sm font-medium text-gray-600">Phone Dials</span>
+          </div>
+          <div className="text-2xl font-bold text-gray-900">{(funnel.phone_dials ?? 0).toLocaleString()}</div>
+          {(funnel.phone_dial_rate ?? 0) > 0 && (
+            <div className="text-xs text-gray-500 mt-1">{funnel.phone_dial_rate?.toFixed(1)}% of reveals</div>
+          )}
         </div>
       </div>
 
