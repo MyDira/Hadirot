@@ -3,7 +3,7 @@ import { useParams, useNavigate, Link } from "react-router-dom";
 import { Upload, X, Star, ArrowLeft, Save } from "lucide-react";
 import * as Sentry from "@sentry/react";
 import { useAuth } from "@/hooks/useAuth";
-import { listingsService, getExpirationDate } from "../services/listings";
+import { listingsService, getExpirationDate, getAdminActiveDays } from "../services/listings";
 import { emailService } from "../services/email";
 import { reverseGeocode } from "../services/reverseGeocode";
 import { generateVideoThumbnail } from "../utils/videoUtils";
@@ -984,7 +984,7 @@ export function EditListing() {
 
         const saleStatusChanged = formData.sale_status !== (listing?.sale_status || 'available');
         const newExpiresAt = saleStatusChanged
-          ? getExpirationDate('sale', formData.sale_status || 'available').toISOString()
+          ? getExpirationDate('sale', formData.sale_status || 'available', await getAdminActiveDays()).toISOString()
           : undefined;
 
         Object.assign(updatePayload, {

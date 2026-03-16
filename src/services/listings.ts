@@ -34,7 +34,7 @@ export function getExpirationDate(listingType: 'rental' | 'sale', saleStatus?: S
   return now;
 }
 
-async function getAdminActiveDays(): Promise<number> {
+export async function getAdminActiveDays(): Promise<number> {
   const { data } = await supabase
     .from('admin_settings')
     .select('listing_active_days')
@@ -1899,7 +1899,8 @@ async getInquiriesForListing(listingId: string): Promise<{ user_name: string; us
       throw new Error('Sold listings cannot be extended');
     }
 
-    const newExpiresAt = getExpirationDate('sale', listing.sale_status as SaleStatus);
+    const activeDays = await getAdminActiveDays();
+    const newExpiresAt = getExpirationDate('sale', listing.sale_status as SaleStatus, activeDays);
 
     const { data: updatedListing, error: updateError } = await supabase
       .from('listings')
@@ -1938,7 +1939,8 @@ async getInquiriesForListing(listingId: string): Promise<{ user_name: string; us
       throw new Error('Cannot change status on inactive listings');
     }
 
-    const newExpiresAt = getExpirationDate('sale', newStatus);
+    const activeDays = await getAdminActiveDays();
+    const newExpiresAt = getExpirationDate('sale', newStatus, activeDays);
 
     const { data: updatedListing, error: updateError } = await supabase
       .from('listings')
