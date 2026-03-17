@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Mail, Save, Eye, Send, Copy, Plus, Edit2, Trash2, ChevronDown, ChevronUp, Check, Settings as SettingsIcon } from 'lucide-react';
+import { Mail, Save, Eye, Send, Copy, Plus, CreditCard as Edit2, Trash2, ChevronDown, ChevronUp, Check, Settings as SettingsIcon } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { digestService, DigestTemplate, CollectionConfig, ListingGroup } from '@/services/digest';
 import { WhatsAppFormatter, CollectionLink, FormattedListing } from '@/utils/whatsappFormatter';
@@ -215,34 +215,22 @@ export function DigestManager() {
 
   const createShortUrlForCollection = async (fullUrl: string): Promise<string> => {
     try {
-      console.log('🔗 Creating short URL for:', fullUrl);
-      const urlObj = new URL(fullUrl);
-      const shortCode = Math.random().toString(36).substring(2, 8);
-      console.log('🎲 Generated short code:', shortCode);
+      const alias = digestService.deriveCollectionAlias(fullUrl);
 
-      const { data, error } = await supabase
-        .from('short_urls')
-        .insert({
-          short_code: shortCode,
-          original_url: fullUrl,
-          source: 'digest_collection',
-          listing_id: null
-        })
-        .select('short_code')
-        .single();
+      const { data: shortCode, error } = await supabase.rpc('get_or_create_collection_short_url', {
+        p_alias: alias,
+        p_original_url: fullUrl,
+        p_source: 'digest_collection',
+      });
 
       if (error) {
-        console.error('❌ Failed to create short URL:', error);
-        console.warn('⚠️ Falling back to full URL');
+        console.error('Failed to get/create collection short URL:', error);
         return fullUrl;
       }
 
-      const shortUrl = `https://hadirot.com/l/${data.short_code}`;
-      console.log('✅ Short URL created successfully:', shortUrl);
-      return shortUrl;
+      return `https://hadirot.com/l/${shortCode}`;
     } catch (error) {
-      console.error('❌ Error creating short URL:', error);
-      console.warn('⚠️ Falling back to full URL');
+      console.error('Error creating collection short URL:', error);
       return fullUrl;
     }
   };
@@ -672,8 +660,9 @@ export function DigestManager() {
       params.set('parking', filters.parking.toString());
     }
 
+    const basePath = filters.listing_type === 'sale' ? '/browse-sales' : '/browse';
     const queryString = params.toString();
-    return `https://hadirot.com/browse${queryString ? '?' + queryString : ''}`;
+    return `https://hadirot.com${basePath}${queryString ? '?' + queryString : ''}`;
   };
 
   if (loading) {

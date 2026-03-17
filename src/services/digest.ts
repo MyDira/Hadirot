@@ -631,7 +631,7 @@ export const digestService = {
         p_listing_id: listingId,
         p_original_url: originalUrl,
         p_source: source,
-        p_expires_days: 90
+        p_expires_days: null
       });
 
       if (error) {
@@ -675,6 +675,21 @@ export const digestService = {
     );
 
     return listingsWithShortUrls;
+  },
+
+  deriveCollectionAlias(url: string): string {
+    let path: string;
+    try {
+      const parsed = new URL(url);
+      path = parsed.pathname + parsed.search;
+    } catch {
+      path = url;
+    }
+    return path
+      .replace(/^\//, '')
+      .replace(/[/?&=]/g, '-')
+      .toLowerCase()
+      .slice(0, 100);
   },
 
   // ============================================================================
