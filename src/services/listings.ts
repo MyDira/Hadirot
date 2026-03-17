@@ -34,12 +34,15 @@ export function getExpirationDate(listingType: 'rental' | 'sale', saleStatus?: S
   return now;
 }
 
-export async function getAdminActiveDays(): Promise<number> {
+export async function getAdminActiveDays(): Promise<{ rentalDays: number; saleDays: number }> {
   const { data } = await supabase
     .from('admin_settings')
-    .select('listing_active_days')
+    .select('rental_active_days, sale_active_days')
     .maybeSingle();
-  return data?.listing_active_days ?? LISTING_DURATION_DAYS.RENTAL;
+  return {
+    rentalDays: data?.rental_active_days ?? LISTING_DURATION_DAYS.RENTAL,
+    saleDays: data?.sale_active_days ?? LISTING_DURATION_DAYS.SALE_AVAILABLE,
+  };
 }
 
 export function canExtendListing(listing: Listing): { canExtend: boolean; reason?: string } {
@@ -1899,8 +1902,8 @@ async getInquiriesForListing(listingId: string): Promise<{ user_name: string; us
       throw new Error('Sold listings cannot be extended');
     }
 
-    const activeDays = await getAdminActiveDays();
-    const newExpiresAt = getExpirationDate('sale', listing.sale_status as SaleStatus, activeDays);
+    const { saleDays } = await getAdminActiveDays();
+    const newExpiresAt = getExpirationDate('sale', listing.sale_status as SaleStatus, saleDays);
 
     const { data: updatedListing, error: updateError } = await supabase
       .from('listings')
@@ -1939,8 +1942,8 @@ async getInquiriesForListing(listingId: string): Promise<{ user_name: string; us
       throw new Error('Cannot change status on inactive listings');
     }
 
-    const activeDays = await getAdminActiveDays();
-    const newExpiresAt = getExpirationDate('sale', newStatus, activeDays);
+    const { saleDays } = await getAdminActiveDays();
+    const newExpiresAt = getExpirationDate('sale', newStatus, saleDays);
 
     const { data: updatedListing, error: updateError } = await supabase
       .from('listings')
@@ -1962,8 +1965,8 @@ async getInquiriesForListing(listingId: string): Promise<{ user_name: string; us
   },
 
   async renewListing(listingId: string, listingType: 'rental' | 'sale', saleStatus?: SaleStatus | null): Promise<Listing> {
-    const activeDays = await getAdminActiveDays();
-    const newExpiresAt = getExpirationDate(listingType, saleStatus, activeDays);
+    const { rentalDays, saleDays } = await getAdminActiveDays();
+    const newExpiresAt = getExpirationDate(listingType, saleStatus, listingType === 'sale' ? saleDays : rentalDays);
     const now = new Date().toISOString();
 
     const { data: updatedListing, error } = await supabase

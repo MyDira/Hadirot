@@ -984,7 +984,7 @@ export function EditListing() {
 
         const saleStatusChanged = formData.sale_status !== (listing?.sale_status || 'available');
         const newExpiresAt = saleStatusChanged
-          ? getExpirationDate('sale', formData.sale_status || 'available', await getAdminActiveDays()).toISOString()
+          ? getExpirationDate('sale', formData.sale_status || 'available', (await getAdminActiveDays()).saleDays).toISOString()
           : undefined;
 
         Object.assign(updatePayload, {

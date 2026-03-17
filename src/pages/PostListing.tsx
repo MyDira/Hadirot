@@ -1209,7 +1209,8 @@ export function PostListing() {
 
       // Calculate expiration date based on listing type
       const listingType = formData.listing_type || 'rental';
-      const activeDays = await getAdminActiveDays();
+      const { rentalDays, saleDays } = await getAdminActiveDays();
+      const activeDays = listingType === 'sale' ? saleDays : rentalDays;
       const expiresAt = getExpirationDate(listingType, listingType === 'sale' ? 'available' : undefined, activeDays);
 
       // Create the listing first

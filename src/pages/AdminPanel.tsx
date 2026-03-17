@@ -122,7 +122,8 @@ export function AdminPanel() {
   const [updatingSalesAccessId, setUpdatingSalesAccessId] = useState<string | null>(null);
   const [salesFeatureEnabled, setSalesFeatureEnabled] = useState(false);
   const [impersonatingUserId, setImpersonatingUserId] = useState<string | null>(null);
-  const [listingActiveDays, setListingActiveDays] = useState<number>(30);
+  const [rentalActiveDays, setRentalActiveDays] = useState<number>(30);
+  const [saleActiveDays, setSaleActiveDays] = useState<number>(30);
   const [savingLifecycle, setSavingLifecycle] = useState(false);
   const [featureModalListing, setFeatureModalListing] = useState<Listing | null>(null);
   const [phoneSearch, setPhoneSearch] = useState('');
@@ -349,11 +350,12 @@ export function AdminPanel() {
       // Load listing lifecycle settings
       const { data: settingsData } = await supabase
         .from('admin_settings')
-        .select('listing_active_days')
+        .select('rental_active_days, sale_active_days')
         .single();
 
-      if (settingsData && settingsData.listing_active_days) {
-        setListingActiveDays(settingsData.listing_active_days);
+      if (settingsData) {
+        if (settingsData.rental_active_days) setRentalActiveDays(settingsData.rental_active_days);
+        if (settingsData.sale_active_days) setSaleActiveDays(settingsData.sale_active_days);
       }
 
       // Load full data for tables
@@ -449,13 +451,12 @@ export function AdminPanel() {
   };
 
   const handleSaveListingLifecycle = async () => {
-    // Validation
-    if (listingActiveDays < 7 || listingActiveDays > 365) {
+    if (rentalActiveDays < 7 || rentalActiveDays > 365 || saleActiveDays < 7 || saleActiveDays > 365) {
       setToast({ message: 'Duration must be between 7 and 365 days', tone: 'error' });
       return;
     }
 
-    if (!Number.isInteger(listingActiveDays)) {
+    if (!Number.isInteger(rentalActiveDays) || !Number.isInteger(saleActiveDays)) {
       setToast({ message: 'Duration must be a whole number', tone: 'error' });
       return;
     }
@@ -473,7 +474,10 @@ export function AdminPanel() {
 
       const { error } = await supabase
         .from('admin_settings')
-        .update({ listing_active_days: listingActiveDays })
+        .update({
+          rental_active_days: rentalActiveDays,
+          sale_active_days: saleActiveDays,
+        })
         .eq('id', adminSettings.id);
 
       if (error) throw error;
@@ -938,20 +942,37 @@ export function AdminPanel() {
                     </div>
                     <div>
                       <p className="text-sm font-medium text-gray-600">Listing Active Duration</p>
-                      <p className="text-xs text-gray-500 mt-1">Days before auto-deactivation</p>
+                      <p className="text-xs text-gray-500 mt-1">Days before auto-deactivation per listing type</p>
                     </div>
                   </div>
                   <div className="space-y-3">
-                    <div className="flex items-center space-x-2">
-                      <input
-                        type="number"
-                        min="7"
-                        max="365"
-                        value={listingActiveDays}
-                        onChange={(e) => setListingActiveDays(parseInt(e.target.value) || 30)}
-                        className="w-20 px-3 py-2 border border-gray-300 rounded-md focus:ring-[#4E4B43] focus:border-[#4E4B43]"
-                      />
-                      <span className="text-sm text-gray-600">days</span>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500 mb-1">Rentals</label>
+                      <div className="flex items-center space-x-2">
+                        <input
+                          type="number"
+                          min="7"
+                          max="365"
+                          value={rentalActiveDays}
+                          onChange={(e) => setRentalActiveDays(parseInt(e.target.value) || 30)}
+                          className="w-20 px-3 py-2 border border-gray-300 rounded-md focus:ring-[#4E4B43] focus:border-[#4E4B43]"
+                        />
+                        <span className="text-sm text-gray-600">days</span>
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500 mb-1">Sales</label>
+                      <div className="flex items-center space-x-2">
+                        <input
+                          type="number"
+                          min="7"
+                          max="365"
+                          value={saleActiveDays}
+                          onChange={(e) => setSaleActiveDays(parseInt(e.target.value) || 30)}
+                          className="w-20 px-3 py-2 border border-gray-300 rounded-md focus:ring-[#4E4B43] focus:border-[#4E4B43]"
+                        />
+                        <span className="text-sm text-gray-600">days</span>
+                      </div>
                     </div>
                     <button
                       onClick={handleSaveListingLifecycle}

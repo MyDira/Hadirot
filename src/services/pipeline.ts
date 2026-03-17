@@ -1,4 +1,5 @@
 import { supabase, CallStatus, ScrapedListing, ScrapeRun } from '@/config/supabase';
+import { getAdminActiveDays, getExpirationDate } from './listings';
 
 export interface PipelineFilters {
   callStatus: CallStatus | 'all';
@@ -96,6 +97,9 @@ export const pipelineService = {
     formData: Record<string, any>,
     userId: string,
   ): Promise<string> {
+    const { rentalDays } = await getAdminActiveDays();
+    const expiresAt = getExpirationDate('rental', undefined, rentalDays);
+
     const { data: listing, error: insertError } = await supabase
       .from('listings')
       .insert({
@@ -105,6 +109,8 @@ export const pipelineService = {
         is_active: false,
         broker_fee: false,
         listing_type: 'rental',
+        expires_at: expiresAt.toISOString(),
+        last_published_at: new Date().toISOString(),
       })
       .select('id')
       .single();
