@@ -24,7 +24,7 @@ interface ImageCarouselProps {
   videoThumbnail?: string | null;
 }
 
-type AnimationState = 'idle' | 'dragging' | 'animating';
+type AnimationState = 'idle' | 'dragging' | 'animating' | 'completing';
 
 export default function ImageCarousel({
   images,
@@ -40,6 +40,7 @@ export default function ImageCarousel({
   const [currentIndex, setCurrentIndex] = useState(0);
   const [animationState, setAnimationState] = useState<AnimationState>('idle');
   const [dragOffset, setDragOffset] = useState(0);
+  const [completionOffset, setCompletionOffset] = useState(0);
   const [imageLoadStates, setImageLoadStates] = useState<Record<string, boolean>>({});
 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -181,7 +182,7 @@ export default function ImageCarousel({
   }, [animationState, currentIndex]);
 
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
-    if (displayMedia.length <= 1 || animationState === 'animating') return;
+    if (displayMedia.length <= 1 || animationState === 'animating' || animationState === 'completing') return;
 
     touchStartX.current = e.touches[0].clientX;
     lastTouchX.current = e.touches[0].clientX;
@@ -220,22 +221,23 @@ export default function ImageCarousel({
     const shouldNavigate = swipePercent > 0.5 || (velocity > 0.5 && swipePercent > 0.3);
 
     if (shouldNavigate) {
-      if (swipeDistance > 0) {
-        // Swiped right, go to previous
-        setCurrentIndex(prev => getCircularIndex(prev - 1));
-      } else {
-        // Swiped left, go to next
-        setCurrentIndex(prev => getCircularIndex(prev + 1));
-      }
+      const exitDistance = containerWidth * (swipeDistance > 0 ? 1 : -1);
+      setCompletionOffset(exitDistance);
+      setAnimationState('completing');
+
+      setTimeout(() => {
+        setAnimationState('idle');
+        setCurrentIndex(prev => swipeDistance > 0 ? getCircularIndex(prev - 1) : getCircularIndex(prev + 1));
+        setCompletionOffset(0);
+      }, 300);
+    } else {
+      setDragOffset(0);
+      setAnimationState('animating');
+
+      setTimeout(() => {
+        setAnimationState('idle');
+      }, 200);
     }
-
-    // Reset
-    setDragOffset(0);
-    setAnimationState('animating');
-
-    setTimeout(() => {
-      setAnimationState('idle');
-    }, shouldNavigate ? 350 : 200);
 
     touchStartX.current = 0;
     lastTouchX.current = 0;
@@ -273,12 +275,16 @@ export default function ImageCarousel({
     }
   };
 
-  // Calculate transform based on drag offset
   const getTransform = (position: number) => {
     if (animationState === 'dragging' && containerRef.current) {
       const containerWidth = containerRef.current.offsetWidth;
       const dragPercent = dragOffset / containerWidth;
       return `translate3d(${(position * 100 + dragPercent * 100)}%, 0, 0)`;
+    }
+    if (animationState === 'completing' && containerRef.current) {
+      const containerWidth = containerRef.current.offsetWidth;
+      const completionPercent = completionOffset / containerWidth;
+      return `translate3d(${(position * 100 + completionPercent * 100)}%, 0, 0)`;
     }
     return `translate3d(${position * 100}%, 0, 0)`;
   };
@@ -372,6 +378,17 @@ export default function ImageCarousel({
             Stock photo
           </div>
         )}
+
+        {displayMedia.length > 1 && (
+          <>
+            <div className="md:hidden absolute left-2 top-1/2 -translate-y-1/2 text-white opacity-40 pointer-events-none">
+              <ChevronLeft size={28} />
+            </div>
+            <div className="md:hidden absolute right-2 top-1/2 -translate-y-1/2 text-white opacity-40 pointer-events-none">
+              <ChevronRight size={28} />
+            </div>
+          </>
+        )}
       </div>
 
       {/* Navigation arrows - hidden on mobile, visible on desktop */}
@@ -404,20 +421,25 @@ export default function ImageCarousel({
         </>
       )}
 
-      {/* Dots indicator - only show if more than 1 media item */}
       {displayMedia.length > 1 && (
-        <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex space-x-2 z-10">
-          {displayMedia.map((_, index) => (
-            <button
-              key={index}
-              onClick={() => handleNavigateTo(index)}
-              disabled={animationState !== 'idle'}
-              className={`w-3 h-3 rounded-full transition-all ${
-                index === currentIndex ? 'bg-white scale-110' : 'bg-white bg-opacity-50 hover:bg-opacity-75'
-              } ${animationState !== 'idle' ? 'cursor-not-allowed' : 'cursor-pointer'}`}
-              aria-label={`Go to media ${index + 1}`}
-            />
-          ))}
+        <div className="absolute bottom-10 left-1/2 transform -translate-x-1/2 flex space-x-2 z-10">
+          {displayMedia.length <= 7 ? (
+            displayMedia.map((_, index) => (
+              <button
+                key={index}
+                onClick={() => handleNavigateTo(index)}
+                disabled={animationState !== 'idle'}
+                className={`w-3 h-3 rounded-full transition-all ${
+                  index === currentIndex ? 'bg-white scale-110' : 'bg-white bg-opacity-50 hover:bg-opacity-75'
+                } ${animationState !== 'idle' ? 'cursor-not-allowed' : 'cursor-pointer'}`}
+                aria-label={`Go to media ${index + 1}`}
+              />
+            ))
+          ) : (
+            <span className="text-white text-sm font-medium bg-black/35 rounded-full px-3 py-0.5 backdrop-blur-sm">
+              {currentIndex + 1} / {displayMedia.length}
+            </span>
+          )}
         </div>
       )}
     </div>
