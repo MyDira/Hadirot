@@ -4,7 +4,7 @@ import { X, MapPin, Search, Loader2, CheckCircle, RotateCcw, AlertCircle } from 
 import { MAPBOX_ACCESS_TOKEN } from "@/config/env";
 import { geocodeCrossStreets, formatCorrectionMessage } from "@/services/geocoding";
 import { reverseGeocode } from "@/services/reverseGeocode";
-import { MapboxFeature } from "./MapboxStreetAutocomplete";
+import { GoogleStreetFeature } from "./GoogleStreetAutocomplete";
 
 const DEFAULT_CENTER: [number, number] = [-73.9442, 40.6782];
 const DEFAULT_ZOOM = 13;
@@ -13,8 +13,8 @@ interface MapModalProps {
   isOpen: boolean;
   onClose: () => void;
   crossStreets: string;
-  crossStreetAFeature?: MapboxFeature | null;
-  crossStreetBFeature?: MapboxFeature | null;
+  crossStreetAFeature?: GoogleStreetFeature | null;
+  crossStreetBFeature?: GoogleStreetFeature | null;
   neighborhood?: string;
   city?: string;
   initialLatitude: number | null;
@@ -132,41 +132,26 @@ export function MapModal({
   }, [isOpen, initialLatitude, initialLongitude, requiresConfirmation]);
 
   const handleFindOnMap = async () => {
-    // If we have both features, calculate midpoint directly
-    if (crossStreetAFeature && crossStreetBFeature) {
-      setIsGeocoding(true);
-      setGeocodeError(null);
-      setGeocodeSuccess(null);
-
-      try {
-        const [lng1, lat1] = crossStreetAFeature.center;
-        const [lng2, lat2] = crossStreetBFeature.center;
-
-        // Calculate midpoint
-        const midLat = (lat1 + lat2) / 2;
-        const midLng = (lng1 + lng2) / 2;
-
-        if (map.current) {
-          map.current.flyTo({
-            center: [midLng, midLat],
-            zoom: 16,
-            duration: 1000,
-          });
-          setCurrentCenter({ lat: midLat, lng: midLng });
-        }
-
-        setGeocodeSuccess(`Location found: ${crossStreetAFeature.text} & ${crossStreetBFeature.text}`);
-        performReverseGeocode(midLat, midLng);
-      } catch (error) {
-        console.error("Midpoint calculation error:", error);
-        setGeocodeError("Failed to calculate location. Please try again.");
-      } finally {
-        setIsGeocoding(false);
+    // If we have pre-resolved initial coordinates, fly to them directly
+    if (initialLatitude && initialLongitude) {
+      if (map.current) {
+        map.current.flyTo({
+          center: [initialLongitude, initialLatitude],
+          zoom: 16,
+          duration: 1000,
+        });
+        setCurrentCenter({ lat: initialLatitude, lng: initialLongitude });
       }
+      const label =
+        crossStreetAFeature && crossStreetBFeature
+          ? `${crossStreetAFeature.streetName} & ${crossStreetBFeature.streetName}`
+          : crossStreets;
+      if (label) setGeocodeSuccess(`Location found: ${label}`);
+      performReverseGeocode(initialLatitude, initialLongitude);
       return;
     }
 
-    // Fallback to legacy geocoding if no features provided
+    // Fallback to legacy geocoding if no coordinates available
     if (!crossStreets.trim()) {
       setGeocodeError("Please enter cross streets first");
       setGeocodeSuccess(null);

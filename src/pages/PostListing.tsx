@@ -16,7 +16,8 @@ import { generateVideoThumbnail } from "../utils/videoUtils";
 import { MediaUploader, MediaFile } from "../components/shared/MediaUploader";
 import { SalesListingFields } from "../components/listing/SalesListingFields";
 import { LocationPicker } from "../components/listing/LocationPicker";
-import { MapboxStreetAutocomplete, MapboxFeature } from "../components/listing/MapboxStreetAutocomplete";
+import { GoogleAddressAutocomplete, GooglePlaceResult } from "../components/listing/GoogleAddressAutocomplete";
+import { GoogleStreetAutocomplete, GoogleStreetFeature } from "../components/listing/GoogleStreetAutocomplete";
 import type { Profile, RentRollUnit } from "../config/supabase";
 import { gaEvent } from "@/lib/ga";
 import {
@@ -68,8 +69,9 @@ export function PostListing() {
   const [adminAssignUser, setAdminAssignUser] = useState<Profile | null>(null);
   const [adminCustomAgencyName, setAdminCustomAgencyName] = useState('');
   const [adminListingTypeDisplay, setAdminListingTypeDisplay] = useState<'agent' | 'owner' | ''>('');
-  const [crossStreetAFeature, setCrossStreetAFeature] = useState<MapboxFeature | null>(null);
-  const [crossStreetBFeature, setCrossStreetBFeature] = useState<MapboxFeature | null>(null);
+  const [crossStreetAFeature, setCrossStreetAFeature] = useState<GoogleStreetFeature | null>(null);
+  const [crossStreetBFeature, setCrossStreetBFeature] = useState<GoogleStreetFeature | null>(null);
+  const [salesAddressCoords, setSalesAddressCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [isLocationConfirmed, setIsLocationConfirmed] = useState(false);
   const [showAIParser, setShowAIParser] = useState(false);
   const [aiParserText, setAiParserText] = useState('');
@@ -1219,8 +1221,8 @@ export function PostListing() {
         broker_fee: false,
         neighborhood: finalNeighborhood,
         location: finalLocation,
-        cross_street_a: crossStreetAFeature?.text || null,
-        cross_street_b: crossStreetBFeature?.text || null,
+        cross_street_a: crossStreetAFeature?.streetName || null,
+        cross_street_b: crossStreetBFeature?.streetName || null,
         full_address: fullAddress,
         user_id: listingUserId,
         agency_id: ownedAgencyId || null,
@@ -1862,13 +1864,23 @@ export function PostListing() {
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Street Address *
                   </label>
-                  <input
-                    type="text"
-                    name="street_address"
+                  <GoogleAddressAutocomplete
                     value={formData.street_address}
-                    onChange={handleInputChange}
-                    required
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-brand-700 focus:border-brand-700"
+                    onSelect={(result: GooglePlaceResult | null) => {
+                      if (result) {
+                        setFormData(prev => ({
+                          ...prev,
+                          street_address: result.streetAddress,
+                          city: result.city || prev.city,
+                          state: result.state || prev.state,
+                          zip_code: result.zipCode || prev.zip_code,
+                        }));
+                        setSalesAddressCoords({ lat: result.latitude, lng: result.longitude });
+                      } else {
+                        setFormData(prev => ({ ...prev, street_address: '' }));
+                        setSalesAddressCoords(null);
+                      }
+                    }}
                     placeholder="123 Main Street"
                   />
                 </div>
@@ -2087,6 +2099,8 @@ export function PostListing() {
                         onCityChange={handleCityFromMap}
                         onGeocodeStatusChange={handleGeocodeStatusChange}
                         onConfirmationStatusChange={handleConfirmationStatusChange}
+                        preResolvedLatitude={salesAddressCoords?.lat ?? null}
+                        preResolvedLongitude={salesAddressCoords?.lng ?? null}
                       />
                     </div>
                   </div>
@@ -2104,22 +2118,22 @@ export function PostListing() {
                         Please enter two exact street names
                       </p>
                       <div className="space-y-3">
-                        <MapboxStreetAutocomplete
-                          value={crossStreetAFeature?.text}
+                        <GoogleStreetAutocomplete
+                          value={crossStreetAFeature?.streetName}
                           onSelect={(feature) => {
                             setCrossStreetAFeature(feature);
                             if (feature) {
-                              setFormData(prev => ({ ...prev, location: `${feature.text} & ${crossStreetBFeature?.text || ''}`.trim() }));
+                              setFormData(prev => ({ ...prev, location: `${feature.streetName} & ${crossStreetBFeature?.streetName || ''}`.trim() }));
                             }
                           }}
                           placeholder="First cross street (e.g., Avenue J)"
                         />
-                        <MapboxStreetAutocomplete
-                          value={crossStreetBFeature?.text}
+                        <GoogleStreetAutocomplete
+                          value={crossStreetBFeature?.streetName}
                           onSelect={(feature) => {
                             setCrossStreetBFeature(feature);
                             if (feature) {
-                              setFormData(prev => ({ ...prev, location: `${crossStreetAFeature?.text || ''} & ${feature.text}`.trim() }));
+                              setFormData(prev => ({ ...prev, location: `${crossStreetAFeature?.streetName || ''} & ${feature.streetName}`.trim() }));
                             }
                           }}
                           placeholder="Second cross street (e.g., East 15th Street)"

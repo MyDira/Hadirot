@@ -1,10 +1,10 @@
-import type { MapboxFeature } from "../../components/listing/MapboxStreetAutocomplete";
+import type { GoogleStreetFeature } from "../../components/listing/GoogleStreetAutocomplete";
 import type { ListingFormData } from "./types";
 
 export interface AIParseMappingResult {
   updatedFormData: Partial<ListingFormData>;
-  crossStreetA: MapboxFeature | null;
-  crossStreetB: MapboxFeature | null;
+  crossStreetA: GoogleStreetFeature | null;
+  crossStreetB: GoogleStreetFeature | null;
 }
 
 export function mapAIParsedDataToFormFields(
@@ -19,8 +19,8 @@ export function mapAIParsedDataToFormFields(
   console.log('====================================');
 
   const updatedFormData: Partial<ListingFormData> = {};
-  let crossStreetA: MapboxFeature | null = null;
-  let crossStreetB: MapboxFeature | null = null;
+  let crossStreetA: GoogleStreetFeature | null = null;
+  let crossStreetB: GoogleStreetFeature | null = null;
 
   if (data.listing_type) updatedFormData.listing_type = data.listing_type;
   if (data.title) updatedFormData.title = data.title;
@@ -40,18 +40,14 @@ export function mapAIParsedDataToFormFields(
       const streets = data.cross_streets.split(' & ');
       if (streets.length === 2) {
         crossStreetA = {
-          id: 'ai-parsed-street-a',
-          text: streets[0].trim(),
-          place_name: streets[0].trim(),
-          center: [0, 0],
-          place_type: ['address']
+          placeId: 'ai-parsed-street-a',
+          streetName: streets[0].trim(),
+          formattedName: streets[0].trim(),
         };
         crossStreetB = {
-          id: 'ai-parsed-street-b',
-          text: streets[1].trim(),
-          place_name: streets[1].trim(),
-          center: [0, 0],
-          place_type: ['address']
+          placeId: 'ai-parsed-street-b',
+          streetName: streets[1].trim(),
+          formattedName: streets[1].trim(),
         };
         console.log('✅ Set cross street A from cross_streets:', streets[0].trim());
         console.log('✅ Set cross street B from cross_streets:', streets[1].trim());
@@ -64,18 +60,14 @@ export function mapAIParsedDataToFormFields(
       const streets = data.location.split(' & ');
       if (streets.length === 2) {
         crossStreetA = {
-          id: 'ai-parsed-street-a',
-          text: streets[0].trim(),
-          place_name: streets[0].trim(),
-          center: [0, 0],
-          place_type: ['address']
+          placeId: 'ai-parsed-street-a',
+          streetName: streets[0].trim(),
+          formattedName: streets[0].trim(),
         };
         crossStreetB = {
-          id: 'ai-parsed-street-b',
-          text: streets[1].trim(),
-          place_name: streets[1].trim(),
-          center: [0, 0],
-          place_type: ['address']
+          placeId: 'ai-parsed-street-b',
+          streetName: streets[1].trim(),
+          formattedName: streets[1].trim(),
         };
         console.log('✅ Set cross street A from location:', streets[0].trim());
         console.log('✅ Set cross street B from location:', streets[1].trim());
@@ -86,18 +78,14 @@ export function mapAIParsedDataToFormFields(
       console.log('📍 Processing separate cross_street_a/b fields');
       updatedFormData.location = `${data.cross_street_a} & ${data.cross_street_b}`;
       crossStreetA = {
-        id: 'ai-parsed-street-a',
-        text: data.cross_street_a,
-        place_name: data.cross_street_a,
-        center: [0, 0],
-        place_type: ['address']
+        placeId: 'ai-parsed-street-a',
+        streetName: data.cross_street_a,
+        formattedName: data.cross_street_a,
       };
       crossStreetB = {
-        id: 'ai-parsed-street-b',
-        text: data.cross_street_b,
-        place_name: data.cross_street_b,
-        center: [0, 0],
-        place_type: ['address']
+        placeId: 'ai-parsed-street-b',
+        streetName: data.cross_street_b,
+        formattedName: data.cross_street_b,
       };
       console.log('✅ Set cross street A from cross_street_a:', data.cross_street_a);
       console.log('✅ Set cross street B from cross_street_b:', data.cross_street_b);

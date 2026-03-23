@@ -5,15 +5,15 @@ import { MAPBOX_ACCESS_TOKEN } from "@/config/env";
 import { geocodeCrossStreets, formatCorrectionMessage } from "@/services/geocoding";
 import { reverseGeocode } from "@/services/reverseGeocode";
 import { MapModal } from "./MapModal";
-import { MapboxFeature } from "./MapboxStreetAutocomplete";
+import { GoogleStreetFeature } from "./GoogleStreetAutocomplete";
 
 const DEFAULT_CENTER: [number, number] = [-73.9442, 40.6782];
 const PREVIEW_ZOOM = 15;
 
 interface LocationPickerProps {
   crossStreets: string;
-  crossStreetAFeature?: MapboxFeature | null;
-  crossStreetBFeature?: MapboxFeature | null;
+  crossStreetAFeature?: GoogleStreetFeature | null;
+  crossStreetBFeature?: GoogleStreetFeature | null;
   neighborhood?: string;
   city?: string;
   latitude: number | null;
@@ -25,6 +25,8 @@ interface LocationPickerProps {
   onGeocodeStatusChange?: (error: string | null, success: string | null) => void;
   onConfirmationStatusChange?: (confirmed: boolean) => void;
   disabled?: boolean;
+  preResolvedLatitude?: number | null;
+  preResolvedLongitude?: number | null;
 }
 
 export function LocationPicker({
@@ -42,6 +44,8 @@ export function LocationPicker({
   onGeocodeStatusChange,
   onConfirmationStatusChange,
   disabled = false,
+  preResolvedLatitude,
+  preResolvedLongitude,
 }: LocationPickerProps) {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
@@ -125,6 +129,36 @@ export function LocationPicker({
   }, [latitude, longitude, mapLoaded]);
 
   const handleFindOnMap = async () => {
+    if (preResolvedLatitude != null && preResolvedLongitude != null) {
+      const lat = preResolvedLatitude;
+      const lng = preResolvedLongitude;
+
+      setIsGeocoding(true);
+      setGeocodeError(null);
+      setGeocodeSuccess(null);
+      if (onGeocodeStatusChange) onGeocodeStatusChange(null, null);
+
+      setIsLocationSet(true);
+      onLocationChange(lat, lng);
+
+      if (map.current) {
+        map.current.flyTo({
+          center: [lng, lat],
+          zoom: 16,
+          duration: 1000,
+        });
+      }
+
+      performReverseGeocode(lat, lng);
+
+      setIsLocationConfirmed(false);
+      if (onConfirmationStatusChange) onConfirmationStatusChange(false);
+      setRequiresConfirmation(true);
+      setShowMapModal(true);
+      setIsGeocoding(false);
+      return;
+    }
+
     if (!crossStreets.trim()) {
       const errorMsg = "Please enter cross streets first";
       setGeocodeError(errorMsg);
@@ -174,7 +208,6 @@ export function LocationPicker({
           performReverseGeocode(lat, lng);
         }
 
-        // Set unconfirmed and open modal in confirmation mode
         setIsLocationConfirmed(false);
         if (onConfirmationStatusChange) onConfirmationStatusChange(false);
         setRequiresConfirmation(true);
@@ -230,6 +263,15 @@ export function LocationPicker({
     setShowMapModal(true);
   };
 
+  const isFindOnMapDisabled = () => {
+    if (disabled || isGeocoding) return true;
+    if (preResolvedLatitude != null && preResolvedLongitude != null) return false;
+    if (crossStreetAFeature !== undefined || crossStreetBFeature !== undefined) {
+      return !crossStreetAFeature || !crossStreetBFeature;
+    }
+    return !crossStreets.trim();
+  };
+
   if (!MAPBOX_ACCESS_TOKEN) {
     return (
       <div className="bg-amber-50 border border-amber-200 rounded-md p-4 text-amber-800 text-sm">
@@ -246,13 +288,7 @@ export function LocationPicker({
           <button
             type="button"
             onClick={handleFindOnMap}
-            disabled={
-              disabled ||
-              isGeocoding ||
-              (crossStreetAFeature !== undefined || crossStreetBFeature !== undefined
-                ? !crossStreetAFeature || !crossStreetBFeature
-                : !crossStreets.trim())
-            }
+            disabled={isFindOnMapDisabled()}
             className="inline-flex items-center px-4 py-2 bg-accent-500 text-white text-sm font-medium rounded-md hover:bg-accent-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {isGeocoding ? (
