@@ -1575,7 +1575,7 @@ export function AdminPanel() {
               </div>
 
               {/* Listings Table */}
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+              <div className="bg-white rounded-lg shadow-sm border border-gray-200">
                 <div className="mb-6 flex justify-between items-center">
                   <h3 className="text-xl font-semibold text-[#4E4B43]">All Listings</h3>
                   
@@ -1615,7 +1615,7 @@ export function AdminPanel() {
                     All Listings ({filteredListings.length}) - Page {currentPage} of {totalPages}
                   </h3>
                 </div>
-                <div className="overflow-x-auto lg:overflow-visible">
+                <div className="overflow-x-auto">
                   <table className="min-w-full divide-y divide-gray-200">
                     <thead className="bg-gray-50">
                       <tr>
