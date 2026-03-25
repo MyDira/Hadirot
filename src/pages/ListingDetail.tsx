@@ -1277,10 +1277,6 @@ export function ListingDetail() {
             Listing details are provided by the agent or landlord. Hadirot is not responsible for inaccuracies — always confirm details directly with the listing contact.
           </p>
 
-          <p className="text-xs text-gray-500 mt-6">
-            Listing details are provided by the agent or landlord. Hadirot is not responsible for inaccuracies — always confirm details directly with the listing contact.
-          </p>
-
         </div>
 
       </div>
