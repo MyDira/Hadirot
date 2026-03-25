@@ -8,6 +8,7 @@ import { BrowseSales } from './pages/BrowseSales';
 import { AuthForm } from './components/auth/AuthForm';
 import PasswordRecoveryGate from './components/auth/PasswordRecoveryGate';
 import { PostListing } from './pages/PostListing';
+import { PostCommercialListing } from './pages/PostCommercialListing';
 import { EditListing } from './pages/EditListing';
 import { ListingDetail } from './pages/ListingDetail';
 import { AdminPanel } from './pages/AdminPanel';
@@ -85,6 +86,7 @@ function App() {
                 <Route path="/browse" element={<BrowseListings />} />
                 <Route path="/browse-sales" element={<BrowseSales />} />
                 <Route path="/post" element={<PostListing />} />
+                <Route path="/post-commercial" element={<PostCommercialListing />} />
                 <Route path="/edit/:id" element={<EditListing />} />
                 <Route path="/listing/:id" element={<ListingDetail />} />
                 <Route path="/l/:code" element={<ShortUrlRedirect />} />
