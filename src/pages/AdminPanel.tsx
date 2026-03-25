@@ -12,7 +12,8 @@ import { SalesManagement } from '@/components/admin/SalesManagement';
 import { AdminFeatureModal } from '@/components/admin/AdminFeatureModal';
 import { ConciergeManagement } from '@/components/admin/ConciergeManagement';
 import { PipelineManagement } from '@/components/admin/PipelineManagement';
-import { Briefcase, GitBranch } from 'lucide-react';
+import { AdminListingMapModal } from '@/components/admin/AdminListingMapModal';
+import { Briefcase, GitBranch, Map } from 'lucide-react';
 
 const ADMIN_TAB_KEYS = [
   'overview',
@@ -81,6 +82,7 @@ export function AdminPanel() {
   const [users, setUsers] = useState<Profile[]>([]);
   const [listings, setListings] = useState<Listing[]>([]);
   const [pendingListings, setPendingListings] = useState<Listing[]>([]);
+  const [mapModalListing, setMapModalListing] = useState<Listing | null>(null);
   const [allListings, setAllListings] = useState<Listing[]>([]);
   const [filteredListings, setFilteredListings] = useState<Listing[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -1946,6 +1948,13 @@ export function AdminPanel() {
                                   <Eye className="w-4 h-4" />
                                 </Link>
                                 <button
+                                  onClick={() => setMapModalListing(listing)}
+                                  className="text-gray-500 hover:text-gray-700 transition-colors"
+                                  title="View on Map"
+                                >
+                                  <Map className="w-4 h-4" />
+                                </button>
+                                <button
                                   onClick={() => approveListing(listing.id)}
                                   className="text-green-600 hover:text-green-800 transition-colors"
                                   title="Approve Listing"
@@ -2063,6 +2072,11 @@ export function AdminPanel() {
           onSuccess={loadAdminData}
         />
       )}
+
+      <AdminListingMapModal
+        listing={mapModalListing}
+        onClose={() => setMapModalListing(null)}
+      />
     </div>
   );
 }
