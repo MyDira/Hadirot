@@ -108,6 +108,7 @@ export interface CommercialListingFormData {
   state: string;
   zip_code: string;
   unit_number: string;
+  admin_listing_type_display: string;
   is_featured: boolean;
   terms_agreed: boolean;
 }
@@ -213,6 +214,7 @@ export const INITIAL_COMMERCIAL_FORM_DATA: CommercialListingFormData = {
   state: 'NY',
   zip_code: '',
   unit_number: '',
+  admin_listing_type_display: 'agent',
   is_featured: false,
   terms_agreed: false,
 };

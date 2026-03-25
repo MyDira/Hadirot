@@ -463,7 +463,7 @@ export function UniversalFields({
               <button
                 key={type}
                 type="button"
-                onClick={() => onFormChange({ admin_listing_type_display: type.toLowerCase() as any })}
+                onClick={() => onFormChange({ admin_listing_type_display: type.toLowerCase() })}
                 className={`px-5 py-2 text-sm font-medium transition-colors ${
                   (formData.admin_listing_type_display || "agent") === type.toLowerCase()
                     ? "bg-teal-600 text-white"

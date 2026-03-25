@@ -12,6 +12,10 @@ import { getAdminActiveDays, getExpirationDate } from "../services/listings";
 import { TypeSelector } from "./postCommercial/TypeSelector";
 import { UniversalFields } from "./postCommercial/UniversalFields";
 import { SpaceDetailsSection } from "./postCommercial/SpaceDetailsSection";
+import { BuildingDetailsSection } from "./postCommercial/BuildingDetailsSection";
+import { LeaseTermsSection } from "./postCommercial/LeaseTermsSection";
+import { SaleFinancialsSection } from "./postCommercial/SaleFinancialsSection";
+import { ReviewSubmitSection } from "./postCommercial/ReviewSubmitSection";
 import type { MediaFile } from "../components/shared/MediaUploader";
 import type { GoogleStreetFeature } from "../components/listing/GoogleStreetAutocomplete";
 import { TYPE_SPECIFIC_FIELD_KEYS } from "./postCommercial/typeFieldConfigs";
@@ -566,52 +570,42 @@ export function PostCommercialListing() {
                 errors={errors}
               />
 
-              {/* Terms & Submit */}
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                <label className="flex items-start gap-3">
-                  <input
-                    type="checkbox"
-                    checked={formData.terms_agreed}
-                    onChange={(e) => handleFormChange({ terms_agreed: e.target.checked })}
-                    className="mt-1 h-4 w-4 text-teal-600 focus:ring-teal-500 border-gray-300 rounded"
-                  />
-                  <span className="text-sm text-gray-700">
-                    I agree to receive SMS messages about my listing and inquiries. Message and data
-                    rates may apply. See{" "}
-                    <a href="/privacy" target="_blank" rel="noopener noreferrer" className="text-teal-700 font-semibold hover:underline">
-                      Privacy Policy
-                    </a>{" "}
-                    and{" "}
-                    <a href="/terms" target="_blank" rel="noopener noreferrer" className="text-teal-700 font-semibold hover:underline">
-                      Terms of Use
-                    </a>{" "}
-                    for more information.
-                  </span>
-                </label>
-                {errors.terms_agreed && (
-                  <p className="text-xs text-red-600 mt-2">{errors.terms_agreed}</p>
-                )}
-              </div>
+              {/* Section 3a — Building Details */}
+              <BuildingDetailsSection
+                formData={formData}
+                onFormChange={handleFormChange}
+              />
 
-              {submitError && (
-                <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
-                  {submitError}
-                </div>
+              {/* Section 3b — Lease Terms (rental only) */}
+              {formData.listing_type === "rental" && (
+                <LeaseTermsSection
+                  formData={formData}
+                  onFormChange={handleFormChange}
+                />
               )}
 
-              <div className="flex justify-end pb-8">
-                <button
-                  type="submit"
-                  disabled={loading || uploadingMedia || !formData.terms_agreed}
-                  className="bg-teal-600 text-white px-10 py-3 rounded-lg font-semibold hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm"
-                >
-                  {loading
-                    ? "Submitting..."
-                    : uploadingMedia
-                    ? "Uploading Photos..."
-                    : "Post Commercial Listing"}
-                </button>
-              </div>
+              {/* Section 3c — Sale Financials (sale only) */}
+              {formData.listing_type === "sale" && (
+                <SaleFinancialsSection
+                  formData={formData}
+                  onFormChange={handleFormChange}
+                />
+              )}
+
+              {/* Section 4 — Review & Submit */}
+              <ReviewSubmitSection
+                formData={formData}
+                selectedType={selectedType}
+                mediaFiles={mediaFiles}
+                locationMode={locationMode}
+                crossStreetAName={crossStreetAFeature?.streetName || null}
+                crossStreetBName={crossStreetBFeature?.streetName || null}
+                errors={errors}
+                submitError={submitError}
+                loading={loading}
+                uploadingMedia={uploadingMedia}
+                onFormChange={handleFormChange}
+              />
             </>
           )}
         </form>
