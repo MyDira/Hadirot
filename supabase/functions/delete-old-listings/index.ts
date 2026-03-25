@@ -6,51 +6,57 @@ const corsHeaders = {
 };
 
 Deno.serve(async (req) => {
-  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
 
   try {
-    // Create Supabase client with service role key
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
       {
         auth: {
           autoRefreshToken: false,
-          persistSession: false
-        }
+          persistSession: false,
+        },
       }
     );
 
-    // Call the PostgreSQL function to delete old listings
-    const { data, error } = await supabaseClient.rpc('auto_delete_very_old_listings');
+    const { data: residentialData, error: residentialError } = await supabaseClient.rpc(
+      'auto_delete_very_old_listings'
+    );
 
-    if (error) {
-      console.error('Error calling auto_delete_very_old_listings:', error);
-      return new Response(
-        JSON.stringify({ error: 'Failed to delete old listings' }),
-        {
-          status: 500,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        }
-      );
+    if (residentialError) {
+      console.error('Error calling auto_delete_very_old_listings:', residentialError);
+    } else {
+      console.log('Successfully deleted old residential listings:', residentialData);
     }
 
-    console.log('Successfully deleted old listings:', data);
+    const { data: commercialData, error: commercialError } = await supabaseClient.rpc(
+      'auto_delete_very_old_commercial_listings'
+    );
+
+    if (commercialError) {
+      console.error('Error calling auto_delete_very_old_commercial_listings:', commercialError);
+    } else {
+      console.log('Successfully deleted old commercial listings:', commercialData);
+    }
+
+    const bothFailed = residentialError && commercialError;
 
     return new Response(
-      JSON.stringify({ message: 'Listings deleted', data }),
+      JSON.stringify({
+        message: bothFailed ? 'Failed to delete listings' : 'Listings deleted',
+        residential: { data: residentialData ?? null, error: residentialError?.message ?? null },
+        commercial: { data: commercialData ?? null, error: commercialError?.message ?? null },
+      }),
       {
-        status: 200,
+        status: bothFailed ? 500 : 200,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       }
     );
-
   } catch (error) {
     console.error('Unexpected error in delete-old-listings function:', error);
-    
     return new Response(
       JSON.stringify({ error: 'Internal server error' }),
       {

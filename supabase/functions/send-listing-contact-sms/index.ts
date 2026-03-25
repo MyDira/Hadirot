@@ -6,6 +6,7 @@ interface ContactFormData {
   userName: string;
   userPhone: string;
   consentToFollowup: boolean;
+  isCommercial?: boolean;
   sessionId?: string;
   ipAddress?: string;
   userAgent?: string;
@@ -16,6 +17,24 @@ interface TwilioResponse {
   status: string;
   error_code?: string;
   error_message?: string;
+}
+
+function formatSpaceType(raw: string): string {
+  const map: Record<string, string> = {
+    storefront: "Retail",
+    retail: "Retail",
+    restaurant: "Restaurant",
+    office: "Office",
+    warehouse: "Warehouse",
+    medical: "Medical",
+    flex: "Flex Space",
+    industrial: "Industrial",
+    mixed_use: "Mixed Use",
+    coworking: "Coworking",
+    gallery: "Gallery",
+    event_space: "Event Space",
+  };
+  return map[raw?.toLowerCase()] ?? (raw ? raw.charAt(0).toUpperCase() + raw.slice(1) : "Commercial");
 }
 
 Deno.serve(async (req) => {
@@ -65,8 +84,9 @@ Deno.serve(async (req) => {
       console.log("Contact form submission:", {
         listingId: formData.listingId,
         userName: formData.userName,
+        isCommercial: formData.isCommercial ?? false,
       });
-    } catch (error) {
+    } catch (_error) {
       return new Response(
         JSON.stringify({ error: "Invalid JSON" }),
         {
@@ -78,9 +98,7 @@ Deno.serve(async (req) => {
 
     if (!formData.listingId || !formData.userName || !formData.userPhone) {
       return new Response(
-        JSON.stringify({
-          error: "Missing required fields",
-        }),
+        JSON.stringify({ error: "Missing required fields" }),
         {
           status: 400,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -88,7 +106,6 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Validate phone number format (basic US format)
     const phoneRegex = /^\+?1?\d{10}$/;
     const cleanedPhone = formData.userPhone.replace(/\D/g, "");
     if (!phoneRegex.test(cleanedPhone) || cleanedPhone.length !== 10) {
@@ -103,109 +120,164 @@ Deno.serve(async (req) => {
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Fetch listing details
-    const { data: listing, error: listingError } = await supabase
-      .from("listings")
-      .select("bedrooms, location, neighborhood, contact_phone, price, asking_price, listing_type, call_for_price, cross_street_a, cross_street_b, user_id, is_featured, featured_expires_at")
-      .eq("id", formData.listingId)
-      .single();
+    const formatPhoneForSMS = (phone: string): string => {
+      const cleaned = phone.replace(/\D/g, "");
+      if (cleaned.length === 10) return `+1${cleaned}`;
+      if (cleaned.length === 11 && cleaned.startsWith("1")) return `+${cleaned}`;
+      return phone;
+    };
 
-    if (listingError || !listing) {
-      console.error("Error fetching listing:", listingError);
-      return new Response(
-        JSON.stringify({ error: "Listing not found" }),
-        {
-          status: 404,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
-      );
+    const formatPriceForSMS = (params: {
+      price: number | null;
+      asking_price: number | null;
+      listing_type: string;
+      call_for_price: boolean;
+      isCommercial: boolean;
+    }): string => {
+      if (params.call_for_price) return "Call for Price";
+      const isSale = params.listing_type === "sale";
+      const priceValue = isSale ? params.asking_price : params.price;
+      if (priceValue === null || priceValue === undefined) return "Price Not Available";
+      const formatted = new Intl.NumberFormat("en-US", {
+        style: "currency",
+        currency: "USD",
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0,
+      }).format(priceValue);
+      return params.isCommercial && !isSale ? `${formatted}/mo` : formatted;
+    };
+
+    const siteUrl = Deno.env.get("PUBLIC_SITE_URL") || "https://hadirot.com";
+    const isCommercial = formData.isCommercial === true;
+
+    // ----------------------------------------------------------------
+    // Fetch listing from the correct table
+    // ----------------------------------------------------------------
+    let listing: {
+      contact_phone: string;
+      listing_type: string;
+      price: number | null;
+      asking_price: number | null;
+      call_for_price: boolean;
+      user_id: string;
+      is_featured: boolean;
+      featured_expires_at: string | null;
+      // residential fields
+      bedrooms?: number | null;
+      location?: string;
+      neighborhood?: string;
+      cross_street_a?: string | null;
+      cross_street_b?: string | null;
+      // commercial fields
+      commercial_space_type?: string;
+      full_address?: string | null;
+    } | null = null;
+
+    if (isCommercial) {
+      const { data, error } = await supabase
+        .from("commercial_listings")
+        .select("commercial_space_type, full_address, cross_street_a, cross_street_b, contact_phone, price, asking_price, listing_type, call_for_price, user_id, is_featured, featured_expires_at")
+        .eq("id", formData.listingId)
+        .single();
+
+      if (error || !data) {
+        console.error("Error fetching commercial listing:", error);
+        return new Response(
+          JSON.stringify({ error: "Listing not found" }),
+          { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      listing = data;
+    } else {
+      const { data, error } = await supabase
+        .from("listings")
+        .select("bedrooms, location, neighborhood, contact_phone, price, asking_price, listing_type, call_for_price, cross_street_a, cross_street_b, user_id, is_featured, featured_expires_at")
+        .eq("id", formData.listingId)
+        .single();
+
+      if (error || !data) {
+        console.error("Error fetching listing:", error);
+        return new Response(
+          JSON.stringify({ error: "Listing not found" }),
+          { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      listing = data;
     }
 
     console.log("Listing details:", {
       listingType: listing.listing_type,
       price: listing.price,
       askingPrice: listing.asking_price,
+      isCommercial,
     });
 
-    // Format phone number for SMS
-    const formatPhoneForSMS = (phone: string): string => {
-      const cleaned = phone.replace(/\D/g, "");
-      if (cleaned.length === 10) {
-        return `+1${cleaned}`;
-      } else if (cleaned.length === 11 && cleaned.startsWith("1")) {
-        return `+${cleaned}`;
+    // ----------------------------------------------------------------
+    // Build location and description strings
+    // ----------------------------------------------------------------
+    let locationText: string;
+    let listingDescText: string;
+
+    if (isCommercial) {
+      if (listing.full_address) {
+        locationText = listing.full_address;
+      } else if (listing.cross_street_a && listing.cross_street_b) {
+        locationText = `${listing.cross_street_a} & ${listing.cross_street_b}`;
+      } else {
+        locationText = "your space";
       }
-      return phone;
-    };
-
-    // Format price for SMS
-    const formatPriceForSMS = (listing: {
-      price: number | null;
-      asking_price: number | null;
-      listing_type: string;
-      call_for_price: boolean;
-    }): string => {
-      if (listing.call_for_price) {
-        return "Call for Price";
+      const spaceLabel = formatSpaceType(listing.commercial_space_type ?? "");
+      listingDescText = `${spaceLabel} at ${locationText}`;
+    } else {
+      if (listing.cross_street_a && listing.cross_street_b) {
+        locationText = `${listing.cross_street_a} & ${listing.cross_street_b}`;
+      } else {
+        locationText = listing.location ?? "";
       }
+      const bedroomText = listing.bedrooms === 0 ? "Studio" : `${listing.bedrooms} bd`;
+      listingDescText = `${bedroomText} at ${locationText}`;
+    }
 
-      const isSale = listing.listing_type === "sale";
-      const priceValue = isSale ? listing.asking_price : listing.price;
+    const formattedPrice = formatPriceForSMS({
+      price: listing.price ?? null,
+      asking_price: listing.asking_price ?? null,
+      listing_type: listing.listing_type,
+      call_for_price: listing.call_for_price,
+      isCommercial,
+    });
 
-      if (priceValue === null || priceValue === undefined) {
-        return "Price Not Available";
-      }
+    const isSale = listing.listing_type === "sale";
 
-      return new Intl.NumberFormat("en-US", {
-        style: "currency",
-        currency: "USD",
-        minimumFractionDigits: 0,
-        maximumFractionDigits: 0,
-      }).format(priceValue);
-    };
-
-    // Create short URL for the listing
-    const siteUrl = Deno.env.get("PUBLIC_SITE_URL") || "https://hadirot.com";
+    // ----------------------------------------------------------------
+    // Create short URL
+    // ----------------------------------------------------------------
     let shortCode: string | null = null;
-
     try {
-      const { data: code, error: shortUrlError } = await supabase.rpc(
-        "create_short_url",
-        {
-          p_listing_id: formData.listingId,
-          p_original_url: `${siteUrl}/listing/${formData.listingId}`,
-          p_source: "sms_notification",
-          p_expires_days: 90,
-        }
-      );
+      const listingPath = isCommercial
+        ? `${siteUrl}/commercial/${formData.listingId}`
+        : `${siteUrl}/listing/${formData.listingId}`;
+
+      const { data: code, error: shortUrlError } = await supabase.rpc("create_short_url", {
+        p_listing_id: formData.listingId,
+        p_original_url: listingPath,
+        p_source: "sms_notification",
+        p_expires_days: 90,
+      });
 
       if (shortUrlError) {
         console.error("Error creating short URL:", shortUrlError);
       } else {
         shortCode = code;
-        console.log("Short URL created:", `${siteUrl}/l/${shortCode}`);
       }
     } catch (error) {
       console.error("Failed to create short URL:", error);
     }
 
-    // Format the SMS message
-    const bedroomText = listing.bedrooms === 0 ? "Studio" : `${listing.bedrooms} bd`;
-
-    // Prioritize cross streets over neighborhood for better specificity
-    let locationText: string;
-    if (listing.cross_street_a && listing.cross_street_b) {
-      locationText = `${listing.cross_street_a} & ${listing.cross_street_b}`;
-    } else {
-      locationText = listing.location;
-    }
-
-    const formattedPrice = formatPriceForSMS(listing);
-
-    const isSale = listing.listing_type === 'sale';
-
+    // ----------------------------------------------------------------
+    // Build SMS message
+    // ----------------------------------------------------------------
     const messageParts = [
-      `Hadirot Alert: ${formData.userName} wants a call about your ${bedroomText} at ${locationText} (${formattedPrice})`,
+      `Hadirot Alert: ${formData.userName} wants a call about your ${listingDescText} (${formattedPrice})`,
       `Call: ${formData.userPhone}`,
     ];
 
@@ -222,9 +294,10 @@ Deno.serve(async (req) => {
     const smsMessage = messageParts.join("\n");
 
     console.log("Sending SMS to:", listing.contact_phone);
-    console.log("Message:", smsMessage);
 
-    // Send SMS via Twilio
+    // ----------------------------------------------------------------
+    // Send via Twilio
+    // ----------------------------------------------------------------
     const twilioUrl = `https://api.twilio.com/2010-04-01/Accounts/${twilioAccountSid}/Messages.json`;
     const twilioAuth = btoa(`${twilioAccountSid}:${twilioAuthToken}`);
 
@@ -246,19 +319,16 @@ Deno.serve(async (req) => {
     if (!twilioResponse.ok) {
       console.error("Twilio error:", twilioData);
       return new Response(
-        JSON.stringify({
-          error: "Failed to send SMS",
-          details: twilioData.error_message
-        }),
-        {
-          status: 500,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
+        JSON.stringify({ error: "Failed to send SMS", details: twilioData.error_message }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
     console.log("SMS sent successfully:", twilioData.sid);
 
+    // ----------------------------------------------------------------
+    // Log to sms_messages
+    // ----------------------------------------------------------------
     try {
       await supabase.from("sms_messages").insert({
         direction: "outbound",
@@ -273,6 +343,9 @@ Deno.serve(async (req) => {
       console.error("Error logging SMS:", logErr);
     }
 
+    // ----------------------------------------------------------------
+    // Log to listing_contact_submissions
+    // ----------------------------------------------------------------
     const { error: insertError } = await supabase
       .from("listing_contact_submissions")
       .insert({
@@ -289,6 +362,9 @@ Deno.serve(async (req) => {
       console.error("Error storing submission:", insertError);
     }
 
+    // ----------------------------------------------------------------
+    // Create callback conversation (non-sale listings only)
+    // ----------------------------------------------------------------
     if (!isSale && listing.user_id) {
       const callbackExpires = new Date(Date.now() + 72 * 60 * 60 * 1000);
       const { error: convError } = await supabase
@@ -305,6 +381,7 @@ Deno.serve(async (req) => {
           expires_at: callbackExpires.toISOString(),
           state: "callback_sent",
           conversation_type: "callback",
+          is_commercial: isCommercial,
           metadata: {
             inquiry_from: formData.userName,
             inquiry_phone: formData.userPhone,
@@ -315,14 +392,14 @@ Deno.serve(async (req) => {
       }
     }
 
-    // --- BOOST UPSELL SMS ---
-    // 3-second delay so the upsell arrives as a visually separate message
+    // ----------------------------------------------------------------
+    // Boost upsell SMS (3-second delay for separate visual message)
+    // ----------------------------------------------------------------
     await new Promise((resolve) => setTimeout(resolve, 3000));
 
     try {
       const agentPhone = formatPhoneForSMS(listing.contact_phone);
 
-      // CHECK 1: Is this listing already featured?
       const alreadyFeatured =
         listing.is_featured &&
         listing.featured_expires_at &&
@@ -331,7 +408,6 @@ Deno.serve(async (req) => {
       if (alreadyFeatured) {
         console.log("Boost upsell skipped: listing is already featured");
       } else {
-        // CHECK 2: Has this listing already received a boost upsell SMS?
         const { data: existingUpsell } = await supabase
           .from("sms_messages")
           .select("id")
@@ -343,7 +419,6 @@ Deno.serve(async (req) => {
         if (existingUpsell) {
           console.log("Boost upsell skipped: listing already received upsell");
         } else {
-          // CHECK 3: Has this phone received a previous callback notification before this one?
           const { data: previousCallback } = await supabase
             .from("sms_messages")
             .select("id")
@@ -356,10 +431,16 @@ Deno.serve(async (req) => {
           if (!previousCallback) {
             console.log("Boost upsell skipped: this is their first-ever callback");
           } else {
-            // All checks passed — send upsell
-            const street = listing.cross_street_a || listing.neighborhood || "your listing";
-            const bedroomUpsellText = listing.bedrooms ? `${listing.bedrooms}BR` : "listing";
-            const listingDesc = listing.bedrooms ? `${bedroomUpsellText} on ${street}` : street;
+            let listingDesc: string;
+            if (isCommercial) {
+              const spaceLabel = formatSpaceType(listing.commercial_space_type ?? "");
+              listingDesc = `${spaceLabel} at ${locationText}`;
+            } else {
+              const street = listing.cross_street_a || listing.neighborhood || "your listing";
+              const bedroomUpsellText = listing.bedrooms ? `${listing.bedrooms}BR` : "listing";
+              listingDesc = listing.bedrooms ? `${bedroomUpsellText} on ${street}` : street;
+            }
+
             const upsellMessage = `Hadirot Tip: Want more inquiries on your ${listingDesc}? Boost it to the top of search results — starting at $25/wk: ${siteUrl}/boost/${formData.listingId}`;
 
             const upsellTwilioResponse = await fetch(twilioUrl, {
@@ -397,7 +478,6 @@ Deno.serve(async (req) => {
     } catch (upsellErr) {
       console.error("Boost upsell error (non-fatal):", upsellErr);
     }
-    // --- END BOOST UPSELL SMS ---
 
     return new Response(
       JSON.stringify({
@@ -412,11 +492,10 @@ Deno.serve(async (req) => {
     );
   } catch (error) {
     console.error("Error:", error);
-
     return new Response(
       JSON.stringify({
         error: "Internal error",
-        message: error instanceof Error ? error.message : "Unknown error"
+        message: error instanceof Error ? error.message : "Unknown error",
       }),
       {
         status: 500,

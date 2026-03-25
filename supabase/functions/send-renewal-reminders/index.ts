@@ -15,6 +15,8 @@ interface ExpiringListing {
   neighborhood: string;
   price: number | null;
   contact_phone: string;
+  is_commercial: boolean;
+  commercial_space_type?: string;
 }
 
 interface TwilioResponse {
@@ -29,11 +31,29 @@ const MAX_BATCH_SIZE = 10;
 const SINGLE_LISTING_TIMEOUT_HOURS = 24;
 const BATCH_TIMEOUT_HOURS = 48;
 
+function formatSpaceType(raw: string): string {
+  const map: Record<string, string> = {
+    storefront: "Retail",
+    retail: "Retail",
+    restaurant: "Restaurant",
+    office: "Office",
+    warehouse: "Warehouse",
+    medical: "Medical",
+    flex: "Flex Space",
+    industrial: "Industrial",
+    mixed_use: "Mixed Use",
+    coworking: "Coworking",
+    gallery: "Gallery",
+    event_space: "Event Space",
+  };
+  return map[raw?.toLowerCase()] ?? (raw ? raw.charAt(0).toUpperCase() + raw.slice(1) : "Commercial");
+}
+
 function formatListingIdentifier(listing: ExpiringListing): string {
   let priceStr: string;
   if (!listing.price) {
-    priceStr = 'Call for price';
-  } else if (listing.listing_type === 'sale') {
+    priceStr = "Call for price";
+  } else if (listing.listing_type === "sale") {
     if (listing.price >= 1000000) {
       priceStr = `$${(listing.price / 1000000).toFixed(1)}M`;
     } else {
@@ -41,13 +61,21 @@ function formatListingIdentifier(listing: ExpiringListing): string {
     }
   } else {
     priceStr = `$${listing.price.toLocaleString()}`;
+    if (listing.is_commercial) priceStr += "/mo";
   }
 
   let locationStr: string;
-  if (listing.listing_type === 'sale' && listing.full_address) {
+  if (listing.full_address) {
+    locationStr = listing.full_address;
+  } else if (listing.listing_type === "sale" && listing.full_address) {
     locationStr = listing.full_address;
   } else {
-    locationStr = listing.location || listing.neighborhood || 'your listing';
+    locationStr = listing.location || listing.neighborhood || "your listing";
+  }
+
+  if (listing.is_commercial) {
+    const spaceLabel = formatSpaceType(listing.commercial_space_type ?? "");
+    return `${spaceLabel} at ${locationStr} (${priceStr})`;
   }
 
   return `${locationStr} for ${priceStr}`;
@@ -55,15 +83,8 @@ function formatListingIdentifier(listing: ExpiringListing): string {
 
 function formatPhoneForSMS(phone: string): string {
   const cleaned = phone.replace(/\D/g, "");
-
-  if (cleaned.length === 10) {
-    return `+1${cleaned}`;
-  }
-
-  if (cleaned.length === 11 && cleaned.startsWith("1")) {
-    return `+${cleaned}`;
-  }
-
+  if (cleaned.length === 10) return `+1${cleaned}`;
+  if (cleaned.length === 11 && cleaned.startsWith("1")) return `+${cleaned}`;
   return `+1${cleaned}`;
 }
 
@@ -101,19 +122,19 @@ Deno.serve(async (req) => {
       auth: { autoRefreshToken: false, persistSession: false },
     });
 
-    const nyDayOfWeek = new Date().toLocaleDateString('en-US', {
-      timeZone: 'America/New_York',
-      weekday: 'long'
+    const nyDayOfWeek = new Date().toLocaleDateString("en-US", {
+      timeZone: "America/New_York",
+      weekday: "long",
     });
 
-    if (nyDayOfWeek === 'Friday' || nyDayOfWeek === 'Saturday') {
+    if (nyDayOfWeek === "Friday" || nyDayOfWeek === "Saturday") {
       console.log(`Skipping SMS renewals - today is ${nyDayOfWeek} (Shabbat observance)`);
       return new Response(
         JSON.stringify({
           success: true,
           message: `SMS renewals skipped for Shabbat observance`,
           day: nyDayOfWeek,
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
         }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
@@ -130,7 +151,10 @@ Deno.serve(async (req) => {
 
     console.log(`Looking for listings expiring between ${targetDateStart.toISOString()} and ${targetDateEnd.toISOString()}`);
 
-    const { data: expiringListings, error: queryError } = await supabaseAdmin
+    // ----------------------------------------------------------------
+    // Query residential listings
+    // ----------------------------------------------------------------
+    const { data: residentialListings, error: residentialError } = await supabaseAdmin
       .from("listings")
       .select("id, user_id, listing_type, location, full_address, neighborhood, price, contact_phone")
       .eq("is_active", true)
@@ -139,25 +163,65 @@ Deno.serve(async (req) => {
       .gte("expires_at", targetDateStart.toISOString())
       .lte("expires_at", targetDateEnd.toISOString());
 
-    if (queryError) {
-      console.error("Error querying expiring listings:", queryError);
+    if (residentialError) {
+      console.error("Error querying expiring residential listings:", residentialError);
       return new Response(
         JSON.stringify({ error: "Failed to query listings" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    console.log(`Found ${expiringListings?.length || 0} listings expiring in 5 days`);
+    // ----------------------------------------------------------------
+    // Query commercial listings
+    // ----------------------------------------------------------------
+    const { data: commercialListings, error: commercialError } = await supabaseAdmin
+      .from("commercial_listings")
+      .select("id, user_id, listing_type, full_address, neighborhood, price, contact_phone, commercial_space_type")
+      .eq("is_active", true)
+      .eq("approved", true)
+      .not("contact_phone", "is", null)
+      .gte("expires_at", targetDateStart.toISOString())
+      .lte("expires_at", targetDateEnd.toISOString());
 
-    if (!expiringListings || expiringListings.length === 0) {
+    if (commercialError) {
+      console.error("Error querying expiring commercial listings:", commercialError);
+    }
+
+    const residentialCount = residentialListings?.length ?? 0;
+    const commercialCount = commercialListings?.length ?? 0;
+
+    console.log(`Found ${residentialCount} residential + ${commercialCount} commercial listings expiring in 5 days`);
+
+    // ----------------------------------------------------------------
+    // Merge into a single typed list
+    // ----------------------------------------------------------------
+    const allListings: ExpiringListing[] = [
+      ...(residentialListings ?? []).map((l: any) => ({
+        ...l,
+        is_commercial: false,
+        location: l.location ?? "",
+        neighborhood: l.neighborhood ?? "",
+      })),
+      ...(commercialListings ?? []).map((l: any) => ({
+        ...l,
+        is_commercial: true,
+        location: l.full_address ?? "",
+        neighborhood: l.neighborhood ?? "",
+      })),
+    ];
+
+    if (allListings.length === 0) {
       return new Response(
         JSON.stringify({ success: true, message: "No expiring listings found", processed: 0 }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
+    // ----------------------------------------------------------------
+    // Group by normalized phone number
+    // ----------------------------------------------------------------
     const listingsByPhone = new Map<string, ExpiringListing[]>();
-    for (const listing of expiringListings as ExpiringListing[]) {
+    for (const listing of allListings) {
       if (!listing.contact_phone) continue;
       const phone = formatPhoneForSMS(listing.contact_phone);
       if (!listingsByPhone.has(phone)) {
@@ -174,6 +238,9 @@ Deno.serve(async (req) => {
     let smsSent = 0;
     let smsErrors = 0;
     let skippedDuplicates = 0;
+
+    const twilioUrl = `https://api.twilio.com/2010-04-01/Accounts/${twilioAccountSid}/Messages.json`;
+    const twilioAuth = btoa(`${twilioAccountSid}:${twilioAuthToken}`);
 
     for (const [phoneNumber, listings] of listingsByPhone) {
       const isBatch = listings.length > 1;
@@ -202,30 +269,29 @@ Deno.serve(async (req) => {
         }
 
         const identifier = formatListingIdentifier(listing);
-        const listingTypeWord = listing.listing_type === 'sale' ? 'sold' : 'rented';
+        const listingTypeWord = listing.listing_type === "sale" ? "sold" : "rented";
 
         let smsMessage: string;
         let initialState: string;
 
         if (!isBatch) {
           smsMessage = `Hadirot Alert: Your listing at ${identifier} expires in 5 days. Is the listing still available? Reply YES or NO.`;
-          initialState = 'awaiting_availability';
+          initialState = "awaiting_availability";
         } else if (isFirstInBatch) {
           if (listings.length > MAX_BATCH_SIZE) {
             smsMessage = `Hadirot Alert: You have ${listings.length}+ listings expiring in 5 days. Let's go through the first ${MAX_BATCH_SIZE}. Is the one at ${identifier} still available? Reply YES or NO.`;
           } else {
             smsMessage = `Hadirot Alert: You have ${listings.length} listings expiring in 5 days. Is the one at ${identifier} still available? Reply YES or NO.`;
           }
-          initialState = 'awaiting_availability';
+          initialState = "awaiting_availability";
         } else {
-          initialState = 'pending';
-          smsMessage = '';
+          initialState = "pending";
+          smsMessage = "";
         }
 
-        if (isFirstInBatch || !isBatch) {
-          const twilioUrl = `https://api.twilio.com/2010-04-01/Accounts/${twilioAccountSid}/Messages.json`;
-          const twilioAuth = btoa(`${twilioAccountSid}:${twilioAuthToken}`);
+        void listingTypeWord;
 
+        if (isFirstInBatch || !isBatch) {
           let messageSid: string | null = null;
 
           try {
@@ -256,8 +322,9 @@ Deno.serve(async (req) => {
                   listing_index: listingIndex,
                   total_in_batch: totalInBatch,
                   expires_at: expiresAt.toISOString(),
-                  state: 'error',
-                  action_taken: 'sms_failed',
+                  state: "error",
+                  action_taken: "sms_failed",
+                  is_commercial: listing.is_commercial,
                 });
               smsErrors++;
               continue;
@@ -280,7 +347,6 @@ Deno.serve(async (req) => {
             } catch (logErr) {
               console.error("Error logging SMS:", logErr);
             }
-
           } catch (error) {
             console.error(`Network error sending SMS for listing ${listing.id}:`, error);
             await supabaseAdmin
@@ -293,8 +359,9 @@ Deno.serve(async (req) => {
                 listing_index: listingIndex,
                 total_in_batch: totalInBatch,
                 expires_at: expiresAt.toISOString(),
-                state: 'error',
-                action_taken: 'sms_failed',
+                state: "error",
+                action_taken: "sms_failed",
+                is_commercial: listing.is_commercial,
               });
             smsErrors++;
             continue;
@@ -313,6 +380,7 @@ Deno.serve(async (req) => {
               message_sid: messageSid,
               expires_at: expiresAt.toISOString(),
               state: initialState,
+              is_commercial: listing.is_commercial,
             });
 
           if (insertError) {
@@ -330,6 +398,7 @@ Deno.serve(async (req) => {
               total_in_batch: totalInBatch,
               expires_at: expiresAt.toISOString(),
               state: initialState,
+              is_commercial: listing.is_commercial,
             });
 
           if (insertError) {
@@ -340,7 +409,9 @@ Deno.serve(async (req) => {
     }
 
     const summary = {
-      totalExpiring: expiringListings.length,
+      totalExpiring: allListings.length,
+      residentialExpiring: residentialCount,
+      commercialExpiring: commercialCount,
       uniquePhones: listingsByPhone.size,
       smsSent,
       smsErrors,
@@ -354,7 +425,6 @@ Deno.serve(async (req) => {
       JSON.stringify({ success: true, summary }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
-
   } catch (error) {
     console.error("Unexpected error in send-renewal-reminders:", error);
     return new Response(

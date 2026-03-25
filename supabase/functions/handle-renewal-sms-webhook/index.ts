@@ -16,6 +16,8 @@ interface ListingMetadata {
   neighborhood: string;
   price: number | null;
   bedrooms: number;
+  is_commercial?: boolean;
+  commercial_space_type?: string;
 }
 
 interface ConversationMetadata {
@@ -47,6 +49,7 @@ interface RenewalConversation {
   expires_at: string;
   state: string;
   conversation_type: string | null;
+  is_commercial: boolean | null;
   metadata: ConversationMetadata | DisambiguationMetadata | null;
 }
 
@@ -58,6 +61,7 @@ interface Listing {
   neighborhood: string;
   price: number | null;
   expires_at: string | null;
+  commercial_space_type?: string;
 }
 
 const SMS_RENEWAL_DAYS = 14;
@@ -66,6 +70,28 @@ type MessageIntent = {
   type: 'affirmative' | 'negative' | 'deactivation' | 'help' | 'selection' | 'acknowledgment' | 'unknown';
   confidence: 'high' | 'medium' | 'low';
 };
+
+function getListingTable(conv: RenewalConversation): "listings" | "commercial_listings" {
+  return conv.is_commercial === true ? "commercial_listings" : "listings";
+}
+
+function formatSpaceType(raw: string): string {
+  const map: Record<string, string> = {
+    storefront: "Retail",
+    retail: "Retail",
+    restaurant: "Restaurant",
+    office: "Office",
+    warehouse: "Warehouse",
+    medical: "Medical",
+    flex: "Flex Space",
+    industrial: "Industrial",
+    mixed_use: "Mixed Use",
+    coworking: "Coworking",
+    gallery: "Gallery",
+    event_space: "Event Space",
+  };
+  return map[raw?.toLowerCase()] ?? (raw ? raw.charAt(0).toUpperCase() + raw.slice(1) : "Commercial");
+}
 
 function parseMessageIntent(text: string, conversationState: string | null): MessageIntent {
   const normalized = text.toLowerCase().trim();
@@ -160,8 +186,15 @@ function formatListingIdentifier(listing: Listing): string {
   let locationStr: string;
   if (listing.listing_type === 'sale' && listing.full_address) {
     locationStr = listing.full_address;
+  } else if (listing.full_address) {
+    locationStr = listing.full_address;
   } else {
     locationStr = listing.location || listing.neighborhood || 'your listing';
+  }
+
+  if (listing.commercial_space_type) {
+    const spaceLabel = formatSpaceType(listing.commercial_space_type);
+    return `${spaceLabel} at ${locationStr} for ${priceStr}`;
   }
 
   return `${locationStr} for ${priceStr}`;
@@ -333,6 +366,59 @@ Deno.serve(async (req) => {
     }
 
     // ============================================
+    // HELPER: fetch listing from the correct table
+    // ============================================
+
+    async function fetchListingForConv(
+      conv: RenewalConversation,
+      selectFields: string = "id, listing_type, location, full_address, neighborhood, price, expires_at"
+    ): Promise<{ data: any; error: any }> {
+      if (!conv.listing_id) return { data: null, error: null };
+      const table = getListingTable(conv);
+      const extraFields = conv.is_commercial ? ", commercial_space_type" : "";
+      return supabaseAdmin
+        .from(table)
+        .select(selectFields + extraFields)
+        .eq("id", conv.listing_id)
+        .maybeSingle();
+    }
+
+    async function deactivateListingForConv(conv: RenewalConversation): Promise<{ error: any }> {
+      if (!conv.listing_id) return { error: null };
+      return supabaseAdmin
+        .from(getListingTable(conv))
+        .update({ is_active: false, deactivated_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+        .eq("id", conv.listing_id);
+    }
+
+    async function renewListingForConv(conv: RenewalConversation, newExpiresAt: Date): Promise<{ error: any }> {
+      if (!conv.listing_id) return { error: null };
+      return supabaseAdmin
+        .from(getListingTable(conv))
+        .update({
+          is_active: true,
+          last_published_at: new Date().toISOString(),
+          expires_at: newExpiresAt.toISOString(),
+          deactivated_at: null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", conv.listing_id);
+    }
+
+    async function updateHadirotConversion(conv: RenewalConversation, value: boolean): Promise<void> {
+      if (!conv.listing_id) return;
+      await supabaseAdmin
+        .from(getListingTable(conv))
+        .update({ hadirot_conversion: value })
+        .eq("id", conv.listing_id);
+    }
+
+    function listingTypeWord(listingType: string | null, isCommercial: boolean): string {
+      if (listingType === 'sale') return 'buyer';
+      return isCommercial ? 'tenant' : 'tenant';
+    }
+
+    // ============================================
     // ROUTING HELPER FUNCTIONS
     // ============================================
 
@@ -371,7 +457,7 @@ Deno.serve(async (req) => {
         for (const conv of conversations) {
           if (!conv.listing_id) continue;
           const { data: listing } = await supabaseAdmin
-            .from("listings")
+            .from(getListingTable(conv))
             .select("id, is_active")
             .eq("id", conv.listing_id)
             .eq("is_active", true)
@@ -406,6 +492,31 @@ Deno.serve(async (req) => {
       conv: RenewalConversation,
     ): Promise<string> {
       if (!conv.listing_id) return 'Unknown listing';
+
+      const table = getListingTable(conv);
+
+      if (conv.is_commercial) {
+        const { data: listing } = await supabaseAdmin
+          .from(table)
+          .select('commercial_space_type, full_address, cross_street_a, neighborhood, price, listing_type')
+          .eq('id', conv.listing_id)
+          .maybeSingle();
+
+        if (!listing) return 'Unknown listing';
+
+        const spaceLabel = formatSpaceType(listing.commercial_space_type || '');
+        const location = listing.full_address || listing.cross_street_a || listing.neighborhood || '';
+        const desc = location ? `${spaceLabel} at ${location}` : spaceLabel;
+
+        const typeLabel: Record<string, string> = {
+          'renewal': 'renewal',
+          'callback': 'inquiry',
+          'report_rented': 'rented report',
+          'report': 'rented report',
+        };
+        const label = typeLabel[conv.conversation_type || 'renewal'] || '';
+        return label ? `${desc} (${label})` : desc;
+      }
 
       const { data: listing } = await supabaseAdmin
         .from('listings')
@@ -535,7 +646,7 @@ Deno.serve(async (req) => {
 
           const { data: nextConv, error: nextError } = await supabaseAdmin
             .from("listing_renewal_conversations")
-            .select("*, listings:listing_id(id, listing_type, location, full_address, neighborhood, price)")
+            .select("*")
             .eq("batch_id", conv.batch_id)
             .eq("state", "pending")
             .gt("listing_index", conv.listing_index)
@@ -548,9 +659,19 @@ Deno.serve(async (req) => {
             return;
           }
 
-          if (nextConv && nextConv.listings) {
-            const nextListing = nextConv.listings as unknown as Listing;
-            const identifier = formatListingIdentifier(nextListing);
+          if (nextConv) {
+            const nextConvTyped = nextConv as RenewalConversation;
+            if (!nextConvTyped.listing_id) return;
+
+            const { data: nextListing } = await supabaseAdmin
+              .from(getListingTable(nextConvTyped))
+              .select("id, listing_type, location, full_address, neighborhood, price, commercial_space_type")
+              .eq("id", nextConvTyped.listing_id)
+              .maybeSingle();
+
+            if (!nextListing) return;
+
+            const identifier = formatListingIdentifier(nextListing as Listing);
 
             await supabaseAdmin
               .from("listing_renewal_conversations")
@@ -561,7 +682,7 @@ Deno.serve(async (req) => {
               })
               .eq("id", nextConv.id);
 
-            const remaining = (conv.total_in_batch || 0) - (nextConv.listing_index || 0) + 1;
+            const remaining = (conv.total_in_batch || 0) - (nextConvTyped.listing_index || 0) + 1;
             await sendSMS(phone, `Hadirot Alert: Next (${remaining} remaining): Is the listing at ${identifier} still available? Reply YES or NO.`, 'renewal_reminder', nextListing.id, nextConv.id);
           }
         }
@@ -571,27 +692,13 @@ Deno.serve(async (req) => {
 
           if (intent.type === 'affirmative') {
             if (targetConv.listing_id) {
-              const { data: targetListing } = await supabaseAdmin
-                .from("listings")
-                .select("expires_at")
-                .eq("id", targetConv.listing_id)
-                .maybeSingle();
+              const { data: targetListing } = await fetchListingForConv(targetConv, "expires_at");
 
               if (targetListing) {
                 const currentExpiry = targetListing.expires_at ? new Date(targetListing.expires_at) : new Date();
                 const baseDate = currentExpiry > new Date() ? currentExpiry : new Date();
                 const newExpiry = new Date(baseDate.getTime() + SMS_RENEWAL_DAYS * 24 * 60 * 60 * 1000);
-
-                await supabaseAdmin
-                  .from("listings")
-                  .update({
-                    is_active: true,
-                    last_published_at: new Date().toISOString(),
-                    expires_at: newExpiry.toISOString(),
-                    deactivated_at: null,
-                    updated_at: new Date().toISOString(),
-                  })
-                  .eq("id", targetConv.listing_id);
+                await renewListingForConv(targetConv, newExpiry);
               }
             }
 
@@ -610,12 +717,7 @@ Deno.serve(async (req) => {
             await advanceToNextInBatchForConv(targetConv);
 
           } else if (intent.type === 'negative' || intent.type === 'deactivation') {
-            if (targetConv.listing_id) {
-              await supabaseAdmin
-                .from("listings")
-                .update({ is_active: false, deactivated_at: new Date().toISOString(), updated_at: new Date().toISOString() })
-                .eq("id", targetConv.listing_id);
-            }
+            await deactivateListingForConv(targetConv);
 
             await supabaseAdmin
               .from("listing_renewal_conversations")
@@ -628,13 +730,8 @@ Deno.serve(async (req) => {
               })
               .eq("id", targetConv.id);
 
-            const { data: listing } = await supabaseAdmin
-              .from("listings")
-              .select("listing_type")
-              .eq("id", targetConv.listing_id)
-              .maybeSingle();
-
-            const word = listing?.listing_type === 'sale' ? 'buyer' : 'tenant';
+            const { data: listing } = await fetchListingForConv(targetConv, "listing_type");
+            const word = listingTypeWord(listing?.listing_type ?? null, targetConv.is_commercial === true);
             await sendSMS(phone, `Hadirot Alert: Listing deactivated. Did the ${word} find you through Hadirot? Reply YES or NO.`);
           }
 
@@ -644,10 +741,7 @@ Deno.serve(async (req) => {
           const hadirotConversion = intent.type === 'affirmative' ? true : intent.type === 'negative' ? false : null;
 
           if (hadirotConversion !== null && targetConv.listing_id) {
-            await supabaseAdmin
-              .from("listings")
-              .update({ hadirot_conversion: hadirotConversion })
-              .eq("id", targetConv.listing_id);
+            await updateHadirotConversion(targetConv, hadirotConversion);
           }
 
           await supabaseAdmin
@@ -685,12 +779,7 @@ Deno.serve(async (req) => {
             await sendSMS(phone, "Hadirot Alert: OK, we've kept your listing active. Thank you for confirming!");
 
           } else if (intent.type === 'negative' || intent.type === 'deactivation') {
-            if (targetConv.listing_id) {
-              await supabaseAdmin
-                .from("listings")
-                .update({ is_active: false, deactivated_at: new Date().toISOString(), updated_at: new Date().toISOString() })
-                .eq("id", targetConv.listing_id);
-            }
+            await deactivateListingForConv(targetConv);
 
             await supabaseAdmin
               .from("listing_renewal_conversations")
@@ -703,13 +792,8 @@ Deno.serve(async (req) => {
               })
               .eq("id", targetConv.id);
 
-            const { data: listing } = await supabaseAdmin
-              .from("listings")
-              .select("listing_type")
-              .eq("id", targetConv.listing_id)
-              .maybeSingle();
-
-            const word = listing?.listing_type === 'sale' ? 'buyer' : 'tenant';
+            const { data: listing } = await fetchListingForConv(targetConv, "listing_type");
+            const word = listingTypeWord(listing?.listing_type ?? null, targetConv.is_commercial === true);
             await sendSMS(phone, `Hadirot Alert: Listing deactivated. Did the ${word} find you through Hadirot? Reply YES or NO.`);
           }
 
@@ -717,12 +801,7 @@ Deno.serve(async (req) => {
           const intent = parseMessageIntent(originalReply, 'callback_sent');
 
           if (intent.type === 'deactivation') {
-            if (targetConv.listing_id) {
-              await supabaseAdmin
-                .from("listings")
-                .update({ is_active: false, deactivated_at: new Date().toISOString(), updated_at: new Date().toISOString() })
-                .eq("id", targetConv.listing_id);
-            }
+            await deactivateListingForConv(targetConv);
 
             await supabaseAdmin
               .from("listing_renewal_conversations")
@@ -735,13 +814,8 @@ Deno.serve(async (req) => {
               })
               .eq("id", targetConv.id);
 
-            const { data: listing } = await supabaseAdmin
-              .from("listings")
-              .select("listing_type")
-              .eq("id", targetConv.listing_id)
-              .maybeSingle();
-
-            const word = listing?.listing_type === 'sale' ? 'buyer' : 'tenant';
+            const { data: listing } = await fetchListingForConv(targetConv, "listing_type");
+            const word = listingTypeWord(listing?.listing_type ?? null, targetConv.is_commercial === true);
             await sendSMS(phone, `Hadirot Alert: Listing deactivated. Did the ${word} find you through Hadirot? Reply YES or NO.`);
           } else {
             await supabaseAdmin
@@ -767,7 +841,7 @@ Deno.serve(async (req) => {
           const conv = allConversations.find(ac => ac.id === c.conversation_id);
           if (conv?.listing_id) {
             const { data: listing } = await supabaseAdmin
-              .from("listings")
+              .from(getListingTable(conv))
               .select("id, is_active")
               .eq("id", conv.listing_id)
               .eq("is_active", true)
@@ -838,7 +912,7 @@ Deno.serve(async (req) => {
     }
 
     // ============================================
-    // ROUTING LAYER — determine which conversation gets this reply
+    // ROUTING LAYER
     // ============================================
 
     let conversation: RenewalConversation | null = null;
@@ -882,7 +956,8 @@ Deno.serve(async (req) => {
       if (intent.type === 'deactivation') {
         console.log(`Detected unsolicited deactivation reply`);
 
-        const { data: activeListings, error: listingsError } = await supabaseAdmin
+        // Query residential listings
+        const { data: residentialListings, error: residentialError } = await supabaseAdmin
           .from("listings")
           .select("id, user_id, listing_type, location, neighborhood, price, bedrooms, last_published_at")
           .eq("contact_phone_e164", normalizedPhone)
@@ -890,23 +965,58 @@ Deno.serve(async (req) => {
           .eq("approved", true)
           .order("last_published_at", { ascending: false });
 
-        if (listingsError) {
-          console.error("Error querying listings:", listingsError);
-          return new Response(emptyTwiML, { headers: { "Content-Type": "text/xml" } });
+        if (residentialError) {
+          console.error("Error querying residential listings:", residentialError);
         }
 
-        if (!activeListings || activeListings.length === 0) {
+        // Query commercial listings
+        const { data: commercialListings, error: commercialError } = await supabaseAdmin
+          .from("commercial_listings")
+          .select("id, user_id, listing_type, full_address, neighborhood, price, commercial_space_type, last_published_at")
+          .eq("contact_phone_e164", normalizedPhone)
+          .eq("is_active", true)
+          .eq("approved", true)
+          .order("last_published_at", { ascending: false });
+
+        if (commercialError) {
+          console.error("Error querying commercial listings:", commercialError);
+        }
+
+        type ActiveListing = {
+          id: string;
+          user_id: string;
+          listing_type: string;
+          location: string;
+          neighborhood: string;
+          price: number | null;
+          bedrooms?: number;
+          last_published_at: string;
+          is_commercial: boolean;
+          commercial_space_type?: string;
+        };
+
+        const allActiveListings: ActiveListing[] = [
+          ...(residentialListings ?? []).map((l: any) => ({ ...l, is_commercial: false, location: l.location ?? "" })),
+          ...(commercialListings ?? []).map((l: any) => ({
+            ...l,
+            is_commercial: true,
+            location: l.full_address ?? l.neighborhood ?? "",
+          })),
+        ].sort((a, b) => new Date(b.last_published_at).getTime() - new Date(a.last_published_at).getTime());
+
+        if (allActiveListings.length === 0) {
           console.log(`No active listings found for ${normalizedPhone}`);
           await sendSMS(normalizedPhone, "Hadirot Alert: We couldn't find an active listing for this number. Please log into hadirot.com/dashboard to manage your listings.", 'system_response');
           return new Response(emptyTwiML, { headers: { "Content-Type": "text/xml" } });
         }
 
-        if (activeListings.length === 1) {
-          const singleListing = activeListings[0];
+        if (allActiveListings.length === 1) {
+          const singleListing = allActiveListings[0];
           console.log(`Single listing found: ${singleListing.id}, deactivating...`);
 
+          const table = singleListing.is_commercial ? "commercial_listings" : "listings";
           const { error: updateError } = await supabaseAdmin
-            .from("listings")
+            .from(table)
             .update({
               is_active: false,
               deactivated_at: new Date().toISOString(),
@@ -938,30 +1048,36 @@ Deno.serve(async (req) => {
               reply_received_at: new Date().toISOString(),
               reply_text: body,
               action_taken: 'deactivated',
+              is_commercial: singleListing.is_commercial,
               metadata: null,
             })
             .select("id")
             .maybeSingle();
 
-          const listingTypeWord = singleListing.listing_type === 'sale' ? 'buyer' : 'tenant';
-          await sendSMS(normalizedPhone, `Hadirot Alert: Listing deactivated. Did the ${listingTypeWord} find you through Hadirot? Reply YES or NO.`, 'system_response', singleListing.id, newConv?.id);
+          const typeWord = listingTypeWord(singleListing.listing_type, singleListing.is_commercial);
+          await sendSMS(normalizedPhone, `Hadirot Alert: Listing deactivated. Did the ${typeWord} find you through Hadirot? Reply YES or NO.`, 'system_response', singleListing.id, newConv?.id);
 
           return new Response(emptyTwiML, { headers: { "Content-Type": "text/xml" } });
         }
 
-        if (activeListings.length >= 2 && activeListings.length <= 3) {
-          console.log(`Found ${activeListings.length} listings, requesting selection...`);
+        if (allActiveListings.length >= 2 && allActiveListings.length <= 3) {
+          console.log(`Found ${allActiveListings.length} listings, requesting selection...`);
 
-          const listingOptions = activeListings.map((l, index) => {
-            const bedroomText = l.bedrooms === 0 ? 'Studio' : `${l.bedrooms} bd`;
+          const listingOptions = allActiveListings.map((l, index) => {
+            let descriptor: string;
+            if (l.is_commercial) {
+              descriptor = formatSpaceType(l.commercial_space_type ?? "");
+            } else {
+              descriptor = l.bedrooms === 0 ? 'Studio' : `${l.bedrooms ?? '?'} bd`;
+            }
             const locationStr = l.neighborhood || l.location;
             const priceText = l.price ? `$${l.price.toLocaleString()}` : 'Call';
-            return `${index + 1}. ${bedroomText} at ${locationStr} (${priceText})`;
+            return `${index + 1}. ${descriptor} at ${locationStr} (${priceText})`;
           });
 
-          let selectionMessage = `Hadirot Alert: You have ${activeListings.length} active listings. Which one is no longer available?\n\n`;
+          let selectionMessage = `Hadirot Alert: You have ${allActiveListings.length} active listings. Which one is no longer available?\n\n`;
           selectionMessage += listingOptions.join('\n');
-          selectionMessage += `\n\nReply with the number (1-${activeListings.length}).`;
+          selectionMessage += `\n\nReply with the number (1-${allActiveListings.length}).`;
 
           const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
@@ -969,7 +1085,7 @@ Deno.serve(async (req) => {
             .from("listing_renewal_conversations")
             .insert({
               listing_id: null,
-              user_id: activeListings[0].user_id,
+              user_id: allActiveListings[0].user_id,
               phone_number: normalizedPhone,
               batch_id: null,
               listing_index: null,
@@ -982,7 +1098,7 @@ Deno.serve(async (req) => {
               reply_text: body,
               action_taken: null,
               metadata: {
-                listings: activeListings.map((l, idx) => ({
+                listings: allActiveListings.map((l, idx) => ({
                   id: l.id,
                   index: idx + 1,
                   user_id: l.user_id,
@@ -990,8 +1106,10 @@ Deno.serve(async (req) => {
                   location: l.location,
                   neighborhood: l.neighborhood,
                   price: l.price,
-                  bedrooms: l.bedrooms
-                }))
+                  bedrooms: l.bedrooms ?? 0,
+                  is_commercial: l.is_commercial,
+                  commercial_space_type: l.commercial_space_type,
+                })),
               },
             })
             .select("id")
@@ -1001,8 +1119,8 @@ Deno.serve(async (req) => {
           return new Response(emptyTwiML, { headers: { "Content-Type": "text/xml" } });
         }
 
-        console.log(`Found ${activeListings.length} listings, directing to dashboard...`);
-        await sendSMS(normalizedPhone, `Hadirot Alert: You have ${activeListings.length} active listings. Please log into hadirot.com/dashboard to deactivate the unavailable one.`, 'system_response');
+        console.log(`Found ${allActiveListings.length} listings, directing to dashboard...`);
+        await sendSMS(normalizedPhone, `Hadirot Alert: You have ${allActiveListings.length} active listings. Please log into hadirot.com/dashboard to deactivate the unavailable one.`, 'system_response');
         return new Response(emptyTwiML, { headers: { "Content-Type": "text/xml" } });
       }
 
@@ -1017,14 +1135,23 @@ Deno.serve(async (req) => {
         .maybeSingle();
 
       if (!recentFallback) {
-        const { data: anyListings } = await supabaseAdmin
+        const { data: anyResidential } = await supabaseAdmin
           .from("listings")
           .select("id")
           .eq("contact_phone_e164", normalizedPhone)
           .limit(1)
           .maybeSingle();
 
-        if (anyListings) {
+        const { data: anyCommercial } = anyResidential
+          ? { data: null }
+          : await supabaseAdmin
+              .from("commercial_listings")
+              .select("id")
+              .eq("contact_phone_e164", normalizedPhone)
+              .limit(1)
+              .maybeSingle();
+
+        if (anyResidential || anyCommercial) {
           await sendSMS(normalizedPhone,
             "Hadirot Alert: Got your message. Text RENTED to mark a listing as taken, or visit hadirot.com/dashboard for full options.",
             'fallback_response');
@@ -1070,11 +1197,7 @@ Deno.serve(async (req) => {
       }
 
       const { data: listing, error: listingError } = conv.listing_id
-        ? await supabaseAdmin
-            .from("listings")
-            .select("id, listing_type, location, full_address, neighborhood, price, expires_at")
-            .eq("id", conv.listing_id)
-            .maybeSingle()
+        ? await fetchListingForConv(conv)
         : { data: null, error: null };
 
       if (listingError) {
@@ -1082,7 +1205,7 @@ Deno.serve(async (req) => {
         return new Response(emptyTwiML, { headers: { "Content-Type": "text/xml" } });
       }
 
-      const listingTypeWord = listing?.listing_type === 'sale' ? 'buyer' : 'tenant';
+      const typeWord = listingTypeWord(listing?.listing_type ?? null, conv.is_commercial === true);
       const intent = parseMessageIntent(body, conv.state);
 
       async function advanceToNextInBatch(): Promise<void> {
@@ -1090,7 +1213,7 @@ Deno.serve(async (req) => {
 
         const { data: nextConv, error: nextError } = await supabaseAdmin
           .from("listing_renewal_conversations")
-          .select("*, listings:listing_id(id, listing_type, location, full_address, neighborhood, price)")
+          .select("*")
           .eq("batch_id", conv.batch_id)
           .eq("state", "pending")
           .gt("listing_index", conv.listing_index)
@@ -1103,9 +1226,19 @@ Deno.serve(async (req) => {
           return;
         }
 
-        if (nextConv && nextConv.listings) {
-          const nextListing = nextConv.listings as unknown as Listing;
-          const identifier = formatListingIdentifier(nextListing);
+        if (nextConv) {
+          const nextConvTyped = nextConv as RenewalConversation;
+          if (!nextConvTyped.listing_id) return;
+
+          const { data: nextListing } = await supabaseAdmin
+            .from(getListingTable(nextConvTyped))
+            .select("id, listing_type, location, full_address, neighborhood, price, commercial_space_type")
+            .eq("id", nextConvTyped.listing_id)
+            .maybeSingle();
+
+          if (!nextListing) return;
+
+          const identifier = formatListingIdentifier(nextListing as Listing);
 
           await supabaseAdmin
             .from("listing_renewal_conversations")
@@ -1116,7 +1249,7 @@ Deno.serve(async (req) => {
             })
             .eq("id", nextConv.id);
 
-          const remaining = (conv.total_in_batch || 0) - (nextConv.listing_index || 0) + 1;
+          const remaining = (conv.total_in_batch || 0) - (nextConvTyped.listing_index || 0) + 1;
           await sendSMS(normalizedPhone, `Hadirot Alert: Next (${remaining} remaining): Is the listing at ${identifier} still available? Reply YES or NO.`, 'renewal_reminder', nextListing.id, nextConv.id);
         }
       }
@@ -1132,16 +1265,7 @@ Deno.serve(async (req) => {
           const newExpiresAt = new Date(currentExpiresAt);
           newExpiresAt.setDate(newExpiresAt.getDate() + SMS_RENEWAL_DAYS);
 
-          const { error: updateListingError } = await supabaseAdmin
-            .from("listings")
-            .update({
-              is_active: true,
-              last_published_at: new Date().toISOString(),
-              expires_at: newExpiresAt.toISOString(),
-              deactivated_at: null,
-              updated_at: new Date().toISOString(),
-            })
-            .eq("id", conv.listing_id);
+          const { error: updateListingError } = await renewListingForConv(conv, newExpiresAt);
 
           if (updateListingError) {
             console.error("Error extending listing:", updateListingError);
@@ -1164,14 +1288,7 @@ Deno.serve(async (req) => {
           await advanceToNextInBatch();
 
         } else if (intent.type === 'negative') {
-          await supabaseAdmin
-            .from("listings")
-            .update({
-              is_active: false,
-              deactivated_at: new Date().toISOString(),
-              updated_at: new Date().toISOString(),
-            })
-            .eq("id", conv.listing_id);
+          await deactivateListingForConv(conv);
 
           await supabaseAdmin
             .from("listing_renewal_conversations")
@@ -1183,23 +1300,35 @@ Deno.serve(async (req) => {
             })
             .eq("id", conv.id);
 
-          await sendSMS(normalizedPhone, `Hadirot Alert: Listing deactivated. Did the ${listingTypeWord} find you through Hadirot? Reply YES or NO.`, 'system_response', conv.listing_id, conv.id);
+          await sendSMS(normalizedPhone, `Hadirot Alert: Listing deactivated. Did the ${typeWord} find you through Hadirot? Reply YES or NO.`, 'system_response', conv.listing_id, conv.id);
 
         } else if (intent.type === 'help') {
           if (conv.batch_id) {
             const { data: batchListings } = await supabaseAdmin
               .from("listing_renewal_conversations")
-              .select("listing_index, listings:listing_id(location, price)")
+              .select("listing_index, listing_id, is_commercial")
               .eq("batch_id", conv.batch_id)
               .in("state", ["pending", "awaiting_availability"])
               .order("listing_index", { ascending: true });
 
             if (batchListings && batchListings.length > 0) {
-              const summaryLines = batchListings.map((c: any, i: number) => {
-                const l = c.listings;
-                const price = l?.price ? `$${l.price.toLocaleString()}` : 'N/A';
-                return `${i + 1}. ${l?.location || 'Unknown'} (${price})`;
-              });
+              const summaryLines: string[] = [];
+              for (let i = 0; i < batchListings.length; i++) {
+                const bl = batchListings[i] as any;
+                if (!bl.listing_id) {
+                  summaryLines.push(`${i + 1}. Unknown`);
+                  continue;
+                }
+                const table = bl.is_commercial ? "commercial_listings" : "listings";
+                const { data: l } = await supabaseAdmin
+                  .from(table)
+                  .select("location, full_address, price, commercial_space_type")
+                  .eq("id", bl.listing_id)
+                  .maybeSingle();
+                const loc = (l as any)?.full_address || (l as any)?.location || 'Unknown';
+                const price = (l as any)?.price ? `$${(l as any).price.toLocaleString()}` : 'N/A';
+                summaryLines.push(`${i + 1}. ${loc} (${price})`);
+              }
               await sendSMS(normalizedPhone, `Hadirot Alert: Your expiring listings:\n${summaryLines.join('\n')}\n\nCurrently asking about listing ${conv.listing_index}. Reply YES or NO.`, 'system_response', conv.listing_id, conv.id);
             }
           } else {
@@ -1216,10 +1345,7 @@ Deno.serve(async (req) => {
           const hadiroConversion = intent.type === 'affirmative';
 
           if (conv.listing_id) {
-            await supabaseAdmin
-              .from("listings")
-              .update({ hadirot_conversion: hadiroConversion })
-              .eq("id", conv.listing_id);
+            await updateHadirotConversion(conv, hadiroConversion);
           }
 
           await supabaseAdmin
@@ -1258,8 +1384,9 @@ Deno.serve(async (req) => {
         const selectedListing = availableListings[selectionNumber - 1];
         console.log(`User selected listing ${selectionNumber}: ${selectedListing.id}`);
 
+        const selectedTable = selectedListing.is_commercial ? "commercial_listings" : "listings";
         const { error: updateError } = await supabaseAdmin
-          .from("listings")
+          .from(selectedTable)
           .update({
             is_active: false,
             deactivated_at: new Date().toISOString(),
@@ -1279,19 +1406,16 @@ Deno.serve(async (req) => {
             listing_id: selectedListing.id,
             state: "awaiting_hadirot_question",
             action_taken: "deactivated",
+            is_commercial: selectedListing.is_commercial ?? false,
             updated_at: new Date().toISOString(),
           })
           .eq("id", conv.id);
 
-        const selectedListingTypeWord = selectedListing.listing_type === 'sale' ? 'buyer' : 'tenant';
-        await sendSMS(normalizedPhone, `Hadirot Alert: Listing deactivated. Did the ${selectedListingTypeWord} find you through Hadirot? Reply YES or NO.`, 'system_response', selectedListing.id, conv.id);
+        const selectedTypeWord = listingTypeWord(selectedListing.listing_type, selectedListing.is_commercial === true);
+        await sendSMS(normalizedPhone, `Hadirot Alert: Listing deactivated. Did the ${selectedTypeWord} find you through Hadirot? Reply YES or NO.`, 'system_response', selectedListing.id, conv.id);
 
       } else if (conv.state === "awaiting_report_response") {
-        const { data: reportListing, error: reportListingError } = await supabaseAdmin
-          .from("listings")
-          .select("id, listing_type")
-          .eq("id", conv.listing_id)
-          .maybeSingle();
+        const { data: reportListing, error: reportListingError } = await fetchListingForConv(conv, "id, listing_type");
 
         if (reportListingError || !reportListing) {
           console.error("Error fetching listing for report response:", reportListingError);
@@ -1314,14 +1438,7 @@ Deno.serve(async (req) => {
           await sendSMS(normalizedPhone, "Hadirot Alert: OK, we've kept your listing active. Thank you for confirming!", 'system_response', conv.listing_id, conv.id);
 
         } else if (intent.type === 'negative') {
-          const { error: updateError } = await supabaseAdmin
-            .from("listings")
-            .update({
-              is_active: false,
-              deactivated_at: new Date().toISOString(),
-              updated_at: new Date().toISOString(),
-            })
-            .eq("id", conv.listing_id);
+          const { error: updateError } = await deactivateListingForConv(conv);
 
           if (updateError) {
             console.error("Error deactivating listing:", updateError);
@@ -1340,8 +1457,8 @@ Deno.serve(async (req) => {
             })
             .eq("id", conv.id);
 
-          const reportListingTypeWord = reportListing.listing_type === 'sale' ? 'buyer' : 'tenant';
-          await sendSMS(normalizedPhone, `Hadirot Alert: Listing deactivated. Did the ${reportListingTypeWord} find you through Hadirot? Reply YES or NO.`, 'system_response', conv.listing_id, conv.id);
+          const reportTypeWord = listingTypeWord(reportListing.listing_type, conv.is_commercial === true);
+          await sendSMS(normalizedPhone, `Hadirot Alert: Listing deactivated. Did the ${reportTypeWord} find you through Hadirot? Reply YES or NO.`, 'system_response', conv.listing_id, conv.id);
 
         } else {
           const rentedSoldWord = reportListing.listing_type === 'sale' ? 'sold' : 'rented';
@@ -1351,14 +1468,7 @@ Deno.serve(async (req) => {
       } else if (conv.state === "callback_sent") {
         if (intent.type === 'deactivation') {
           if (conv.listing_id) {
-            const { error: updateError } = await supabaseAdmin
-              .from("listings")
-              .update({
-                is_active: false,
-                deactivated_at: new Date().toISOString(),
-                updated_at: new Date().toISOString(),
-              })
-              .eq("id", conv.listing_id);
+            const { error: updateError } = await deactivateListingForConv(conv);
 
             if (updateError) {
               console.error("Error deactivating listing:", updateError);
@@ -1366,13 +1476,8 @@ Deno.serve(async (req) => {
               return new Response(emptyTwiML, { headers: { "Content-Type": "text/xml" } });
             }
 
-            const { data: callbackListing } = await supabaseAdmin
-              .from("listings")
-              .select("listing_type")
-              .eq("id", conv.listing_id)
-              .maybeSingle();
-
-            const cbListingTypeWord = callbackListing?.listing_type === 'sale' ? 'buyer' : 'tenant';
+            const { data: cbListing } = await fetchListingForConv(conv, "listing_type");
+            const cbTypeWord = listingTypeWord(cbListing?.listing_type ?? null, conv.is_commercial === true);
 
             await supabaseAdmin
               .from("listing_renewal_conversations")
@@ -1385,7 +1490,7 @@ Deno.serve(async (req) => {
               })
               .eq("id", conv.id);
 
-            await sendSMS(normalizedPhone, `Hadirot Alert: Listing deactivated. Did the ${cbListingTypeWord} find you through Hadirot? Reply YES or NO.`, 'system_response', conv.listing_id, conv.id);
+            await sendSMS(normalizedPhone, `Hadirot Alert: Listing deactivated. Did the ${cbTypeWord} find you through Hadirot? Reply YES or NO.`, 'system_response', conv.listing_id, conv.id);
           }
         } else {
           await supabaseAdmin

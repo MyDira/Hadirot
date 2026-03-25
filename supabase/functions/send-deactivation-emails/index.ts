@@ -11,18 +11,35 @@ interface DeactivatedListing {
   last_deactivation_email_sent_at: string | null;
   owner_email: string;
   owner_name: string;
+  is_commercial: boolean;
+  commercial_space_type?: string;
+  full_address?: string;
+}
+
+function formatSpaceType(raw: string): string {
+  const map: Record<string, string> = {
+    storefront: "Retail",
+    retail: "Retail",
+    restaurant: "Restaurant",
+    office: "Office",
+    warehouse: "Warehouse",
+    medical: "Medical",
+    flex: "Flex Space",
+    industrial: "Industrial",
+    mixed_use: "Mixed Use",
+    coworking: "Coworking",
+    gallery: "Gallery",
+    event_space: "Event Space",
+  };
+  return map[raw?.toLowerCase()] ?? (raw ? raw.charAt(0).toUpperCase() + raw.slice(1) : "Commercial");
 }
 
 Deno.serve(async (req) => {
-  // Handle CORS preflight requests
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
 
   try {
-    console.log("🔄 Starting deactivation email notification job...");
-
-    // Create Supabase admin client
     const supabaseAdmin = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
@@ -34,8 +51,7 @@ Deno.serve(async (req) => {
       },
     );
 
-    // Query for listings that need deactivation emails
-    const { data: deactivatedListings, error: queryError } = await supabaseAdmin
+    const { data: residentialListings, error: residentialError } = await supabaseAdmin
       .from("listings")
       .select(`
         id,
@@ -53,18 +69,26 @@ Deno.serve(async (req) => {
       .not("deactivated_at", "is", null)
       .or("last_deactivation_email_sent_at.is.null,last_deactivation_email_sent_at.lt.deactivated_at");
 
-    if (queryError) {
-      console.error("❌ Error querying deactivated listings:", queryError);
+    if (residentialError) {
+      console.error("Error querying deactivated residential listings:", residentialError);
       return new Response(
         JSON.stringify({ error: "Failed to query deactivated listings" }),
-        {
-          status: 500,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        },
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
 
-    const listingsToEmail = (deactivatedListings || []).map((listing: any) => ({
+    const { data: commercialListings, error: commercialError } = await supabaseAdmin
+      .from("commercial_listings")
+      .select("id, title, user_id, deactivated_at, last_published_at, last_deactivation_email_sent_at, commercial_space_type, full_address")
+      .eq("is_active", false)
+      .not("deactivated_at", "is", null)
+      .or("last_deactivation_email_sent_at.is.null,last_deactivation_email_sent_at.lt.deactivated_at");
+
+    if (commercialError) {
+      console.error("Error querying deactivated commercial listings:", commercialError);
+    }
+
+    const residentialMapped: DeactivatedListing[] = (residentialListings ?? []).map((listing: any) => ({
       id: listing.id,
       title: listing.title,
       user_id: listing.user_id,
@@ -73,38 +97,70 @@ Deno.serve(async (req) => {
       last_deactivation_email_sent_at: listing.last_deactivation_email_sent_at,
       owner_email: listing.profiles.email,
       owner_name: listing.profiles.full_name,
-    })) as DeactivatedListing[];
+      is_commercial: false,
+    }));
 
-    console.log(`📊 Found ${listingsToEmail.length} listings needing deactivation emails`);
+    const commercialRaw = commercialListings ?? [];
+    const commercialUserIds = [...new Set(commercialRaw.map((l: any) => l.user_id))];
+
+    const profileMap: Record<string, { email: string; full_name: string }> = {};
+    if (commercialUserIds.length > 0) {
+      const { data: profiles } = await supabaseAdmin
+        .from("profiles")
+        .select("id, email, full_name")
+        .in("id", commercialUserIds);
+      for (const p of profiles ?? []) {
+        profileMap[p.id] = { email: p.email, full_name: p.full_name };
+      }
+    }
+
+    const commercialMapped: DeactivatedListing[] = commercialRaw
+      .filter((l: any) => profileMap[l.user_id])
+      .map((l: any) => ({
+        id: l.id,
+        title: l.title ?? (l.full_address ? `Commercial at ${l.full_address}` : "Commercial Listing"),
+        user_id: l.user_id,
+        deactivated_at: l.deactivated_at,
+        last_published_at: l.last_published_at,
+        last_deactivation_email_sent_at: l.last_deactivation_email_sent_at,
+        owner_email: profileMap[l.user_id].email,
+        owner_name: profileMap[l.user_id].full_name,
+        is_commercial: true,
+        commercial_space_type: l.commercial_space_type,
+        full_address: l.full_address,
+      }));
+
+    const listingsToEmail: DeactivatedListing[] = [...residentialMapped, ...commercialMapped];
+
+    console.log(`Found ${listingsToEmail.length} listings needing deactivation emails (${residentialMapped.length} residential, ${commercialMapped.length} commercial)`);
 
     let emailsSent = 0;
     let emailsSkipped = 0;
     let emailErrors = 0;
 
-    // Process each listing
     for (const listing of listingsToEmail) {
       try {
-        console.log(`📧 Processing listing: ${listing.title} (${listing.id})`);
-
-        // Determine if this was an automatic or manual deactivation
-        // Automatic: deactivated_at is approximately 30 days after last_published_at
-        // Manual: deactivated_at is significantly before that 30-day mark
         const publishedDate = new Date(listing.last_published_at);
         const deactivatedDate = new Date(listing.deactivated_at);
         const daysSincePublished = (deactivatedDate.getTime() - publishedDate.getTime()) / (1000 * 60 * 60 * 24);
-
-        // If listing was deactivated 29+ days after publishing, consider it automatic
         const isAutomaticDeactivation = daysSincePublished >= 29;
+
+        let listingLabel: string;
+        if (listing.is_commercial) {
+          const spaceType = formatSpaceType(listing.commercial_space_type ?? "");
+          const location = listing.full_address ? ` at ${listing.full_address}` : "";
+          listingLabel = `${spaceType}${location}`;
+        } else {
+          listingLabel = `"${listing.title}"`;
+        }
 
         let emailHtml: string;
         let emailSubject: string;
 
         if (isAutomaticDeactivation) {
-          // Automatic expiration email
-          console.log(`  → Automatic deactivation detected (${Math.round(daysSincePublished)} days old)`);
           emailHtml = renderBrandEmail({
             title: "Your Listing Has Expired",
-            intro: `Your listing "${listing.title}" has expired and is no longer visible to potential tenants.`,
+            intro: `Your listing ${listingLabel} has expired and is no longer visible to potential ${listing.is_commercial ? "tenants or buyers" : "tenants"}.`,
             bodyHtml: `
               <p>Don't worry - you can easily renew your listing to make it active again.</p>
               <p>Simply log in to your dashboard to manage your listings and extend the expiration date.</p>
@@ -112,25 +168,26 @@ Deno.serve(async (req) => {
             ctaLabel: "Renew My Listing",
             ctaHref: "https://hadirot.com/dashboard",
           });
-          emailSubject = `Your listing "${listing.title}" has expired on HaDirot`;
+          emailSubject = listing.is_commercial
+            ? `Your ${listingLabel} listing has expired on HaDirot`
+            : `Your listing ${listingLabel} has expired on HaDirot`;
         } else {
-          // Manual deactivation confirmation email
-          console.log(`  → Manual deactivation detected (${Math.round(daysSincePublished)} days old)`);
           emailHtml = renderBrandEmail({
             title: "Listing Deactivation Confirmed",
-            intro: `Your listing "${listing.title}" has been deactivated.`,
+            intro: `Your listing ${listingLabel} has been deactivated.`,
             bodyHtml: `
-              <p>Your listing is no longer visible to potential tenants.</p>
+              <p>Your listing is no longer visible to potential ${listing.is_commercial ? "tenants or buyers" : "tenants"}.</p>
               <p>You can reactivate it anytime from your dashboard.</p>
             `,
             ctaLabel: "Manage My Listings",
             ctaHref: "https://hadirot.com/dashboard",
           });
-          emailSubject = `Listing deactivated: "${listing.title}" - HaDirot`;
+          emailSubject = listing.is_commercial
+            ? `Listing deactivated: ${listingLabel} - HaDirot`
+            : `Listing deactivated: ${listingLabel} - HaDirot`;
         }
 
-        // Send email via existing send-email function
-        const { data: emailResult, error: emailError } = await supabaseAdmin.functions.invoke(
+        const { error: emailError } = await supabaseAdmin.functions.invoke(
           "send-email",
           {
             body: {
@@ -143,69 +200,54 @@ Deno.serve(async (req) => {
         );
 
         if (emailError) {
-          console.error(`❌ Error sending email for listing ${listing.id}:`, emailError);
+          console.error(`Error sending email for listing ${listing.id}:`, emailError);
           emailErrors++;
           continue;
         }
 
-        console.log(`✅ Email sent successfully for listing ${listing.id}`);
-
-        // Update the listing to record that email was sent
+        const table = listing.is_commercial ? "commercial_listings" : "listings";
         const { error: updateError } = await supabaseAdmin
-          .from("listings")
-          .update({
-            last_deactivation_email_sent_at: new Date().toISOString(),
-          })
+          .from(table)
+          .update({ last_deactivation_email_sent_at: new Date().toISOString() })
           .eq("id", listing.id);
 
         if (updateError) {
-          console.error(`❌ Error updating email timestamp for listing ${listing.id}:`, updateError);
+          console.error(`Error updating email timestamp for listing ${listing.id}:`, updateError);
           emailErrors++;
           continue;
         }
 
         emailsSent++;
-        console.log(`📝 Updated email timestamp for listing ${listing.id}`);
+        console.log(`Email sent for ${listing.is_commercial ? "commercial" : "residential"} listing ${listing.id}`);
 
       } catch (error) {
-        console.error(`❌ Unexpected error processing listing ${listing.id}:`, error);
+        console.error(`Unexpected error processing listing ${listing.id}:`, error);
         emailErrors++;
       }
     }
 
     const summary = {
       listingsEvaluated: listingsToEmail.length,
+      residentialEvaluated: residentialMapped.length,
+      commercialEvaluated: commercialMapped.length,
       emailsSent,
       emailsSkipped,
       emailErrors,
       timestamp: new Date().toISOString(),
     };
 
-    console.log("📈 Deactivation email job completed:", summary);
+    console.log("Deactivation email job completed:", summary);
 
     return new Response(
-      JSON.stringify({
-        success: true,
-        summary,
-      }),
-      {
-        status: 200,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      },
+      JSON.stringify({ success: true, summary }),
+      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
 
   } catch (error) {
-    console.error("❌ Unexpected error in send-deactivation-emails function:", error);
-
+    console.error("Unexpected error in send-deactivation-emails function:", error);
     return new Response(
-      JSON.stringify({ 
-        error: "Internal server error",
-        details: error.message 
-      }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      },
+      JSON.stringify({ error: "Internal server error", details: error.message }),
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   }
 });

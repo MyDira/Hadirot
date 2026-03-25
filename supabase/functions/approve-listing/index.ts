@@ -2,7 +2,6 @@ import { createClient } from 'npm:@supabase/supabase-js@2';
 import { corsHeaders } from '../_shared/cors.ts';
 
 Deno.serve(async (req) => {
-  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
@@ -77,8 +76,9 @@ Deno.serve(async (req) => {
       );
     }
 
-    const { listingId } = await req.json();
-    console.log('[EDGE] approve-listing called', { listingId, at: new Date().toISOString() });
+    const { listingId, isCommercial } = await req.json();
+    console.log('[EDGE] approve-listing called', { listingId, isCommercial, at: new Date().toISOString() });
+
     if (!listingId) {
       return new Response(
         JSON.stringify({ error: 'Missing listingId parameter' }),
@@ -89,27 +89,71 @@ Deno.serve(async (req) => {
       );
     }
 
-    const { data, error } = await supabaseClient
-      .from('public.listings')
-      .update({ approved: true, is_active: true })
-      .eq('id', listingId)
-      .select('id, title, profiles!public.listings_user_id_fkey(email, full_name)')
-      .single();
-    console.log('[EDGE] approve-listing updated listing to approved/active', { listingId });
+    let listingData: { id: string; title: string | null; user_id: string } | null = null;
 
-    if (error) {
-      console.error('Error approving listing:', error);
+    if (isCommercial) {
+      const { data, error } = await supabaseClient
+        .from('commercial_listings')
+        .update({ approved: true, is_active: true, updated_at: new Date().toISOString() })
+        .eq('id', listingId)
+        .select('id, title, user_id')
+        .single();
+
+      console.log('[EDGE] approve-listing updated commercial listing to approved/active', { listingId });
+
+      if (error) {
+        console.error('Error approving commercial listing:', error);
+        return new Response(
+          JSON.stringify({ error: 'Failed to approve listing' }),
+          {
+            status: 500,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          }
+        );
+      }
+
+      listingData = data;
+    } else {
+      const { data, error } = await supabaseClient
+        .from('public.listings')
+        .update({ approved: true, is_active: true })
+        .eq('id', listingId)
+        .select('id, title, profiles!public.listings_user_id_fkey(email, full_name)')
+        .single();
+
+      console.log('[EDGE] approve-listing updated listing to approved/active', { listingId });
+
+      if (error) {
+        console.error('Error approving listing:', error);
+        return new Response(
+          JSON.stringify({ error: 'Failed to approve listing' }),
+          {
+            status: 500,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          }
+        );
+      }
+
       return new Response(
-        JSON.stringify({ error: 'Failed to approve listing' }),
+        JSON.stringify({ message: 'Listing approved', listing: data }),
         {
-          status: 500,
+          status: 200,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         }
       );
     }
 
+    const { data: ownerProfile } = await supabaseClient
+      .from('profiles')
+      .select('email, full_name')
+      .eq('id', listingData.user_id)
+      .maybeSingle();
+
     return new Response(
-      JSON.stringify({ message: 'Listing approved', listing: data }),
+      JSON.stringify({
+        message: 'Listing approved',
+        listing: { ...listingData, profiles: ownerProfile ?? null },
+      }),
       {
         status: 200,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
