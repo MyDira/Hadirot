@@ -1137,8 +1137,8 @@ export function PostListing() {
     }
 
     const imageFiles = mediaFiles.filter(m => m.type === 'image');
-    if (formData.listing_type === 'sale' && imageFiles.length < 2) {
-      alert("Please upload at least 2 images for sale listings");
+    if (formData.listing_type === 'sale' && imageFiles.length < 1) {
+      alert("Please upload at least 1 image for sale listings");
       setLoading(false);
       return;
     }
@@ -2305,7 +2305,7 @@ export function PostListing() {
             onMediaRemove={handleMediaRemove}
             onSetFeatured={handleSetFeatured}
             maxFiles={maxAllowedFiles}
-            minFiles={formData.listing_type === 'sale' ? 2 : 0}
+            minFiles={formData.listing_type === 'sale' ? 1 : 0}
             uploading={uploadingMedia}
           />
 
