@@ -3,6 +3,8 @@ import { useSearchParams, useLocation } from 'react-router-dom';
 
 export type SortOption = 'newest' | 'oldest' | 'price_asc' | 'price_desc' | 'bedrooms_asc' | 'bedrooms_desc' | 'bathrooms_asc' | 'bathrooms_desc';
 
+export type ListingTypeFilter = 'all' | 'residential' | 'commercial';
+
 export interface MapBounds {
   north: number;
   south: number;
@@ -27,6 +29,7 @@ export interface FilterState {
   sort?: SortOption;
   searchBounds?: MapBounds | null;
   searchLocationName?: string;
+  listingTypeFilter?: ListingTypeFilter;
 }
 
 interface BrowseState {
@@ -35,10 +38,11 @@ interface BrowseState {
   scrollY: number;
 }
 
-const BROWSE_STATE_KEY = 'browse_state';
+const BROWSE_STATE_KEY_BASE = 'browse_state';
 const SCROLL_RESTORE_KEY = 'browse_scroll_restore';
 
-export function useBrowseFilters() {
+export function useBrowseFilters(mode: 'rental' | 'sales' = 'rental') {
+  const BROWSE_STATE_KEY = `${BROWSE_STATE_KEY_BASE}_${mode}`;
   const [searchParams, setSearchParams] = useSearchParams();
   const location = useLocation();
   const [filters, setFilters] = useState<FilterState>({});
@@ -162,6 +166,11 @@ export function useBrowseFilters() {
     const areaName = params.get('area_name');
     if (areaName) urlFilters.searchLocationName = areaName;
 
+    const listingTypeFilter = params.get('listing_type_filter');
+    if (listingTypeFilter === 'residential' || listingTypeFilter === 'commercial') {
+      urlFilters.listingTypeFilter = listingTypeFilter;
+    }
+
     const page = params.get('page');
     const pageNum = page ? parseInt(page) : 1;
 
@@ -221,6 +230,9 @@ export function useBrowseFilters() {
         }
         if (savedState.filters.searchLocationName) {
           params.set('area_name', savedState.filters.searchLocationName);
+        }
+        if (savedState.filters.listingTypeFilter && savedState.filters.listingTypeFilter !== 'all') {
+          params.set('listing_type_filter', savedState.filters.listingTypeFilter);
         }
         params.set('page', savedState.page.toString());
         setSearchParams(params, { replace: true });
@@ -332,6 +344,10 @@ export function useBrowseFilters() {
     }
     if (newFilters.searchLocationName) {
       params.set('area_name', newFilters.searchLocationName);
+    }
+
+    if (newFilters.listingTypeFilter && newFilters.listingTypeFilter !== 'all') {
+      params.set('listing_type_filter', newFilters.listingTypeFilter);
     }
 
     params.set('page', resetPage ? '1' : currentPage.toString());

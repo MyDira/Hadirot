@@ -20,6 +20,8 @@ interface MapBounds {
   west: number;
 }
 
+type ListingTypeFilter = 'all' | 'residential' | 'commercial';
+
 interface FilterState {
   bedrooms?: number[];
   min_bathrooms?: number;
@@ -37,6 +39,7 @@ interface FilterState {
   sort?: SortOption;
   searchBounds?: MapBounds | null;
   searchLocationName?: string;
+  listingTypeFilter?: ListingTypeFilter;
 }
 
 interface ListingFiltersHorizontalProps {
@@ -945,9 +948,50 @@ export function ListingFiltersHorizontal({
     );
   }
 
+  const listingTypeFilterValue = filters.listingTypeFilter || 'all';
+  const showResidentialFilters = listingTypeFilterValue !== 'commercial';
+
+  const getListingTypeLabel = () => {
+    if (listingTypeFilterValue === 'residential') return 'Residential';
+    if (listingTypeFilterValue === 'commercial') return 'Commercial';
+    return 'Listing Type';
+  };
+
   return (
     <div ref={containerRef}>
       <div className="flex items-center gap-2 flex-wrap">
+        <FilterDropdown
+          label="Listing Type"
+          value={getListingTypeLabel()}
+          isActive={listingTypeFilterValue !== 'all'}
+          isOpen={openDropdown === "listing_type"}
+          onToggle={() => toggleDropdown("listing_type")}
+        >
+          <div className="p-3 min-w-[200px]">
+            {(['all', 'residential', 'commercial'] as const).map((opt) => {
+              const labels = { all: 'All', residential: 'Residential Only', commercial: 'Commercial Only' };
+              const isSelected = listingTypeFilterValue === opt;
+              return (
+                <button
+                  key={opt}
+                  type="button"
+                  onClick={() => {
+                    onFiltersChange({ ...filters, listingTypeFilter: opt === 'all' ? undefined : opt });
+                    setOpenDropdown(null);
+                  }}
+                  className={`w-full text-left px-4 py-2.5 text-sm font-medium rounded-lg transition-colors ${
+                    isSelected
+                      ? 'bg-green-50 text-green-700'
+                      : 'text-gray-700 hover:bg-gray-50'
+                  }`}
+                >
+                  {labels[opt]}
+                </button>
+              );
+            })}
+          </div>
+        </FilterDropdown>
+
         <FilterDropdown
           label={listingType === "sale" ? "Price" : "Rent Range"}
           value={getPriceLabel()}
@@ -1118,7 +1162,7 @@ export function ListingFiltersHorizontal({
           </div>
         </FilterDropdown>
 
-        <FilterDropdown
+        {showResidentialFilters && <FilterDropdown
           label="Beds & Baths"
           value={getBedroomsLabel()}
           isActive={!!(filters.bedrooms && filters.bedrooms.length > 0) || !!(filters.min_bathrooms && filters.min_bathrooms > 0)}
@@ -1221,7 +1265,7 @@ export function ListingFiltersHorizontal({
               </button>
             </div>
           </div>
-        </FilterDropdown>
+        </FilterDropdown>}
 
         <button
           onClick={() => setShowMoreFilters(true)}

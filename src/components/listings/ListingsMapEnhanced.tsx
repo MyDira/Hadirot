@@ -2,7 +2,7 @@ import React, { useRef, useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import mapboxgl from "mapbox-gl";
 import { ArrowUp } from "lucide-react";
-import { Listing } from "../../config/supabase";
+import { Listing, CommercialListing } from "../../config/supabase";
 import { MAPBOX_ACCESS_TOKEN } from "@/config/env";
 import { computePrimaryListingImage } from "../../utils/stockImage";
 import { formatPrice, capitalizeName } from "../../utils/formatters";
@@ -11,9 +11,10 @@ import {
   calculateTooltipPosition,
   type TooltipPosition,
 } from "../../utils/viewportUtils";
-import { MapPin } from "../../utils/filterUtils";
+import { MapPin, CommercialMapPin } from "../../utils/filterUtils";
 import { calculateIndicatorData, type IndicatorData } from "../../utils/mapIndicatorUtils";
 import { MobileMapListingPopup } from "./MobileMapListingPopup";
+import { MobileMapCommercialPopup } from "./MobileMapCommercialPopup";
 import { isMobileViewport } from "../../utils/deviceDetection";
 import { trackMapPinClick } from "@/lib/analytics";
 
@@ -30,6 +31,8 @@ interface MapBounds {
 interface ListingsMapEnhancedProps {
   listings: Listing[];
   pins?: MapPin[];
+  commercialListings?: CommercialListing[];
+  commercialPins?: CommercialMapPin[];
   visiblePinIds?: Set<string>;
   hoveredListingId?: string | null;
   selectedListingId?: string | null;
@@ -57,6 +60,8 @@ interface ListingsMapEnhancedProps {
 export function ListingsMapEnhanced({
   listings,
   pins,
+  commercialListings = [],
+  commercialPins = [],
   visiblePinIds,
   hoveredListingId,
   selectedListingId,
@@ -94,6 +99,8 @@ export function ListingsMapEnhanced({
   const isPinHover = useRef(false);
   const [mobileSheetListing, setMobileSheetListing] = useState<Listing | null>(null);
   const [isMobileSheetOpen, setIsMobileSheetOpen] = useState(false);
+  const [mobileSheetCommercialListing, setMobileSheetCommercialListing] = useState<CommercialListing | null>(null);
+  const [isMobileCommercialSheetOpen, setIsMobileCommercialSheetOpen] = useState(false);
   const [isMapDragging, setIsMapDragging] = useState(false);
 
   const listingsWithCoords = listings.filter(
@@ -103,6 +110,10 @@ export function ListingsMapEnhanced({
   const pinsWithCoords = pins?.filter(
     (p) => p.latitude != null && p.longitude != null
   ) ?? [];
+
+  const commercialPinsWithCoords = commercialPins.filter(
+    (p) => p.latitude != null && p.longitude != null
+  );
 
   const usePinsForMarkers = pins && pins.length > 0;
 
@@ -200,6 +211,143 @@ export function ListingsMapEnhanced({
 
     return el;
   }, [listingsWithCoords]);
+
+  const formatCommercialPinPrice = (pin: CommercialMapPin): string => {
+    const isRental = pin.listing_type === "rental";
+    const rawPrice = isRental ? pin.price : pin.asking_price;
+    if (rawPrice == null) return "N/A";
+    if (isRental) {
+      if (rawPrice >= 1000) {
+        const k = rawPrice / 1000;
+        return `$${k % 1 === 0 ? k : k.toFixed(1)}K`;
+      }
+      return `$${rawPrice}`;
+    }
+    return formatSalePrice(rawPrice);
+  };
+
+  const createCommercialPinMarkerElement = useCallback((pin: CommercialMapPin, isHovered: boolean, isSelected: boolean, isVisible: boolean): HTMLDivElement => {
+    const el = document.createElement("div");
+    el.className = `price-marker${isVisible ? '' : ' hidden'}`;
+    el.dataset.isCommercial = 'true';
+
+    const priceText = formatCommercialPinPrice(pin);
+    const innerStateClass = isHovered || isSelected ? "marker-active" : "";
+    const shadowClass = isHovered || isSelected ? "shadow-lg" : "shadow-sm hover:shadow-lg";
+    const activeStyle = isHovered || isSelected
+      ? 'background: #0891B2; color: white;'
+      : 'background: white; color: #0891B2; border: 1.5px solid #0891B2;';
+
+    el.innerHTML = `
+      <div class="marker-inner ${innerStateClass}">
+        <div class="relative cursor-pointer ${shadowClass} px-2 py-0.5 rounded-full text-xs font-semibold whitespace-nowrap" style="font-family: var(--num-font); ${activeStyle}">
+          ${priceText}
+        </div>
+        <div class="absolute left-1/2 -translate-x-1/2 -bottom-1 w-0 h-0 border-l-4 border-r-4 border-t-4 border-l-transparent border-r-transparent" style="${isHovered || isSelected ? 'border-top-color: #0891B2;' : 'border-top-color: #0891B2;'}"></div>
+      </div>
+    `;
+
+    return el;
+  }, []);
+
+  const createCommercialPopupContent = useCallback((listing: CommercialListing): string => {
+    const sortedImages = (listing as any).commercial_listing_images
+      ?.filter((img: any) => img && img.image_url)
+      .sort((a: any, b: any) => {
+        if (a.is_featured && !b.is_featured) return -1;
+        if (!a.is_featured && b.is_featured) return 1;
+        return (a.sort_order ?? 0) - (b.sort_order ?? 0);
+      });
+
+    const { url: imageUrl, isStock } = computePrimaryListingImage(
+      sortedImages,
+      {
+        id: listing.id,
+        addressLine: listing.full_address,
+        city: listing.neighborhood,
+        price: listing.price,
+      },
+      listing.video_thumbnail_url
+    );
+
+    const isRental = listing.listing_type === "rental";
+    const rawPrice = isRental ? listing.price : listing.asking_price;
+    let priceDisplay = "N/A";
+    if (listing.call_for_price) {
+      priceDisplay = "Call for Price";
+    } else if (rawPrice != null) {
+      if (isRental) {
+        priceDisplay = new Intl.NumberFormat("en-US", {
+          style: "currency", currency: "USD",
+          minimumFractionDigits: 0, maximumFractionDigits: 0,
+        }).format(rawPrice) + "/mo";
+      } else {
+        priceDisplay = formatSalePrice(rawPrice);
+      }
+    }
+
+    const spaceLabels: Record<string, string> = {
+      storefront: "Retail", restaurant: "Restaurant", office: "Office",
+      warehouse: "Warehouse", industrial: "Industrial", mixed_use: "Mixed Use",
+      community_facility: "Community", basement_commercial: "Basement Commercial",
+    };
+    const spaceLabel = spaceLabels[listing.commercial_space_type] ?? listing.commercial_space_type;
+    const sfDisplay = listing.available_sf ? `${listing.available_sf.toLocaleString()} SF` : null;
+    const locationText = listing.full_address || listing.neighborhood || "";
+
+    const isMobile = window.innerWidth < 768;
+    const popupWidth = isMobile ? "min(85vw, 300px)" : "280px";
+
+    return `
+      <div class="listing-popup" style="width: ${popupWidth}; font-family: system-ui, -apple-system, sans-serif;">
+        <div style="position: relative; aspect-ratio: 3/2; overflow: hidden; border-radius: 8px 8px 0 0;">
+          <img
+            src="${imageUrl}"
+            alt="${isStock ? 'Stock photo' : (listing.title ?? 'Commercial listing')}"
+            style="width: 100%; height: 100%; object-fit: cover;"
+          />
+          <div style="position: absolute; top: 8px; left: 8px; background: #0891B2; color: white; padding: 3px 10px; border-radius: 999px; font-size: 11px; font-weight: 600;">
+            ${spaceLabel}
+          </div>
+          ${isStock ? `
+            <div style="position: absolute; bottom: 8px; left: 8px; background: rgba(0,0,0,0.35); color: white; padding: 4px 10px; border-radius: 999px; font-size: 11px; backdrop-filter: blur(4px);">
+              Stock photo
+            </div>
+          ` : ''}
+        </div>
+        <div style="padding: 12px;">
+          <div style="font-size: ${isMobile ? '18px' : '20px'}; font-weight: 700; color: #0891B2; margin-bottom: 8px; font-family: var(--num-font);">
+            ${priceDisplay}
+          </div>
+          <div style="display: flex; align-items: center; gap: ${isMobile ? '8px' : '12px'}; color: #6b7280; font-size: ${isMobile ? '12px' : '13px'}; margin-bottom: 8px; flex-wrap: wrap;">
+            ${sfDisplay ? `<span>${sfDisplay}</span>` : ''}
+            <span style="background: #f0f9ff; color: #0891B2; padding: 2px 8px; border-radius: 4px; font-size: 11px;">${spaceLabel}</span>
+          </div>
+          <div style="display: flex; align-items: center; color: #6b7280; font-size: ${isMobile ? '12px' : '13px'}; margin-bottom: 10px;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 6px; flex-shrink: 0;">
+              <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+              <circle cx="12" cy="10" r="3"></circle>
+            </svg>
+            <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${locationText}</span>
+          </div>
+          <div style="display: flex; align-items: center; justify-content: space-between; padding-top: 10px; border-top: 1px solid #f3f4f6;">
+            <span style="font-size: 12px; color: #0891B2; font-weight: 500;">Commercial</span>
+            <button
+              onclick="window.__mapCommercialPopupClick__('${listing.id}')"
+              style="display: inline-flex; align-items: center; gap: 4px; background: #0891B2; color: white; padding: ${isMobile ? '8px 12px' : '6px 12px'}; border-radius: 6px; font-size: 12px; font-weight: 500; border: none; cursor: pointer; min-height: ${isMobile ? '44px' : 'auto'};"
+            >
+              View Listing
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                <polyline points="15 3 21 3 21 9"></polyline>
+                <line x1="10" y1="14" x2="21" y2="3"></line>
+              </svg>
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+  }, []);
 
   const createPopupContent = useCallback((listing: Listing): string => {
     const sortedImages = listing.listing_images
@@ -442,6 +590,101 @@ export function ListingsMapEnhanced({
     }
   }, [createCustomPopup, removeCustomPopup]);
 
+  const createCommercialCustomPopup = useCallback((
+    listing: CommercialListing,
+    markerLngLat: [number, number]
+  ) => {
+    if (!map.current || !mapContainer.current) return;
+
+    removeCustomPopup();
+
+    const orphanedPopups = mapContainer.current.querySelectorAll('.custom-map-popup');
+    orphanedPopups.forEach(popup => {
+      if (popup.parentNode) popup.parentNode.removeChild(popup);
+    });
+
+    const isMobile = window.innerWidth < 768;
+    const popupWidth = isMobile ? Math.min(window.innerWidth * 0.85, 300) : 280;
+    const popupHeight = isMobile ? 320 : 340;
+    const markerHeight = 30;
+
+    const markerPoint = map.current.project(markerLngLat);
+    const viewport = getContainerBounds(mapContainer.current);
+
+    const position = calculateTooltipPosition(
+      markerPoint.x, markerPoint.y, viewport, popupWidth, popupHeight, markerHeight
+    );
+
+    const popup = document.createElement('div');
+    popup.className = `custom-map-popup popup-${position.anchor}`;
+    popup.style.cssText = `position: absolute; width: ${popupWidth}px; z-index: 1000; pointer-events: auto;`;
+
+    let popupX = markerPoint.x - (popupWidth / 2) + position.offsetX;
+    const popupY = position.anchor === 'bottom'
+      ? markerPoint.y - popupHeight - 18
+      : markerPoint.y + markerHeight + 8;
+
+    popup.style.left = `${popupX}px`;
+    popup.style.top = `${popupY}px`;
+
+    const arrowOffset = (popupWidth / 2) - position.offsetX;
+    const arrowClass = position.anchor === 'bottom' ? 'popup-arrow-bottom' : 'popup-arrow-top';
+
+    popup.innerHTML = `
+      <div class="${arrowClass}" style="left: ${arrowOffset}px;"></div>
+      <div class="popup-content-wrapper">
+        <button class="popup-close-btn" aria-label="Close popup">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M18 6L6 18M6 6l12 12"/>
+          </svg>
+        </button>
+        ${createCommercialPopupContent(listing)}
+      </div>
+    `;
+
+    mapContainer.current.appendChild(popup);
+    popupContainer.current = popup;
+    activeListingId.current = listing.id;
+
+    requestAnimationFrame(() => { popup.classList.add('popup-enter'); });
+
+    const closeBtn = popup.querySelector('.popup-close-btn');
+    if (closeBtn) {
+      closeBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        removeCustomPopup();
+        if (onMapClick) onMapClick();
+      });
+    }
+
+    popup.addEventListener('click', (e) => { e.stopPropagation(); });
+  }, [createCommercialPopupContent, onMapClick, removeCustomPopup]);
+
+  const handleShowCommercialListing = useCallback((listing: CommercialListing, markerLngLat: [number, number]) => {
+    if (isMobileViewport()) {
+      removeCustomPopup();
+      setMobileSheetCommercialListing(listing);
+      setIsMobileCommercialSheetOpen(true);
+      activeListingId.current = listing.id;
+    } else {
+      createCommercialCustomPopup(listing, markerLngLat);
+    }
+  }, [createCommercialCustomPopup, removeCustomPopup]);
+
+  const handleCloseMobileCommercialSheet = useCallback(() => {
+    setIsMobileCommercialSheetOpen(false);
+    setMobileSheetCommercialListing(null);
+    activeListingId.current = null;
+    if (onMapClick) onMapClick();
+  }, [onMapClick]);
+
+  const handleMobileCommercialSheetViewListing = useCallback((listingId: string) => {
+    if (onMarkerClick) {
+      onMarkerClick(listingId);
+    }
+    navigate(`/commercial-listing/${listingId}`);
+  }, [navigate, onMarkerClick]);
+
   const handleCloseMobileSheet = useCallback(() => {
     setIsMobileSheetOpen(false);
     setMobileSheetListing(null);
@@ -547,6 +790,19 @@ export function ListingsMapEnhanced({
 
     return () => {
       delete (window as any).__mapPopupClick__;
+    };
+  }, [navigate, onMarkerClick]);
+
+  useEffect(() => {
+    (window as any).__mapCommercialPopupClick__ = (listingId: string) => {
+      if (onMarkerClick) {
+        onMarkerClick(listingId);
+      }
+      navigate(`/commercial-listing/${listingId}`);
+    };
+
+    return () => {
+      delete (window as any).__mapCommercialPopupClick__;
     };
   }, [navigate, onMarkerClick]);
 
@@ -887,6 +1143,106 @@ export function ListingsMapEnhanced({
       }
     });
   }, [pinsWithCoords, mapLoaded, usePinsForMarkers, hoveredListingId, selectedListingId, visiblePinIds, createPinMarkerElement, onMarkerHover, onMarkerClick, handleShowListing, removeCustomPopup, listingsWithCoords]);
+
+  useEffect(() => {
+    if (!mapLoaded || !map.current || commercialPinsWithCoords.length === 0) return;
+
+    const existingCommercialIds = new Set(
+      [...markers.current.entries()]
+        .filter(([, item]) => item.element.dataset.isCommercial === 'true')
+        .map(([id]) => id)
+    );
+    const newCommercialIds = new Set(commercialPinsWithCoords.map(p => p.id));
+
+    existingCommercialIds.forEach(id => {
+      if (!newCommercialIds.has(id)) {
+        const item = markers.current.get(id);
+        if (item) {
+          if (activeListingId.current === id) removeCustomPopup();
+          item.marker.remove();
+          markers.current.delete(id);
+        }
+      }
+    });
+
+    commercialPinsWithCoords.forEach((pin) => {
+      const isHovered = hoveredListingId === pin.id;
+      const isSelected = selectedListingId === pin.id;
+      const isVisible = visiblePinIds?.has(pin.id) ?? true;
+
+      const existingItem = markers.current.get(pin.id);
+
+      if (existingItem) {
+        const currentlyHovered = existingItem.element.dataset.isHovered === 'true';
+        const currentlySelected = existingItem.element.dataset.isSelected === 'true';
+
+        if (currentlyHovered !== isHovered || currentlySelected !== isSelected) {
+          existingItem.element.dataset.isHovered = String(isHovered);
+          existingItem.element.dataset.isSelected = String(isSelected);
+          existingItem.element.style.zIndex = (isHovered || isSelected) ? '100' : '1';
+
+          const markerInner = existingItem.element.querySelector('.marker-inner');
+          const priceDiv = existingItem.element.querySelector('.marker-inner > div:first-child') as HTMLElement | null;
+          const triangle = existingItem.element.querySelector('.marker-inner > div:last-child') as HTMLElement | null;
+
+          if (markerInner) {
+            if (isHovered || isSelected) markerInner.classList.add('marker-active');
+            else markerInner.classList.remove('marker-active');
+          }
+          if (priceDiv) {
+            const shadowClass = isHovered || isSelected ? 'shadow-lg' : 'shadow-sm hover:shadow-lg';
+            priceDiv.className = `relative cursor-pointer ${shadowClass} px-2 py-0.5 rounded-full text-xs font-semibold whitespace-nowrap`;
+            if (isHovered || isSelected) {
+              priceDiv.style.background = '#0891B2';
+              priceDiv.style.color = 'white';
+              priceDiv.style.border = 'none';
+            } else {
+              priceDiv.style.background = 'white';
+              priceDiv.style.color = '#0891B2';
+              priceDiv.style.border = '1.5px solid #0891B2';
+            }
+          }
+          if (triangle) {
+            triangle.style.borderTopColor = '#0891B2';
+          }
+        }
+      } else {
+        const el = createCommercialPinMarkerElement(pin, isHovered, isSelected, isVisible);
+
+        el.dataset.isHovered = String(isHovered);
+        el.dataset.isSelected = String(isSelected);
+        el.classList.add('animate-pin-appear');
+        setTimeout(() => el.classList.remove('animate-pin-appear'), 300);
+
+        el.addEventListener("mouseenter", () => {
+          isPinHover.current = true;
+          if (onMarkerHover) onMarkerHover(pin.id);
+        });
+        el.addEventListener("mouseleave", () => {
+          isPinHover.current = false;
+          if (onMarkerHover) onMarkerHover(null);
+        });
+        el.addEventListener("click", (e) => {
+          e.stopPropagation();
+          if (visiblePinIds && !visiblePinIds.has(pin.id)) return;
+
+          trackMapPinClick(pin.id);
+          const commercialListing = commercialListings.find(l => l.id === pin.id);
+          if (commercialListing) {
+            const lngLat: [number, number] = [pin.longitude!, pin.latitude!];
+            handleShowCommercialListing(commercialListing, lngLat);
+          }
+          if (onMarkerClick) onMarkerClick(pin.id);
+        });
+
+        const marker = new mapboxgl.Marker({ element: el, anchor: "bottom" })
+          .setLngLat([pin.longitude!, pin.latitude!])
+          .addTo(map.current!);
+
+        markers.current.set(pin.id, { marker, element: el });
+      }
+    });
+  }, [commercialPinsWithCoords, commercialListings, mapLoaded, hoveredListingId, selectedListingId, visiblePinIds, createCommercialPinMarkerElement, onMarkerHover, onMarkerClick, handleShowCommercialListing, removeCustomPopup]);
 
   useEffect(() => {
     if (!usePinsForMarkers || !visiblePinIds) return;
@@ -1392,6 +1748,15 @@ export function ListingsMapEnhanced({
         onViewListing={handleMobileSheetViewListing}
         isFavorited={mobileSheetListing ? userFavorites.includes(mobileSheetListing.id) : false}
         onFavoriteChange={handleFavoriteChange}
+      />
+
+      <MobileMapCommercialPopup
+        listing={mobileSheetCommercialListing}
+        isOpen={isMobileCommercialSheetOpen}
+        onClose={handleCloseMobileCommercialSheet}
+        onViewListing={handleMobileCommercialSheetViewListing}
+        isFavorited={false}
+        onFavoriteChange={() => {}}
       />
     </div>
   );

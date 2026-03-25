@@ -14,6 +14,21 @@ export interface MapPin {
   owner: { role: string; agency: string | null } | null;
 }
 
+export interface CommercialMapPin {
+  id: string;
+  latitude: number;
+  longitude: number;
+  price: number | null;
+  asking_price: number | null;
+  listing_type: string | null;
+  commercial_space_type: string;
+  neighborhood: string | null;
+}
+
+export type AnyMapPin =
+  | (MapPin & { kind: 'residential' })
+  | (CommercialMapPin & { kind: 'commercial' });
+
 interface MapBoundsFilter {
   north: number;
   south: number;

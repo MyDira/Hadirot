@@ -1,13 +1,15 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { ChevronLeft, ChevronRight, Filter, X, List, Map as MapIcon, Locate, RotateCcw, LayoutGrid, ArrowUpDown } from "lucide-react";
 import { ListingCard } from "../components/listings/ListingCard";
+import { CommercialListingCard } from "../components/listings/CommercialListingCard";
 import { ListingFiltersHorizontal } from "../components/listings/ListingFiltersHorizontal";
 import { ListingsMapEnhanced } from "../components/listings/ListingsMapEnhanced";
 import { SmartSearchBar, SmartSearchBarRef } from "../components/listings/SmartSearchBar";
 import { MobileListingCarousel } from "../components/listings/MobileListingCarousel";
 import { Toast } from "../components/shared/Toast";
-import { Listing } from "../config/supabase";
+import { Listing, CommercialListing } from "../config/supabase";
 import { listingsService } from "../services/listings";
+import { commercialListingsService } from "../services/commercialListings";
 import { useAuth } from "@/hooks/useAuth";
 import { gaEvent, gaListing } from "@/lib/ga";
 import { trackFilterApply } from "../lib/analytics";
@@ -17,7 +19,7 @@ import { ParsedSearchQuery } from "../utils/searchQueryParser";
 import { LocationResult } from "../services/locationSearch";
 import { calculateGeographicCenter } from "../utils/geoUtils";
 import { isElementFullyVisible, scrollElementIntoView } from "../utils/viewportUtils";
-import { MapPin, applyFilters, FilterState as FilterStateFromUtils } from "../utils/filterUtils";
+import { MapPin, CommercialMapPin, applyFilters, FilterState as FilterStateFromUtils } from "../utils/filterUtils";
 import { getSessionSeed, seededShuffle } from "../utils/sessionSeed";
 
 export type SortOption = 'newest' | 'oldest' | 'price_asc' | 'price_desc' | 'bedrooms_asc' | 'bedrooms_desc' | 'bathrooms_asc' | 'bathrooms_desc';
@@ -38,7 +40,12 @@ interface FilterState {
   sort?: SortOption;
   searchBounds?: MapBounds | null;
   searchLocationName?: string;
+  listingTypeFilter?: 'all' | 'residential' | 'commercial';
 }
+
+type SalesBrowseItem =
+  | { kind: 'residential'; data: Listing & { showFeaturedBadge: boolean; key: string } }
+  | { kind: 'commercial'; data: CommercialListing };
 
 interface MapBounds {
   north: number;
@@ -72,11 +79,11 @@ function applySalesClientSideFilters(listings: Listing[], filters: FilterState):
 }
 
 export function BrowseSales() {
-  const [displayListings, setDisplayListings] = useState<
-    (Listing & { showFeaturedBadge: boolean })[]
-  >([]);
+  const [displayItems, setDisplayItems] = useState<SalesBrowseItem[]>([]);
   const [allListingsForMap, setAllListingsForMap] = useState<Listing[]>([]);
+  const [allCommercialForMap, setAllCommercialForMap] = useState<CommercialListing[]>([]);
   const [userFavorites, setUserFavorites] = useState<string[]>([]);
+  const [commercialFavorites, setCommercialFavorites] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [totalCount, setTotalCount] = useState(0);
   const [agencies, setAgencies] = useState<string[]>([]);
@@ -106,6 +113,10 @@ export function BrowseSales() {
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const { user } = useAuth();
   const { filters, currentPage, updateFilters, updatePage, markNavigatingToDetail, isReady } = useBrowseFilters('sales');
+
+  const displayListings = displayItems
+    .filter((item): item is SalesBrowseItem & { kind: 'residential' } => item.kind === 'residential')
+    .map(item => item.data);
 
   const { observeElement, unobserveElement } = useListingImpressions({
     listingIds: displayListings.map(l => l.id),
@@ -138,9 +149,24 @@ export function BrowseSales() {
       }));
   }, [filteredListingsForMap]);
 
+  const commercialPinsForMap = useMemo((): CommercialMapPin[] => {
+    return allCommercialForMap
+      .filter((c) => c.latitude != null && c.longitude != null)
+      .map((c) => ({
+        id: c.id,
+        latitude: c.latitude!,
+        longitude: c.longitude!,
+        price: c.price,
+        asking_price: c.asking_price,
+        listing_type: c.listing_type,
+        commercial_space_type: c.commercial_space_type,
+        neighborhood: c.neighborhood,
+      }));
+  }, [allCommercialForMap]);
+
   const visiblePinIds = useMemo(() => {
-    return new Set(pinsFromListings.map((p) => p.id));
-  }, [pinsFromListings]);
+    return new Set([...pinsFromListings.map((p) => p.id), ...commercialPinsForMap.map(p => p.id)]);
+  }, [pinsFromListings, commercialPinsForMap]);
 
   useEffect(() => {
     if (user) {
@@ -166,8 +192,12 @@ export function BrowseSales() {
   const loadUserFavorites = async () => {
     if (!user) return;
     try {
-      const favorites = await listingsService.getUserFavoriteIds(user.id);
+      const [favorites, commercialFavs] = await Promise.all([
+        listingsService.getUserFavoriteIds(user.id),
+        commercialListingsService.getUserCommercialFavoriteIds(user.id),
+      ]);
       setUserFavorites(favorites);
+      setCommercialFavorites(commercialFavs);
     } catch (error) {
       console.error("Error loading user favorites:", error);
     }
@@ -186,177 +216,213 @@ export function BrowseSales() {
 
       setLoading(true);
 
-      const { no_fee_only, searchBounds: filterBounds, searchLocationName, ...restFilters } = filters;
+      const listingTypeFilter = filters.listingTypeFilter || 'all';
+      const fetchResidential = listingTypeFilter !== 'commercial';
+      const fetchCommercial = listingTypeFilter !== 'residential';
+
+      const { no_fee_only, searchBounds: filterBounds, searchLocationName, listingTypeFilter: _ltf, ...restFilters } = filters;
       const serviceFilters = {
         ...restFilters,
         noFeeOnly: no_fee_only,
         bounds: filterBounds || undefined,
       };
 
-      const { totalCount: actualTotalCount } = await listingsService.getSaleListings(
-        serviceFilters,
-        undefined,
-        user?.id,
-        0,
-        false,
-      );
-      setTotalCount(actualTotalCount);
+      const commercialServiceFilters = {
+        min_price: filters.min_price,
+        max_price: filters.max_price,
+        neighborhoods: filters.neighborhoods,
+        sort: (filters.sort === 'price_asc' || filters.sort === 'price_desc' || filters.sort === 'newest' || filters.sort === 'oldest') ? filters.sort : 'newest' as any,
+        bounds: filterBounds || undefined,
+      };
 
-      // Check if current page exceeds available pages
-      const maxValidPage = Math.max(1, Math.ceil(actualTotalCount / ITEMS_PER_PAGE));
-      if (currentPage > maxValidPage && actualTotalCount > 0) {
-        // Show brief loading state to avoid jarring flash
+      let residentialCount = 0;
+      let allCommercial: CommercialListing[] = [];
+
+      if (fetchResidential && fetchCommercial) {
+        const [countResult, commercialResult] = await Promise.all([
+          listingsService.getSaleListings(serviceFilters, undefined, user?.id, 0, false),
+          commercialListingsService.getCommercialSaleListings(commercialServiceFilters, undefined, user?.id, 0, false),
+        ]);
+        residentialCount = countResult.totalCount;
+        allCommercial = commercialResult.data;
+      } else if (fetchResidential) {
+        const countResult = await listingsService.getSaleListings(serviceFilters, undefined, user?.id, 0, false);
+        residentialCount = countResult.totalCount;
+      } else {
+        const commercialResult = await commercialListingsService.getCommercialSaleListings(commercialServiceFilters, undefined, user?.id, 0, false);
+        allCommercial = commercialResult.data;
+      }
+
+      const combinedTotalCount = residentialCount + allCommercial.length;
+      setTotalCount(combinedTotalCount);
+
+      const maxValidPage = Math.max(1, Math.ceil(residentialCount / ITEMS_PER_PAGE));
+      if (fetchResidential && currentPage > maxValidPage && residentialCount > 0) {
         setTimeout(() => {
-          // Redirect to last valid page using URL replace (don't pollute history)
           updatePage(maxValidPage);
-          // Show toast notification
           setToastMessage(`Showing page ${maxValidPage} of ${maxValidPage}`);
         }, 250);
-        return; // Exit early to prevent invalid fetch
+        return;
       }
 
-      let allFeaturedListings: Listing[] = [];
-      try {
-        allFeaturedListings = await listingsService.getFeaturedListingsForSearch(
-          serviceFilters,
-          'sale',
-          user?.id,
+      let finalResidentialItems: (Listing & { showFeaturedBadge: boolean; key: string })[] = [];
+
+      if (fetchResidential) {
+        let allFeaturedListings: Listing[] = [];
+        try {
+          allFeaturedListings = await listingsService.getFeaturedListingsForSearch(
+            serviceFilters,
+            'sale',
+            user?.id,
+          );
+          allFeaturedListings = applySalesClientSideFilters(allFeaturedListings, filters);
+        } catch (error) {
+          console.error("Error loading featured listings:", error);
+        }
+
+        const hourSeed = Math.floor(Date.now() / (1000 * 60 * 60));
+        const zoneB = [6, 7, 8];
+        const zoneC = [11, 12, 13];
+        const injectionPositions = [
+          0,
+          1,
+          zoneB[hourSeed % zoneB.length],
+          zoneC[(hourSeed + 1) % zoneC.length],
+        ];
+
+        const sessionSeed = getSessionSeed();
+        const filterHash = JSON.stringify(serviceFilters).split('').reduce(
+          (hash, char) => ((hash << 5) - hash) + char.charCodeAt(0), 0
         );
-        allFeaturedListings = applySalesClientSideFilters(allFeaturedListings, filters);
-      } catch (error) {
-        console.error("Error loading featured listings:", error);
-      }
+        const combinedSeed = sessionSeed ^ filterHash;
+        const shuffledFeatured = seededShuffle(allFeaturedListings, combinedSeed);
 
-      const hourSeed = Math.floor(Date.now() / (1000 * 60 * 60));
-      const zoneB = [6, 7, 8];
-      const zoneC = [11, 12, 13];
-      const injectionPositions = [
-        0,
-        1,
-        zoneB[hourSeed % zoneB.length],
-        zoneC[(hourSeed + 1) % zoneC.length],
-      ];
+        const slotsPerPage = injectionPositions.length;
+        const startIndex = (currentPage - 1) * slotsPerPage;
+        let featuredForThisPage: Listing[] = [];
 
-      // Session-seeded random shuffle for equal probability
-      const sessionSeed = getSessionSeed();
-      // Combine session seed with a hash of the current filter state so that
-      // changing filters produces a different shuffle (prevents the same listing
-      // always being first regardless of filter context)
-      const filterHash = JSON.stringify(serviceFilters).split('').reduce(
-        (hash, char) => ((hash << 5) - hash) + char.charCodeAt(0), 0
-      );
-      const combinedSeed = sessionSeed ^ filterHash;
+        if (shuffledFeatured.length > 0) {
+          for (let i = 0; i < slotsPerPage; i++) {
+            const index = startIndex + i;
+            if (index < shuffledFeatured.length) {
+              featuredForThisPage.push(shuffledFeatured[index]);
+            } else if (shuffledFeatured.length > 0) {
+              featuredForThisPage.push(shuffledFeatured[index % shuffledFeatured.length]);
+            }
+          }
+          featuredForThisPage = [...new Map(featuredForThisPage.map(f => [f.id, f])).values()];
+        }
 
-      const shuffledFeatured = seededShuffle(allFeaturedListings, combinedSeed);
+        const numStandardNeeded = ITEMS_PER_PAGE - featuredForThisPage.length;
+        const standardOffset = (currentPage - 1) * ITEMS_PER_PAGE;
 
-      // Page-based slicing from the shuffled array
-      const slotsPerPage = injectionPositions.length;
-      const startIndex = (currentPage - 1) * slotsPerPage;
-      let featuredForThisPage: Listing[] = [];
+        const { data: rawStandardListings } = await listingsService.getSaleListings(
+          serviceFilters,
+          numStandardNeeded,
+          user?.id,
+          standardOffset,
+          true,
+        );
 
-      if (shuffledFeatured.length > 0) {
-        for (let i = 0; i < slotsPerPage; i++) {
-          const index = startIndex + i;
-          if (index < shuffledFeatured.length) {
-            featuredForThisPage.push(shuffledFeatured[index]);
-          } else if (shuffledFeatured.length > 0) {
-            // Wrap around if more pages than featured listings
-            featuredForThisPage.push(shuffledFeatured[index % shuffledFeatured.length]);
+        const standardListings = applySalesClientSideFilters(rawStandardListings, filters);
+
+        const featuredPositionMap = new Map<string, number[]>();
+        let fIdx = 0;
+        for (let pos = 0; pos < ITEMS_PER_PAGE && fIdx < featuredForThisPage.length; pos++) {
+          if (injectionPositions.includes(pos) && fIdx < featuredForThisPage.length) {
+            const fId = featuredForThisPage[fIdx].id;
+            if (!featuredPositionMap.has(fId)) featuredPositionMap.set(fId, []);
+            featuredPositionMap.get(fId)!.push(pos);
+            fIdx++;
           }
         }
-        // Deduplicate (in case wrapping caused same listing twice on one page)
-        featuredForThisPage = [...new Map(featuredForThisPage.map(f => [f.id, f])).values()];
-      }
 
-      const numStandardNeeded = ITEMS_PER_PAGE - featuredForThisPage.length;
-      const standardOffset = (currentPage - 1) * ITEMS_PER_PAGE;
+        let featuredIndex = 0;
+        let standardListingsCursor = 0;
 
-      const { data: rawStandardListings } = await listingsService.getSaleListings(
-        serviceFilters,
-        numStandardNeeded,
-        user?.id,
-        standardOffset,
-        true,
-      );
+        for (let position = 0; position < ITEMS_PER_PAGE; position++) {
+          const isInjectionSlot = injectionPositions.includes(position) && featuredIndex < featuredForThisPage.length;
 
-      const standardListings = applySalesClientSideFilters(rawStandardListings, filters);
-
-      const featuredPositionMap = new Map<string, number[]>();
-      let fIdx = 0;
-      for (let pos = 0; pos < ITEMS_PER_PAGE && fIdx < featuredForThisPage.length; pos++) {
-        if (injectionPositions.includes(pos) && fIdx < featuredForThisPage.length) {
-          const fId = featuredForThisPage[fIdx].id;
-          if (!featuredPositionMap.has(fId)) featuredPositionMap.set(fId, []);
-          featuredPositionMap.get(fId)!.push(pos);
-          fIdx++;
-        }
-      }
-
-      const finalListings: (Listing & { showFeaturedBadge: boolean; key: string })[] = [];
-      let featuredIndex = 0;
-      let standardListingsCursor = 0;
-
-      for (let position = 0; position < ITEMS_PER_PAGE; position++) {
-        const isInjectionSlot = injectionPositions.includes(position) && featuredIndex < featuredForThisPage.length;
-
-        if (isInjectionSlot) {
-          finalListings.push({
-            ...featuredForThisPage[featuredIndex],
-            showFeaturedBadge: true,
-            key: `sponsored-${featuredForThisPage[featuredIndex].id}`,
-          });
-          featuredIndex++;
-        } else if (standardListingsCursor < standardListings.length) {
-          const stdListing = standardListings[standardListingsCursor];
-          const sponsoredPositions = featuredPositionMap.get(stdListing.id);
-          if (sponsoredPositions && sponsoredPositions.some(sp => Math.abs(sp - position) <= 2)) {
-            standardListingsCursor++;
-            if (standardListingsCursor < standardListings.length) {
-              const nextStd = standardListings[standardListingsCursor];
-              const nextKey = featuredPositionMap.has(nextStd.id)
-                ? `${nextStd.id}-natural` : nextStd.id;
-              finalListings.push({
-                ...nextStd,
+          if (isInjectionSlot) {
+            finalResidentialItems.push({
+              ...featuredForThisPage[featuredIndex],
+              showFeaturedBadge: true,
+              key: `sponsored-${featuredForThisPage[featuredIndex].id}`,
+            });
+            featuredIndex++;
+          } else if (standardListingsCursor < standardListings.length) {
+            const stdListing = standardListings[standardListingsCursor];
+            const sponsoredPositions = featuredPositionMap.get(stdListing.id);
+            if (sponsoredPositions && sponsoredPositions.some(sp => Math.abs(sp - position) <= 2)) {
+              standardListingsCursor++;
+              if (standardListingsCursor < standardListings.length) {
+                const nextStd = standardListings[standardListingsCursor];
+                const nextKey = featuredPositionMap.has(nextStd.id)
+                  ? `${nextStd.id}-natural` : nextStd.id;
+                finalResidentialItems.push({
+                  ...nextStd,
+                  showFeaturedBadge: false,
+                  key: nextKey,
+                });
+                standardListingsCursor++;
+              }
+            } else {
+              const key = featuredPositionMap.has(stdListing.id)
+                ? `${stdListing.id}-natural` : stdListing.id;
+              finalResidentialItems.push({
+                ...stdListing,
                 showFeaturedBadge: false,
-                key: nextKey,
+                key: key,
               });
               standardListingsCursor++;
             }
           } else {
-            const key = featuredPositionMap.has(stdListing.id)
-              ? `${stdListing.id}-natural` : stdListing.id;
-            finalListings.push({
-              ...stdListing,
-              showFeaturedBadge: false,
-              key: key,
-            });
-            standardListingsCursor++;
+            break;
           }
-        } else {
-          break;
         }
       }
 
-      setDisplayListings(finalListings);
+      const sortKey = filters.sort || 'newest';
+      const residentialWrapped: SalesBrowseItem[] = finalResidentialItems.map(d => ({ kind: 'residential', data: d }));
+      const commercialWrapped: SalesBrowseItem[] = allCommercial.map(d => ({ kind: 'commercial', data: d }));
+      const merged: SalesBrowseItem[] = [...residentialWrapped, ...commercialWrapped];
 
-      const { data: allData } = await listingsService.getSaleListings(
-        serviceFilters,
-        undefined,
-        user?.id,
-        0,
-        false,
-      );
+      merged.sort((a, b) => {
+        const aDate = a.data.created_at;
+        const bDate = b.data.created_at;
+        const aPrice = a.kind === 'residential' ? (a.data.asking_price ?? 0) : (a.data.asking_price ?? 0);
+        const bPrice = b.kind === 'residential' ? (b.data.asking_price ?? 0) : (b.data.asking_price ?? 0);
+        if (sortKey === 'newest') return new Date(bDate).getTime() - new Date(aDate).getTime();
+        if (sortKey === 'oldest') return new Date(aDate).getTime() - new Date(bDate).getTime();
+        if (sortKey === 'price_asc') return aPrice - bPrice;
+        if (sortKey === 'price_desc') return bPrice - aPrice;
+        return new Date(bDate).getTime() - new Date(aDate).getTime();
+      });
 
-      setAllListingsForMap(allData || []);
+      setDisplayItems(merged);
+      setAllCommercialForMap(allCommercial);
 
-      if (!preserveMapRef.current && !filters.searchBounds) {
-        const geoCenter = calculateGeographicCenter(allData || []);
-        if (geoCenter) {
-          setCenterOnListings(geoCenter);
-          setTimeout(() => {
-            setCenterOnListings(null);
-          }, 1500);
+      if (fetchResidential) {
+        const { data: allData } = await listingsService.getSaleListings(
+          serviceFilters,
+          undefined,
+          user?.id,
+          0,
+          false,
+        );
+        setAllListingsForMap(allData || []);
+
+        if (!preserveMapRef.current && !filters.searchBounds) {
+          const geoCenter = calculateGeographicCenter(allData || []);
+          if (geoCenter) {
+            setCenterOnListings(geoCenter);
+            setTimeout(() => {
+              setCenterOnListings(null);
+            }, 1500);
+          }
         }
+      } else {
+        setAllListingsForMap([]);
       }
 
     } catch (error) {
@@ -706,38 +772,47 @@ export function BrowseSales() {
 
   const renderListingCards = () => (
     <div className="grid grid-cols-2 gap-3">
-      {displayListings.map((listing, idx) => {
-        const isNewListing = showCardAnimations && !previousListingIds.has(listing.id);
+      {displayItems.map((item, idx) => {
+        const id = item.kind === 'residential' ? item.data.id : item.data.id;
+        const isNewListing = showCardAnimations && !previousListingIds.has(id);
         return (
           <div
-            key={listing.key}
-            id={`listing-card-${listing.id}`}
+            key={item.kind === 'residential' ? item.data.key : `commercial-${item.data.id}`}
+            id={`listing-card-${id}`}
             className={`transition-all duration-200 ${
-              hoveredListingId === listing.id || selectedListingId === listing.id
+              hoveredListingId === id || selectedListingId === id
                 ? 'ring-2 ring-brand-500 rounded-lg'
                 : ''
             } ${isNewListing ? 'animate-new-card' : ''}`}
-            onMouseEnter={() => handleListingHover(listing.id)}
+            onMouseEnter={() => handleListingHover(id)}
             onMouseLeave={() => handleListingHover(null)}
             ref={(el) => {
               if (el) {
-                observeElement(el, listing.id);
+                observeElement(el, id);
               } else {
-                const existingEl = document.querySelector(`[data-listing-id="${listing.id}"]`);
+                const existingEl = document.querySelector(`[data-listing-id="${id}"]`);
                 if (existingEl) {
                   unobserveElement(existingEl);
                 }
               }
             }}
           >
-            <ListingCard
-              listing={listing}
-              isFavorited={userFavorites.includes(listing.id)}
-              onFavoriteChange={handleFavoriteChange}
-              showFeaturedBadge={listing.showFeaturedBadge}
-              onClick={() => handleCardClick(listing, idx)}
-              onNavigateToDetail={markNavigatingToDetail}
-            />
+            {item.kind === 'residential' ? (
+              <ListingCard
+                listing={item.data}
+                isFavorited={userFavorites.includes(item.data.id)}
+                onFavoriteChange={handleFavoriteChange}
+                showFeaturedBadge={item.data.showFeaturedBadge}
+                onClick={() => handleCardClick(item.data, idx)}
+                onNavigateToDetail={markNavigatingToDetail}
+              />
+            ) : (
+              <CommercialListingCard
+                listing={item.data}
+                isFavorited={commercialFavorites.includes(item.data.id)}
+                onFavoriteChange={loadUserFavorites}
+              />
+            )}
           </div>
         );
       })}
@@ -1065,9 +1140,9 @@ export function BrowseSales() {
                   {loading && !isFilterClearing && (
                     <div className="absolute inset-0 bg-white bg-opacity-50 z-10 pointer-events-none"></div>
                   )}
-                  {loading && displayListings.length === 0 ? (
+                  {loading && displayItems.length === 0 ? (
                     renderLoadingState()
-                  ) : displayListings.length === 0 ? (
+                  ) : displayItems.length === 0 ? (
                     renderEmptyState()
                   ) : (
                     <>
@@ -1125,6 +1200,8 @@ export function BrowseSales() {
               <ListingsMapEnhanced
                 listings={allListingsForMap}
                 pins={pinsFromListings}
+                commercialListings={allCommercialForMap}
+                commercialPins={commercialPinsForMap}
                 visiblePinIds={visiblePinIds}
                 hoveredListingId={hoveredListingId}
                 selectedListingId={selectedListingId}
@@ -1166,7 +1243,7 @@ export function BrowseSales() {
                     </div>
                   </div>
                 </div>
-              ) : displayListings.length === 0 ? (
+              ) : displayItems.length === 0 ? (
                 <div className="px-6">{renderEmptyState()}</div>
               ) : (
                 <MobileListingCarousel
@@ -1197,30 +1274,41 @@ export function BrowseSales() {
                     </div>
                   ))}
                 </div>
-              ) : displayListings.length === 0 ? (
+              ) : displayItems.length === 0 ? (
                 renderEmptyState()
               ) : (
                 <>
                   <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                    {displayListings.map((listing, idx) => (
-                      <div
-                        key={listing.key}
-                        ref={(el) => {
-                          if (el) {
-                            observeElement(el, listing.id);
-                          }
-                        }}
-                      >
-                        <ListingCard
-                          listing={listing}
-                          isFavorited={userFavorites.includes(listing.id)}
-                          onFavoriteChange={handleFavoriteChange}
-                          showFeaturedBadge={listing.showFeaturedBadge}
-                          onClick={() => handleCardClick(listing, idx)}
-                          onNavigateToDetail={markNavigatingToDetail}
-                        />
-                      </div>
-                    ))}
+                    {displayItems.map((item, idx) => {
+                      const id = item.kind === 'residential' ? item.data.id : item.data.id;
+                      return (
+                        <div
+                          key={item.kind === 'residential' ? item.data.key : `commercial-${item.data.id}`}
+                          ref={(el) => {
+                            if (el) {
+                              observeElement(el, id);
+                            }
+                          }}
+                        >
+                          {item.kind === 'residential' ? (
+                            <ListingCard
+                              listing={item.data}
+                              isFavorited={userFavorites.includes(item.data.id)}
+                              onFavoriteChange={handleFavoriteChange}
+                              showFeaturedBadge={item.data.showFeaturedBadge}
+                              onClick={() => handleCardClick(item.data, idx)}
+                              onNavigateToDetail={markNavigatingToDetail}
+                            />
+                          ) : (
+                            <CommercialListingCard
+                              listing={item.data}
+                              isFavorited={commercialFavorites.includes(item.data.id)}
+                              onFavoriteChange={loadUserFavorites}
+                            />
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                   {totalPages > 1 && (
                     <div className="flex items-center justify-center space-x-2 mt-12">
@@ -1275,7 +1363,7 @@ export function BrowseSales() {
               </button>
             </div>
 
-            {loading && displayListings.length === 0 ? (
+            {loading && displayItems.length === 0 ? (
               <div className="h-full bg-gray-100 flex items-center justify-center">
                 <div className="text-center">
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-700 mx-auto mb-3"></div>
@@ -1286,6 +1374,8 @@ export function BrowseSales() {
               <ListingsMapEnhanced
                 listings={allListingsForMap}
                 pins={pinsFromListings}
+                commercialListings={allCommercialForMap}
+                commercialPins={commercialPinsForMap}
                 visiblePinIds={visiblePinIds}
                 hoveredListingId={hoveredListingId}
                 selectedListingId={selectedListingId}
