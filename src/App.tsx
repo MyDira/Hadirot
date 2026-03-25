@@ -11,6 +11,7 @@ import { PostListing } from './pages/PostListing';
 import { PostCommercialListing } from './pages/PostCommercialListing';
 import { EditListing } from './pages/EditListing';
 import { ListingDetail } from './pages/ListingDetail';
+import { CommercialListingDetail } from './pages/CommercialListingDetail';
 import { AdminPanel } from './pages/AdminPanel';
 import { InternalAnalytics } from './pages/InternalAnalytics';
 import { AgencySettings } from './pages/AgencySettings';
@@ -89,6 +90,7 @@ function App() {
                 <Route path="/post-commercial" element={<PostCommercialListing />} />
                 <Route path="/edit/:id" element={<EditListing />} />
                 <Route path="/listing/:id" element={<ListingDetail />} />
+                <Route path="/commercial-listing/:id" element={<CommercialListingDetail />} />
                 <Route path="/l/:code" element={<ShortUrlRedirect />} />
                 <Route path="/favorites" element={<Navigate to="/account?tab=favorites" replace />} />
                 <Route path="/admin" element={<AdminPanel />} />

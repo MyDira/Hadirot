@@ -698,6 +698,31 @@ export const commercialListingsService = {
     return updatedListing as unknown as CommercialListing;
   },
 
+  async incrementCommercialListingView(id: string): Promise<void> {
+    try {
+      await supabase.rpc('increment_commercial_listing_views', { listing_id: id });
+    } catch {
+      try {
+        const { data: current } = await supabase
+          .from('commercial_listings')
+          .select('views, direct_views')
+          .eq('id', id)
+          .maybeSingle();
+        if (current) {
+          await supabase
+            .from('commercial_listings')
+            .update({
+              views: (current.views ?? 0) + 1,
+              direct_views: (current.direct_views ?? 0) + 1,
+            })
+            .eq('id', id);
+        }
+      } catch (innerErr) {
+        console.error('Error incrementing commercial listing view:', innerErr);
+      }
+    }
+  },
+
   async getCommercialFeaturedListingsCount(): Promise<number> {
     const { count, error } = await supabase
       .from('commercial_listings')
