@@ -129,12 +129,6 @@ export function DigestGlobalSettings() {
                 Configure default header and footer text used in all digest emails
               </p>
             </div>
-            <button
-              onClick={() => navigate('/admin/digest')}
-              className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-            >
-              Back to Digests
-            </button>
           </div>
         </div>
 

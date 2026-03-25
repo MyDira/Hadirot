@@ -1256,13 +1256,6 @@ export function EditListing() {
   return (
     <div className="max-w-4xl mx-auto p-6">
       <div className="mb-8">
-        <Link
-          to="/dashboard"
-          className="inline-flex items-center text-[#273140] hover:text-[#1e252f] mb-4 transition-colors"
-        >
-          <ArrowLeft className="w-4 h-4 mr-2" />
-          Back to Dashboard
-        </Link>
         <h1 className="text-3xl font-bold text-[#273140]">Edit Listing</h1>
         <p className="text-gray-600 mt-2">Update your property details</p>
       </div>

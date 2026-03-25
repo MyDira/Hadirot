@@ -203,12 +203,6 @@ export function ConciergeSuccess() {
           Go to My Account
           <ArrowRight className="w-4 h-4" />
         </Link>
-        <Link
-          to="/concierge"
-          className="text-sm text-gray-500 hover:text-gray-700 transition-colors"
-        >
-          Back to Concierge
-        </Link>
       </div>
     </div>
   );

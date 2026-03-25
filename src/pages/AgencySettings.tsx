@@ -633,13 +633,6 @@ export function AgencySettings() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          <Link
-            to="/dashboard"
-            className="inline-flex items-center gap-2 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            Back to Dashboard
-          </Link>
           {publicAgencyLink && (
             <a
               href={publicAgencyLink}

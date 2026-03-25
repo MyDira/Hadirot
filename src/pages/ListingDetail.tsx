@@ -518,16 +518,6 @@ export function ListingDetail() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      {/* Back Button */}
-      <Link
-        to="/browse"
-        onClick={handleBackToBrowse}
-        className="inline-flex items-center text-[#4E4B43] hover:text-[#3a3832] mb-6 transition-colors"
-      >
-        <ArrowLeft className="w-4 h-4 mr-2" />
-        Back to Browse
-      </Link>
-
       {/* Admin Banner - Shows for owners and admins */}
       {user && (
         <AdminListingBanner
