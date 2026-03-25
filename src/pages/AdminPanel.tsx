@@ -35,8 +35,6 @@ const ADMIN_TABS: { id: AdminTabKey; label: string; icon: React.ElementType }[] 
   { id: 'users', label: 'Users', icon: Users },
   { id: 'listings', label: 'Listings', icon: Home },
   { id: 'pending', label: 'Pending', icon: Eye },
-  { id: 'sales', label: 'Sales System', icon: DollarSign },
-  { id: 'concierge', label: 'Concierge', icon: Briefcase },
   { id: 'pipeline', label: 'Pipeline', icon: GitBranch },
 ];
 
@@ -842,22 +840,25 @@ export function AdminPanel() {
   const startUserIndex = (currentUserPage - 1) * USERS_PER_PAGE + 1;
   const endUserIndex = Math.min(currentUserPage * USERS_PER_PAGE, filteredUsers.length);
 
-  const StatCard = ({ icon: Icon, title, value, color }: {
+  const StatCard = ({ icon: Icon, title, value, color, bgColor, textColor }: {
     icon: React.ElementType;
     title: string;
     value: number;
     color: string;
+    bgColor: string;
+    textColor: string;
   }) => (
-    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-      <div className="flex items-center">
-        <div className={`p-3 rounded-lg ${color} mr-4`}>
-          <Icon className="w-6 h-6 text-white" />
-        </div>
+    <div className={`relative overflow-hidden rounded-2xl p-6 ${bgColor} border border-white/20 shadow-sm`}>
+      <div className="flex items-start justify-between">
         <div>
-          <p className="text-sm font-medium text-gray-600">{title}</p>
-          <p className="text-3xl font-bold text-gray-900">{value}</p>
+          <p className={`text-xs font-semibold uppercase tracking-widest ${textColor} opacity-70 mb-1`}>{title}</p>
+          <p className={`text-5xl font-bold ${textColor} leading-none mt-2`}>{value.toLocaleString()}</p>
+        </div>
+        <div className={`p-3 rounded-xl ${color} shadow-sm`}>
+          <Icon className="w-5 h-5 text-white" />
         </div>
       </div>
+      <div className={`absolute -bottom-4 -right-4 w-24 h-24 rounded-full ${color} opacity-10`} />
     </div>
   );
 
@@ -924,169 +925,84 @@ export function AdminPanel() {
                   title="Total Users"
                   value={stats.totalUsers}
                   color="bg-blue-500"
+                  bgColor="bg-blue-50"
+                  textColor="text-blue-900"
                 />
                 <StatCard
                   icon={Home}
                   title="Active Listings"
                   value={stats.totalListings}
-                  color="bg-green-500"
+                  color="bg-emerald-500"
+                  bgColor="bg-emerald-50"
+                  textColor="text-emerald-900"
                 />
                 <StatCard
                   icon={Star}
                   title="Featured Listings"
                   value={stats.featuredListings}
-                  color="bg-yellow-500"
+                  color="bg-amber-500"
+                  bgColor="bg-amber-50"
+                  textColor="text-amber-900"
                 />
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                  <div className="flex items-center mb-4">
-                    <div className="p-3 rounded-lg bg-orange-500 mr-4">
-                      <Clock className="w-6 h-6 text-white" />
-                    </div>
+                <div className="relative overflow-hidden rounded-2xl p-6 bg-slate-50 border border-white/20 shadow-sm">
+                  <div className="flex items-start justify-between mb-5">
                     <div>
-                      <p className="text-sm font-medium text-gray-600">Listing Active Duration</p>
-                      <p className="text-xs text-gray-500 mt-1">Days before auto-deactivation per listing type</p>
+                      <p className="text-xs font-semibold uppercase tracking-widest text-slate-500 mb-1">Listing Duration</p>
+                      <p className="text-sm font-medium text-slate-700">Auto-deactivation days</p>
+                    </div>
+                    <div className="p-3 rounded-xl bg-slate-600 shadow-sm">
+                      <Clock className="w-5 h-5 text-white" />
                     </div>
                   </div>
                   <div className="space-y-3">
-                    <div>
-                      <label className="block text-xs font-medium text-gray-500 mb-1">Rentals</label>
-                      <div className="flex items-center space-x-2">
-                        <input
-                          type="number"
-                          min="7"
-                          max="365"
-                          value={rentalActiveDays}
-                          onChange={(e) => setRentalActiveDays(parseInt(e.target.value) || 30)}
-                          className="w-20 px-3 py-2 border border-gray-300 rounded-md focus:ring-[#4E4B43] focus:border-[#4E4B43]"
-                        />
-                        <span className="text-sm text-gray-600">days</span>
-                      </div>
+                    <div className="flex items-center gap-3">
+                      <span className="text-xs font-medium text-slate-500 w-12 shrink-0">Rentals</span>
+                      <input type="number" min="7" max="365" value={rentalActiveDays} onChange={(e) => setRentalActiveDays(parseInt(e.target.value) || 30)} className="w-20 px-3 py-1.5 text-sm border border-slate-200 rounded-lg focus:ring-[#4E4B43] focus:border-[#4E4B43] bg-white" />
+                      <span className="text-xs text-slate-400">days</span>
                     </div>
-                    <div>
-                      <label className="block text-xs font-medium text-gray-500 mb-1">Sales</label>
-                      <div className="flex items-center space-x-2">
-                        <input
-                          type="number"
-                          min="7"
-                          max="365"
-                          value={saleActiveDays}
-                          onChange={(e) => setSaleActiveDays(parseInt(e.target.value) || 30)}
-                          className="w-20 px-3 py-2 border border-gray-300 rounded-md focus:ring-[#4E4B43] focus:border-[#4E4B43]"
-                        />
-                        <span className="text-sm text-gray-600">days</span>
-                      </div>
+                    <div className="flex items-center gap-3">
+                      <span className="text-xs font-medium text-slate-500 w-12 shrink-0">Sales</span>
+                      <input type="number" min="7" max="365" value={saleActiveDays} onChange={(e) => setSaleActiveDays(parseInt(e.target.value) || 30)} className="w-20 px-3 py-1.5 text-sm border border-slate-200 rounded-lg focus:ring-[#4E4B43] focus:border-[#4E4B43] bg-white" />
+                      <span className="text-xs text-slate-400">days</span>
                     </div>
-                    <button
-                      onClick={handleSaveListingLifecycle}
-                      disabled={savingLifecycle}
-                      className="w-full px-4 py-2 bg-[#4E4B43] text-white rounded-md hover:bg-[#3d3a35] disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-medium"
-                    >
-                      {savingLifecycle ? 'Saving...' : 'Save Duration'}
+                    <button onClick={handleSaveListingLifecycle} disabled={savingLifecycle} className="w-full mt-1 px-4 py-2 bg-[#4E4B43] text-white rounded-xl hover:bg-[#3d3a35] disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-medium">
+                      {savingLifecycle ? 'Saving…' : 'Save Duration'}
                     </button>
-                    <p className="text-xs text-gray-500 italic">
-                      Changes take effect on next automated check (runs daily at 12:00 AM GMT)
-                    </p>
+                    <p className="text-xs text-slate-400 italic leading-tight">Takes effect on next automated check (daily, 12:00 AM GMT)</p>
                   </div>
+                  <div className="absolute -bottom-4 -right-4 w-24 h-24 rounded-full bg-slate-400 opacity-10" />
                 </div>
               </div>
 
-              {/* Quick Links to Other Admin Pages */}
+              {/* Admin Tools */}
               <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                <h3 className="text-lg font-semibold text-[#4E4B43] mb-4">Admin Tools</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <button
-                    onClick={() => navigate('/admin/analytics')}
-                    className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:border-[#4E4B43] hover:bg-gray-50 transition-all group"
-                  >
-                    <div className="flex items-center">
-                      <div className="p-2 bg-blue-100 rounded-lg mr-3">
-                        <BarChart3 className="w-5 h-5 text-blue-600" />
+                <p className="text-xs font-semibold uppercase tracking-widest text-gray-400 mb-5">Admin Tools</p>
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+                  {[
+                    { icon: BarChart3,  label: 'Analytics Dashboard',  desc: 'View platform metrics and insights',         iconBg: 'bg-blue-100',    iconColor: 'text-blue-600',    onClick: () => navigate('/admin/analytics') },
+                    { icon: FileText,   label: 'Content Management',    desc: 'Manage pages, featured settings, modals',    iconBg: 'bg-green-100',   iconColor: 'text-green-600',   onClick: () => navigate('/admin/content-management') },
+                    { icon: Mail,       label: 'Digest Manager',        desc: 'Create WhatsApp digest messages',             iconBg: 'bg-purple-100',  iconColor: 'text-purple-600',  onClick: () => navigate('/admin/digest-manager') },
+                    { icon: DollarSign, label: 'Sales System',          desc: 'Manage sales listings and commissions',       iconBg: 'bg-emerald-100', iconColor: 'text-emerald-600', onClick: () => handleTabChange('sales') },
+                    { icon: Briefcase,  label: 'Concierge',             desc: 'Manage concierge subscriptions',              iconBg: 'bg-indigo-100',  iconColor: 'text-indigo-600',  onClick: () => handleTabChange('concierge') },
+                  ].map(({ icon: ToolIcon, label, desc, iconBg, iconColor, onClick }) => (
+                    <button
+                      key={label}
+                      onClick={onClick}
+                      className="flex items-center gap-4 p-4 rounded-xl border border-gray-100 hover:border-[#4E4B43] hover:bg-gray-50 transition-all group text-left"
+                    >
+                      <div className={`p-2.5 rounded-xl ${iconBg} shrink-0`}>
+                        <ToolIcon className={`w-5 h-5 ${iconColor}`} />
                       </div>
-                      <div className="text-left">
-                        <p className="font-medium text-gray-900">Analytics Dashboard</p>
-                        <p className="text-sm text-gray-500">View platform metrics and insights</p>
+                      <div className="min-w-0">
+                        <p className="font-semibold text-sm text-gray-900">{label}</p>
+                        <p className="text-xs text-gray-500 truncate">{desc}</p>
                       </div>
-                    </div>
-                    <ArrowRight className="w-5 h-5 text-gray-400 group-hover:text-[#4E4B43]" />
-                  </button>
-
-                  <button
-                    onClick={() => navigate('/admin/content-management')}
-                    className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:border-[#4E4B43] hover:bg-gray-50 transition-all group"
-                  >
-                    <div className="flex items-center">
-                      <div className="p-2 bg-green-100 rounded-lg mr-3">
-                        <FileText className="w-5 h-5 text-green-600" />
-                      </div>
-                      <div className="text-left">
-                        <p className="font-medium text-gray-900">Content Management</p>
-                        <p className="text-sm text-gray-500">Manage pages, featured settings, modals</p>
-                      </div>
-                    </div>
-                    <ArrowRight className="w-5 h-5 text-gray-400 group-hover:text-[#4E4B43]" />
-                  </button>
-
-                  <button
-                    onClick={() => navigate('/admin/digest-manager')}
-                    className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:border-[#4E4B43] hover:bg-gray-50 transition-all group"
-                  >
-                    <div className="flex items-center">
-                      <div className="p-2 bg-purple-100 rounded-lg mr-3">
-                        <Mail className="w-5 h-5 text-purple-600" />
-                      </div>
-                      <div className="text-left">
-                        <p className="font-medium text-gray-900">Digest Manager</p>
-                        <p className="text-sm text-gray-500">Create WhatsApp digest messages</p>
-                      </div>
-                    </div>
-                    <ArrowRight className="w-5 h-5 text-gray-400 group-hover:text-[#4E4B43]" />
-                  </button>
+                      <ArrowRight className="w-4 h-4 text-gray-300 group-hover:text-[#4E4B43] ml-auto shrink-0 transition-colors" />
+                    </button>
+                  ))}
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                {/* Recent Users */}
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                  <h3 className="text-lg font-semibold text-[#4E4B43] mb-4">Recent Users</h3>
-                  <div className="space-y-3">
-                    {users.slice(0, 5).map((user) => (
-                      <div key={user.id} className="flex items-center justify-between">
-                        <div>
-                          <p className="font-medium">{user.full_name}</p>
-                          <p className="text-sm text-gray-500 capitalize">{user.role}</p>
-                        </div>
-                        <span className={`px-2 py-1 text-xs rounded-full ${
-                          user.is_admin ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'
-                        }`}>
-                          {user.is_admin ? 'Admin' : 'User'}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Recent Listings */}
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                  <h3 className="text-lg font-semibold text-[#4E4B43] mb-4">Recent Listings</h3>
-                  <div className="space-y-3">
-                    {listings.slice(0, 5).map((listing) => (
-                      <div key={listing.id} className="flex items-center justify-between">
-                        <div>
-                          <p className="font-medium truncate">{listing.title}</p>
-                          <p className="text-sm text-gray-500">
-                            {listing.call_for_price ? 'Call for Price' : `$${listing.price}/month`}
-                          </p>
-                        </div>
-                        <span className={`px-2 py-1 text-xs rounded-full ${
-                          listing.is_featured ? 'bg-yellow-100 text-yellow-800' : 'bg-gray-100 text-gray-800'
-                        }`}>
-                          {listing.is_featured ? 'Featured' : 'Standard'}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
             </div>
           )}
 
