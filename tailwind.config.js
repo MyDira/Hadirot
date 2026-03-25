@@ -16,6 +16,7 @@ export default {
     'border-t-4',
     'border-l-transparent',
     'border-r-transparent',
+    'border-commercial-600',
   ],
   theme: {
     extend: {
@@ -36,6 +37,13 @@ export default {
           400: "#9CCC65",
           500: "#7CB342",
           600: "#689F38",
+        },
+        commercial: {
+          50: "#E0F4F8",
+          200: "#9DD8E6",
+          600: "#0891B2",
+          700: "#0C7A94",
+          800: "#065668",
         },
       },
       fontFamily: {

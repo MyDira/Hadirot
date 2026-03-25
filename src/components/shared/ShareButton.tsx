@@ -8,6 +8,7 @@ interface ShareButtonProps {
   /** 'card' for compact button in cards, 'detail' for prominent button on detail page */
   variant?: "card" | "detail";
   className?: string;
+  urlOverride?: string;
 }
 
 /**
@@ -25,11 +26,12 @@ export function ShareButton({
   listingTitle,
   variant = "card",
   className = "",
+  urlOverride,
 }: ShareButtonProps) {
   const [showModal, setShowModal] = useState(false);
   const [copied, setCopied] = useState(false);
 
-  const listingUrl = `${window.location.origin}/listing/${listingId}`;
+  const listingUrl = urlOverride ?? `${window.location.origin}/listing/${listingId}`;
 
   const handleShare = async (e: React.MouseEvent) => {
     e.preventDefault();
