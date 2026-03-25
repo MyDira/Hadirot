@@ -641,14 +641,17 @@ export function EditListing() {
     setIsLocationConfirmed(confirmed);
   };
 
+  const maxAllowedFiles = isSaleListing ? 21 : 11;
+  const maxAllowedImages = isSaleListing ? 20 : 10;
+
   const handleMediaAdd = async (files: File[]) => {
     if (!user) {
       alert("Please sign in to upload media");
       return;
     }
 
-    if (mediaFiles.length + files.length > 11) {
-      alert("Maximum 11 files allowed (images + videos)");
+    if (mediaFiles.length + files.length > maxAllowedFiles) {
+      alert(`Maximum ${maxAllowedFiles - 1} images + 1 video allowed${isSaleListing ? ' for sale listings' : ''}`);
       return;
     }
 
@@ -2019,7 +2022,7 @@ export function EditListing() {
             onMediaAdd={handleMediaAdd}
             onMediaRemove={handleMediaRemove}
             onSetFeatured={handleSetFeatured}
-            maxFiles={11}
+            maxFiles={maxAllowedFiles}
             disabled={!user}
             uploading={uploadingMedia}
             showAuthWarning={!user}

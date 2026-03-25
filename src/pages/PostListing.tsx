@@ -881,11 +881,17 @@ export function PostListing() {
     }
   };
 
+  const isSaleListing = formData.listing_type === 'sale';
+  const MAX_SALE_FILES = 21;
+  const MAX_RENTAL_FILES = 11;
+  const maxAllowedFiles = isSaleListing ? MAX_SALE_FILES : MAX_RENTAL_FILES;
+  const maxAllowedImages = isSaleListing ? 20 : 10;
+
   const handleMediaAdd = async (files: File[]) => {
     handleFirstInteraction();
 
-    if (mediaFiles.length + files.length > 11) {
-      alert("Maximum 11 files allowed (images + videos)");
+    if (mediaFiles.length + files.length > maxAllowedFiles) {
+      alert(`Maximum ${maxAllowedFiles - 1} images + 1 video allowed${isSaleListing ? ' for sale listings' : ''}`);
       return;
     }
 
@@ -1133,6 +1139,11 @@ export function PostListing() {
     const imageFiles = mediaFiles.filter(m => m.type === 'image');
     if (formData.listing_type === 'sale' && imageFiles.length < 2) {
       alert("Please upload at least 2 images for sale listings");
+      setLoading(false);
+      return;
+    }
+    if (imageFiles.length > maxAllowedImages) {
+      alert(`Maximum ${maxAllowedImages} images allowed${formData.listing_type === 'sale' ? ' for sale listings' : ''}`);
       setLoading(false);
       return;
     }
@@ -2293,7 +2304,7 @@ export function PostListing() {
             onMediaAdd={handleMediaAdd}
             onMediaRemove={handleMediaRemove}
             onSetFeatured={handleSetFeatured}
-            maxFiles={11}
+            maxFiles={maxAllowedFiles}
             minFiles={formData.listing_type === 'sale' ? 2 : 0}
             uploading={uploadingMedia}
           />
