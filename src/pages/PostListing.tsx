@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { CheckCircle, Briefcase } from "lucide-react";
+import { CheckCircle, Briefcase, Building2 } from "lucide-react";
 import * as Sentry from "@sentry/react";
 import { useAuth } from "@/hooks/useAuth";
 import { listingsService, getExpirationDate, getAdminActiveDays } from "../services/listings";
@@ -1589,6 +1589,7 @@ export function PostListing() {
       </div>
 
       {postMode === 'none' ? (
+        <>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
           <button
             type="button"
@@ -1617,10 +1618,24 @@ export function PostListing() {
               <h3 className="text-lg font-bold text-gray-900">Let us handle it</h3>
             </div>
             <p className="text-sm text-gray-500 leading-relaxed">
-              Our team will create and manage your listing for you.
+              Our team will create and manage your listing for you — residential or commercial.
             </p>
           </button>
         </div>
+        <div className="flex justify-center">
+          <div className="inline-flex items-center gap-2 bg-gray-100 rounded-full px-4 py-2 text-sm text-gray-500">
+            <Building2 className="w-4 h-4 text-gray-400 shrink-0" />
+            <span>Have a commercial space to list?</span>
+            <button
+              type="button"
+              onClick={() => navigate('/post-commercial')}
+              className="text-gray-600 font-medium hover:text-gray-800 underline underline-offset-2 transition-colors"
+            >
+              Post commercial
+            </button>
+          </div>
+        </div>
+        </>
       ) : postMode === 'concierge' ? (
         <>
         <div className="mb-6 flex items-center gap-2 text-sm">
