@@ -14,6 +14,9 @@ export interface GetCommercialListingsFilters {
   neighborhoods?: string[];
   is_featured_only?: boolean;
   lease_type?: string;
+  commercial_lease_types?: string[];
+  commercial_conditions?: string[];
+  building_classes?: string[];
   listing_type?: 'rental' | 'sale';
   sort?: CommercialSortOption;
   bounds?: MapBounds;
@@ -57,8 +60,16 @@ function applyCommercialFilters(query: any, filters: GetCommercialListingsFilter
   if (filters.neighborhoods && filters.neighborhoods.length > 0) {
     query = query.in('neighborhood', filters.neighborhoods);
   }
-  if (filters.lease_type) {
+  if (filters.commercial_lease_types && filters.commercial_lease_types.length > 0) {
+    query = query.in('lease_type', filters.commercial_lease_types);
+  } else if (filters.lease_type) {
     query = query.eq('lease_type', filters.lease_type);
+  }
+  if (filters.commercial_conditions && filters.commercial_conditions.length > 0) {
+    query = query.in('build_out_condition', filters.commercial_conditions);
+  }
+  if (filters.building_classes && filters.building_classes.length > 0) {
+    query = query.in('building_class', filters.building_classes);
   }
   if (filters.bounds) {
     query = query

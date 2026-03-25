@@ -49,6 +49,12 @@ interface FilterState {
   searchBounds?: MapBounds | null;
   searchLocationName?: string;
   listingTypeFilter?: 'all' | 'residential' | 'commercial';
+  commercial_space_types?: string[];
+  min_sf?: number;
+  max_sf?: number;
+  commercial_lease_types?: string[];
+  commercial_conditions?: string[];
+  building_classes?: string[];
 }
 
 type BrowseItem =
@@ -261,6 +267,12 @@ export function BrowseListings() {
         neighborhoods: filters.neighborhoods,
         sort: (filters.sort === 'price_asc' || filters.sort === 'price_desc' || filters.sort === 'newest' || filters.sort === 'oldest') ? filters.sort : 'newest' as any,
         bounds: filterBounds || undefined,
+        commercial_space_types: filters.commercial_space_types,
+        min_sf: filters.min_sf,
+        max_sf: filters.max_sf,
+        commercial_lease_types: filters.commercial_lease_types,
+        commercial_conditions: filters.commercial_conditions,
+        building_classes: filters.building_classes,
       };
 
       let residentialCount = 0;

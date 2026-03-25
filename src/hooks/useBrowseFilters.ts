@@ -30,6 +30,12 @@ export interface FilterState {
   searchBounds?: MapBounds | null;
   searchLocationName?: string;
   listingTypeFilter?: ListingTypeFilter;
+  commercial_space_types?: string[];
+  min_sf?: number;
+  max_sf?: number;
+  commercial_lease_types?: string[];
+  commercial_conditions?: string[];
+  building_classes?: string[];
 }
 
 interface BrowseState {
@@ -171,6 +177,32 @@ export function useBrowseFilters(mode: 'rental' | 'sales' = 'rental') {
       urlFilters.listingTypeFilter = listingTypeFilter;
     }
 
+    const commercial_space_types = params.get('commercial_space_types');
+    if (commercial_space_types) {
+      urlFilters.commercial_space_types = commercial_space_types.split(',').filter(Boolean);
+    }
+
+    const min_sf = params.get('min_sf');
+    if (min_sf) urlFilters.min_sf = parseInt(min_sf);
+
+    const max_sf = params.get('max_sf');
+    if (max_sf) urlFilters.max_sf = parseInt(max_sf);
+
+    const commercial_lease_types = params.get('commercial_lease_types');
+    if (commercial_lease_types) {
+      urlFilters.commercial_lease_types = commercial_lease_types.split(',').filter(Boolean);
+    }
+
+    const commercial_conditions = params.get('commercial_conditions');
+    if (commercial_conditions) {
+      urlFilters.commercial_conditions = commercial_conditions.split(',').filter(Boolean);
+    }
+
+    const building_classes = params.get('building_classes');
+    if (building_classes) {
+      urlFilters.building_classes = building_classes.split(',').filter(Boolean);
+    }
+
     const page = params.get('page');
     const pageNum = page ? parseInt(page) : 1;
 
@@ -233,6 +265,20 @@ export function useBrowseFilters(mode: 'rental' | 'sales' = 'rental') {
         }
         if (savedState.filters.listingTypeFilter && savedState.filters.listingTypeFilter !== 'all') {
           params.set('listing_type_filter', savedState.filters.listingTypeFilter);
+        }
+        if (savedState.filters.commercial_space_types && savedState.filters.commercial_space_types.length > 0) {
+          params.set('commercial_space_types', savedState.filters.commercial_space_types.join(','));
+        }
+        if (savedState.filters.min_sf) params.set('min_sf', savedState.filters.min_sf.toString());
+        if (savedState.filters.max_sf) params.set('max_sf', savedState.filters.max_sf.toString());
+        if (savedState.filters.commercial_lease_types && savedState.filters.commercial_lease_types.length > 0) {
+          params.set('commercial_lease_types', savedState.filters.commercial_lease_types.join(','));
+        }
+        if (savedState.filters.commercial_conditions && savedState.filters.commercial_conditions.length > 0) {
+          params.set('commercial_conditions', savedState.filters.commercial_conditions.join(','));
+        }
+        if (savedState.filters.building_classes && savedState.filters.building_classes.length > 0) {
+          params.set('building_classes', savedState.filters.building_classes.join(','));
         }
         params.set('page', savedState.page.toString());
         setSearchParams(params, { replace: true });
@@ -348,6 +394,21 @@ export function useBrowseFilters(mode: 'rental' | 'sales' = 'rental') {
 
     if (newFilters.listingTypeFilter && newFilters.listingTypeFilter !== 'all') {
       params.set('listing_type_filter', newFilters.listingTypeFilter);
+    }
+
+    if (newFilters.commercial_space_types && newFilters.commercial_space_types.length > 0) {
+      params.set('commercial_space_types', newFilters.commercial_space_types.join(','));
+    }
+    if (newFilters.min_sf) params.set('min_sf', newFilters.min_sf.toString());
+    if (newFilters.max_sf) params.set('max_sf', newFilters.max_sf.toString());
+    if (newFilters.commercial_lease_types && newFilters.commercial_lease_types.length > 0) {
+      params.set('commercial_lease_types', newFilters.commercial_lease_types.join(','));
+    }
+    if (newFilters.commercial_conditions && newFilters.commercial_conditions.length > 0) {
+      params.set('commercial_conditions', newFilters.commercial_conditions.join(','));
+    }
+    if (newFilters.building_classes && newFilters.building_classes.length > 0) {
+      params.set('building_classes', newFilters.building_classes.join(','));
     }
 
     params.set('page', resetPage ? '1' : currentPage.toString());

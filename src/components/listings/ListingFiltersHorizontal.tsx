@@ -40,6 +40,12 @@ interface FilterState {
   searchBounds?: MapBounds | null;
   searchLocationName?: string;
   listingTypeFilter?: ListingTypeFilter;
+  commercial_space_types?: string[];
+  min_sf?: number;
+  max_sf?: number;
+  commercial_lease_types?: string[];
+  commercial_conditions?: string[];
+  building_classes?: string[];
 }
 
 interface ListingFiltersHorizontalProps {
@@ -176,6 +182,25 @@ const SORT_OPTIONS = [
   { value: "bedrooms_desc", label: "Bedrooms: High to Low" },
 ];
 
+const COMMERCIAL_SPACE_TYPES = [
+  { value: "retail", label: "Retail" },
+  { value: "restaurant", label: "Restaurant" },
+  { value: "office", label: "Office" },
+  { value: "warehouse", label: "Warehouse" },
+  { value: "industrial", label: "Industrial" },
+  { value: "mixed_use", label: "Mixed Use" },
+  { value: "community", label: "Community" },
+  { value: "basement_commercial", label: "Basement Commercial" },
+];
+
+const COMMERCIAL_SF_PRESETS = [
+  { label: "Under 500 SF", min: undefined, max: 500 },
+  { label: "500–1,000 SF", min: 500, max: 1000 },
+  { label: "1,000–2,500 SF", min: 1000, max: 2500 },
+  { label: "2,500–5,000 SF", min: 2500, max: 5000 },
+  { label: "5,000+ SF", min: 5000, max: undefined },
+];
+
 export function ListingFiltersHorizontal({
   filters,
   onFiltersChange,
@@ -197,6 +222,8 @@ export function ListingFiltersHorizontal({
   const [tempBathMin, setTempBathMin] = useState<number>(-1);
   const [showMoreFilters, setShowMoreFilters] = useState(false);
   const [priceInputFocus, setPriceInputFocus] = useState<'min' | 'max' | null>(null);
+  const [tempSfMin, setTempSfMin] = useState<string>("");
+  const [tempSfMax, setTempSfMax] = useState<string>("");
   const containerRef = useRef<HTMLDivElement>(null);
   const minInputRef = useRef<HTMLInputElement>(null);
   const maxInputRef = useRef<HTMLInputElement>(null);
@@ -284,6 +311,11 @@ export function ListingFiltersHorizontal({
     setTempPriceMax(filters.max_price?.toString() || "");
   }, [filters.min_price, filters.max_price]);
 
+  useEffect(() => {
+    setTempSfMin(filters.min_sf?.toString() || "");
+    setTempSfMax(filters.max_sf?.toString() || "");
+  }, [filters.min_sf, filters.max_sf]);
+
   // Set default focus based on listing type
   useEffect(() => {
     if (isMobile && !priceInputFocus) {
@@ -342,6 +374,8 @@ export function ListingFiltersHorizontal({
     setTempBedrooms([]);
     setTempBathMin(-1);
     setPriceInputFocus(null);
+    setTempSfMin("");
+    setTempSfMax("");
   };
 
   const removeFilter = (filterKey: keyof FilterState) => {
@@ -462,7 +496,13 @@ export function ListingFiltersHorizontal({
     filters.no_fee_only ||
     (filters.neighborhoods && filters.neighborhoods.length > 0) ||
     filters.lease_terms?.length ||
-    filters.searchBounds
+    filters.searchBounds ||
+    filters.commercial_space_types?.length ||
+    filters.min_sf ||
+    filters.max_sf ||
+    filters.commercial_lease_types?.length ||
+    filters.commercial_conditions?.length ||
+    filters.building_classes?.length
   );
 
   const hasSearchAreaFilter = !!filters.searchBounds;
@@ -475,7 +515,10 @@ export function ListingFiltersHorizontal({
     filters.lease_terms?.length ||
     filters.poster_type ||
     filters.parking_included ||
-    filters.no_fee_only
+    filters.no_fee_only ||
+    filters.commercial_lease_types?.length ||
+    filters.commercial_conditions?.length ||
+    filters.building_classes?.length
   );
 
   if (isMobile) {
@@ -1162,6 +1205,157 @@ export function ListingFiltersHorizontal({
           </div>
         </FilterDropdown>
 
+        {listingTypeFilterValue === 'commercial' && (
+          <FilterDropdown
+            label="Space Type"
+            value={
+              filters.commercial_space_types && filters.commercial_space_types.length > 0
+                ? filters.commercial_space_types.length === 1
+                  ? (COMMERCIAL_SPACE_TYPES.find(t => t.value === filters.commercial_space_types![0])?.label || filters.commercial_space_types[0])
+                  : `${filters.commercial_space_types.length} Types`
+                : "Space Type"
+            }
+            isActive={!!(filters.commercial_space_types && filters.commercial_space_types.length > 0)}
+            isOpen={openDropdown === "space_type"}
+            onToggle={() => toggleDropdown("space_type")}
+          >
+            <div className="p-5 min-w-[260px]">
+              <div className="text-base font-semibold text-gray-900 mb-4">Space Type</div>
+              <div className="space-y-1 max-h-72 overflow-y-auto">
+                {COMMERCIAL_SPACE_TYPES.map((type) => {
+                  const isSelected = filters.commercial_space_types?.includes(type.value) || false;
+                  return (
+                    <label
+                      key={type.value}
+                      className="flex items-center px-2 py-2 hover:bg-gray-50 cursor-pointer rounded-lg"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => {
+                          const current = filters.commercial_space_types || [];
+                          const updated = isSelected
+                            ? current.filter(v => v !== type.value)
+                            : [...current, type.value];
+                          onFiltersChange({ ...filters, commercial_space_types: updated.length > 0 ? updated : undefined });
+                        }}
+                        className="h-4 w-4 text-green-600 focus:ring-green-500 border-gray-300 rounded"
+                      />
+                      <span className="ml-3 text-sm text-gray-700">{type.label}</span>
+                    </label>
+                  );
+                })}
+              </div>
+              <div className="flex items-center gap-3 pt-4 mt-2 border-t border-gray-100">
+                <button
+                  type="button"
+                  onClick={() => {
+                    onFiltersChange({ ...filters, commercial_space_types: undefined });
+                    setOpenDropdown(null);
+                  }}
+                  className="text-green-600 hover:text-green-700 font-medium text-sm"
+                >
+                  Clear
+                </button>
+                <div className="flex-1" />
+                <button
+                  type="button"
+                  onClick={() => setOpenDropdown(null)}
+                  className="px-6 py-2.5 bg-green-600 text-white rounded-lg text-sm font-semibold hover:bg-green-700 transition-colors"
+                >
+                  Done
+                </button>
+              </div>
+            </div>
+          </FilterDropdown>
+        )}
+
+        {listingTypeFilterValue === 'commercial' && (
+          <FilterDropdown
+            label="Size (SF)"
+            value={
+              filters.min_sf && filters.max_sf
+                ? `${filters.min_sf.toLocaleString()}–${filters.max_sf.toLocaleString()} SF`
+                : filters.min_sf
+                ? `${filters.min_sf.toLocaleString()}+ SF`
+                : filters.max_sf
+                ? `Up to ${filters.max_sf.toLocaleString()} SF`
+                : "Size (SF)"
+            }
+            isActive={!!(filters.min_sf || filters.max_sf)}
+            isOpen={openDropdown === "sf_range"}
+            onToggle={() => toggleDropdown("sf_range")}
+          >
+            <div className="p-5 min-w-[280px]">
+              <div className="text-base font-semibold text-gray-900 mb-4">Size Range (SF)</div>
+              <div className="flex gap-3 items-center mb-4">
+                <input
+                  type="text"
+                  placeholder="Min SF"
+                  value={tempSfMin}
+                  onChange={(e) => setTempSfMin(e.target.value.replace(/\D/g, ""))}
+                  className="flex-1 px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                />
+                <span className="text-gray-400">–</span>
+                <input
+                  type="text"
+                  placeholder="Max SF"
+                  value={tempSfMax}
+                  onChange={(e) => setTempSfMax(e.target.value.replace(/\D/g, ""))}
+                  className="flex-1 px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                />
+              </div>
+              <div className="flex flex-wrap gap-2 mb-4">
+                {COMMERCIAL_SF_PRESETS.map((preset) => {
+                  const isSelected = filters.min_sf === preset.min && filters.max_sf === preset.max;
+                  return (
+                    <button
+                      key={preset.label}
+                      type="button"
+                      onClick={() => {
+                        setTempSfMin(preset.min?.toString() || "");
+                        setTempSfMax(preset.max?.toString() || "");
+                      }}
+                      className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                        isSelected ? "bg-green-600 text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                      }`}
+                    >
+                      {preset.label}
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="flex items-center gap-3 pt-3 border-t border-gray-100">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTempSfMin("");
+                    setTempSfMax("");
+                  }}
+                  className="text-green-600 hover:text-green-700 font-medium text-sm"
+                >
+                  Clear
+                </button>
+                <div className="flex-1" />
+                <button
+                  type="button"
+                  onClick={() => {
+                    onFiltersChange({
+                      ...filters,
+                      min_sf: tempSfMin ? parseInt(tempSfMin) : undefined,
+                      max_sf: tempSfMax ? parseInt(tempSfMax) : undefined,
+                    });
+                    setOpenDropdown(null);
+                  }}
+                  className="px-6 py-2.5 bg-green-600 text-white rounded-lg text-sm font-semibold hover:bg-green-700 transition-colors"
+                >
+                  Done
+                </button>
+              </div>
+            </div>
+          </FilterDropdown>
+        )}
+
         {showResidentialFilters && <FilterDropdown
           label="Beds & Baths"
           value={getBedroomsLabel()}
@@ -1302,6 +1496,7 @@ export function ListingFiltersHorizontal({
         allNeighborhoods={allNeighborhoods}
         availableLeaseTerms={availableLeaseTerms}
         listingType={listingType}
+        listingTypeFilter={listingTypeFilterValue}
       />
     </div>
   );
