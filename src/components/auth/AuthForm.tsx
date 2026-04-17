@@ -93,19 +93,18 @@ export function AuthForm({ onAuthSuccess }: AuthFormProps = {}) {
     if (onAuthSuccess) return;
     if (!user) return;
     const pending = consumePendingAuth();
-    if (!pending) return;
     (async () => {
-      if (pending.pendingAction) {
+      if (pending?.pendingAction) {
         await executePendingFavorite(pending.pendingAction, user.id);
       }
-      if (pending.from) {
+      if (pending?.from) {
         navigate(pending.from, { replace: true });
-      } else {
-        pendingRoleRedirectRef.current = true;
-        if (profile !== undefined) {
-          pendingRoleRedirectRef.current = false;
-          navigate(getRoleDestination(profile?.role), { replace: true });
-        }
+        return;
+      }
+      pendingRoleRedirectRef.current = true;
+      if (profile !== undefined) {
+        pendingRoleRedirectRef.current = false;
+        navigate(getRoleDestination(profile?.role), { replace: true });
       }
     })();
   }, [user]);

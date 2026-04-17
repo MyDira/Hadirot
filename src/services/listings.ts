@@ -416,30 +416,26 @@ export const listingsService = {
         throw new Error('You do not have permission to feature listings. Please contact support to upgrade your account.');
       }
 
+      const [settings, globalCount, userCount] = await Promise.all([
+        this.getAdminSettings(),
+        this.getFeaturedListingsCount(),
+        userProfile.is_admin
+          ? Promise.resolve(0)
+          : this.getFeaturedListingsCountByUser(payload.user_id),
+      ]);
 
-      // Get admin settings for limits
-      const settings = await this.getAdminSettings();
-      
-      // Determine the effective per-user limit
       const effectiveUserLimit = userProfile?.max_featured_listings_per_user ?? settings.max_featured_per_user ?? 0;
-      
-      // Check if user has permission to feature listings based on their effective limit
+
       if (!userProfile.is_admin && effectiveUserLimit <= 0) {
         throw new Error('You do not have permission to feature listings. Please contact support to upgrade your account.');
       }
 
-      // Check global featured listings limit
-      const globalCount = await this.getFeaturedListingsCount();
       if (globalCount >= settings.max_featured_listings) {
         throw new Error('The sitewide maximum for featured listings has been reached. Please check back later or contact support.');
       }
 
-      // Check per-user limit (unless user is admin)
-      if (!userProfile.is_admin) {
-      const userCount = await this.getFeaturedListingsCountByUser(payload.user_id);
-        if (userCount >= effectiveUserLimit) {
-          throw new Error(`You can only feature up to ${effectiveUserLimit} listing${effectiveUserLimit === 1 ? '' : 's'} at a time.`);
-        }
+      if (!userProfile.is_admin && userCount >= effectiveUserLimit) {
+        throw new Error(`You can only feature up to ${effectiveUserLimit} listing${effectiveUserLimit === 1 ? '' : 's'} at a time.`);
       }
 
       // Set expiration date to 1 week from now
@@ -529,29 +525,27 @@ export const listingsService = {
       if (!userProfile.is_admin && !userProfile.can_feature_listings) {
         throw new Error('You do not have permission to feature listings. Please contact support to upgrade your account.');
       }
-      // Get admin settings for limits
-      const settings = await this.getAdminSettings();
-      
-      // Determine the effective per-user limit
+
+      const [settings, globalCount, userCount] = await Promise.all([
+        this.getAdminSettings(),
+        this.getFeaturedListingsCount(),
+        userProfile.is_admin
+          ? Promise.resolve(0)
+          : this.getFeaturedListingsCountByUser(currentListing.user_id),
+      ]);
+
       const effectiveUserLimit = userProfile.max_featured_listings_per_user ?? settings.max_featured_per_user ?? 0;
-      
-      // Check if user has permission to feature listings based on their effective limit
+
       if (!userProfile.is_admin && effectiveUserLimit <= 0) {
         throw new Error('You do not have permission to feature listings. Please contact support to upgrade your account.');
       }
 
-      // Check global featured listings limit
-      const globalCount = await this.getFeaturedListingsCount();
       if (globalCount >= settings.max_featured_listings) {
         throw new Error('The sitewide maximum for featured listings has been reached. Please check back later or contact support.');
       }
 
-      // Check per-user limit (unless user is admin)
-      if (!userProfile.is_admin) {
-        const userCount = await this.getFeaturedListingsCountByUser(currentListing.user_id);
-        if (userCount >= effectiveUserLimit) {
-          throw new Error(`You can only feature up to ${effectiveUserLimit} listing${effectiveUserLimit === 1 ? '' : 's'} at a time.`);
-        }
+      if (!userProfile.is_admin && userCount >= effectiveUserLimit) {
+        throw new Error(`You can only feature up to ${effectiveUserLimit} listing${effectiveUserLimit === 1 ? '' : 's'} at a time.`);
       }
 
       const oneWeekFromNow = new Date();

@@ -240,8 +240,12 @@ export function BrowseListings() {
   useEffect(() => {
     if (!isReady) return;
     loadListings();
-    loadNeighborhoods();
   }, [filters, currentPage, user, isReady]);
+
+  useEffect(() => {
+    if (!isReady) return;
+    loadNeighborhoods();
+  }, [isReady]);
 
   const loadListings = async () => {
     try {

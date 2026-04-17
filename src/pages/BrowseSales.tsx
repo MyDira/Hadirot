@@ -206,8 +206,12 @@ export function BrowseSales() {
   useEffect(() => {
     if (!isReady) return;
     loadListings();
-    loadNeighborhoods();
   }, [filters, currentPage, user, isReady]);
+
+  useEffect(() => {
+    if (!isReady) return;
+    loadNeighborhoods();
+  }, [isReady]);
 
   const loadListings = async () => {
     try {
