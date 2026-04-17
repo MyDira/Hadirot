@@ -33,6 +33,44 @@ type NormalizedEvent = {
 
 const MAX_BATCH_SIZE = 50;
 
+// In-memory sliding-window rate limit. Deno Deploy instances stay warm across
+// many requests, so this catches the common single-origin-spam case. It won't
+// stop a distributed attacker (each instance has its own Map), but pairs well
+// with Supabase's platform-level limits.
+const RATE_WINDOW_MS = 60_000; // 1 minute
+const RATE_MAX_EVENTS_PER_WINDOW = 200;
+const RATE_CLEANUP_MAX_ENTRIES = 10_000;
+const rateLimitMap = new Map<string, { count: number; windowStart: number }>();
+
+function checkRateLimit(
+  ipHash: string,
+  batchSize: number,
+): { allowed: true } | { allowed: false; retryAfterSeconds: number } {
+  const now = Date.now();
+  const entry = rateLimitMap.get(ipHash);
+
+  if (!entry || now - entry.windowStart >= RATE_WINDOW_MS) {
+    rateLimitMap.set(ipHash, { count: batchSize, windowStart: now });
+    // Opportunistic cleanup if the map is getting big.
+    if (rateLimitMap.size > RATE_CLEANUP_MAX_ENTRIES) {
+      for (const [key, value] of rateLimitMap) {
+        if (now - value.windowStart >= RATE_WINDOW_MS) rateLimitMap.delete(key);
+      }
+    }
+    return { allowed: true };
+  }
+
+  if (entry.count + batchSize > RATE_MAX_EVENTS_PER_WINDOW) {
+    return {
+      allowed: false,
+      retryAfterSeconds: Math.ceil((RATE_WINDOW_MS - (now - entry.windowStart)) / 1000),
+    };
+  }
+
+  entry.count += batchSize;
+  return { allowed: true };
+}
+
 function jsonResponse(status: number, body: Record<string, unknown>) {
   return new Response(JSON.stringify(body), {
     status,
@@ -157,6 +195,27 @@ Deno.serve(async (req) => {
     // Pseudonymize IP address using SHA-256 hashing for privacy compliance
     // Original IP addresses are never stored in the database
     const ipHash = clientIp ? await sha256Hex(clientIp) : null;
+
+    // Rate-limit by IP hash (skip when no IP — rare, matches pre-limit
+    // behavior; prevents blackholing legit traffic from privacy-preserving
+    // clients that strip IP headers).
+    if (ipHash) {
+      const rate = checkRateLimit(ipHash, events.length);
+      if (!rate.allowed) {
+        return new Response(
+          JSON.stringify({ error: 'Rate limit exceeded' }),
+          {
+            status: 429,
+            headers: {
+              ...corsHeaders,
+              'Content-Type': 'application/json',
+              'Retry-After': String(rate.retryAfterSeconds),
+            },
+          },
+        );
+      }
+    }
+
     const fallbackIso = new Date().toISOString();
 
     const normalizedEvents: NormalizedEvent[] = [];

@@ -1,16 +1,13 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import Stripe from "https://esm.sh/stripe@14?target=denonext";
 import { corsHeaders } from "../_shared/cors.ts";
+import { BOOST_PRICES } from "../_shared/stripe-prices.ts";
 
 const stripe = new Stripe(Deno.env.get("STRIPE_API_KEY")!, {
   apiVersion: "2023-10-16",
 });
 
-const PRICE_MAP: Record<string, { priceId: string; amount: number; days: number }> = {
-  "7day":  { priceId: "price_1SzMw9JvRPzH20A9CJA2SQ87", amount: 2500, days: 7 },
-  "14day": { priceId: "price_1SzeDPJvRPzH20A9i8bj9rrN", amount: 4000, days: 14 },
-  "30day": { priceId: "price_1SzMz3JvRPzH20A9pA8pBPwj", amount: 7500, days: 30 },
-};
+const PRICE_MAP = BOOST_PRICES;
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {

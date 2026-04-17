@@ -1,15 +1,16 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import Stripe from "https://esm.sh/stripe@14?target=denonext";
 import { corsHeaders } from "../_shared/cors.ts";
+import { CONCIERGE_PRICES } from "../_shared/stripe-prices.ts";
 
 const stripe = new Stripe(Deno.env.get("STRIPE_API_KEY")!, {
   apiVersion: "2023-10-16",
 });
 
 const TIER_CONFIG: Record<string, { priceId: string; mode: "payment" | "subscription" }> = {
-  tier1_quick: { priceId: "price_1T5TvZJvRPzH20A9ry7ZTpMk", mode: "payment" },
-  tier2_forward: { priceId: "price_1T5Tx4JvRPzH20A995RVffU5", mode: "subscription" },
-  tier3_vip: { priceId: "price_1T5TybJvRPzH20A9GrEh0jTD", mode: "subscription" },
+  tier1_quick:   { priceId: CONCIERGE_PRICES.tier1_quick,   mode: "payment"      },
+  tier2_forward: { priceId: CONCIERGE_PRICES.tier2_forward, mode: "subscription" },
+  tier3_vip:     { priceId: CONCIERGE_PRICES.tier3_vip,     mode: "subscription" },
 };
 
 function generateEmailHandle(fullName: string): string {

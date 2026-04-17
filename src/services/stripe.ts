@@ -19,6 +19,10 @@ export interface ConciergePlan {
   interval?: string;
 }
 
+// NOTE: These Stripe price IDs must match the edge-function shared constants
+// at supabase/functions/_shared/stripe-prices.ts. Client bundling and Deno
+// runtime can't share the same module, so this duplication is intentional —
+// update both when adding or rotating prices.
 export const CONCIERGE_PLANS: ConciergePlan[] = [
   {
     id: 'tier1',

@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/config/supabase';
+import { track } from '@/lib/analytics';
 
 export function ShortUrlRedirect() {
   const { code } = useParams<{ code: string }>();
@@ -56,41 +57,15 @@ export function ShortUrlRedirect() {
           console.error('[ShortUrlRedirect] Error incrementing click count:', error);
         });
 
-        // Track the click in analytics (in the background)
-        const userAgent = navigator.userAgent;
-        const referer = document.referrer;
-
-        // Generate session and anon IDs (fallback for browsers without crypto.randomUUID)
-        const generateUUID = () => {
-          if (typeof crypto !== 'undefined' && crypto.randomUUID) {
-            return crypto.randomUUID();
-          }
-          // Fallback UUID generator
-          return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
-            const r = Math.random() * 16 | 0;
-            const v = c === 'x' ? r : (r & 0x3 | 0x8);
-            return v.toString(16);
-          });
-        };
-
-        supabase.from('analytics_events').insert({
-          session_id: generateUUID(),
-          anon_id: generateUUID(),
-          user_id: null,
-          event_name: 'digest_link_click',
-          event_props: {
-            short_code: code,
-            listing_id: shortUrl.listing_id,
-            source: shortUrl.source,
-            referer: referer || null,
-          },
-          occurred_at: new Date().toISOString(),
-          ua: userAgent,
-          ip_hash: null,
-        }).then(() => {
-          console.log('[ShortUrlRedirect] Analytics event tracked');
-        }).catch((error: any) => {
-          console.error('[ShortUrlRedirect] Error tracking click in analytics:', error);
+        // Track the click through the /track edge function. Routing through
+        // track() means session/anon IDs come from the analytics session store
+        // (not fresh UUIDs per click), the edge function sanitizes + server-
+        // side hashes the IP, and a future rate limit applies here too.
+        track('digest_link_click', {
+          short_code: code,
+          listing_id: shortUrl.listing_id,
+          source: shortUrl.source,
+          referer: document.referrer || null,
         });
 
         // Extract the listing ID from the original URL to navigate within the app

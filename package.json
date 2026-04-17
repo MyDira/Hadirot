@@ -8,6 +8,7 @@
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
+    "db:types": "supabase gen types typescript --linked 2>/dev/null > src/types/database.ts",
     "smoke:analytics": "tsx scripts/analytics-smoke.ts",
     "debug:analytics": "tsx scripts/analytics-debug.ts",
     "test:deactivation": "tsx scripts/test-deactivation-system.ts",

@@ -5,6 +5,7 @@ import { ArrowUp } from "lucide-react";
 import { Listing, CommercialListing } from "../../config/supabase";
 import { MAPBOX_ACCESS_TOKEN } from "@/config/env";
 import { computePrimaryListingImage } from "../../utils/stockImage";
+import { escapeHtml } from "../../utils/sanitize";
 import { formatPrice, capitalizeName } from "../../utils/formatters";
 import {
   getContainerBounds,
@@ -302,12 +303,12 @@ export function ListingsMapEnhanced({
       <div class="listing-popup" style="width: ${popupWidth}; font-family: system-ui, -apple-system, sans-serif;">
         <div style="position: relative; aspect-ratio: 3/2; overflow: hidden; border-radius: 8px 8px 0 0;">
           <img
-            src="${imageUrl}"
-            alt="${isStock ? 'Stock photo' : (listing.title ?? 'Commercial listing')}"
+            src="${escapeHtml(imageUrl)}"
+            alt="${escapeHtml(isStock ? 'Stock photo' : (listing.title ?? 'Commercial listing'))}"
             style="width: 100%; height: 100%; object-fit: cover;"
           />
           <div style="position: absolute; top: 8px; left: 8px; background: #0891B2; color: white; padding: 3px 10px; border-radius: 999px; font-size: 11px; font-weight: 600;">
-            ${spaceLabel}
+            ${escapeHtml(spaceLabel)}
           </div>
           ${isStock ? `
             <div style="position: absolute; bottom: 8px; left: 8px; background: rgba(0,0,0,0.35); color: white; padding: 4px 10px; border-radius: 999px; font-size: 11px; backdrop-filter: blur(4px);">
@@ -320,20 +321,20 @@ export function ListingsMapEnhanced({
             ${priceDisplay}
           </div>
           <div style="display: flex; align-items: center; gap: ${isMobile ? '8px' : '12px'}; color: #6b7280; font-size: ${isMobile ? '12px' : '13px'}; margin-bottom: 8px; flex-wrap: wrap;">
-            ${sfDisplay ? `<span>${sfDisplay}</span>` : ''}
-            <span style="background: #f0f9ff; color: #0891B2; padding: 2px 8px; border-radius: 4px; font-size: 11px;">${spaceLabel}</span>
+            ${sfDisplay ? `<span>${escapeHtml(sfDisplay)}</span>` : ''}
+            <span style="background: #f0f9ff; color: #0891B2; padding: 2px 8px; border-radius: 4px; font-size: 11px;">${escapeHtml(spaceLabel)}</span>
           </div>
           <div style="display: flex; align-items: center; color: #6b7280; font-size: ${isMobile ? '12px' : '13px'}; margin-bottom: 10px;">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 6px; flex-shrink: 0;">
               <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
               <circle cx="12" cy="10" r="3"></circle>
             </svg>
-            <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${locationText}</span>
+            <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escapeHtml(locationText)}</span>
           </div>
           <div style="display: flex; align-items: center; justify-content: space-between; padding-top: 10px; border-top: 1px solid #f3f4f6;">
             <span style="font-size: 12px; color: #0891B2; font-weight: 500;">Commercial</span>
             <button
-              onclick="window.__mapCommercialPopupClick__('${listing.id}')"
+              onclick="window.__mapCommercialPopupClick__('${escapeHtml(listing.id)}')"
               style="display: inline-flex; align-items: center; gap: 4px; background: #0891B2; color: white; padding: ${isMobile ? '8px 12px' : '6px 12px'}; border-radius: 6px; font-size: 12px; font-weight: 500; border: none; cursor: pointer; min-height: ${isMobile ? '44px' : 'auto'};"
             >
               View Listing
@@ -412,8 +413,8 @@ export function ListingsMapEnhanced({
       <div class="listing-popup" style="width: ${popupWidth}; font-family: system-ui, -apple-system, sans-serif;">
         <div style="position: relative; aspect-ratio: 3/2; overflow: hidden; border-radius: 8px 8px 0 0;">
           <img
-            src="${imageUrl}"
-            alt="${isStock ? 'Stock photo' : listing.title}"
+            src="${escapeHtml(imageUrl)}"
+            alt="${escapeHtml(isStock ? 'Stock photo' : listing.title)}"
             style="width: 100%; height: 100%; object-fit: cover;"
           />
           ${isStock ? `
@@ -427,8 +428,8 @@ export function ListingsMapEnhanced({
             ${priceDisplay}
           </div>
           <div style="display: flex; align-items: center; gap: ${isMobile ? '8px' : '12px'}; color: #6b7280; font-size: ${isMobile ? '12px' : '13px'}; margin-bottom: 8px; flex-wrap: wrap;">
-            <span>${bedroomDisplay} bed</span>
-            <span>${listing.bathrooms} bath</span>
+            <span>${escapeHtml(bedroomDisplay)} bed</span>
+            <span>${escapeHtml(listing.bathrooms)} bath</span>
             ${!isSaleListing && hasParking ? '<span>Parking</span>' : ''}
             ${!isSaleListing ? `
               <span style="background: #f3f4f6; padding: 2px 8px; border-radius: 4px; font-size: 11px;">
@@ -442,13 +443,13 @@ export function ListingsMapEnhanced({
               <circle cx="12" cy="10" r="3"></circle>
             </svg>
             <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
-              ${isSaleListing ? (listing.full_address || listing.location || '') : (listing.cross_streets ?? listing.location) || ''}
+              ${escapeHtml(isSaleListing ? (listing.full_address || listing.location || '') : (listing.cross_streets ?? listing.location) || '')}
             </span>
           </div>
           <div style="display: flex; align-items: center; justify-content: space-between; padding-top: 10px; border-top: 1px solid #f3f4f6;">
-            <span style="font-size: 12px; color: #6b7280;">by ${getPosterLabel()}${sponsoredHtml}</span>
+            <span style="font-size: 12px; color: #6b7280;">by ${escapeHtml(getPosterLabel())}${sponsoredHtml}</span>
             <button
-              onclick="window.__mapPopupClick__('${listing.id}')"
+              onclick="window.__mapPopupClick__('${escapeHtml(listing.id)}')"
               style="display: inline-flex; align-items: center; gap: 4px; background: #1E4A74; color: white; padding: ${isMobile ? '8px 12px' : '6px 12px'}; border-radius: 6px; font-size: 12px; font-weight: 500; border: none; cursor: pointer; min-height: ${isMobile ? '44px' : 'auto'};"
             >
               View Listing

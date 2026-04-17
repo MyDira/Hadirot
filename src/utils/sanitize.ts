@@ -29,3 +29,22 @@ export function sanitizeHtml(html: string): string {
 
   return DOMPurify.sanitize(html, config);
 }
+
+/**
+ * HTML-escapes a string for safe interpolation into an HTML element body or
+ * attribute value. Use this for any user-supplied text that's being inserted
+ * via innerHTML or template literals — it prevents XSS by turning `<`, `>`,
+ * `&`, `"`, `'` into their HTML entities.
+ *
+ * Intended for plain-text fields (titles, addresses, names). For rich-text
+ * content that should keep tags, use sanitizeHtml instead.
+ */
+export function escapeHtml(value: unknown): string {
+  if (value === null || value === undefined) return '';
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}

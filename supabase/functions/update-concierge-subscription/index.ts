@@ -1,13 +1,14 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import Stripe from "https://esm.sh/stripe@14?target=denonext";
 import { corsHeaders } from "../_shared/cors.ts";
+import { CONCIERGE_PRICES } from "../_shared/stripe-prices.ts";
 
 const stripe = new Stripe(Deno.env.get("STRIPE_API_KEY")!, {
   apiVersion: "2023-10-16",
 });
 
-const TIER2_PRICE_ID = "price_1T5Tx4JvRPzH20A995RVffU5";
-const TIER3_PRICE_ID = "price_1T5TybJvRPzH20A9GrEh0jTD";
+const TIER2_PRICE_ID = CONCIERGE_PRICES.tier2_forward;
+const TIER3_PRICE_ID = CONCIERGE_PRICES.tier3_vip;
 
 function generateEmailHandle(fullName: string): string {
   const parts = fullName
