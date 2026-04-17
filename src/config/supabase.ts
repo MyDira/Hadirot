@@ -180,7 +180,7 @@ export interface FooterSection {
   section_key: string;
   title: string;
   content_type: FooterContentType;
-  content_data: any; // JSONB data - can be rich text object or links array
+  content_data: unknown; // JSONB — narrow at the call site based on content_type
   sort_order: number;
   is_active: boolean;
   created_at: string;
@@ -502,7 +502,7 @@ export interface ScrapeRun {
   listings_geocoded: number;
   listings_inserted: number;
   listings_updated: number;
-  errors: any | null;
+  errors: unknown | null;
   started_at: string;
   completed_at: string | null;
   status: string;

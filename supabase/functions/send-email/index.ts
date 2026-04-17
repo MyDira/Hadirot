@@ -1,6 +1,6 @@
-import { corsHeaders } from "./_shared/cors.ts";
+import { corsHeaders } from "../_shared/cors.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { renderBrandEmail, sendViaZepto } from "./_shared/zepto.ts";
+import { renderBrandEmail, sendViaZepto } from "../_shared/zepto.ts";
 
 interface EmailRequest {
   to: string | string[];

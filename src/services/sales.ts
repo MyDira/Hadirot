@@ -39,11 +39,9 @@ export const salesService = {
         return true;
       }
 
-      const { data: profile, error } = await supabase
-        .from('profiles')
-        .select('can_post_sales, is_admin')
-        .eq('id', userId)
-        .maybeSingle();
+      const { data: permRows, error } = await supabase
+        .rpc('get_user_permissions', { p_user_id: userId });
+      const profile = permRows?.[0];
 
       if (error) {
         console.error('Error checking user sales permission:', error);

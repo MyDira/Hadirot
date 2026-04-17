@@ -128,7 +128,7 @@ export const listingsService = {
   async getActiveAgencies(): Promise<string[]> {
     const { data, error } = await supabase
       .from('listings')
-      .select('owner:profiles!inner(role,agency)')
+      .select('owner:public_profiles!inner(role,agency)')
       .eq('is_active', true)
       .eq('approved', true)
       .or('role.eq.agent', { foreignTable: 'owner' });
@@ -158,8 +158,8 @@ export const listingsService = {
 
     const ownerSelect =
       posterType === 'owner' || posterType === 'agent' || !!agencyName
-        ? 'owner:profiles!inner(id,full_name,role,agency)'
-        : 'owner:profiles(id,full_name,role,agency)';
+        ? 'owner:public_profiles!inner(id,full_name,role,agency)'
+        : 'owner:public_profiles(id,full_name,role,agency)';
 
     const selectStr = `*,${ownerSelect},listing_images(*)`;
 
@@ -286,7 +286,7 @@ export const listingsService = {
       .select(
         `
           *,
-          owner:profiles(id, full_name, role, agency),
+          owner:public_profiles(id, full_name, role, agency),
           listing_images(*)
         `,
         { count: 'exact' },
@@ -347,7 +347,7 @@ export const listingsService = {
         approved,
         is_active,
         listing_images(*),
-        owner:profiles!listings_user_id_fkey(full_name, role, agency)
+        owner:public_profiles!listings_user_id_fkey(full_name, role, agency)
       `)
       .eq('id', id);
 
@@ -403,12 +403,9 @@ export const listingsService = {
 
     // If trying to feature a listing on creation, check permissions and limits
     if (payload.is_featured) {
-      // Get user profile to check permissions
-      const { data: userProfile, error: profileError } = await supabase // Fetch user profile
-        .from('profiles')
-        .select('is_admin, max_featured_listings_per_user, can_feature_listings')
-        .eq('id', payload.user_id)
-        .single();
+      const { data: permRows, error: profileError } = await supabase
+        .rpc('get_user_permissions', { p_user_id: payload.user_id });
+      const userProfile = permRows?.[0];
 
       if (profileError || !userProfile) {
         throw new Error('Unable to verify user permissions');
@@ -507,18 +504,15 @@ export const listingsService = {
     // Get the current listing to check for approval status change
     const { data: currentListing } = await supabase
       .from('listings')
-      .select('approved, title, user_id, is_featured, call_for_price, profiles!listings_user_id_fkey(full_name, email, is_admin, can_feature_listings)')
+      .select('approved, title, user_id, is_featured, call_for_price')
       .eq('id', id)
       .single();
 
     // If trying to feature a listing, check permissions and limits
     if (payload.is_featured === true && currentListing && !currentListing.is_featured) {
-      // Get fresh user profile data to ensure we have the latest limits
-      const { data: userProfile, error: profileError } = await supabase // Fetch user profile
-        .from('profiles')
-        .select('id, is_admin, max_featured_listings_per_user, can_feature_listings')
-        .eq('id', currentListing.user_id)
-        .single();
+      const { data: permRows, error: profileError } = await supabase
+        .rpc('get_user_permissions', { p_user_id: currentListing.user_id });
+      const userProfile = permRows?.[0];
 
       if (profileError || !userProfile) {
         throw new Error('Unable to verify user permissions');
@@ -807,7 +801,7 @@ export const listingsService = {
     const now = new Date().toISOString();
     let query = supabase
       .from('listings')
-      .select('*,owner:profiles(id,full_name,role,agency),listing_images(*)')
+      .select('*,owner:public_profiles(id,full_name,role,agency),listing_images(*)')
       .eq('is_active', true)
       .eq('approved', true)
       .eq('is_featured', true)
@@ -846,8 +840,8 @@ export const listingsService = {
 
     const ownerSelect =
       posterType === 'owner' || posterType === 'agent' || !!agencyName
-        ? 'owner:profiles!inner(id,full_name,role,agency)'
-        : 'owner:profiles(id,full_name,role,agency)';
+        ? 'owner:public_profiles!inner(id,full_name,role,agency)'
+        : 'owner:public_profiles(id,full_name,role,agency)';
 
     let query = supabase
       .from('listings')
@@ -1056,7 +1050,7 @@ export const listingsService = {
       .select(`
         listings!inner(
           *,
-          owner:profiles!listings_user_id_fkey(full_name, role, agency),
+          owner:public_profiles!listings_user_id_fkey(full_name, role, agency),
           listing_images(id, image_url, is_featured, sort_order)
         )
       `)
@@ -1081,7 +1075,7 @@ export const listingsService = {
       .from('listings')
       .select(`
         *,
-        owner:profiles!listings_user_id_fkey(full_name, role)
+        owner:public_profiles!listings_user_id_fkey(full_name, role)
       `);
 
     if (approved !== undefined) {
@@ -1274,7 +1268,7 @@ export const listingsService = {
         *,
         approved,
         is_active,
-        owner:profiles!listings_user_id_fkey(full_name, role, agency),
+        owner:public_profiles!listings_user_id_fkey(full_name, role, agency),
         listing_images(id, image_url, is_featured, sort_order)
       `)
       .eq('user_id', userId)
@@ -1486,7 +1480,7 @@ async getActiveSalesNeighborhoods(): Promise<string[]> {
 async getActiveSalesAgencies(): Promise<string[]> {
   const { data, error } = await supabase
     .from('listings')
-    .select('owner:profiles!inner(role,agency)')
+    .select('owner:public_profiles!inner(role,agency)')
     .eq('is_active', true)
     .eq('approved', true)
     .eq('listing_type', 'sale')
@@ -1535,7 +1529,7 @@ async getActiveRentalNeighborhoods(): Promise<string[]> {
 async getActiveRentalAgencies(): Promise<string[]> {
   const { data, error } = await supabase
     .from('listings')
-    .select('owner:profiles!inner(role,agency)')
+    .select('owner:public_profiles!inner(role,agency)')
     .eq('is_active', true)
     .eq('approved', true)
     .or('listing_type.eq.rental,listing_type.is.null')
@@ -1604,7 +1598,7 @@ async getInquiriesForListing(listingId: string): Promise<{ user_name: string; us
     const agencyName = (filters as any)?.agency_name || undefined;
 
     const ownerSelect = posterType === 'owner' || posterType === 'agent' || !!agencyName
-      ? 'bedrooms,owner:profiles!inner(id,role,agency)'
+      ? 'bedrooms,owner:public_profiles!inner(id,role,agency)'
       : 'bedrooms';
 
     let query = supabase
@@ -1672,8 +1666,8 @@ async getInquiriesForListing(listingId: string): Promise<{ user_name: string; us
 
     const ownerSelect =
       posterType === 'owner' || posterType === 'agent' || !!agencyName
-        ? 'owner:profiles!inner(id,full_name,role,agency)'
-        : 'owner:profiles(id,full_name,role,agency)';
+        ? 'owner:public_profiles!inner(id,full_name,role,agency)'
+        : 'owner:public_profiles(id,full_name,role,agency)';
 
     const selectStr = `*,${ownerSelect},listing_images(*)`;
 
@@ -1834,7 +1828,7 @@ async getInquiriesForListing(listingId: string): Promise<{ user_name: string; us
       broker_fee,
       parking,
       neighborhood,
-      owner:profiles!listings_user_id_fkey(role, agency)
+      owner:public_profiles!listings_user_id_fkey(role, agency)
     `;
 
     let query = supabase

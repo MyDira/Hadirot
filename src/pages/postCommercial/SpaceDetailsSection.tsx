@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { TriStateToggle } from "./TriStateToggle";
 import { TYPE_SPECIFIC_FIELDS, type TypeSpecificField } from "./typeFieldConfigs";
-import type { CommercialListingFormData } from "../postListing/commercialTypes";
+import type { CommercialListingFormData } from "./commercialTypes";
 import type { CommercialSpaceType } from "../../config/supabase";
 
 const FLOOR_LEVEL_OPTIONS = [

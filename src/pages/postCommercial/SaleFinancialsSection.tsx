@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import type { CommercialListingFormData } from "../postListing/commercialTypes";
+import type { CommercialListingFormData } from "./commercialTypes";
 import type { TenancyType } from "../../config/supabase";
 
 const TENANCY_TYPE_OPTIONS: { value: TenancyType; label: string }[] = [

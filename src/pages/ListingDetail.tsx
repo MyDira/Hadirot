@@ -318,8 +318,30 @@ export function ListingDetail() {
 
   if (!listing) {
     return (
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 text-center">
-        <p className="text-gray-600">{error || "Listing not found."}</p>
+      <div className="max-w-xl mx-auto px-4 sm:px-6 lg:px-8 py-16 text-center">
+        <HomeIcon className="mx-auto h-12 w-12 text-gray-400" />
+        <h1 className="mt-4 text-2xl font-semibold text-gray-900">
+          {error ? "We couldn't load this listing" : "Listing not found"}
+        </h1>
+        <p className="mt-2 text-gray-600">
+          {error || "This listing may have been removed or is no longer available."}
+        </p>
+        <div className="mt-8 flex flex-col sm:flex-row gap-3 justify-center">
+          <Link
+            to="/browse"
+            className="inline-flex items-center justify-center gap-2 bg-accent-600 text-white px-5 py-2.5 rounded-lg font-medium hover:bg-accent-700 transition-colors"
+          >
+            Browse listings
+          </Link>
+          <button
+            type="button"
+            onClick={() => navigate(-1)}
+            className="inline-flex items-center justify-center gap-2 border border-gray-300 text-gray-700 px-5 py-2.5 rounded-lg font-medium hover:bg-gray-50 transition-colors"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Go back
+          </button>
+        </div>
       </div>
     );
   }

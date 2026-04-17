@@ -3,7 +3,7 @@ import { GoogleAddressAutocomplete } from "../../components/listing/GoogleAddres
 import { GoogleStreetAutocomplete, GoogleStreetFeature } from "../../components/listing/GoogleStreetAutocomplete";
 import { LocationPicker } from "../../components/listing/LocationPicker";
 import { MediaUploader, MediaFile } from "../../components/shared/MediaUploader";
-import type { CommercialListingFormData } from "../postListing/commercialTypes";
+import type { CommercialListingFormData } from "./commercialTypes";
 import type { CommercialSpaceType } from "../../config/supabase";
 import { DESCRIPTION_PLACEHOLDERS } from "./typeFieldConfigs";
 

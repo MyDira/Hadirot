@@ -92,7 +92,7 @@ export const commercialListingsService = {
   ): Promise<{ data: CommercialListing[]; totalCount: number }> {
     let query = supabase
       .from('commercial_listings')
-      .select('*,owner:profiles(id,full_name,role,agency),listing_images:commercial_listing_images(*)', { count: 'exact' })
+      .select('*,owner:public_profiles(id,full_name,role,agency),listing_images:commercial_listing_images(*)', { count: 'exact' })
       .eq('is_active', true)
       .eq('approved', true)
       .eq('listing_type', 'rental');
@@ -156,7 +156,7 @@ export const commercialListingsService = {
   ): Promise<{ data: CommercialListing[]; totalCount: number }> {
     let query = supabase
       .from('commercial_listings')
-      .select('*,owner:profiles(id,full_name,role,agency),listing_images:commercial_listing_images(*)', { count: 'exact' })
+      .select('*,owner:public_profiles(id,full_name,role,agency),listing_images:commercial_listing_images(*)', { count: 'exact' })
       .eq('is_active', true)
       .eq('approved', true)
       .eq('listing_type', 'sale');
@@ -218,7 +218,7 @@ export const commercialListingsService = {
         approved,
         is_active,
         listing_images:commercial_listing_images(*),
-        owner:profiles(full_name, role, agency)
+        owner:public_profiles(full_name, role, agency)
       `)
       .eq('id', id);
 
@@ -440,7 +440,7 @@ export const commercialListingsService = {
       .select(`
         commercial_listings!inner(
           *,
-          owner:profiles(full_name,role,agency),
+          owner:public_profiles(full_name,role,agency),
           listing_images:commercial_listing_images(id,image_url,is_featured,sort_order)
         )
       `)
@@ -468,7 +468,7 @@ export const commercialListingsService = {
       .from('commercial_listings')
       .select(`
         *,
-        owner:profiles(full_name,role)
+        owner:public_profiles(full_name,role)
       `);
 
     if (approved !== undefined) {
@@ -531,9 +531,6 @@ export const commercialListingsService = {
   ): Promise<void> {
     if (tempImages.length === 0) return;
 
-    // TODO: Deploy move-temp-commercial-images edge function before using this method.
-    // This function does NOT yet exist. It must write to commercial_listing_images,
-    // not listing_images. The residential move-temp-images function cannot be reused here.
     const { error } = await supabase.functions.invoke('move-temp-commercial-images', {
       body: { listingId, userId, tempImages },
     });
@@ -652,7 +649,7 @@ export const commercialListingsService = {
   async getActiveCommercialAgencies(listingType?: 'rental' | 'sale'): Promise<string[]> {
     let query = supabase
       .from('commercial_listings')
-      .select('owner:profiles!inner(role,agency)')
+      .select('owner:public_profiles!inner(role,agency)')
       .eq('is_active', true)
       .eq('approved', true)
       .or('role.eq.agent', { foreignTable: 'owner' });
@@ -758,7 +755,7 @@ export const commercialListingsService = {
 
     let query = supabase
       .from('commercial_listings')
-      .select('*,owner:profiles(id,full_name,role,agency),listing_images:commercial_listing_images(*)')
+      .select('*,owner:public_profiles(id,full_name,role,agency),listing_images:commercial_listing_images(*)')
       .eq('is_active', true)
       .eq('approved', true)
       .eq('is_featured', true)

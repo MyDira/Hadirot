@@ -1,6 +1,6 @@
 import React from "react";
 import { AlertTriangle, CheckCircle, Image } from "lucide-react";
-import type { CommercialListingFormData } from "../postListing/commercialTypes";
+import type { CommercialListingFormData } from "./commercialTypes";
 import type { CommercialSpaceType } from "../../config/supabase";
 import type { MediaFile } from "../../components/shared/MediaUploader";
 

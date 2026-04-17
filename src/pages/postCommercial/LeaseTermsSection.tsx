@@ -1,6 +1,6 @@
 import React from "react";
 import { TriStateToggle } from "./TriStateToggle";
-import type { CommercialListingFormData } from "../postListing/commercialTypes";
+import type { CommercialListingFormData } from "./commercialTypes";
 import type { LeaseType } from "../../config/supabase";
 
 interface LeaseTypeOption {

@@ -1,10 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-session-id',
-  'Access-Control-Allow-Methods': 'POST, GET, DELETE, OPTIONS',
-};
+import { corsHeaders } from "../_shared/cors.ts";
 
 const ZEPTO_API_URL = "https://api.zeptomail.com/v1.1/email";
 
@@ -236,7 +231,7 @@ Deno.serve(async (req) => {
 
     const { data: adminProfiles, error: adminsError } = await supabaseAdmin
       .from("profiles")
-      .select("id, full_name")
+      .select("id, full_name, email")
       .eq("is_admin", true);
 
     if (adminsError) {
@@ -265,26 +260,9 @@ Deno.serve(async (req) => {
       );
     }
 
-    const adminEmails: string[] = [];
-
-    for (const profile of adminProfiles) {
-      try {
-        const { data: userData, error: userError } = await supabaseAdmin.auth.admin.getUserById(profile.id);
-
-        if (userError) {
-          console.warn(`⚠️ Error fetching user ${profile.id}:`, userError);
-          continue;
-        }
-
-        if (userData?.user?.email) {
-          adminEmails.push(userData.user.email);
-          console.log(`✅ Found admin email: ${userData.user.email}`);
-        }
-      } catch (error) {
-        console.warn(`⚠️ Exception fetching user ${profile.id}:`, error);
-        continue;
-      }
-    }
+    const adminEmails = adminProfiles
+      .map((p) => p.email)
+      .filter((email): email is string => typeof email === "string" && email.length > 0);
 
     if (adminEmails.length === 0) {
       console.log("⚠️ No admin email addresses found");

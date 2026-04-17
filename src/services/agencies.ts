@@ -153,11 +153,9 @@ export const agenciesService = {
     }
 
     // Check if the agency owner has permission to manage agencies
-    const { data: profile, error: profileError } = await supabase
-      .from("profiles")
-      .select("can_manage_agency, is_admin")
-      .eq("id", agency.owner_profile_id)
-      .maybeSingle<{ can_manage_agency: boolean | null; is_admin: boolean }>();
+    const { data: permRows, error: profileError } = await supabase
+      .rpc('get_user_permissions', { p_user_id: agency.owner_profile_id });
+    const profile = permRows?.[0];
 
     if (profileError) {
       console.error("[svc] getAgencyBySlug profile check error", profileError);

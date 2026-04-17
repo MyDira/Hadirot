@@ -64,7 +64,7 @@ const isListingCurrentlyFeatured = (listing: Listing) => {
 
 
 export function AdminPanel() {
-  const { user, profile } = useAuth();
+  const { user, profile, loading: authLoading } = useAuth();
   const { signInAsUser, loading: signingInAsUser } = useAdminSignInAsUser();
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
@@ -151,6 +151,13 @@ export function AdminPanel() {
     }, { replace: true });
   };
 
+  useEffect(() => {
+    if (authLoading || profile === undefined) return;
+    if (!profile?.is_admin) {
+      navigate('/', { replace: true });
+    }
+  }, [authLoading, profile, navigate]);
+
   // Load sales feature settings
   useEffect(() => {
     salesService.isSalesFeatureEnabled().then(setSalesFeatureEnabled);
@@ -161,12 +168,6 @@ export function AdminPanel() {
       loadAdminData();
     }
   }, [user, profile, pendingSort]);
-
-  useEffect(() => {
-    if (profile?.is_admin) {
-      loadAdminData();
-    }
-  }, [profile]);
 
   // Auto-hide approve success message after 3 seconds
   useEffect(() => {
@@ -197,16 +198,6 @@ export function AdminPanel() {
       setFilteredPendingListings(filtered);
     }
   }, [pendingListings, searchTerm]);
-
-  // Auto-hide success message after 3 seconds
-  useEffect(() => {
-    if (showApproveSuccess) {
-      const timeout = setTimeout(() => {
-        setShowApproveSuccess(false);
-      }, 3000);
-      return () => clearTimeout(timeout);
-    }
-  }, [showApproveSuccess]);
 
   // Apply filters and sorting to listings
   useEffect(() => {
@@ -861,6 +852,14 @@ export function AdminPanel() {
       <div className={`absolute -bottom-4 -right-4 w-24 h-24 rounded-full ${color} opacity-10`} />
     </div>
   );
+
+  if (authLoading || profile === undefined) {
+    return null;
+  }
+
+  if (!profile?.is_admin) {
+    return null;
+  }
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">

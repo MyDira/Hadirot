@@ -9,7 +9,7 @@ import { reverseGeocode } from "../services/reverseGeocode";
 import { generateVideoThumbnail } from "../utils/videoUtils";
 import { MediaUploader, MediaFile } from "../components/shared/MediaUploader";
 import { LocationPicker } from "../components/listing/LocationPicker";
-import { MapboxStreetAutocomplete, MapboxFeature } from "../components/listing/MapboxStreetAutocomplete";
+import { GoogleStreetAutocomplete, GoogleStreetFeature } from "../components/listing/GoogleStreetAutocomplete";
 import { UserSearchSelect } from "../components/admin/UserSearchSelect";
 import { profilesService } from "../services/profiles";
 import {
@@ -177,8 +177,8 @@ export function EditListing() {
   const [adminAssignUser, setAdminAssignUser] = useState<Profile | null>(null);
   const [adminCustomAgencyName, setAdminCustomAgencyName] = useState('');
   const [adminListingTypeDisplay, setAdminListingTypeDisplay] = useState<'agent' | 'owner' | ''>('');
-  const [crossStreetAFeature, setCrossStreetAFeature] = useState<MapboxFeature | null>(null);
-  const [crossStreetBFeature, setCrossStreetBFeature] = useState<MapboxFeature | null>(null);
+  const [crossStreetAFeature, setCrossStreetAFeature] = useState<GoogleStreetFeature | null>(null);
+  const [crossStreetBFeature, setCrossStreetBFeature] = useState<GoogleStreetFeature | null>(null);
   const [isLocationConfirmed, setIsLocationConfirmed] = useState(true);
   const [formData, setFormData] = useState<ListingFormData>({
     title: "",
@@ -392,20 +392,16 @@ export function EditListing() {
       if (data.listing_type !== 'sale') {
         if (data.cross_street_a) {
           setCrossStreetAFeature({
-            id: 'loaded-a',
-            place_name: data.cross_street_a,
-            center: [data.longitude || 0, data.latitude || 0],
-            text: data.cross_street_a,
-            place_type: ['address'],
+            placeId: 'loaded-a',
+            streetName: data.cross_street_a,
+            formattedName: data.cross_street_a,
           });
         }
         if (data.cross_street_b) {
           setCrossStreetBFeature({
-            id: 'loaded-b',
-            place_name: data.cross_street_b,
-            center: [data.longitude || 0, data.latitude || 0],
-            text: data.cross_street_b,
-            place_type: ['address'],
+            placeId: 'loaded-b',
+            streetName: data.cross_street_b,
+            formattedName: data.cross_street_b,
           });
         }
       }
@@ -935,8 +931,8 @@ export function EditListing() {
         title: formData.title,
         description: formData.description,
         location: formData.location,
-        cross_street_a: crossStreetAFeature?.text || null,
-        cross_street_b: crossStreetBFeature?.text || null,
+        cross_street_a: crossStreetAFeature?.streetName || null,
+        cross_street_b: crossStreetBFeature?.streetName || null,
         neighborhood: finalNeighborhood,
         bedrooms: formData.bedrooms,
         bathrooms: formData.bathrooms,
@@ -1500,22 +1496,22 @@ export function EditListing() {
                     Please enter two exact street names
                   </p>
                   <div className="space-y-3 mb-4">
-                    <MapboxStreetAutocomplete
-                      value={crossStreetAFeature?.text}
+                    <GoogleStreetAutocomplete
+                      value={crossStreetAFeature?.streetName}
                       onSelect={(feature) => {
                         setCrossStreetAFeature(feature);
                         if (feature) {
-                          setFormData(prev => ({ ...prev, location: `${feature.text} & ${crossStreetBFeature?.text || ''}`.trim() }));
+                          setFormData(prev => ({ ...prev, location: `${feature.streetName} & ${crossStreetBFeature?.streetName || ''}`.trim() }));
                         }
                       }}
                       placeholder="First cross street (e.g., Avenue J)"
                     />
-                    <MapboxStreetAutocomplete
-                      value={crossStreetBFeature?.text}
+                    <GoogleStreetAutocomplete
+                      value={crossStreetBFeature?.streetName}
                       onSelect={(feature) => {
                         setCrossStreetBFeature(feature);
                         if (feature) {
-                          setFormData(prev => ({ ...prev, location: `${crossStreetAFeature?.text || ''} & ${feature.text}`.trim() }));
+                          setFormData(prev => ({ ...prev, location: `${crossStreetAFeature?.streetName || ''} & ${feature.streetName}`.trim() }));
                         }
                       }}
                       placeholder="Second cross street (e.g., East 15th Street)"

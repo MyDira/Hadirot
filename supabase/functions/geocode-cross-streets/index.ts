@@ -1,17 +1,62 @@
+import { createClient, type SupabaseClient } from 'npm:@supabase/supabase-js@2';
 import {
   parseCrossStreets,
   generateQueryVariations,
   fuzzyMatchStreet,
 } from './normalizer.ts';
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Client-Info, Apikey',
-};
+import { corsHeaders } from "../_shared/cors.ts";
 
 const NYC_BOUNDING_BOX = '-74.2591,40.4774,-73.7002,40.9176';
 const BROOKLYN_CENTER = [-73.9442, 40.6782];
+
+function buildCacheKey(crossStreets: string, neighborhood?: string): string {
+  const norm = (s: string) => s.trim().toLowerCase().replace(/\s+/g, ' ');
+  return `${norm(crossStreets)}|${norm(neighborhood ?? '')}`;
+}
+
+async function lookupCache(
+  supabase: SupabaseClient,
+  cacheKey: string,
+): Promise<GeocodeResult | null> {
+  const { data, error } = await supabase
+    .from('geocode_cache')
+    .select('result')
+    .eq('cache_key', cacheKey)
+    .gt('expires_at', new Date().toISOString())
+    .maybeSingle();
+
+  if (error) {
+    console.error('Cache lookup error:', error);
+    return null;
+  }
+  if (!data) return null;
+
+  return data.result as GeocodeResult;
+}
+
+async function writeCache(
+  supabase: SupabaseClient,
+  cacheKey: string,
+  crossStreets: string,
+  neighborhood: string | undefined,
+  result: GeocodeResult,
+): Promise<void> {
+  const { error } = await supabase
+    .from('geocode_cache')
+    .upsert(
+      {
+        cache_key: cacheKey,
+        input_cross_streets: crossStreets,
+        input_neighborhood: neighborhood ?? null,
+        result,
+      },
+      { onConflict: 'cache_key' },
+    );
+
+  if (error) {
+    console.error('Cache write error:', error);
+  }
+}
 
 interface GeocodeRequest {
   crossStreets: string;
@@ -259,6 +304,26 @@ Deno.serve(async (req: Request) => {
 
     console.log(`Geocoding request: "${crossStreets}" (neighborhood: ${neighborhood || 'not specified'})`);
 
+    const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+    const cacheClient = supabaseUrl && supabaseServiceKey
+      ? createClient(supabaseUrl, supabaseServiceKey, {
+          auth: { autoRefreshToken: false, persistSession: false },
+        })
+      : null;
+
+    const cacheKey = buildCacheKey(crossStreets, neighborhood);
+    if (cacheClient) {
+      const cached = await lookupCache(cacheClient, cacheKey);
+      if (cached) {
+        console.log(`Cache hit for key: ${cacheKey}`);
+        return new Response(JSON.stringify(cached), {
+          status: 200,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+    }
+
     const parsed = parseCrossStreets(crossStreets);
     console.log('Parsed cross streets:', JSON.stringify(parsed));
 
@@ -277,19 +342,20 @@ Deno.serve(async (req: Request) => {
     );
 
     if (!feature) {
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: 'Location not found. Try a different format (e.g., "Avenue J & East 15th Street")',
-          originalQuery: crossStreets,
-          normalizedQuery: parsed.formattedQuery,
-          corrections: corrections.length > 0 ? corrections : undefined,
-        } as GeocodeResult),
-        {
-          status: 200,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        }
-      );
+      const notFoundResult: GeocodeResult = {
+        success: false,
+        error: 'Location not found. Try a different format (e.g., "Avenue J & East 15th Street")',
+        originalQuery: crossStreets,
+        normalizedQuery: parsed.formattedQuery,
+        corrections: corrections.length > 0 ? corrections : undefined,
+      };
+      if (cacheClient) {
+        await writeCache(cacheClient, cacheKey, crossStreets, neighborhood, notFoundResult);
+      }
+      return new Response(JSON.stringify(notFoundResult), {
+        status: 200,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
     const [lng, lat] = feature.center;
@@ -313,6 +379,10 @@ Deno.serve(async (req: Request) => {
     };
 
     console.log(`Geocoding success: ${JSON.stringify(result)}`);
+
+    if (cacheClient) {
+      await writeCache(cacheClient, cacheKey, crossStreets, neighborhood, result);
+    }
 
     return new Response(
       JSON.stringify(result),

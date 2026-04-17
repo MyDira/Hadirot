@@ -1,12 +1,8 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import {
-  Search,
-  Star,
-  Users,
   Home as HomeIcon,
   ChevronRight,
-  Plus,
   Sparkles,
 } from "lucide-react";
 import { ListingCard } from "../components/listings/ListingCard";
@@ -38,7 +34,7 @@ export function Home() {
     ...twoBedroomListings.map(l => l.id),
     ...threeBedroomListings.map(l => l.id),
   ];
-  const { observeElement, unobserveElement } = useListingImpressions({
+  const { observeElement } = useListingImpressions({
     listingIds: allListingIds,
   });
 

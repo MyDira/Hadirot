@@ -24,7 +24,7 @@ Deno.serve(async (req) => {
     const zeptoToken = Deno.env.get("ZEPTO_TOKEN");
     const zeptoFromAddress = Deno.env.get("ZEPTO_FROM_ADDRESS") || "noreply@hadirot.com";
     const zeptoFromName = Deno.env.get("ZEPTO_FROM_NAME") || "HaDirot Contact Form";
-    const contactRecipient = "aharon@hadirot.com";
+    const contactRecipient = Deno.env.get("CONTACT_RECIPIENT") || "aharon@hadirot.com";
 
     if (!zeptoToken) {
       console.error("ZEPTO_TOKEN not found");
