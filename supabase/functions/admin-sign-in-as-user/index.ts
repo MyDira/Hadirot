@@ -37,22 +37,23 @@ Deno.serve(async (req: Request) => {
 
     console.log(`[admin-sign-in-as-user:${requestId}] Admin user:`, adminUser.id);
 
-    // Verify admin status
-    const { data: adminProfile, error: profileError } = await supabase
-      .from('profiles')
-      .select('is_admin, full_name')
-      .eq('id', adminUser.id)
-      .maybeSingle();
+    const isAdminViaJwt = adminUser.app_metadata?.is_admin === true;
 
-    if (profileError || !adminProfile?.is_admin) {
-      console.error(`[admin-sign-in-as-user:${requestId}] Not admin:`, profileError?.message);
+    if (!isAdminViaJwt) {
+      console.error(`[admin-sign-in-as-user:${requestId}] Not admin (JWT):`, adminUser.id);
       return new Response(
         JSON.stringify({ error: 'Admin privileges required' }),
         { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    console.log(`[admin-sign-in-as-user:${requestId}] Admin verified:`, adminProfile.full_name);
+    const { data: adminProfile } = await supabase
+      .from('profiles')
+      .select('full_name')
+      .eq('id', adminUser.id)
+      .maybeSingle();
+
+    console.log(`[admin-sign-in-as-user:${requestId}] Admin verified:`, adminProfile?.full_name);
 
     // Get target user ID from request
     const { target_user_id } = await req.json();
@@ -179,10 +180,21 @@ Deno.serve(async (req: Request) => {
     console.log(`[admin-sign-in-as-user:${requestId}] Tokens validated successfully`);
     console.log(`[admin-sign-in-as-user:${requestId}] Access token is JWT:`, access_token.split('.').length === 3);
     console.log(`[admin-sign-in-as-user:${requestId}] Refresh token length:`, refresh_token.length);
-    console.log(`[admin-sign-in-as-user:${requestId}] SUCCESS - Admin ${adminProfile.full_name} signing in as ${targetProfile.full_name}`);
+    console.log(`[admin-sign-in-as-user:${requestId}] SUCCESS - Admin ${adminProfile?.full_name} signing in as ${targetProfile.full_name}`);
 
-    // Log for security audit (server-side only)
-    console.log(`[AUDIT] Admin ${adminUser.id} (${adminProfile.full_name}) signed in as user ${target_user_id} (${targetProfile.full_name}) at ${new Date().toISOString()}`);
+    const { error: auditError } = await supabase.from('admin_audit_log').insert({
+      action: 'admin_sign_in_as_user',
+      actor_id: adminUser.id,
+      target_id: target_user_id,
+      details: {
+        admin_name: adminProfile?.full_name ?? null,
+        target_name: targetProfile.full_name,
+        target_email: targetProfile.email,
+      },
+    });
+    if (auditError) {
+      console.error(`[admin-sign-in-as-user:${requestId}] Audit insert failed:`, auditError.message);
+    }
 
     return new Response(
       JSON.stringify({

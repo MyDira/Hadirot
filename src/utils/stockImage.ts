@@ -81,6 +81,26 @@ export function normalizeImageUrl(url: string, variant: ListingImageVariant = 'c
     .data.publicUrl;
 }
 
+export function buildListingAlt(seed: {
+  title?: string | null;
+  bedrooms?: number | null;
+  neighborhood?: string | null;
+  property_type?: string | null;
+  commercial_space_type?: string | null;
+}): string {
+  if (seed.title) return seed.title;
+  const descriptors: string[] = [];
+  if (seed.bedrooms != null && seed.bedrooms > 0) descriptors.push(`${seed.bedrooms}-bedroom`);
+  if (seed.property_type) descriptors.push(seed.property_type.replace(/_/g, ' '));
+  if (seed.commercial_space_type) descriptors.push(seed.commercial_space_type.replace(/_/g, ' '));
+  if (descriptors.length > 0) {
+    const location = seed.neighborhood ? ` in ${seed.neighborhood}` : '';
+    return `${descriptors.join(' ')}${location}`;
+  }
+  if (seed.neighborhood) return `Property in ${seed.neighborhood}`;
+  return 'Property listing';
+}
+
 export function computePrimaryListingImage(
   images: Array<{ image_url: string }> | undefined | null,
   seed: {

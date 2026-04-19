@@ -4,7 +4,7 @@ import { X, Heart, Share2, MapPin, Check, Link as LinkIcon } from "lucide-react"
 import { Listing } from "../../config/supabase";
 import { listingsService } from "../../services/listings";
 import { useAuth } from "@/hooks/useAuth";
-import { computePrimaryListingImage } from "../../utils/stockImage";
+import { computePrimaryListingImage, buildListingAlt } from "../../utils/stockImage";
 import { capitalizeName } from "../../utils/formatters";
 import { gaEvent, gaListing } from "@/lib/ga";
 
@@ -247,7 +247,11 @@ export function MobileMapListingPopup({
             <div className="mobile-map-popup-image">
               <img
                 src={imageUrl}
-                alt={isStock ? "Stock photo" : listing.title}
+                alt={isStock ? buildListingAlt({
+                  bedrooms: listing.bedrooms,
+                  neighborhood: listing.neighborhood,
+                  property_type: listing.property_type,
+                }) : listing.title}
               />
               {isStock && (
                 <div className="mobile-map-popup-stock-badge">Stock photo</div>

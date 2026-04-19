@@ -4,7 +4,7 @@ import mapboxgl from "mapbox-gl";
 import { ArrowUp } from "lucide-react";
 import { Listing, CommercialListing } from "../../config/supabase";
 import { MAPBOX_ACCESS_TOKEN } from "@/config/env";
-import { computePrimaryListingImage } from "../../utils/stockImage";
+import { computePrimaryListingImage, buildListingAlt } from "../../utils/stockImage";
 import { escapeHtml } from "../../utils/sanitize";
 import { formatPrice, capitalizeName } from "../../utils/formatters";
 import {
@@ -305,7 +305,7 @@ export function ListingsMapEnhanced({
         <div style="position: relative; aspect-ratio: 3/2; overflow: hidden; border-radius: 8px 8px 0 0;">
           <img
             src="${escapeHtml(imageUrl)}"
-            alt="${escapeHtml(isStock ? 'Stock photo' : (listing.title ?? 'Commercial listing'))}"
+            alt="${escapeHtml(isStock ? buildListingAlt({ neighborhood: listing.neighborhood, commercial_space_type: listing.commercial_space_type }) : (listing.title ?? 'Commercial listing'))}"
             style="width: 100%; height: 100%; object-fit: cover;"
           />
           <div style="position: absolute; top: 8px; left: 8px; background: #0891B2; color: white; padding: 3px 10px; border-radius: 999px; font-size: 11px; font-weight: 600;">
@@ -416,7 +416,7 @@ export function ListingsMapEnhanced({
         <div style="position: relative; aspect-ratio: 3/2; overflow: hidden; border-radius: 8px 8px 0 0;">
           <img
             src="${escapeHtml(imageUrl)}"
-            alt="${escapeHtml(isStock ? 'Stock photo' : listing.title)}"
+            alt="${escapeHtml(isStock ? buildListingAlt({ bedrooms: listing.bedrooms, neighborhood: listing.neighborhood, property_type: listing.property_type }) : listing.title)}"
             style="width: 100%; height: 100%; object-fit: cover;"
           />
           ${isStock ? `

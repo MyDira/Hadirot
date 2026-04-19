@@ -4,7 +4,7 @@ import { X, Heart, MapPin } from "lucide-react";
 import { CommercialListing } from "../../config/supabase";
 import { commercialListingsService } from "../../services/commercialListings";
 import { useAuth } from "@/hooks/useAuth";
-import { computePrimaryListingImage } from "../../utils/stockImage";
+import { computePrimaryListingImage, buildListingAlt } from "../../utils/stockImage";
 
 interface MobileMapCommercialPopupProps {
   listing: CommercialListing | null;
@@ -163,7 +163,10 @@ export function MobileMapCommercialPopup({
           <div className="mobile-map-popup-image">
             <img
               src={imageUrl}
-              alt={isStock ? "Stock photo" : (listing.title ?? "Commercial listing")}
+              alt={isStock ? buildListingAlt({
+                neighborhood: listing.neighborhood,
+                commercial_space_type: listing.commercial_space_type,
+              }) : (listing.title ?? "Commercial listing")}
             />
             {isStock && (
               <div className="mobile-map-popup-stock-badge">Stock photo</div>

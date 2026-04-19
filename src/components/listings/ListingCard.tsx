@@ -8,7 +8,7 @@ import { capitalizeName } from "../../utils/formatters";
 import { gaEvent, gaListing } from "@/lib/ga";
 void gaEvent;
 import NumericText from "@/components/common/NumericText";
-import { computePrimaryListingImage } from "../../utils/stockImage";
+import { computePrimaryListingImage, buildListingAlt } from "../../utils/stockImage";
 import { ShareButton } from "../shared/ShareButton";
 import { SaleStatusBadge } from "./SaleStatusBadge";
 
@@ -161,7 +161,11 @@ export function ListingCard({
       <div className="relative aspect-[3/2]">
         <img
           src={primaryImageUrl}
-          alt={isStock ? "Stock photo placeholder" : listing.title}
+          alt={isStock ? buildListingAlt({
+            bedrooms: listing.bedrooms,
+            neighborhood: listing.neighborhood,
+            property_type: listing.property_type,
+          }) : listing.title}
           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
           loading="lazy"
         />

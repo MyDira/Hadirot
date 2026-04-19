@@ -8,6 +8,57 @@ interface ContactFormData {
   message: string;
 }
 
+const RATE_WINDOW_MS = 60_000;
+const RATE_MAX_PER_WINDOW = 5;
+const rateLimitMap = new Map<string, { count: number; windowStart: number }>();
+
+function checkRateLimit(
+  key: string,
+): { allowed: true } | { allowed: false; retryAfterSeconds: number } {
+  const now = Date.now();
+  const entry = rateLimitMap.get(key);
+
+  if (!entry || now - entry.windowStart >= RATE_WINDOW_MS) {
+    rateLimitMap.set(key, { count: 1, windowStart: now });
+    if (rateLimitMap.size > 10_000) {
+      for (const [k, v] of rateLimitMap) {
+        if (now - v.windowStart >= RATE_WINDOW_MS) rateLimitMap.delete(k);
+      }
+    }
+    return { allowed: true };
+  }
+
+  if (entry.count + 1 > RATE_MAX_PER_WINDOW) {
+    return {
+      allowed: false,
+      retryAfterSeconds: Math.ceil((RATE_WINDOW_MS - (now - entry.windowStart)) / 1000),
+    };
+  }
+
+  entry.count += 1;
+  return { allowed: true };
+}
+
+function getClientIp(req: Request): string | null {
+  const headers = ["x-forwarded-for", "x-real-ip", "cf-connecting-ip"];
+  for (const header of headers) {
+    const value = req.headers.get(header);
+    if (value) {
+      const ip = value.split(",")[0]?.trim();
+      if (ip) return ip;
+    }
+  }
+  return null;
+}
+
+async function sha256Hex(value: string): Promise<string> {
+  const data = new TextEncoder().encode(value);
+  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+  return Array.from(new Uint8Array(hashBuffer))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -19,6 +70,25 @@ Deno.serve(async (req) => {
         status: 405,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
+    }
+
+    const clientIp = getClientIp(req);
+    if (clientIp) {
+      const ipHash = await sha256Hex(clientIp);
+      const rate = checkRateLimit(ipHash);
+      if (!rate.allowed) {
+        return new Response(
+          JSON.stringify({ error: "Too many requests. Please try again shortly." }),
+          {
+            status: 429,
+            headers: {
+              ...corsHeaders,
+              "Content-Type": "application/json",
+              "Retry-After": String(rate.retryAfterSeconds),
+            },
+          },
+        );
+      }
     }
 
     const zeptoToken = Deno.env.get("ZEPTO_TOKEN");

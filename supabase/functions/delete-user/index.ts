@@ -135,6 +135,20 @@ Deno.serve(async (req) => {
 
     console.log(`Successfully deleted user: ${userId}`);
 
+    const { error: auditError } = await supabaseAdmin.from("admin_audit_log").insert({
+      action: "delete_user",
+      actor_id: user.id,
+      target_id: userId,
+      details: {
+        target_email: targetEmail || null,
+        target_full_name: fullName || null,
+        reason: reason || null,
+      },
+    });
+    if (auditError) {
+      console.error("Audit insert failed:", auditError.message);
+    }
+
     // Send deletion notification email via ZeptoMail
     if (targetEmail) {
       try {

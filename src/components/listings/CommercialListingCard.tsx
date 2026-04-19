@@ -14,7 +14,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { capitalizeName } from "../../utils/formatters";
 import { gaListing } from "@/lib/ga";
 import NumericText from "@/components/common/NumericText";
-import { computePrimaryListingImage } from "../../utils/stockImage";
+import { computePrimaryListingImage, buildListingAlt } from "../../utils/stockImage";
 import { ShareButton } from "../shared/ShareButton";
 
 interface CommercialListingCardProps {
@@ -384,7 +384,10 @@ export function CommercialListingCard({
       <div className="relative aspect-[3/2]">
         <img
           src={primaryImageUrl}
-          alt={isStock ? "Stock photo placeholder" : (listing.title ?? "Commercial listing")}
+          alt={isStock ? buildListingAlt({
+            neighborhood: listing.neighborhood,
+            commercial_space_type: listing.commercial_space_type,
+          }) : (listing.title ?? "Commercial listing")}
           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
           loading="lazy"
         />
