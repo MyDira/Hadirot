@@ -803,29 +803,44 @@ Deno.serve(async (req) => {
 
     let listingsToSend: Listing[] = [];
 
+    // Combined dedup across BOTH digest systems. The cron-driven
+    // send-daily-admin-digest writes to daily_admin_digest_sent_listings,
+    // this function writes to digest_sent_listings. Without checking both,
+    // a manual digest can re-send listings the auto-cron already sent.
+    const collectSentIds = async (sinceIso: string | null): Promise<Set<string>> => {
+      const [enhanced, adminDaily] = await Promise.all([
+        sinceIso
+          ? supabaseAdmin
+              .from("digest_sent_listings")
+              .select("listing_id")
+              .gte("sent_at", sinceIso)
+          : supabaseAdmin.from("digest_sent_listings").select("listing_id"),
+        sinceIso
+          ? supabaseAdmin
+              .from("daily_admin_digest_sent_listings")
+              .select("listing_id")
+              .gte("sent_at", sinceIso)
+          : supabaseAdmin.from("daily_admin_digest_sent_listings").select("listing_id"),
+      ]);
+      const ids = new Set<string>();
+      for (const row of enhanced.data ?? []) ids.add(row.listing_id);
+      for (const row of adminDaily.data ?? []) ids.add(row.listing_id);
+      return ids;
+    };
+
     if (template.ignore_send_history) {
       listingsToSend = allListings;
       console.log(`📝 Ignore send history: sending all ${listingsToSend.length} listings`);
     } else if (template.template_type === "unsent_only") {
-      const { data: sentListings } = await supabaseAdmin
-        .from("digest_sent_listings")
-        .select("listing_id");
-
-      const sentIds = new Set(sentListings?.map(s => s.listing_id) || []);
+      const sentIds = await collectSentIds(null);
       listingsToSend = allListings.filter(l => !sentIds.has(l.id));
-      console.log(`📝 Unsent only: ${listingsToSend.length} of ${allListings.length} listings are new`);
+      console.log(`📝 Unsent only: ${listingsToSend.length} of ${allListings.length} listings are new (checked both digest systems)`);
     } else if (template.allow_resend) {
       const thresholdDate = new Date();
       thresholdDate.setDate(thresholdDate.getDate() - template.resend_after_days);
-
-      const { data: recentSends } = await supabaseAdmin
-        .from("digest_sent_listings")
-        .select("listing_id")
-        .gte("sent_at", thresholdDate.toISOString());
-
-      const recentIds = new Set(recentSends?.map(s => s.listing_id) || []);
+      const recentIds = await collectSentIds(thresholdDate.toISOString());
       listingsToSend = allListings.filter(l => !recentIds.has(l.id));
-      console.log(`📝 Allow resend: ${listingsToSend.length} of ${allListings.length} listings eligible`);
+      console.log(`📝 Allow resend: ${listingsToSend.length} of ${allListings.length} listings eligible (checked both digest systems)`);
     } else {
       listingsToSend = allListings;
     }

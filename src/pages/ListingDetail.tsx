@@ -48,7 +48,7 @@ import { ImageZoomModal } from "../components/listing/ImageZoomModal";
 import { ListingContactForm } from "../components/listing/ListingContactForm";
 import { AdminListingBanner } from "../components/listing/AdminListingBanner";
 import { formatLeaseLength } from "../utils/formatters";
-import { ListingLocationMap } from "../components/listing/ListingLocationMap";
+import { ListingLocationMap } from "../components/listing/ListingLocationMapLazy";
 import { SaleStatusBadge } from "../components/listings/SaleStatusBadge";
 import { ContactProfileBubble } from "../components/common/ContactProfileBubble";
 import { PhoneNumberReveal } from "../components/common/PhoneNumberReveal";

@@ -8,7 +8,7 @@ import ImageCarousel from '@/components/listing/ImageCarousel';
 import { gaListing } from '@/lib/ga';
 import { ShareButton } from '../components/shared/ShareButton';
 import { ImageZoomModal } from '../components/listing/ImageZoomModal';
-import { ListingLocationMap } from '../components/listing/ListingLocationMap';
+import { ListingLocationMap } from '../components/listing/ListingLocationMapLazy';
 import { ContactProfileBubble } from '../components/common/ContactProfileBubble';
 import { PhoneNumberReveal } from '../components/common/PhoneNumberReveal';
 import { ConfirmDialog } from '../components/shared/ConfirmDialog';

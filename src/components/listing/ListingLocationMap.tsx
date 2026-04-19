@@ -3,7 +3,7 @@ import mapboxgl from "mapbox-gl";
 import { MapPin } from "lucide-react";
 import { MAPBOX_ACCESS_TOKEN } from "@/config/env";
 
-interface ListingLocationMapProps {
+export interface ListingLocationMapProps {
   latitude: number;
   longitude: number;
   className?: string;

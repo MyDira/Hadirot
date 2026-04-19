@@ -4,7 +4,7 @@ import { ChevronLeft, ChevronRight, Filter, X, List, Map as MapIcon, Locate, Rot
 import { ListingCard } from "../components/listings/ListingCard";
 import { CommercialListingCard } from "../components/listings/CommercialListingCard";
 import { ListingFiltersHorizontal } from "../components/listings/ListingFiltersHorizontal";
-import { ListingsMapEnhanced } from "../components/listings/ListingsMapEnhanced";
+import { ListingsMapEnhanced } from "../components/listings/ListingsMapEnhancedLazy";
 import { SmartSearchBar, SmartSearchBarRef } from "../components/listings/SmartSearchBar";
 import { MobileListingCarousel } from "../components/listings/MobileListingCarousel";
 import { Listing, CommercialListing } from "../config/supabase";

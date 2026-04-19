@@ -345,12 +345,25 @@ Deno.serve(async (req) => {
       );
     }
 
-    const { data: sentListings } = await supabaseAdmin
-      .from("daily_admin_digest_sent_listings")
-      .select("listing_id")
-      .gte("sent_at", sevenDaysAgo);
+    // Cross-check both digest systems so an auto-cron run doesn't re-send
+    // listings that the manual send-enhanced-digest flow already sent, and
+    // vice versa. Each system has its own sent-listings log; without this
+    // we can double-email admins within the same 7-day window.
+    const [ownSent, enhancedSent] = await Promise.all([
+      supabaseAdmin
+        .from("daily_admin_digest_sent_listings")
+        .select("listing_id")
+        .gte("sent_at", sevenDaysAgo),
+      supabaseAdmin
+        .from("digest_sent_listings")
+        .select("listing_id")
+        .gte("sent_at", sevenDaysAgo),
+    ]);
 
-    const sentListingIds = new Set(sentListings?.map(sl => sl.listing_id) || []);
+    const sentListingIds = new Set<string>();
+    for (const row of ownSent.data ?? []) sentListingIds.add(row.listing_id);
+    for (const row of enhancedSent.data ?? []) sentListingIds.add(row.listing_id);
+
     const newListings = (listings as unknown as Listing[]).filter(
       listing => !sentListingIds.has(listing.id)
     );

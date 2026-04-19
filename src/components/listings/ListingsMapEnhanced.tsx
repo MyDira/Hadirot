@@ -29,7 +29,7 @@ interface MapBounds {
   west: number;
 }
 
-interface ListingsMapEnhancedProps {
+export interface ListingsMapEnhancedProps {
   listings: Listing[];
   pins?: MapPin[];
   commercialListings?: CommercialListing[];

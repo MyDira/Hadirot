@@ -349,18 +349,32 @@ export function AdminPanel() {
         if (settingsData.sale_active_days) setSaleActiveDays(settingsData.sale_active_days);
       }
 
-      // Load full data for tables
-      const { data: allUsers } = await supabase
+      // Load full data for tables. Supabase's max_rows setting (default 1000)
+      // silently truncates — we query with `count: 'exact'` so we can detect
+      // when truncation is hiding rows from the admin.
+      const { data: allUsers, count: usersCount } = await supabase
         .from('profiles')
-        .select('id, full_name, email, role, phone, agency, is_admin, is_banned, created_at, can_manage_agency, can_post_sales')
+        .select('id, full_name, email, role, phone, agency, is_admin, is_banned, created_at, can_manage_agency, can_post_sales', { count: 'exact' })
         .order('created_at', { ascending: false });
 
-      const { data: allListings } = await supabase
+      const { data: allListings, count: listingsCount } = await supabase
         .from('listings')
         .select(`
           *,
           owner:profiles!listings_user_id_fkey(full_name, role, agency)
-        `);
+        `, { count: 'exact' });
+
+      if (usersCount !== null && allUsers && usersCount > allUsers.length) {
+        setToast({
+          tone: 'error',
+          message: `Showing ${allUsers.length} of ${usersCount} users — Supabase row limit reached. Some users are hidden. Use search to find a specific user.`,
+        });
+      } else if (listingsCount !== null && allListings && listingsCount > allListings.length) {
+        setToast({
+          tone: 'error',
+          message: `Showing ${allListings.length} of ${listingsCount} listings — Supabase row limit reached. Some listings are hidden.`,
+        });
+      }
 
       // Load pending listings
       let query = supabase
