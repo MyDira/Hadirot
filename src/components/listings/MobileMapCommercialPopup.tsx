@@ -131,7 +131,8 @@ export function MobileMapCommercialPopup({
       city: listing.neighborhood,
       price: listing.price,
     },
-    listing.video_thumbnail_url
+    listing.video_thumbnail_url,
+    'popup'
   );
 
   const priceDisplay = formatCommercialPrice(listing);

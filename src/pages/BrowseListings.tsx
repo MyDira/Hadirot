@@ -31,6 +31,16 @@ interface MapBounds {
   west: number;
 }
 
+// Default bounding box used before the map has rendered and reported its real
+// viewport. Covers Brooklyn plus buffer into lower Manhattan / Queens /
+// Staten Island so first-paint pins cover the canonical coverage area.
+const DEFAULT_MAP_BOUNDS: MapBounds = {
+  north: 40.82,
+  south: 40.55,
+  east: -73.70,
+  west: -74.10,
+};
+
 interface FilterState {
   bedrooms?: number[];
   min_bathrooms?: number;
@@ -280,6 +290,7 @@ export function BrowseListings() {
       };
 
       let residentialCount = 0;
+      let residentialData: Listing[] = [];
       let allCommercial: CommercialListing[] = [];
 
       if (fetchResidential && fetchCommercial) {
@@ -288,13 +299,22 @@ export function BrowseListings() {
           commercialListingsService.getCommercialListings(commercialServiceFilters, undefined, user?.id, 0, false),
         ]);
         residentialCount = countResult.totalCount;
+        residentialData = countResult.data ?? [];
         allCommercial = commercialResult.data;
       } else if (fetchResidential) {
         const countResult = await listingsService.getListings(serviceFilters, undefined, user?.id, 0, false);
         residentialCount = countResult.totalCount;
+        residentialData = countResult.data ?? [];
       } else {
         const commercialResult = await commercialListingsService.getCommercialListings(commercialServiceFilters, undefined, user?.id, 0, false);
         allCommercial = commercialResult.data;
+      }
+
+      if (fetchResidential && residentialCount > residentialData.length) {
+        console.warn(
+          `[BrowseListings] Map data truncated: showing ${residentialData.length} of ${residentialCount} listings. ` +
+            `Supabase row limit hit. Consider viewport-bounded pin fetching.`,
+        );
       }
 
       const combinedTotalCount = residentialCount + allCommercial.length;
@@ -446,17 +466,29 @@ export function BrowseListings() {
       setAllCommercialForMap(allCommercial);
 
       if (fetchResidential) {
-        const { data: allData } = await listingsService.getListings(
-          serviceFilters,
+        // Map data is viewport-bounded so it scales independently of total
+        // listing count. Uses searchBounds if user clicked "Search this area",
+        // otherwise the current map viewport, otherwise a default city bbox
+        // for first paint before the map has reported its bounds.
+        const mapFetchBounds = filters.searchBounds || mapBounds || DEFAULT_MAP_BOUNDS;
+        const { data: mapData, totalCount: mapTotalCount } = await listingsService.getListings(
+          { ...serviceFilters, bounds: mapFetchBounds },
           undefined,
           user?.id,
           0,
           false,
         );
-        setAllListingsForMap(allData || []);
+        if (mapTotalCount && mapData && mapTotalCount > mapData.length) {
+          console.warn(
+            `[BrowseListings] Map viewport data truncated: showing ${mapData.length} of ${mapTotalCount} listings in current bounds. ` +
+              `Consider zooming in.`,
+          );
+        }
+        const typedMapData = (mapData ?? []) as Listing[];
+        setAllListingsForMap(typedMapData);
 
         if (!preserveMapRef.current && !filters.searchBounds) {
-          const geoCenter = calculateGeographicCenter(allData || []);
+          const geoCenter = calculateGeographicCenter(typedMapData);
           if (geoCenter) {
             setCenterOnListings(geoCenter);
             setTimeout(() => {

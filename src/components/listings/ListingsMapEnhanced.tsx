@@ -268,7 +268,8 @@ export function ListingsMapEnhanced({
         city: listing.neighborhood,
         price: listing.price,
       },
-      listing.video_thumbnail_url
+      listing.video_thumbnail_url,
+      'popup'
     );
 
     const isRental = listing.listing_type === "rental";
@@ -367,7 +368,8 @@ export function ListingsMapEnhanced({
         city: listing.neighborhood,
         price: listing.price,
       },
-      listing.video_thumbnail_url
+      listing.video_thumbnail_url,
+      'popup'
     );
 
     const isSaleListing = listing.listing_type === "sale";
