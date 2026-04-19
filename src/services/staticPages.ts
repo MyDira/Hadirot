@@ -44,8 +44,9 @@ async function updateStaticPage(
 async function getAllStaticPages(): Promise<StaticPage[]> {
   const { data, error } = await supabase
     .from('static_pages')
-    .select('*')
-    .order('id');
+    .select('id, title, content, updated_at')
+    .order('id')
+    .limit(100);
 
   if (error) {
     console.error('Error fetching all static pages:', error);

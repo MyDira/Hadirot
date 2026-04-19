@@ -85,14 +85,10 @@ Deno.serve(async (req) => {
       );
     }
 
-    const { data: profile, error: profileError } = await supabaseAdmin
-      .from("profiles")
-      .select("is_admin")
-      .eq("id", user.id)
-      .maybeSingle();
+    const isAdminViaJwt = user.app_metadata?.is_admin === true;
 
-    if (profileError || !profile || !profile.is_admin) {
-      console.error("❌ User is not an admin:", user.id);
+    if (!isAdminViaJwt) {
+      console.error("❌ User is not an admin (JWT app_metadata.is_admin):", user.id);
       return new Response(
         JSON.stringify({ error: "Forbidden", message: "Admin access required" }),
         {

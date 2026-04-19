@@ -63,15 +63,10 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Check if the requesting user is an admin
-    const { data: profile, error: profileError } = await supabaseClient
-      .from("profiles")
-      .select("is_admin")
-      .eq("id", user.id)
-      .single();
+    const isAdminViaJwt = user.app_metadata?.is_admin === true;
 
-    if (profileError || !profile?.is_admin) {
-      console.error("Admin check failed:", profileError, profile);
+    if (!isAdminViaJwt) {
+      console.error("Admin check failed (JWT app_metadata.is_admin not true):", user.id);
       return new Response(
         JSON.stringify({ error: "Insufficient permissions" }),
         {

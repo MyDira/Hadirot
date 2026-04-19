@@ -24,12 +24,14 @@ Deno.serve(async (req) => {
     const zeptoToken = Deno.env.get("ZEPTO_TOKEN");
     const zeptoFromAddress = Deno.env.get("ZEPTO_FROM_ADDRESS") || "noreply@hadirot.com";
     const zeptoFromName = Deno.env.get("ZEPTO_FROM_NAME") || "HaDirot Contact Form";
-    const contactRecipient = Deno.env.get("CONTACT_RECIPIENT") || "aharon@hadirot.com";
+    const contactRecipient = Deno.env.get("CONTACT_RECIPIENT");
 
-    if (!zeptoToken) {
-      console.error("ZEPTO_TOKEN not found");
+    if (!zeptoToken || !contactRecipient) {
+      console.error(
+        `Contact form misconfigured (zeptoToken=${!!zeptoToken}, contactRecipient=${!!contactRecipient})`,
+      );
       return new Response(
-        JSON.stringify({ error: "Email service not configured" }),
+        JSON.stringify({ error: "Contact form is not configured" }),
         {
           status: 500,
           headers: { ...corsHeaders, "Content-Type": "application/json" },

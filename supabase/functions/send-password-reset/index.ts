@@ -15,14 +15,35 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { to, subject } = await req.json();
-
-    if (!to) {
-      return new Response(JSON.stringify({ error: "Missing to field" }), {
+    let body: unknown;
+    try {
+      body = await req.json();
+    } catch {
+      return new Response(JSON.stringify({ error: "Invalid JSON body" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+
+    const toRaw = (body as { to?: unknown })?.to;
+    const candidate = Array.isArray(toRaw) ? toRaw[0] : toRaw;
+
+    if (typeof candidate !== "string" || candidate.length > 254) {
+      return new Response(JSON.stringify({ error: "Invalid to field" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+    if (!emailRegex.test(candidate)) {
+      return new Response(JSON.stringify({ error: "Invalid email address" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const to = candidate;
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
@@ -52,12 +73,11 @@ Deno.serve(async (req) => {
     const PUBLIC_SITE_URL =
       Deno.env.get('PUBLIC_SITE_URL') || 'http://localhost:5173';
     const redirectUrl = `${PUBLIC_SITE_URL.replace(new RegExp('/+$'), '')}/auth`;
-    const email = Array.isArray(to) ? to[0] : to;
 
     const { data, error: linkError } =
       await supabaseAdmin.auth.admin.generateLink({
         type: "recovery",
-        email,
+        email: to,
         options: { redirectTo: redirectUrl },
       });
 
@@ -84,8 +104,8 @@ Deno.serve(async (req) => {
     });
 
     const zeptoData = await sendViaZepto({
-      to: Array.isArray(to) ? to[0] : to,
-      subject: subject || "Reset your password",
+      to,
+      subject: "Reset your password",
       html,
       from: zeptoFromAddress,
       fromName: zeptoFromName,
@@ -93,7 +113,7 @@ Deno.serve(async (req) => {
 
     console.log("✅ Password reset email sent via ZeptoMail:", {
       messageId: zeptoData?.data?.message_id,
-      to: Array.isArray(to) ? to : [to],
+      to,
     });
 
     return new Response(

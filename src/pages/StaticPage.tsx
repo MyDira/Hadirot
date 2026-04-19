@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { staticPagesService } from '@/services/staticPages';
+import { sanitizeHtml } from '@/utils/sanitize';
 import { NotFound } from './NotFound';
 
 type Params = { id?: string };
@@ -34,7 +35,7 @@ export function StaticPage() {
   return (
     <div className="max-w-3xl mx-auto p-6">
       <h1 className="text-3xl font-bold mb-4">{page.title}</h1>
-      <div className="prose" dangerouslySetInnerHTML={{ __html: page.content }} />
+      <div className="prose" dangerouslySetInnerHTML={{ __html: sanitizeHtml(page.content) }} />
     </div>
   );
 }
