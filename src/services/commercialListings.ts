@@ -2,6 +2,7 @@ import * as Sentry from '@sentry/react';
 import { supabase, CommercialListing, CommercialListingImage } from '../config/supabase';
 import { capitalizeName } from '../utils/formatters';
 import { getExpirationDate, getAdminActiveDays, MapBounds } from './listings';
+import { resizeImageForUpload } from '../utils/imageResize';
 
 export type CommercialSortOption = 'newest' | 'oldest' | 'price_asc' | 'price_desc' | 'sf_asc' | 'sf_desc';
 
@@ -503,12 +504,13 @@ export const commercialListingsService = {
       throw new Error('User must be authenticated to upload images');
     }
 
-    const fileExt = file.name.split('.').pop();
+    const resized = await resizeImageForUpload(file);
+    const fileExt = resized.name.split('.').pop();
     const fileName = `commercial/user_${userId}/temp/${Date.now()}.${fileExt}`;
 
     const { data, error } = await supabase.storage
       .from('listing-images')
-      .upload(fileName, file);
+      .upload(fileName, resized);
 
     if (error) {
       console.error('Commercial temp image upload failed:', error);
@@ -541,12 +543,13 @@ export const commercialListingsService = {
   },
 
   async uploadCommercialListingImage(file: File, listingId: string): Promise<string> {
-    const fileExt = file.name.split('.').pop();
+    const resized = await resizeImageForUpload(file);
+    const fileExt = resized.name.split('.').pop();
     const fileName = `commercial/${listingId}/${Date.now()}.${fileExt}`;
 
     const { data, error } = await supabase.storage
       .from('listing-images')
-      .upload(fileName, file);
+      .upload(fileName, resized);
 
     if (error) {
       console.error('Commercial image upload failed:', error);

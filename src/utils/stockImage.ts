@@ -65,7 +65,7 @@ const VARIANT_TRANSFORMS: Record<Exclude<ListingImageVariant, 'full'>, { width: 
   hero:  { width: 1400, height: 933, quality: 80 },
 };
 
-function normalizeImageUrl(url: string, variant: ListingImageVariant = 'card'): string {
+export function normalizeImageUrl(url: string, variant: ListingImageVariant = 'card'): string {
   if (!url) return url;
   if (url.startsWith('http://') || url.startsWith('https://')) return url;
   if (url.startsWith('/stock/')) return url;

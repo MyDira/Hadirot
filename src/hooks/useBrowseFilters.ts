@@ -47,6 +47,66 @@ interface BrowseState {
 const BROWSE_STATE_KEY_BASE = 'browse_state';
 const SCROLL_RESTORE_KEY = 'browse_scroll_restore';
 
+function filtersToSearchParams(filters: FilterState, page: number): URLSearchParams {
+  const params = new URLSearchParams();
+
+  if (filters.bedrooms && filters.bedrooms.length > 0) {
+    params.set('bedrooms', filters.bedrooms.join(','));
+  }
+  if (filters.min_bathrooms && filters.min_bathrooms > 0) {
+    params.set('min_bathrooms', filters.min_bathrooms.toString());
+  }
+  if (filters.poster_type) params.set('poster_type', filters.poster_type);
+  if (filters.agency_name) params.set('agency_name', filters.agency_name);
+  if (filters.property_type) params.set('property_type', filters.property_type);
+  if (filters.property_types && filters.property_types.length > 0) {
+    params.set('property_types', filters.property_types.join(','));
+  }
+  if (filters.building_types && filters.building_types.length > 0) {
+    params.set('building_types', filters.building_types.join(','));
+  }
+  if (filters.min_price) params.set('min_price', filters.min_price.toString());
+  if (filters.max_price) params.set('max_price', filters.max_price.toString());
+  if (filters.parking_included) params.set('parking_included', 'true');
+  if (filters.no_fee_only) params.set('no_fee_only', '1');
+  if (filters.neighborhoods && filters.neighborhoods.length > 0) {
+    params.set('neighborhoods', filters.neighborhoods.join(','));
+  }
+  if (filters.lease_terms && filters.lease_terms.length > 0) {
+    params.set('lease_terms', filters.lease_terms.join(','));
+  }
+  if (filters.sort) params.set('sort', filters.sort);
+  if (filters.searchBounds) {
+    params.set('bounds_n', filters.searchBounds.north.toString());
+    params.set('bounds_s', filters.searchBounds.south.toString());
+    params.set('bounds_e', filters.searchBounds.east.toString());
+    params.set('bounds_w', filters.searchBounds.west.toString());
+  }
+  if (filters.searchLocationName) {
+    params.set('area_name', filters.searchLocationName);
+  }
+  if (filters.listingTypeFilter && filters.listingTypeFilter !== 'all') {
+    params.set('listing_type_filter', filters.listingTypeFilter);
+  }
+  if (filters.commercial_space_types && filters.commercial_space_types.length > 0) {
+    params.set('commercial_space_types', filters.commercial_space_types.join(','));
+  }
+  if (filters.min_sf) params.set('min_sf', filters.min_sf.toString());
+  if (filters.max_sf) params.set('max_sf', filters.max_sf.toString());
+  if (filters.commercial_lease_types && filters.commercial_lease_types.length > 0) {
+    params.set('commercial_lease_types', filters.commercial_lease_types.join(','));
+  }
+  if (filters.commercial_conditions && filters.commercial_conditions.length > 0) {
+    params.set('commercial_conditions', filters.commercial_conditions.join(','));
+  }
+  if (filters.building_classes && filters.building_classes.length > 0) {
+    params.set('building_classes', filters.building_classes.join(','));
+  }
+
+  params.set('page', page.toString());
+  return params;
+}
+
 export function useBrowseFilters(mode: 'rental' | 'sales' = 'rental') {
   const BROWSE_STATE_KEY = `${BROWSE_STATE_KEY_BASE}_${mode}`;
   const [searchParams, setSearchParams] = useSearchParams();
@@ -226,61 +286,7 @@ export function useBrowseFilters(mode: 'rental' | 'sales' = 'rental') {
         setFilters(savedState.filters);
         setCurrentPage(savedState.page);
 
-        // Update URL to match restored state
-        const params = new URLSearchParams();
-        if (savedState.filters.bedrooms && savedState.filters.bedrooms.length > 0) {
-          params.set('bedrooms', savedState.filters.bedrooms.join(','));
-        }
-        if (savedState.filters.min_bathrooms && savedState.filters.min_bathrooms > 0) {
-          params.set('min_bathrooms', savedState.filters.min_bathrooms.toString());
-        }
-        if (savedState.filters.poster_type) params.set('poster_type', savedState.filters.poster_type);
-        if (savedState.filters.agency_name) params.set('agency_name', savedState.filters.agency_name);
-        if (savedState.filters.property_type) params.set('property_type', savedState.filters.property_type);
-        if (savedState.filters.property_types && savedState.filters.property_types.length > 0) {
-          params.set('property_types', savedState.filters.property_types.join(','));
-        }
-        if (savedState.filters.building_types && savedState.filters.building_types.length > 0) {
-          params.set('building_types', savedState.filters.building_types.join(','));
-        }
-        if (savedState.filters.min_price) params.set('min_price', savedState.filters.min_price.toString());
-        if (savedState.filters.max_price) params.set('max_price', savedState.filters.max_price.toString());
-        if (savedState.filters.parking_included) params.set('parking_included', 'true');
-        if (savedState.filters.no_fee_only) params.set('no_fee_only', '1');
-        if (savedState.filters.neighborhoods && savedState.filters.neighborhoods.length > 0) {
-          params.set('neighborhoods', savedState.filters.neighborhoods.join(','));
-        }
-        if (savedState.filters.lease_terms && savedState.filters.lease_terms.length > 0) {
-          params.set('lease_terms', savedState.filters.lease_terms.join(','));
-        }
-        if (savedState.filters.sort) params.set('sort', savedState.filters.sort);
-        if (savedState.filters.searchBounds) {
-          params.set('bounds_n', savedState.filters.searchBounds.north.toString());
-          params.set('bounds_s', savedState.filters.searchBounds.south.toString());
-          params.set('bounds_e', savedState.filters.searchBounds.east.toString());
-          params.set('bounds_w', savedState.filters.searchBounds.west.toString());
-        }
-        if (savedState.filters.searchLocationName) {
-          params.set('area_name', savedState.filters.searchLocationName);
-        }
-        if (savedState.filters.listingTypeFilter && savedState.filters.listingTypeFilter !== 'all') {
-          params.set('listing_type_filter', savedState.filters.listingTypeFilter);
-        }
-        if (savedState.filters.commercial_space_types && savedState.filters.commercial_space_types.length > 0) {
-          params.set('commercial_space_types', savedState.filters.commercial_space_types.join(','));
-        }
-        if (savedState.filters.min_sf) params.set('min_sf', savedState.filters.min_sf.toString());
-        if (savedState.filters.max_sf) params.set('max_sf', savedState.filters.max_sf.toString());
-        if (savedState.filters.commercial_lease_types && savedState.filters.commercial_lease_types.length > 0) {
-          params.set('commercial_lease_types', savedState.filters.commercial_lease_types.join(','));
-        }
-        if (savedState.filters.commercial_conditions && savedState.filters.commercial_conditions.length > 0) {
-          params.set('commercial_conditions', savedState.filters.commercial_conditions.join(','));
-        }
-        if (savedState.filters.building_classes && savedState.filters.building_classes.length > 0) {
-          params.set('building_classes', savedState.filters.building_classes.join(','));
-        }
-        params.set('page', savedState.page.toString());
+        const params = filtersToSearchParams(savedState.filters, savedState.page);
         setSearchParams(params, { replace: true });
 
         // Schedule scroll restoration
@@ -349,69 +355,7 @@ export function useBrowseFilters(mode: 'rental' | 'sales' = 'rental') {
       setCurrentPage(1);
     }
 
-    // Update URL with new filters
-    const params = new URLSearchParams();
-
-    if (newFilters.bedrooms && newFilters.bedrooms.length > 0) {
-      params.set('bedrooms', newFilters.bedrooms.join(','));
-    }
-    if (newFilters.min_bathrooms && newFilters.min_bathrooms > 0) {
-      params.set('min_bathrooms', newFilters.min_bathrooms.toString());
-    }
-    if (newFilters.poster_type) params.set('poster_type', newFilters.poster_type);
-    if (newFilters.agency_name) params.set('agency_name', newFilters.agency_name);
-    if (newFilters.property_type) params.set('property_type', newFilters.property_type);
-    if (newFilters.property_types && newFilters.property_types.length > 0) {
-      params.set('property_types', newFilters.property_types.join(','));
-    }
-    if (newFilters.building_types && newFilters.building_types.length > 0) {
-      params.set('building_types', newFilters.building_types.join(','));
-    }
-    if (newFilters.min_price) params.set('min_price', newFilters.min_price.toString());
-    if (newFilters.max_price) params.set('max_price', newFilters.max_price.toString());
-    if (newFilters.parking_included) params.set('parking_included', 'true');
-    if (newFilters.no_fee_only) params.set('no_fee_only', '1');
-
-    if (newFilters.neighborhoods && newFilters.neighborhoods.length > 0) {
-      params.set('neighborhoods', newFilters.neighborhoods.join(','));
-    }
-
-    if (newFilters.lease_terms && newFilters.lease_terms.length > 0) {
-      params.set('lease_terms', newFilters.lease_terms.join(','));
-    }
-
-    if (newFilters.sort) params.set('sort', newFilters.sort);
-
-    if (newFilters.searchBounds) {
-      params.set('bounds_n', newFilters.searchBounds.north.toString());
-      params.set('bounds_s', newFilters.searchBounds.south.toString());
-      params.set('bounds_e', newFilters.searchBounds.east.toString());
-      params.set('bounds_w', newFilters.searchBounds.west.toString());
-    }
-    if (newFilters.searchLocationName) {
-      params.set('area_name', newFilters.searchLocationName);
-    }
-
-    if (newFilters.listingTypeFilter && newFilters.listingTypeFilter !== 'all') {
-      params.set('listing_type_filter', newFilters.listingTypeFilter);
-    }
-
-    if (newFilters.commercial_space_types && newFilters.commercial_space_types.length > 0) {
-      params.set('commercial_space_types', newFilters.commercial_space_types.join(','));
-    }
-    if (newFilters.min_sf) params.set('min_sf', newFilters.min_sf.toString());
-    if (newFilters.max_sf) params.set('max_sf', newFilters.max_sf.toString());
-    if (newFilters.commercial_lease_types && newFilters.commercial_lease_types.length > 0) {
-      params.set('commercial_lease_types', newFilters.commercial_lease_types.join(','));
-    }
-    if (newFilters.commercial_conditions && newFilters.commercial_conditions.length > 0) {
-      params.set('commercial_conditions', newFilters.commercial_conditions.join(','));
-    }
-    if (newFilters.building_classes && newFilters.building_classes.length > 0) {
-      params.set('building_classes', newFilters.building_classes.join(','));
-    }
-
-    params.set('page', resetPage ? '1' : currentPage.toString());
+    const params = filtersToSearchParams(newFilters, resetPage ? 1 : currentPage);
     setSearchParams(params);
   }, [setSearchParams, currentPage]);
 

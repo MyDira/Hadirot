@@ -5,6 +5,7 @@ import { CommercialListing, CommercialSpaceType, CommercialSubtype, LeaseType, B
 import { commercialListingsService } from '../services/commercialListings';
 import { useAuth } from '@/hooks/useAuth';
 import ImageCarousel from '@/components/listing/ImageCarousel';
+import { normalizeImageUrl } from '@/utils/stockImage';
 import { gaListing } from '@/lib/ga';
 import { ShareButton } from '../components/shared/ShareButton';
 import { ImageZoomModal } from '../components/listing/ImageZoomModal';
@@ -617,7 +618,9 @@ export function CommercialListingDetail() {
     gaListing('commercial_listing_image_zoom', listing.id, { image_index: index });
   };
 
-  const carouselImages = images.map(img => ({ url: img.image_url, alt: listing.title ?? 'Commercial listing' }));
+  const carouselImages = images.map(img => ({ url: normalizeImageUrl(img.image_url, 'hero'), alt: listing.title ?? 'Commercial listing' }));
+  // Zoom modal keeps full resolution so users can actually zoom in on detail.
+  const zoomImages = images.map(img => ({ url: normalizeImageUrl(img.image_url, 'full'), alt: listing.title ?? 'Commercial listing' }));
 
   const pricePerSfSale =
     isSale && listing.asking_price && listing.available_sf
@@ -1141,7 +1144,7 @@ export function CommercialListingDetail() {
 
       {zoomModalOpen && hasRealImages && (
         <ImageZoomModal
-          images={carouselImages}
+          images={zoomImages}
           initialIndex={zoomInitialIndex}
           onClose={() => setZoomModalOpen(false)}
         />

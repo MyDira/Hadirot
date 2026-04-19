@@ -14,49 +14,22 @@ import { useAuth } from "@/hooks/useAuth";
 import { gaEvent, gaListing } from "@/lib/ga";
 import { trackFilterApply } from "../lib/analytics";
 import { useListingImpressions } from "../hooks/useListingImpressions";
-import { useBrowseFilters } from "../hooks/useBrowseFilters";
+import { useBrowseFilters, FilterState, SortOption, MapBounds } from "../hooks/useBrowseFilters";
 import { ParsedSearchQuery } from "../utils/searchQueryParser";
 import { LocationResult } from "../services/locationSearch";
 import { calculateGeographicCenter } from "../utils/geoUtils";
 import { isElementFullyVisible, scrollElementIntoView } from "../utils/viewportUtils";
-import { MapPin, CommercialMapPin, applyFilters, FilterState as FilterStateFromUtils } from "../utils/filterUtils";
-import { getSessionSeed, seededShuffle } from "../utils/sessionSeed";
-
-export type SortOption = 'newest' | 'oldest' | 'price_asc' | 'price_desc' | 'bedrooms_asc' | 'bedrooms_desc' | 'bathrooms_asc' | 'bathrooms_desc';
-
-interface FilterState {
-  bedrooms?: number[];
-  min_bathrooms?: number;
-  poster_type?: string;
-  agency_name?: string;
-  property_type?: string;
-  property_types?: string[];
-  building_types?: string[];
-  min_price?: number;
-  max_price?: number;
-  parking_included?: boolean;
-  no_fee_only?: boolean;
-  neighborhoods?: string[];
-  sort?: SortOption;
-  searchBounds?: MapBounds | null;
-  searchLocationName?: string;
-  listingTypeFilter?: 'all' | 'residential' | 'commercial';
-}
+import { MapPin, CommercialMapPin, applyFilters } from "../utils/filterUtils";
+import {
+  computeInjectionPositions,
+  selectFeaturedForPage,
+  weaveFeaturedIntoListings,
+} from "../utils/featuredInjection";
 
 type SalesBrowseItem =
   | { kind: 'residential'; data: Listing & { showFeaturedBadge: boolean; key: string } }
   | { kind: 'commercial'; data: CommercialListing };
 
-interface MapBounds {
-  north: number;
-  south: number;
-  east: number;
-  west: number;
-}
-
-// Default bounding box used before the map has rendered and reported its real
-// viewport. Covers Brooklyn plus buffer into lower Manhattan / Queens /
-// Staten Island so first-paint pins cover the canonical coverage area.
 const DEFAULT_MAP_BOUNDS: MapBounds = {
   north: 40.82,
   south: 40.55,
@@ -136,7 +109,7 @@ export function BrowseSales() {
   const totalPages = Math.ceil(totalCount / ITEMS_PER_PAGE);
 
   const filteredListingsForMap = useMemo(() => {
-    return applyFilters(allListingsForMap, filters as FilterStateFromUtils);
+    return applyFilters(allListingsForMap, filters);
   }, [allListingsForMap, filters]);
 
   const pinsFromListings = useMemo((): MapPin[] => {
@@ -304,38 +277,13 @@ export function BrowseSales() {
           console.error("Error loading featured listings:", error);
         }
 
-        const hourSeed = Math.floor(Date.now() / (1000 * 60 * 60));
-        const zoneB = [6, 7, 8];
-        const zoneC = [11, 12, 13];
-        const injectionPositions = [
-          0,
-          1,
-          zoneB[hourSeed % zoneB.length],
-          zoneC[(hourSeed + 1) % zoneC.length],
-        ];
-
-        const sessionSeed = getSessionSeed();
-        const filterHash = JSON.stringify(serviceFilters).split('').reduce(
-          (hash, char) => ((hash << 5) - hash) + char.charCodeAt(0), 0
+        const injectionPositions = computeInjectionPositions();
+        const featuredForThisPage = selectFeaturedForPage(
+          allFeaturedListings,
+          currentPage,
+          injectionPositions.length,
+          serviceFilters,
         );
-        const combinedSeed = sessionSeed ^ filterHash;
-        const shuffledFeatured = seededShuffle(allFeaturedListings, combinedSeed);
-
-        const slotsPerPage = injectionPositions.length;
-        const startIndex = (currentPage - 1) * slotsPerPage;
-        let featuredForThisPage: Listing[] = [];
-
-        if (shuffledFeatured.length > 0) {
-          for (let i = 0; i < slotsPerPage; i++) {
-            const index = startIndex + i;
-            if (index < shuffledFeatured.length) {
-              featuredForThisPage.push(shuffledFeatured[index]);
-            } else if (shuffledFeatured.length > 0) {
-              featuredForThisPage.push(shuffledFeatured[index % shuffledFeatured.length]);
-            }
-          }
-          featuredForThisPage = [...new Map(featuredForThisPage.map(f => [f.id, f])).values()];
-        }
 
         const numStandardNeeded = ITEMS_PER_PAGE - featuredForThisPage.length;
         const standardOffset = (currentPage - 1) * ITEMS_PER_PAGE;
@@ -350,60 +298,12 @@ export function BrowseSales() {
 
         const standardListings = applySalesClientSideFilters(rawStandardListings, filters);
 
-        const featuredPositionMap = new Map<string, number[]>();
-        let fIdx = 0;
-        for (let pos = 0; pos < ITEMS_PER_PAGE && fIdx < featuredForThisPage.length; pos++) {
-          if (injectionPositions.includes(pos) && fIdx < featuredForThisPage.length) {
-            const fId = featuredForThisPage[fIdx].id;
-            if (!featuredPositionMap.has(fId)) featuredPositionMap.set(fId, []);
-            featuredPositionMap.get(fId)!.push(pos);
-            fIdx++;
-          }
-        }
-
-        let featuredIndex = 0;
-        let standardListingsCursor = 0;
-
-        for (let position = 0; position < ITEMS_PER_PAGE; position++) {
-          const isInjectionSlot = injectionPositions.includes(position) && featuredIndex < featuredForThisPage.length;
-
-          if (isInjectionSlot) {
-            finalResidentialItems.push({
-              ...featuredForThisPage[featuredIndex],
-              showFeaturedBadge: true,
-              key: `sponsored-${featuredForThisPage[featuredIndex].id}`,
-            });
-            featuredIndex++;
-          } else if (standardListingsCursor < standardListings.length) {
-            const stdListing = standardListings[standardListingsCursor];
-            const sponsoredPositions = featuredPositionMap.get(stdListing.id);
-            if (sponsoredPositions && sponsoredPositions.some(sp => Math.abs(sp - position) <= 2)) {
-              standardListingsCursor++;
-              if (standardListingsCursor < standardListings.length) {
-                const nextStd = standardListings[standardListingsCursor];
-                const nextKey = featuredPositionMap.has(nextStd.id)
-                  ? `${nextStd.id}-natural` : nextStd.id;
-                finalResidentialItems.push({
-                  ...nextStd,
-                  showFeaturedBadge: false,
-                  key: nextKey,
-                });
-                standardListingsCursor++;
-              }
-            } else {
-              const key = featuredPositionMap.has(stdListing.id)
-                ? `${stdListing.id}-natural` : stdListing.id;
-              finalResidentialItems.push({
-                ...stdListing,
-                showFeaturedBadge: false,
-                key: key,
-              });
-              standardListingsCursor++;
-            }
-          } else {
-            break;
-          }
-        }
+        finalResidentialItems = weaveFeaturedIntoListings(
+          featuredForThisPage,
+          standardListings,
+          injectionPositions,
+          ITEMS_PER_PAGE,
+        );
       }
 
       const sortKey = filters.sort || 'newest';

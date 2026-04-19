@@ -36,6 +36,7 @@ import { listingsService } from "../services/listings";
 import { useAuth } from "@/hooks/useAuth";
 import { SimilarListings } from "../components/listings/SimilarListings";
 import ImageCarousel from "@/components/listing/ImageCarousel";
+import { normalizeImageUrl } from "@/utils/stockImage";
 import { gaEvent, gaListing } from "@/lib/ga";
 import { trackListingView, trackPhoneReveal } from "../lib/analytics";
 void gaEvent;
@@ -556,7 +557,7 @@ export function ListingDetail() {
         <div className="hidden lg:block lg:col-span-7">
           <div className="relative">
             <ImageCarousel
-              images={images.map((img) => ({ url: img.image_url, alt: listing.title }))}
+              images={images.map((img) => ({ url: normalizeImageUrl(img.image_url, 'hero'), alt: listing.title }))}
               className="mb-0"
               listingSeed={{
                 id: listing.id,
@@ -616,7 +617,7 @@ export function ListingDetail() {
           <section id="ld-mobile-images" className="lg:hidden">
             <div className="relative">
               <ImageCarousel
-                images={images.map((img) => ({ url: img.image_url, alt: listing.title }))}
+                images={images.map((img) => ({ url: normalizeImageUrl(img.image_url, 'hero'), alt: listing.title }))}
                 className="mb-0"
                 listingSeed={{
                   id: listing.id,
@@ -1306,10 +1307,10 @@ export function ListingDetail() {
       {/* Similar Listings */}
       <SimilarListings listing={listing} />
 
-      {/* Image Zoom Modal */}
+      {/* Image Zoom Modal — full resolution so users can actually zoom in */}
       {zoomModalOpen && hasRealImages && (
         <ImageZoomModal
-          images={images.map((img) => ({ url: img.image_url, alt: listing.title }))}
+          images={images.map((img) => ({ url: normalizeImageUrl(img.image_url, 'full'), alt: listing.title }))}
           initialIndex={zoomInitialIndex}
           onClose={() => setZoomModalOpen(false)}
         />

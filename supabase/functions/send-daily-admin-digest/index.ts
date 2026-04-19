@@ -1,98 +1,9 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders } from "../_shared/cors.ts";
+import { sendViaZepto } from "../_shared/zepto.ts";
 
-const ZEPTO_API_URL = "https://api.zeptomail.com/v1.1/email";
-
-interface ZeptoAttachment {
-  content: string;
-  mime_type: string;
-  name: string;
-}
-
-interface ZeptoParams {
-  to: string | string[];
-  subject: string;
-  html: string;
-  from?: string;
-  fromName?: string;
-  replyTo?: string;
-  attachments?: ZeptoAttachment[];
-}
-
-async function sendViaZepto({ to, subject, html, from, fromName, replyTo, attachments }: ZeptoParams) {
-  const token = Deno.env.get("ZEPTO_TOKEN");
-  const address = from || Deno.env.get("ZEPTO_FROM_ADDRESS") || "";
-  const name = fromName || Deno.env.get("ZEPTO_FROM_NAME") || "";
-  const replyToAddress = replyTo || Deno.env.get("ZEPTO_REPLY_TO") || undefined;
-
-  if (!token || !address || !name) {
-    throw new Error("ZeptoMail is not configured");
-  }
-
-  const toList = Array.isArray(to) ? to : [to];
-
-  const htmlFormatted = `<pre style="font-family: inherit; white-space: pre-wrap; word-wrap: break-word;">${html}</pre>`;
-
-  const payload = {
-    from: { address, name },
-    to: toList.map((addr) => ({ email_address: { address: addr } })),
-    subject,
-    htmlbody: htmlFormatted,
-    textbody: html,
-    reply_to: replyToAddress ? [{ address: replyToAddress }] : undefined,
-    track_opens: false,
-    track_clicks: false,
-    attachments: attachments || undefined,
-  };
-
-  const res = await fetch(ZEPTO_API_URL, {
-    method: "POST",
-    headers: {
-      Authorization: `Zoho-enczapikey ${token}`,
-      "Content-Type": "application/json",
-      Accept: "application/json",
-    },
-    body: JSON.stringify(payload),
-  });
-
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`ZeptoMail error: ${res.status} ${text}`);
-  }
-  return await res.json();
-}
-
-interface BrandEmailParams {
-  title: string;
-  intro?: string;
-  bodyHtml: string;
-  ctaLabel?: string;
-  ctaHref?: string;
-}
-
-function renderBrandEmail({ title, intro, bodyHtml, ctaLabel, ctaHref }: BrandEmailParams) {
-  const introHtml = intro ? `<p style=\"margin-top:0;\">${intro}</p>` : "";
-  const button = ctaLabel && ctaHref ? `<div style=\"text-align:center;margin:32px 0;\">
-       <a href=\"${ctaHref}\" style=\"background-color:#7CB342;color:#FFFFFF;padding:12px 24px;text-decoration:none;border-radius:6px;display:inline-block;font-weight:bold;\">${ctaLabel}</a>
-     </div>` : "";
-  return `
-    <div style=\"font-family:Arial,sans-serif;background-color:#F7F9FC;padding:24px;\">
-      <div style=\"max-width:600px;margin:0 auto;background-color:#FFFFFF;border:1px solid #E5E7EB;border-radius:8px;overflow:hidden;\">
-        <div style=\"background-color:#1E4A74;color:#FFFFFF;padding:24px;text-align:center;\">
-          <h1 style=\"margin:0;font-size:24px;\">Hadirot</h1>
-        </div>
-        <div style=\"padding:24px;color:#374151;font-size:16px;line-height:1.5;\">
-          <h2 style=\"margin:0 0 16px 0;font-size:20px;color:#1E4A74;\">${title}</h2>
-          ${introHtml}
-          ${bodyHtml}
-          ${button}
-        </div>
-        <div style=\"background-color:#F7F9FC;color:#6B7280;text-align:center;font-size:12px;padding:16px;\">
-          © ${new Date().getFullYear()} Hadirot. All rights reserved.
-        </div>
-      </div>
-    </div>
-  `;
+function wrapPlainTextAsHtml(plainText: string): string {
+  return `<pre style="font-family: inherit; white-space: pre-wrap; word-wrap: break-word;">${plainText}</pre>`;
 }
 
 interface Listing {
@@ -526,7 +437,7 @@ ${listingsTextContent}───────────────────�
 Join the Hadirot WhatsApp Community:
 https://chat.whatsapp.com/C3qmgo7DNOI63OE0RAZRgt`;
 
-    const emailHtml = emailPlainText;
+    const emailHtml = wrapPlainTextAsHtml(emailPlainText);
 
     console.log(`📤 Sending email to ${adminEmails.length} admin(s)`);
 
@@ -559,6 +470,7 @@ https://chat.whatsapp.com/C3qmgo7DNOI63OE0RAZRgt`;
         to: adminEmails,
         subject: `Daily Listing Digest - ${currentDate}`,
         html: emailHtml,
+        text: emailPlainText,
         fromName: "HaDirot Admin",
       });
       console.log("✅ Email sent successfully");

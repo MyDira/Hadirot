@@ -1,6 +1,7 @@
 import * as Sentry from '@sentry/react';
 import { supabase, Listing, SaleStatus } from '../config/supabase';
 import { capitalizeName } from '../utils/formatters';
+import { resizeImageForUpload } from '../utils/imageResize';
 
 export const LISTING_DURATION_DAYS = {
   RENTAL: 30,
@@ -1108,19 +1109,21 @@ export const listingsService = {
       throw new Error('User must be authenticated to upload images');
     }
 
-    const fileExt = file.name.split('.').pop();
+    const resized = await resizeImageForUpload(file);
+    const fileExt = resized.name.split('.').pop();
     const fileName = `user_${userId}/temp/${Date.now()}.${fileExt}`;
-    
+
     console.log('📤 Uploading temp image:', {
       fileName,
-      fileSize: file.size,
-      fileType: file.type,
+      originalSize: file.size,
+      uploadSize: resized.size,
+      fileType: resized.type,
       userId
     });
 
     const { data, error } = await supabase.storage
       .from('listing-images')
-      .upload(fileName, file);
+      .upload(fileName, resized);
 
     if (error) {
       console.error('❌ Temp image upload failed:', error);
@@ -1150,19 +1153,21 @@ export const listingsService = {
   },
 
   async uploadListingImage(file: File, listingId: string) {
-    const fileExt = file.name.split('.').pop();
+    const resized = await resizeImageForUpload(file);
+    const fileExt = resized.name.split('.').pop();
     const fileName = `${listingId}/${Date.now()}.${fileExt}`;
-    
+
     console.log('📤 Uploading image:', {
       fileName,
-      fileSize: file.size,
-      fileType: file.type,
+      originalSize: file.size,
+      uploadSize: resized.size,
+      fileType: resized.type,
       listingId
     });
 
     const { data, error } = await supabase.storage
       .from('listing-images')
-      .upload(fileName, file);
+      .upload(fileName, resized);
 
     if (error) {
       console.error('❌ Image upload failed:', error);
@@ -1226,19 +1231,21 @@ export const listingsService = {
   },
 
   async uploadVideoThumbnail(file: File, listingId: string): Promise<string> {
-    const fileExt = file.name.split('.').pop();
+    const resized = await resizeImageForUpload(file);
+    const fileExt = resized.name.split('.').pop();
     const fileName = `${listingId}/video_thumb_${Date.now()}.${fileExt}`;
 
     console.log('📤 Uploading video thumbnail:', {
       fileName,
-      fileSize: file.size,
-      fileType: file.type,
+      originalSize: file.size,
+      uploadSize: resized.size,
+      fileType: resized.type,
       listingId
     });
 
     const { data, error } = await supabase.storage
       .from('listing-images')
-      .upload(fileName, file);
+      .upload(fileName, resized);
 
     if (error) {
       console.error('❌ Video thumbnail upload failed:', error);

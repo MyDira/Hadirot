@@ -2,51 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { ChevronDown, X, SlidersHorizontal } from "lucide-react";
 import { listingsService } from "../../services/listings";
 import { MoreFiltersModal } from "./MoreFiltersModal";
-
-export type SortOption =
-  | "newest"
-  | "oldest"
-  | "price_asc"
-  | "price_desc"
-  | "bedrooms_asc"
-  | "bedrooms_desc"
-  | "bathrooms_asc"
-  | "bathrooms_desc";
-
-interface MapBounds {
-  north: number;
-  south: number;
-  east: number;
-  west: number;
-}
-
-type ListingTypeFilter = 'all' | 'residential' | 'commercial';
-
-interface FilterState {
-  bedrooms?: number[];
-  min_bathrooms?: number;
-  poster_type?: string;
-  agency_name?: string;
-  property_type?: string;
-  property_types?: string[];
-  building_types?: string[];
-  min_price?: number;
-  max_price?: number;
-  parking_included?: boolean;
-  no_fee_only?: boolean;
-  neighborhoods?: string[];
-  lease_terms?: string[];
-  sort?: SortOption;
-  searchBounds?: MapBounds | null;
-  searchLocationName?: string;
-  listingTypeFilter?: ListingTypeFilter;
-  commercial_space_types?: string[];
-  min_sf?: number;
-  max_sf?: number;
-  commercial_lease_types?: string[];
-  commercial_conditions?: string[];
-  building_classes?: string[];
-}
+import type { FilterState, SortOption } from "../../hooks/useBrowseFilters";
 
 interface ListingFiltersHorizontalProps {
   filters: FilterState;

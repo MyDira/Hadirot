@@ -1,6 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import type { SupabaseClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders } from "../_shared/cors.ts";
+import { sendViaZepto } from "../_shared/zepto.ts";
 
 // ============================================================================
 // TYPE DEFINITIONS
@@ -599,56 +600,8 @@ function generateEmailSubject(
     .replace("{{template}}", templateName);
 }
 
-// ============================================================================
-// ZEPTO EMAIL SERVICE
-// ============================================================================
-
-const ZEPTO_API_URL = "https://api.zeptomail.com/v1.1/email";
-
-interface ZeptoParams {
-  to: string | string[];
-  subject: string;
-  html: string;
-  fromName?: string;
-}
-
-async function sendViaZepto({ to, subject, html, fromName }: ZeptoParams) {
-  const token = Deno.env.get("ZEPTO_TOKEN");
-  const address = Deno.env.get("ZEPTO_FROM_ADDRESS") || "";
-  const name = fromName || Deno.env.get("ZEPTO_FROM_NAME") || "";
-
-  if (!token || !address || !name) {
-    throw new Error("ZeptoMail is not configured");
-  }
-
-  const toList = Array.isArray(to) ? to : [to];
-  const htmlFormatted = `<pre style="font-family: inherit; white-space: pre-wrap; word-wrap: break-word;">${html}</pre>`;
-
-  const payload = {
-    from: { address, name },
-    to: toList.map((addr) => ({ email_address: { address: addr } })),
-    subject,
-    htmlbody: htmlFormatted,
-    textbody: html,
-    track_opens: false,
-    track_clicks: false,
-  };
-
-  const res = await fetch(ZEPTO_API_URL, {
-    method: "POST",
-    headers: {
-      Authorization: `Zoho-enczapikey ${token}`,
-      "Content-Type": "application/json",
-      Accept: "application/json",
-    },
-    body: JSON.stringify(payload),
-  });
-
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`ZeptoMail error: ${res.status} ${text}`);
-  }
-  return await res.json();
+function wrapPlainTextAsHtml(plainText: string): string {
+  return `<pre style="font-family: inherit; white-space: pre-wrap; word-wrap: break-word;">${plainText}</pre>`;
 }
 
 // ============================================================================
@@ -978,7 +931,8 @@ Deno.serve(async (req) => {
     await sendViaZepto({
       to: adminEmails,
       subject,
-      html: emailContent,
+      html: wrapPlainTextAsHtml(emailContent),
+      text: emailContent,
       fromName: "HaDirot Admin",
     });
 

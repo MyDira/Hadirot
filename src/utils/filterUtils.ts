@@ -1,3 +1,7 @@
+import type { FilterState, MapBounds } from '../hooks/useBrowseFilters';
+
+export type { FilterState, MapBounds } from '../hooks/useBrowseFilters';
+
 export interface MapPin {
   id: string;
   latitude: number;
@@ -29,32 +33,6 @@ export type AnyMapPin =
   | (MapPin & { kind: 'residential' })
   | (CommercialMapPin & { kind: 'commercial' });
 
-interface MapBoundsFilter {
-  north: number;
-  south: number;
-  east: number;
-  west: number;
-}
-
-export interface FilterState {
-  bedrooms?: number[];
-  min_bathrooms?: number;
-  poster_type?: string;
-  agency_name?: string;
-  property_type?: string;
-  property_types?: string[];
-  building_types?: string[];
-  min_price?: number;
-  max_price?: number;
-  parking_included?: boolean;
-  no_fee_only?: boolean;
-  neighborhoods?: string[];
-  lease_terms?: string[];
-  sort?: string;
-  searchBounds?: MapBoundsFilter | null;
-  searchLocationName?: string;
-}
-
 export interface FilterableListing {
   id: string;
   listing_type?: string | null;
@@ -83,7 +61,7 @@ export function normalizePropertyTypes(filters: FilterState): string[] {
   return [];
 }
 
-function isWithinBounds(lat: number, lng: number, bounds: MapBoundsFilter): boolean {
+function isWithinBounds(lat: number, lng: number, bounds: MapBounds): boolean {
   return (
     lat >= bounds.south &&
     lat <= bounds.north &&
@@ -292,13 +270,6 @@ export function doesPinMatchFilters(pin: MapPin, filters: FilterState): boolean 
   }
 
   return true;
-}
-
-interface MapBounds {
-  north: number;
-  south: number;
-  east: number;
-  west: number;
 }
 
 function isPinWithinBounds(pin: MapPin, bounds: MapBounds): boolean {
