@@ -96,12 +96,16 @@ Deno.serve(async (req) => {
     const zeptoFromName = Deno.env.get("ZEPTO_FROM_NAME") || "HaDirot Contact Form";
     const contactRecipient = Deno.env.get("CONTACT_RECIPIENT");
 
-    if (!zeptoToken || !contactRecipient) {
-      console.error(
-        `Contact form misconfigured (zeptoToken=${!!zeptoToken}, contactRecipient=${!!contactRecipient})`,
-      );
+    const missing: string[] = [];
+    if (!zeptoToken) missing.push("ZEPTO_TOKEN");
+    if (!contactRecipient) missing.push("CONTACT_RECIPIENT");
+    if (missing.length > 0) {
+      console.error(`Contact form misconfigured: missing env vars: ${missing.join(", ")}`);
       return new Response(
-        JSON.stringify({ error: "Contact form is not configured" }),
+        JSON.stringify({
+          error: "Contact form is not configured",
+          missing_env: missing,
+        }),
         {
           status: 500,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
