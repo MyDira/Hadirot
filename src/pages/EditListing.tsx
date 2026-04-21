@@ -34,69 +34,9 @@ import {
 } from "../config/supabase";
 import { SalesListingFields } from "../components/listing/SalesListingFields";
 import { compressImage } from "../utils/imageUtils";
-
-interface ListingFormData {
-  title: string;
-  description: string;
-  location: string;
-  neighborhood: string;
-  bedrooms: number;
-  bathrooms: number;
-  floor?: number;
-  price: number | null;
-  call_for_price: boolean;
-  square_footage?: number;
-  parking: ParkingType;
-  washer_dryer_hookup: boolean;
-  dishwasher: boolean;
-  lease_length?: LeaseLength | null;
-  heat: HeatType;
-  property_type: PropertyType | '';
-  contact_name: string;
-  contact_phone: string;
-  broker_fee: boolean;
-  ac_type?: ACType | null;
-  apartment_conditions: string[];
-  additional_rooms: number;
-  latitude: number | null;
-  longitude: number | null;
-  listing_type: 'rental' | 'sale';
-  sale_status: SaleStatus | null;
-  asking_price: number | null;
-  building_type?: BuildingType | null;
-  property_condition?: PropertyCondition | null;
-  occupancy_status?: OccupancyStatus | null;
-  delivery_condition?: DeliveryCondition | null;
-  lot_size_sqft?: number | null;
-  lot_size_input_mode: 'sqft' | 'dimensions';
-  property_length_ft?: number | null;
-  property_width_ft?: number | null;
-  building_size_sqft?: number | null;
-  building_size_input_mode: 'sqft' | 'dimensions';
-  building_length_ft?: number | null;
-  building_width_ft?: number | null;
-  number_of_floors?: number | null;
-  year_built?: number | null;
-  year_renovated?: number | null;
-  hoa_fees?: number | null;
-  property_taxes?: number | null;
-  outdoor_space?: string[];
-  interior_features?: string[];
-  laundry_type?: LaundryType | null;
-  basement_type?: BasementType | null;
-  basement_notes?: string | null;
-  heating_type?: HeatingType | null;
-  rent_roll_total?: number | null;
-  rent_roll_data?: RentRollUnit[];
-  utilities_included?: string[];
-  tenant_notes?: string | null;
-  street_address?: string | null;
-  unit_number?: string | null;
-  city?: string | null;
-  state?: string | null;
-  zip_code?: string | null;
-  unit_count?: number | null;
-}
+import type { ListingFormData } from "./postListing/types";
+import { useListingMedia } from "./listing/useListingMedia";
+import { createListingInputChangeHandler } from "./listing/listingFormHandlers";
 
 interface ProcessedImage {
   id: string;
@@ -168,9 +108,6 @@ export function EditListing() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [listing, setListing] = useState<Listing | null>(null);
-  const [mediaFiles, setMediaFiles] = useState<MediaFile[]>([]);
-  const [mediaToDelete, setMediaToDelete] = useState<string[]>([]);
-  const [uploadingMedia, setUploadingMedia] = useState(false);
   const [neighborhoodSelectValue, setNeighborhoodSelectValue] = useState<string>("");
   const [showCustomNeighborhood, setShowCustomNeighborhood] = useState(false);
   const [customNeighborhoodInput, setCustomNeighborhoodInput] = useState("");
@@ -244,6 +181,22 @@ export function EditListing() {
   });
 
   const isSaleListing = formData.listing_type === 'sale';
+
+  const {
+    mediaFiles,
+    setMediaFiles,
+    mediaToDelete,
+    uploadingMedia,
+    setUploadingMedia,
+    handleMediaAdd,
+    handleMediaRemove,
+    handleSetFeatured,
+    maxAllowedFiles,
+  } = useListingMedia({
+    userId: user?.id ?? null,
+    isSaleListing,
+    trackExistingForDelete: true,
+  });
 
   useEffect(() => {
     if (id) {
@@ -434,33 +387,7 @@ export function EditListing() {
     }
   };
 
-  const handleInputChange = (
-    e: React.ChangeEvent<
-      HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
-    >,
-  ) => {
-    const { name, value } = e.target;
-    const type = e.target.type;
-
-    if (type === "checkbox") {
-      const checked = (e.target as HTMLInputElement).checked;
-      if (name === "broker_fee") {
-        if (checked) {
-          alert(
-            "Listings with a tenant broker fee are not permitted on HaDirot. Please remove the fee to proceed.",
-          );
-        }
-        setFormData((prev) => ({ ...prev, broker_fee: false }));
-        return;
-      }
-      setFormData((prev) => ({ ...prev, [name]: checked }));
-    } else if (type === "number") {
-      const numValue = value === "" ? undefined : parseFloat(value);
-      setFormData((prev) => ({ ...prev, [name]: numValue }));
-    } else {
-      setFormData((prev) => ({ ...prev, [name]: value }));
-    }
-  };
+  const handleInputChange = createListingInputChangeHandler(setFormData);
 
   const handleNeighborhoodSelect = (
     e: React.ChangeEvent<HTMLSelectElement>,
@@ -637,157 +564,7 @@ export function EditListing() {
     setIsLocationConfirmed(confirmed);
   };
 
-  const maxAllowedFiles = isSaleListing ? 21 : 11;
   const maxAllowedImages = isSaleListing ? 20 : 10;
-
-  const handleMediaAdd = async (files: File[]) => {
-    if (!user) {
-      alert("Please sign in to upload media");
-      return;
-    }
-
-    if (mediaFiles.length + files.length > maxAllowedFiles) {
-      alert(`Maximum ${maxAllowedFiles - 1} images + 1 video allowed${isSaleListing ? ' for sale listings' : ''}`);
-      return;
-    }
-
-    const imageCount = mediaFiles.filter(m => m.type === 'image').length;
-    const videoCount = mediaFiles.filter(m => m.type === 'video').length;
-
-    setUploadingMedia(true);
-
-    try {
-      let hasFeatured = mediaFiles.some((m) => m.is_featured);
-      const newMedia: MediaFile[] = [];
-
-      for (const file of files) {
-        const isImage = file.type.startsWith("image/");
-        const isVideo = file.type.startsWith("video/");
-
-        if (!isImage && !isVideo) {
-          alert(`${file.name} is not a supported file type`);
-          continue;
-        }
-
-        if (isVideo) {
-          if (videoCount + newMedia.filter(m => m.type === 'video').length >= 1) {
-            alert("Maximum 1 video allowed");
-            continue;
-          }
-
-          if (file.size > 100 * 1024 * 1024) {
-            alert(`${file.name} is too large. Maximum video size is 100MB`);
-            continue;
-          }
-
-          const videoUrl = URL.createObjectURL(file);
-          newMedia.push({
-            id: `video-${Date.now()}-${Math.random()}`,
-            type: 'video',
-            file,
-            url: videoUrl,
-            is_featured: false,
-            originalName: file.name
-          });
-        } else if (isImage) {
-          let fileToUpload: File = file;
-          if (file.size > 8 * 1024 * 1024) {
-            try {
-              const compressed = await compressImage(file, {
-                quality: 0.8,
-                maxWidth: 1920,
-              });
-              if (compressed.size > 8 * 1024 * 1024) {
-                alert(`${file.name} is too large even after compression (8MB limit)`);
-                continue;
-              }
-              fileToUpload = new File([compressed],
-                file.name.replace(/\.[^.]+$/, ".jpg"),
-                { type: "image/jpeg" });
-            } catch (err) {
-              console.error("Error compressing image:", err);
-              alert(`Failed to process ${file.name}`);
-              continue;
-            }
-          }
-
-          try {
-            const { filePath, publicUrl } =
-              await listingsService.uploadTempListingImage(fileToUpload, user.id);
-
-            const is_featured = !hasFeatured;
-            if (!hasFeatured) {
-              hasFeatured = true;
-            }
-
-            newMedia.push({
-              id: `img-${Date.now()}-${Math.random()}`,
-              type: 'image',
-              url: publicUrl,
-              filePath,
-              publicUrl,
-              is_featured,
-              originalName: file.name
-            });
-          } catch (error) {
-            console.error("Error uploading temp image:", error);
-            alert(`Failed to upload ${file.name}. Please try again.`);
-          }
-        }
-      }
-
-      if (newMedia.length > 0) {
-        setMediaFiles((prev) => {
-          const updated = hasFeatured
-            ? prev.map((m) => ({ ...m, is_featured: false }))
-            : [...prev];
-          return [...updated, ...newMedia];
-        });
-      }
-    } finally {
-      setUploadingMedia(false);
-    }
-  };
-
-  const handleMediaRemove = (id: string) => {
-    const mediaToRemove = mediaFiles.find(m => m.id === id);
-
-    if (mediaToRemove) {
-      // If it's an existing media item, mark it for deletion
-      if (mediaToRemove.isExisting) {
-        setMediaToDelete((prev) => [...prev, id]);
-      }
-
-      // If it's a video with a blob URL, revoke it
-      if (mediaToRemove.type === 'video' && mediaToRemove.url.startsWith('blob:')) {
-        URL.revokeObjectURL(mediaToRemove.url);
-      }
-    }
-
-    setMediaFiles((prev) => {
-      const newMedia = prev.filter(m => m.id !== id);
-      // If we removed the featured image, make the first image featured
-      if (mediaToRemove?.is_featured && newMedia.length > 0) {
-        const firstImage = newMedia.find(m => m.type === 'image');
-        if (firstImage) {
-          return newMedia.map(m => ({
-            ...m,
-            is_featured: m.id === firstImage.id
-          }));
-        }
-      }
-      return newMedia;
-    });
-  };
-
-  const handleSetFeatured = (id: string) => {
-    setMediaFiles((prev) =>
-      prev.map((m) => ({
-        ...m,
-        is_featured: m.id === id && m.type === 'image',
-      })),
-    );
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

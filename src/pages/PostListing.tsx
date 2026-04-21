@@ -14,6 +14,8 @@ import { AuthForm } from "../components/auth/AuthForm";
 import { compressImage } from "../utils/imageUtils";
 import { generateVideoThumbnail } from "../utils/videoUtils";
 import { MediaUploader, MediaFile } from "../components/shared/MediaUploader";
+import { useListingMedia } from "./listing/useListingMedia";
+import { createListingInputChangeHandler } from "./listing/listingFormHandlers";
 import { SalesListingFields } from "../components/listing/SalesListingFields";
 import { LocationPicker } from "../components/listing/LocationPicker";
 import { GoogleAddressAutocomplete, GooglePlaceResult } from "../components/listing/GoogleAddressAutocomplete";
@@ -48,8 +50,6 @@ export function PostListing() {
   const location = useLocation();
   const userRole = profile?.role;
   const [loading, setLoading] = useState(false);
-  const [mediaFiles, setMediaFiles] = useState<MediaFile[]>([]);
-  const [uploadingMedia, setUploadingMedia] = useState(false);
   const [savingDraft, setSavingDraft] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [pendingSubmitAfterAuth, setPendingSubmitAfterAuth] = useState(false);
@@ -97,6 +97,24 @@ export function PostListing() {
   const startTrackedRef = useRef(false);
   const hasManuallySelectedTypeRef = useRef(false);
   const permissionsLoadedRef = useRef(false);
+
+  const {
+    mediaFiles,
+    setMediaFiles,
+    uploadingMedia,
+    setUploadingMedia,
+    handleMediaAdd,
+    handleMediaRemove,
+    handleSetFeatured,
+    uploadPendingMedia,
+    maxAllowedFiles,
+    maxAllowedImages,
+  } = useListingMedia({
+    userId: user?.id ?? null,
+    isSaleListing: formData.listing_type === 'sale',
+    allowAnonymous: true,
+    onInteraction: () => handleFirstInteraction(),
+  });
 
   useEffect(() => {
     if (user) {
@@ -496,45 +514,9 @@ export function PostListing() {
     }
   };
 
-  const handleInputChange = (
-    e: React.ChangeEvent<
-      HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
-    >,
-  ) => {
-    const { name, value } = e.target;
-    const type = e.target.type;
-
-
-    if (type === "checkbox") {
-      const checked = (e.target as HTMLInputElement).checked;
-      if (name === "broker_fee") {
-        if (checked) {
-          alert(
-            "Listings with a tenant broker fee are not permitted on HaDirot. Please remove the fee to proceed.",
-          );
-        }
-        setFormData((prev) => ({ ...prev, broker_fee: false }));
-        return;
-      }
-      setFormData((prev) => ({ ...prev, [name]: checked }));
-    } else if (type === "number") {
-      const numValue = value === "" ? undefined : parseFloat(value);
-      setFormData((prev) => ({ ...prev, [name]: numValue }));
-    } else {
-      // Special handling for heat field - sync with utilities_included
-      if (name === "heat") {
-        setFormData((prev) => {
-          const utilities = prev.utilities_included || [];
-          const newUtilities = value === "included"
-            ? utilities.includes('heat') ? utilities : [...utilities, 'heat']
-            : utilities.filter(u => u !== 'heat');
-          return { ...prev, [name]: value, utilities_included: newUtilities };
-        });
-      } else {
-        setFormData((prev) => ({ ...prev, [name]: value }));
-      }
-    }
-  };
+  const handleInputChange = createListingInputChangeHandler(setFormData, {
+    syncHeatUtilities: true,
+  });
 
   const handleNeighborhoodSelect = (
     e: React.ChangeEvent<HTMLSelectElement>,
@@ -882,196 +864,6 @@ export function PostListing() {
   };
 
   const isSaleListing = formData.listing_type === 'sale';
-  const MAX_SALE_FILES = 21;
-  const MAX_RENTAL_FILES = 11;
-  const maxAllowedFiles = isSaleListing ? MAX_SALE_FILES : MAX_RENTAL_FILES;
-  const maxAllowedImages = isSaleListing ? 20 : 10;
-
-  const handleMediaAdd = async (files: File[]) => {
-    handleFirstInteraction();
-
-    if (mediaFiles.length + files.length > maxAllowedFiles) {
-      alert(`Maximum ${maxAllowedFiles - 1} images + 1 video allowed${isSaleListing ? ' for sale listings' : ''}`);
-      return;
-    }
-
-    const imageCount = mediaFiles.filter(m => m.type === 'image').length;
-    const videoCount = mediaFiles.filter(m => m.type === 'video').length;
-
-    setUploadingMedia(true);
-
-    try {
-      let hasFeatured = mediaFiles.some((m) => m.is_featured);
-      const newMedia: MediaFile[] = [];
-
-      for (const file of files) {
-        const isImage = file.type.startsWith("image/");
-        const isVideo = file.type.startsWith("video/");
-
-        if (!isImage && !isVideo) {
-          alert(`${file.name} is not a supported file type`);
-          continue;
-        }
-
-        if (isVideo) {
-          if (videoCount + newMedia.filter(m => m.type === 'video').length >= 1) {
-            alert("Maximum 1 video allowed");
-            continue;
-          }
-
-          if (file.size > 100 * 1024 * 1024) {
-            alert(`${file.name} is too large. Maximum video size is 100MB`);
-            continue;
-          }
-
-          const videoUrl = URL.createObjectURL(file);
-          newMedia.push({
-            id: `video-${Date.now()}-${Math.random()}`,
-            type: 'video',
-            file,
-            url: videoUrl,
-            is_featured: false,
-            originalName: file.name
-          });
-        } else if (isImage) {
-          let fileToUpload: File = file;
-          if (file.size > 8 * 1024 * 1024) {
-            try {
-              const compressed = await compressImage(file, {
-                quality: 0.8,
-                maxWidth: 1920,
-              });
-              if (compressed.size > 8 * 1024 * 1024) {
-                alert(`${file.name} is too large even after compression (8MB limit)`);
-                continue;
-              }
-              fileToUpload = new File([compressed],
-                file.name.replace(/\.[^.]+$/, ".jpg"),
-                { type: "image/jpeg" });
-            } catch (err) {
-              console.error("Error compressing image:", err);
-              alert(`Failed to process ${file.name}`);
-              continue;
-            }
-          }
-
-          if (!user) {
-            const previewUrl = URL.createObjectURL(fileToUpload);
-            const is_featured = !hasFeatured;
-            if (!hasFeatured) hasFeatured = true;
-
-            newMedia.push({
-              id: `img-${Date.now()}-${Math.random()}`,
-              type: 'image',
-              file: fileToUpload,
-              url: previewUrl,
-              is_featured,
-              originalName: file.name
-            });
-          } else {
-            try {
-              const { filePath, publicUrl } =
-                await listingsService.uploadTempListingImage(fileToUpload, user.id);
-
-              const is_featured = !hasFeatured;
-              if (!hasFeatured) {
-                hasFeatured = true;
-              }
-
-              newMedia.push({
-                id: `img-${Date.now()}-${Math.random()}`,
-                type: 'image',
-                url: publicUrl,
-                filePath,
-                publicUrl,
-                is_featured,
-                originalName: file.name
-              });
-            } catch (error) {
-              console.error("Error uploading temp image:", error);
-              alert(`Failed to upload ${file.name}. Please try again.`);
-            }
-          }
-        }
-      }
-
-      if (newMedia.length > 0) {
-        setMediaFiles((prev) => {
-          const updated = hasFeatured
-            ? prev.map((m) => ({ ...m, is_featured: false }))
-            : [...prev];
-          return [...updated, ...newMedia];
-        });
-      }
-    } finally {
-      setUploadingMedia(false);
-    }
-  };
-
-  const handleMediaRemove = (id: string) => {
-    handleFirstInteraction();
-    setMediaFiles((prev) => {
-      const mediaToRemove = prev.find(m => m.id === id);
-      if (mediaToRemove?.url.startsWith('blob:')) {
-        URL.revokeObjectURL(mediaToRemove.url);
-      }
-
-      const newMedia = prev.filter(m => m.id !== id);
-      // If we removed the featured image, make the first image featured
-      if (mediaToRemove?.is_featured && newMedia.length > 0) {
-        const firstImage = newMedia.find(m => m.type === 'image');
-        if (firstImage) {
-          return newMedia.map(m => ({
-            ...m,
-            is_featured: m.id === firstImage.id
-          }));
-        }
-      }
-      return newMedia;
-    });
-  };
-
-  const handleSetFeatured = (id: string) => {
-    handleFirstInteraction();
-    setMediaFiles((prev) =>
-      prev.map((m) => ({
-        ...m,
-        is_featured: m.id === id && m.type === 'image',
-      })),
-    );
-  };
-
-  const uploadPendingMedia = async (): Promise<boolean> => {
-    if (!user) return false;
-    const pending = mediaFiles.filter(m => m.type === 'image' && !m.filePath && m.file);
-    if (pending.length === 0) return true;
-
-    setUploadingMedia(true);
-    try {
-      const updates: { id: string; filePath: string; publicUrl: string }[] = [];
-      for (const entry of pending) {
-        try {
-          const { filePath, publicUrl } = await listingsService.uploadTempListingImage(entry.file!, user.id);
-          updates.push({ id: entry.id, filePath, publicUrl });
-        } catch (err) {
-          console.error(`Error uploading ${entry.originalName}:`, err);
-          alert(`Failed to upload ${entry.originalName || 'image'}. Please try again.`);
-          setUploadingMedia(false);
-          return false;
-        }
-      }
-      setMediaFiles(prev =>
-        prev.map(m => {
-          const update = updates.find(u => u.id === m.id);
-          if (!update) return m;
-          return { ...m, filePath: update.filePath, publicUrl: update.publicUrl, url: update.publicUrl };
-        })
-      );
-      return true;
-    } finally {
-      setUploadingMedia(false);
-    }
-  };
 
   const submitListingContent = async () => {
     if (!user) {

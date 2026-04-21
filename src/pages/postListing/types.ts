@@ -13,8 +13,12 @@ import type {
   BuildingType,
   RentRollUnit,
   HeatingType,
+  SaleStatus,
 } from "../../config/supabase";
 
+// Shared by PostListing (create) and EditListing (update). Fields widened to
+// accept both empty-string defaults (PostListing seeds) and null values
+// (EditListing loads from DB, which returns null for empty columns).
 export interface ListingFormData {
   listing_type: ListingType | '';
   title: string;
@@ -27,6 +31,7 @@ export interface ListingFormData {
   price: number | null;
   call_for_price: boolean;
   asking_price?: number | null;
+  sale_status?: SaleStatus | null;
   property_age?: number | null;
   year_built?: number | null;
   year_renovated?: number | null;
@@ -48,7 +53,7 @@ export interface ListingFormData {
   heat: HeatType;
   heating_type?: HeatingType | null;
   property_type: PropertyType | '';
-  building_type?: BuildingType | '';
+  building_type?: BuildingType | '' | null;
   contact_name: string;
   contact_phone: string;
   is_featured: boolean;
@@ -56,23 +61,23 @@ export interface ListingFormData {
   ac_type?: ACType | null;
   apartment_conditions: string[];
   additional_rooms: number;
-  property_condition?: PropertyCondition | '';
-  occupancy_status?: OccupancyStatus | '';
-  delivery_condition?: DeliveryCondition | '';
+  property_condition?: PropertyCondition | '' | null;
+  occupancy_status?: OccupancyStatus | '' | null;
+  delivery_condition?: DeliveryCondition | '' | null;
   outdoor_space: string[];
   interior_features: string[];
-  laundry_type?: LaundryType | '';
-  basement_type?: BasementType | '';
-  basement_notes?: string;
+  laundry_type?: LaundryType | '' | null;
+  basement_type?: BasementType | '' | null;
+  basement_notes?: string | null;
   rent_roll_total?: number | null;
   rent_roll_data: RentRollUnit[];
   utilities_included: string[];
-  tenant_notes?: string;
-  street_address?: string;
-  unit_number?: string;
-  city?: string;
-  state?: string;
-  zip_code?: string;
+  tenant_notes?: string | null;
+  street_address?: string | null;
+  unit_number?: string | null;
+  city?: string | null;
+  state?: string | null;
+  zip_code?: string | null;
   lot_size_input_mode: 'sqft' | 'dimensions';
   building_size_input_mode: 'sqft' | 'dimensions';
   terms_agreed: boolean;
