@@ -58,6 +58,11 @@ export function AuthForm({ onAuthSuccess }: AuthFormProps = {}) {
   const mountTsRef = useRef<number>(0);
   const pendingRoleRedirectRef = useRef(false);
 
+  const failedAttemptsRef = useRef<number>(0);
+  const attemptWindowStartRef = useRef<number | null>(null);
+  const [lockoutUntil, setLockoutUntil] = useState<number | null>(null);
+  const [lockoutSecondsLeft, setLockoutSecondsLeft] = useState(0);
+
   const [formData, setFormData] = useState({
     email: "",
     password: "",
@@ -135,6 +140,7 @@ export function AuthForm({ onAuthSuccess }: AuthFormProps = {}) {
     if (!isSignUp) {
       const elapsed = performance.now() - (mountTsRef.current || 0);
       if (elapsed < 350 || signInTemporarilyDisabled) return;
+      if (lockoutUntil !== null && Date.now() < lockoutUntil) return;
     }
     setLoading(true);
     setError(null);
@@ -152,6 +158,8 @@ export function AuthForm({ onAuthSuccess }: AuthFormProps = {}) {
       } else {
         const data = await signIn(formData.email, formData.password);
         userId = data.user?.id ?? "";
+        failedAttemptsRef.current = 0;
+        attemptWindowStartRef.current = null;
       }
 
       if (onAuthSuccess) {
@@ -161,6 +169,23 @@ export function AuthForm({ onAuthSuccess }: AuthFormProps = {}) {
       }
     } catch (err: any) {
       setError(err.message || "An error occurred");
+      if (!isSignUp) {
+        const now = Date.now();
+        if (attemptWindowStartRef.current === null) {
+          attemptWindowStartRef.current = now;
+          failedAttemptsRef.current = 1;
+        } else if (now - attemptWindowStartRef.current > 60_000) {
+          attemptWindowStartRef.current = now;
+          failedAttemptsRef.current = 1;
+        } else {
+          failedAttemptsRef.current += 1;
+          if (failedAttemptsRef.current >= 5) {
+            setLockoutUntil(now + 30_000);
+            failedAttemptsRef.current = 0;
+            attemptWindowStartRef.current = null;
+          }
+        }
+      }
     } finally {
       setLoading(false);
     }
@@ -174,6 +199,22 @@ export function AuthForm({ onAuthSuccess }: AuthFormProps = {}) {
       return () => clearTimeout(t);
     }
   }, [isSignUp, showForgotPassword]);
+
+  useEffect(() => {
+    if (lockoutUntil === null) return;
+    const interval = setInterval(() => {
+      const secondsLeft = Math.ceil((lockoutUntil - Date.now()) / 1000);
+      if (secondsLeft <= 0) {
+        clearInterval(interval);
+        setLockoutUntil(null);
+        setLockoutSecondsLeft(0);
+      } else {
+        setLockoutSecondsLeft(secondsLeft);
+      }
+    }, 1000);
+    setLockoutSecondsLeft(Math.ceil((lockoutUntil - Date.now()) / 1000));
+    return () => clearInterval(interval);
+  }, [lockoutUntil]);
 
   const onClickSignIn = (e: React.MouseEvent<HTMLButtonElement>) => {
     const elapsed = performance.now() - (mountTsRef.current || 0);
@@ -304,7 +345,11 @@ export function AuthForm({ onAuthSuccess }: AuthFormProps = {}) {
             </form>
           ) : (
             <form className="space-y-6" onSubmit={handleSubmit}>
-              {error && (
+              {lockoutUntil !== null ? (
+                <div className="bg-amber-50 border border-amber-200 text-amber-800 px-4 py-3 rounded-md text-sm">
+                  Too many failed attempts. Please wait {lockoutSecondsLeft} second{lockoutSecondsLeft !== 1 ? "s" : ""} before trying again.
+                </div>
+              ) : error && (
                 <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-md text-sm">
                   {error}
                 </div>
@@ -497,7 +542,7 @@ export function AuthForm({ onAuthSuccess }: AuthFormProps = {}) {
                 <button
                   type={isSignUp ? "submit" : "button"}
                   disabled={
-                    loading || (!isSignUp && signInTemporarilyDisabled)
+                    loading || (!isSignUp && (signInTemporarilyDisabled || lockoutUntil !== null))
                   }
                   onClick={!isSignUp ? onClickSignIn : undefined}
                   className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-accent-500 hover:bg-accent-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#4E4B43] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
