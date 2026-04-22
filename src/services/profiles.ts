@@ -82,39 +82,27 @@ export const profilesService = {
   },
 
   async getProfilesWithListingCounts() {
-    // First get all profiles
-    const profiles = await this.getAllProfiles();
-    
-    // Then get listing counts for each profile
-    const profilesWithCounts = await Promise.all(
-      profiles.map(async (profile) => {
-        // Get total listing count
-        const { count: listing_count, error: listingsError } = await supabase
-          .from('listings')
-          .select('*', { count: 'exact', head: true })
-          .eq('user_id', profile.id);
-        
-        const totalListingCount = listingsError ? 0 : (listing_count || 0);
-        
-        // Get featured listing count directly
-        const { count: featured_count, error: featuredError } = await supabase
-          .from('listings')
-          .select('*', { count: 'exact', head: true })
-          .eq('user_id', profile.id)
-          .eq('is_featured', true)
-          .gt('featured_expires_at', new Date().toISOString());
-        
-        const totalFeaturedCount = featuredError ? 0 : (featured_count || 0);
-        
-        return {
-          ...profile,
-          listing_count: totalListingCount,
-          featured_count: totalFeaturedCount
-        };
-      })
+    const [profiles, { data: counts, error: countsError }] = await Promise.all([
+      this.getAllProfiles(),
+      supabase.rpc('get_user_listing_counts'),
+    ]);
+
+    if (countsError) {
+      console.error('Error fetching listing counts:', countsError);
+    }
+
+    const countsMap = new Map(
+      (counts ?? []).map((row: { user_id: string; listing_count: number; featured_count: number }) => [
+        row.user_id,
+        { listing_count: row.listing_count, featured_count: row.featured_count },
+      ])
     );
-    
-    return profilesWithCounts;
+
+    return profiles.map((profile) => ({
+      ...profile,
+      listing_count: countsMap.get(profile.id)?.listing_count ?? 0,
+      featured_count: countsMap.get(profile.id)?.featured_count ?? 0,
+    }));
   },
 
   async bulkUpdateFeaturedPermissions(userIds: string[], maxFeaturedListingsPerUser: number | null, canFeature: boolean): Promise<void> {

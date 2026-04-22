@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { FileText, Star, MessageSquare, Save, Trash2, Plus, Eye, EyeOff, Edit2, X, Settings, Search, ChevronLeft, Monitor, Smartphone, BarChart3, Users, Power, Send, Clock, CheckCircle, XCircle, AlertCircle, Image } from 'lucide-react';
+import { FileText, Star, MessageSquare, Save, Trash2, Plus, Eye, EyeOff, CreditCard as Edit2, X, Settings, Search, ChevronLeft, Monitor, Smartphone, BarChart3, Users, Power, Send, Clock, CheckCircle, XCircle, AlertCircle, Image } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { staticPagesService, StaticPage } from '../services/staticPages';
 import { modalsService, ModalPopup, CreateModalInput } from '../services/modals';
 import { bannersService, CreateBannerInput } from '../services/banners';
+import { profilesService } from '../services/profiles';
 import { supabase, Profile, HeroBanner, BannerButton } from '../config/supabase';
 import { ModalPreview } from '../components/admin/ModalPreview';
 import { ModalManagement } from '../components/admin/ModalManagement';
@@ -133,13 +134,8 @@ export function ContentManagement() {
           setSelectedPageId(pages[0].id);
         }
       } else if (activeTab === 'featured') {
-        const { data, error } = await supabase
-          .from('profiles')
-          .select('*')
-          .order('full_name');
-        if (!error && data) {
-          setUsers(data);
-        }
+        const data = await profilesService.getProfilesWithListingCounts();
+        setUsers(data as Profile[]);
 
         const { data: settingsData } = await supabase
           .from('admin_settings')
@@ -783,10 +779,10 @@ export function ContentManagement() {
                                   </span>
                                 </td>
                                 <td className="px-4 py-4 text-sm text-gray-900">
-                                  1
+                                  {(user as any).listing_count ?? 0}
                                 </td>
                                 <td className="px-4 py-4 text-sm text-gray-900">
-                                  0 / 0
+                                  {(user as any).featured_count ?? 0} / {user.max_featured_listings_per_user ?? globalFeaturedLimit}
                                 </td>
                                 <td className="px-4 py-4">
                                   <input
