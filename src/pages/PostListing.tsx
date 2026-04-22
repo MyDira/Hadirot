@@ -1414,7 +1414,19 @@ export function PostListing() {
             </p>
           </button>
         </div>
-        {/* Commercial listing option hidden intentionally — all commercial infrastructure remains intact */}
+        <div className="flex justify-center">
+          <div className="inline-flex items-center gap-2 bg-gray-100 rounded-full px-4 py-2 text-sm text-gray-500">
+            <Building2 className="w-4 h-4 text-gray-400 shrink-0" />
+            <span>Have a commercial space to list?</span>
+            <button
+              type="button"
+              onClick={() => navigate('/post-commercial')}
+              className="text-gray-600 font-medium hover:text-gray-800 underline underline-offset-2 transition-colors"
+            >
+              Post commercial
+            </button>
+          </div>
+        </div>
         </>
       ) : postMode === 'concierge' ? (
         <>
