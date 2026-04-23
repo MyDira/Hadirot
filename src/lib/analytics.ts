@@ -10,6 +10,7 @@
  *
  * For more details, see our Privacy Policy.
  */
+import * as Sentry from '@sentry/react';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { AnalyticsEventName, AnalyticsEventPayload } from './analytics.types';
 
@@ -243,6 +244,28 @@ async function flushEvents(options: { useKeepalive?: boolean } = {}): Promise<vo
         console.warn('[analytics] flush failed, dropped', events.length - eventsToRequeue.length, 'events due to queue limit');
       }
     }
+
+    const eventNames = [...new Set(events.map((e) => e.event_name))];
+    const rawListingIds: string[] = [];
+    for (const e of events) {
+      const props = e.event_props;
+      if (props?.listing_id && typeof props.listing_id === 'string') {
+        rawListingIds.push(props.listing_id);
+      }
+      if (Array.isArray(props?.listing_ids)) {
+        for (const id of props.listing_ids as unknown[]) {
+          if (typeof id === 'string') rawListingIds.push(id);
+        }
+      }
+    }
+    const listingIds = [...new Set(rawListingIds)];
+
+    const logExtra: Record<string, unknown> = { eventNames };
+    if (listingIds.length > 0) logExtra.listingIds = listingIds;
+
+    console.error('[analytics] flush failed', error, logExtra);
+    Sentry.captureException(error, { extra: { eventCount: events.length, ...logExtra } });
+
     if (ANALYTICS_DEBUG) {
       console.warn('[analytics] flush failed', error);
     }
