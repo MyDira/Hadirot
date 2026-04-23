@@ -872,12 +872,10 @@ export function EditListing() {
 
             } catch (thumbnailError) {
               console.error("❌ Failed to generate/upload video thumbnail:", thumbnailError);
-              if (thumbnailError instanceof Error) {
-                console.error("❌ Error details:", {
-                  message: thumbnailError.message,
-                  stack: thumbnailError.stack
-                });
-              }
+              Sentry.captureException(thumbnailError, {
+                tags: { flow: "video_thumbnail", stage: "edit_listing" },
+                extra: { listingId: id },
+              });
 
               // Still update listing with video URL even if thumbnail fails
               await listingsService.updateListing(id, {
@@ -895,12 +893,10 @@ export function EditListing() {
           }
         } catch (videoError) {
           console.error("❌ Failed to upload video:", videoError);
-          if (videoError instanceof Error) {
-            console.error("❌ Error details:", {
-              message: videoError.message,
-              stack: videoError.stack
-            });
-          }
+          Sentry.captureException(videoError, {
+            tags: { flow: "video_upload", stage: "edit_listing" },
+            extra: { listingId: id },
+          });
           alert("Failed to upload video. Please try again or contact support if the issue persists.");
           // Don't block the flow if video upload fails
         } finally {

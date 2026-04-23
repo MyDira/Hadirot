@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Eye, EyeOff } from "lucide-react";
+import * as Sentry from "@sentry/react";
 import { useAuth } from "@/hooks/useAuth";
 import { requestPasswordReset } from "../../services/email";
 import { listingsService } from "../../services/listings";
@@ -21,7 +22,9 @@ interface PendingAuthState {
 function savePendingAuth(state: PendingAuthState) {
   try {
     sessionStorage.setItem(PENDING_AUTH_KEY, JSON.stringify(state));
-  } catch {}
+  } catch (err){
+    console.error("Auth Storage Error:", err);
+  }
 }
 
 function consumePendingAuth(): PendingAuthState | null {
@@ -56,12 +59,11 @@ export function AuthForm({ onAuthSuccess }: AuthFormProps = {}) {
   const [signInTemporarilyDisabled, setSignInTemporarilyDisabled] =
     useState(true);
   const mountTsRef = useRef<number>(0);
-  const pendingRoleRedirectRef = useRef(false);
-
-  const failedAttemptsRef = useRef<number>(0);
-  const attemptWindowStartRef = useRef<number | null>(null);
-  const [lockoutUntil, setLockoutUntil] = useState<number | null>(null);
-  const [lockoutSecondsLeft, setLockoutSecondsLeft] = useState(0);
+  // Post-auth manager state. Single source of truth for what happens after
+  // a successful login/signup (email, Google, etc.).
+  const pendingStateRef = useRef<PendingAuthState | null>(null);
+  const pendingFavoriteDoneRef = useRef(false);
+  const redirectDoneRef = useRef(false);
 
   const [formData, setFormData] = useState({
     email: "",
@@ -82,110 +84,100 @@ export function AuthForm({ onAuthSuccess }: AuthFormProps = {}) {
     userId: string,
   ) => {
     if (action.type !== "favorite" || action.currentlyFavorited) return;
+    if (!userId) {
+      Sentry.captureMessage("executePendingFavorite called with empty userId", {
+        level: "warning",
+        tags: { flow: "pending_favorite" },
+      });
+      return;
+    }
     try {
       await listingsService.addToFavorites(userId, action.listingId);
-    } catch {}
+    } catch (err) {
+      Sentry.captureException(err, {
+        tags: { flow: "pending_favorite" },
+        extra: { listingId: action.listingId },
+      });
+    }
   };
 
+  // Single post-auth manager. Runs when user (and eventually profile) are
+  // resolved. Executes pending actions once, then navigates once. Runs
+  // independently of how the user signed in (email, Google, signup).
   useEffect(() => {
-    if (!pendingRoleRedirectRef.current) return;
-    if (!user || profile === undefined) return;
-    pendingRoleRedirectRef.current = false;
-    navigate(getRoleDestination(profile?.role), { replace: true });
-  }, [profile, user]);
+    if (onAuthSuccess) return;        // Modal mode: caller handles the rest.
+    if (!user) return;                 // Not logged in yet.
+    if (redirectDoneRef.current) return; // Already handled this login.
 
-  useEffect(() => {
-    if (onAuthSuccess) return;
-    if (!user) return;
-    const pending = consumePendingAuth();
+    // Capture pending state once, on first truthy-user render. Sources:
+    // - sessionStorage (OAuth redirect preserved it across the round trip)
+    // - React Router location.state (direct nav with state to /auth)
+    if (pendingStateRef.current === null) {
+      const fromStorage = consumePendingAuth();
+      const stateFrom = location.state?.from as string | undefined;
+      const statePendingAction = location.state?.pendingAction as PendingAction | undefined;
+      pendingStateRef.current = {
+        from: fromStorage?.from ?? stateFrom,
+        pendingAction: fromStorage?.pendingAction ?? statePendingAction,
+      };
+    }
+
+    const pending = pendingStateRef.current;
+
     (async () => {
-      if (pending?.pendingAction) {
+      if (pending.pendingAction && !pendingFavoriteDoneRef.current) {
+        pendingFavoriteDoneRef.current = true;
         await executePendingFavorite(pending.pendingAction, user.id);
       }
-      if (pending?.from) {
+
+      // Explicit destination wins: navigate immediately, no need to wait for profile.
+      if (pending.from) {
+        redirectDoneRef.current = true;
         navigate(pending.from, { replace: true });
         return;
       }
-      pendingRoleRedirectRef.current = true;
-      if (profile !== undefined) {
-        pendingRoleRedirectRef.current = false;
-        navigate(getRoleDestination(profile?.role), { replace: true });
-      }
-    })();
-  }, [user]);
 
-  const handlePostAuthRedirect = async (userId: string) => {
-    const stateFrom: string | undefined = location.state?.from;
-    const statePendingAction: PendingAction | undefined =
-      location.state?.pendingAction;
+      // Otherwise, need profile to pick a role-based destination. Wait if
+      // it's still loading — this effect will rerun when profile changes.
+      if (profile === undefined) return;
 
-    if (statePendingAction) {
-      await executePendingFavorite(statePendingAction, userId);
-    }
-
-    if (stateFrom) {
-      navigate(stateFrom, { replace: true });
-      return;
-    }
-
-    pendingRoleRedirectRef.current = true;
-    if (profile !== undefined) {
-      pendingRoleRedirectRef.current = false;
+      redirectDoneRef.current = true;
       navigate(getRoleDestination(profile?.role), { replace: true });
-    }
-  };
+    })();
+  }, [user, profile, onAuthSuccess, location.state, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!isSignUp) {
       const elapsed = performance.now() - (mountTsRef.current || 0);
       if (elapsed < 350 || signInTemporarilyDisabled) return;
-      if (lockoutUntil !== null && Date.now() < lockoutUntil) return;
     }
     setLoading(true);
     setError(null);
 
     try {
-      let userId: string;
       if (isSignUp) {
-        const data = await signUp(formData.email, formData.password, {
+        await signUp(formData.email, formData.password, {
           full_name: formData.full_name,
           role: formData.role,
           phone: formData.phone || undefined,
           agency: formData.role === "agent" ? formData.agency : undefined,
         });
-        userId = data.user?.id ?? "";
       } else {
-        const data = await signIn(formData.email, formData.password);
-        userId = data.user?.id ?? "";
-        failedAttemptsRef.current = 0;
-        attemptWindowStartRef.current = null;
+        await signIn(formData.email, formData.password);
       }
 
+      // Post-auth flow (favorite replay + redirect) is handled centrally by
+      // the useEffect above. In modal mode we hand off to the caller.
       if (onAuthSuccess) {
         onAuthSuccess();
-      } else {
-        await handlePostAuthRedirect(userId);
       }
-    } catch (err: any) {
-      setError(err.message || "An error occurred");
-      if (!isSignUp) {
-        const now = Date.now();
-        if (attemptWindowStartRef.current === null) {
-          attemptWindowStartRef.current = now;
-          failedAttemptsRef.current = 1;
-        } else if (now - attemptWindowStartRef.current > 60_000) {
-          attemptWindowStartRef.current = now;
-          failedAttemptsRef.current = 1;
-        } else {
-          failedAttemptsRef.current += 1;
-          if (failedAttemptsRef.current >= 5) {
-            setLockoutUntil(now + 30_000);
-            failedAttemptsRef.current = 0;
-            attemptWindowStartRef.current = null;
-          }
-        }
-      }
+    } catch (err) {
+      Sentry.captureException(err, {
+        tags: { flow: isSignUp ? "signup" : "signin" },
+      });
+      const message = err instanceof Error && err.message ? err.message : "Something went wrong. Please try again.";
+      setError(message);
     } finally {
       setLoading(false);
     }
@@ -199,22 +191,6 @@ export function AuthForm({ onAuthSuccess }: AuthFormProps = {}) {
       return () => clearTimeout(t);
     }
   }, [isSignUp, showForgotPassword]);
-
-  useEffect(() => {
-    if (lockoutUntil === null) return;
-    const interval = setInterval(() => {
-      const secondsLeft = Math.ceil((lockoutUntil - Date.now()) / 1000);
-      if (secondsLeft <= 0) {
-        clearInterval(interval);
-        setLockoutUntil(null);
-        setLockoutSecondsLeft(0);
-      } else {
-        setLockoutSecondsLeft(secondsLeft);
-      }
-    }, 1000);
-    setLockoutSecondsLeft(Math.ceil((lockoutUntil - Date.now()) / 1000));
-    return () => clearInterval(interval);
-  }, [lockoutUntil]);
 
   const onClickSignIn = (e: React.MouseEvent<HTMLButtonElement>) => {
     const elapsed = performance.now() - (mountTsRef.current || 0);
@@ -243,8 +219,9 @@ export function AuthForm({ onAuthSuccess }: AuthFormProps = {}) {
       setResetMessage(
         "Password reset email sent! Check your inbox for the reset link.",
       );
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err) {
+      Sentry.captureException(err, { tags: { flow: "forgot_password" } });
+      setError("Couldn't send reset email. Please try again.");
     } finally {
       setResetLoading(false);
     }
@@ -262,10 +239,21 @@ export function AuthForm({ onAuthSuccess }: AuthFormProps = {}) {
       savePendingAuth({ from: stateFrom, pendingAction: statePendingAction });
     }
 
+    const spinnerTimeout = window.setTimeout(() => {
+      setGoogleLoading(false);
+      setError("Sign-in is taking longer than expected. Please try again.");
+      Sentry.captureMessage("Google sign-in redirect timeout", {
+        level: "warning",
+        tags: { flow: "google_signin" },
+      });
+    }, 15000);
+
     try {
       await signInWithGoogle();
-    } catch (err: any) {
-      setError(err.message || "Failed to sign in with Google");
+    } catch (err) {
+      window.clearTimeout(spinnerTimeout);
+      Sentry.captureException(err, { tags: { flow: "google_signin" } });
+      setError("Couldn't sign in with Google. Please try again.");
       setGoogleLoading(false);
     }
   };
@@ -345,11 +333,7 @@ export function AuthForm({ onAuthSuccess }: AuthFormProps = {}) {
             </form>
           ) : (
             <form className="space-y-6" onSubmit={handleSubmit}>
-              {lockoutUntil !== null ? (
-                <div className="bg-amber-50 border border-amber-200 text-amber-800 px-4 py-3 rounded-md text-sm">
-                  Too many failed attempts. Please wait {lockoutSecondsLeft} second{lockoutSecondsLeft !== 1 ? "s" : ""} before trying again.
-                </div>
-              ) : error && (
+              {error && (
                 <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-md text-sm">
                   {error}
                 </div>
@@ -542,7 +526,7 @@ export function AuthForm({ onAuthSuccess }: AuthFormProps = {}) {
                 <button
                   type={isSignUp ? "submit" : "button"}
                   disabled={
-                    loading || (!isSignUp && (signInTemporarilyDisabled || lockoutUntil !== null))
+                    loading || (!isSignUp && signInTemporarilyDisabled)
                   }
                   onClick={!isSignUp ? onClickSignIn : undefined}
                   className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-accent-500 hover:bg-accent-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#4E4B43] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"

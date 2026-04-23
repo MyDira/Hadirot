@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { CreditCard, ExternalLink, Receipt, Clock, Star, Mail, Crown, Briefcase, Plus, Trash2, CheckCircle } from "lucide-react";
 import { Link } from "react-router-dom";
+import * as Sentry from "@sentry/react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/config/supabase";
 import { stripeService, type FeaturedPurchase } from "@/services/stripe";
@@ -482,7 +483,14 @@ export default function BillingTab() {
   const [conciergeSub, setConciergeSub] = useState<ConciergeSubscription | null>(null);
 
   const refreshConciergeSub = async () => {
-    const sub = await conciergeService.getUserActiveSubscription().catch(() => null);
+    const sub = await conciergeService
+      .getUserActiveSubscription()
+      .catch((err) => {
+        Sentry.captureException(err, {
+          tags: { flow: "billing_load", source: "concierge_sub" },
+        });
+        return null;
+      });
     setConciergeSub(sub);
   };
 
@@ -491,16 +499,37 @@ export default function BillingTab() {
     setBillingLoading(true);
     setBillingError(null);
 
+    // Each source is fetched independently — one failing shouldn't blank
+    // the whole page. Per-source Sentry capture + a soft banner tells the
+    // user something is partial without hiding what did load.
+    const failed: string[] = [];
+    const captureSource = (source: string) => (err: unknown) => {
+      failed.push(source);
+      Sentry.captureException(err, {
+        tags: { flow: "billing_load", source },
+      });
+    };
+
     Promise.all([
-      stripeService.getUserPurchases().catch(() => [] as FeaturedPurchase[]),
-      conciergeService.getUserActiveSubscription().catch(() => null),
-      conciergeService.getUserSubmissions().catch(() => [] as ConciergeSubmission[]),
+      stripeService.getUserPurchases().catch((err) => {
+        captureSource("stripe_purchases")(err);
+        return [] as FeaturedPurchase[];
+      }),
+      conciergeService.getUserActiveSubscription().catch((err) => {
+        captureSource("concierge_sub")(err);
+        return null;
+      }),
+      conciergeService.getUserSubmissions().catch((err) => {
+        captureSource("concierge_submissions")(err);
+        return [] as ConciergeSubmission[];
+      }),
     ]).then(([purchasesData, sub, submissionsData]) => {
       setPurchases(purchasesData);
       setConciergeSub(sub);
       setSubmissions(submissionsData);
-    }).catch(() => {
-      setBillingError("Failed to load billing history.");
+      if (failed.length > 0) {
+        setBillingError("Some billing info couldn't load. Refresh the page to try again.");
+      }
     }).finally(() => {
       setBillingLoading(false);
     });

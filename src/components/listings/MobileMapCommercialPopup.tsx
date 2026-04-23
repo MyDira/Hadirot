@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { X, Heart, MapPin } from "lucide-react";
+import * as Sentry from "@sentry/react";
 import { CommercialListing } from "../../config/supabase";
 import { commercialListingsService } from "../../services/commercialListings";
 import { useAuth } from "@/hooks/useAuth";
@@ -98,6 +99,10 @@ export function MobileMapCommercialPopup({
       onFavoriteChange();
     } catch (error) {
       console.error("Error toggling commercial favorite:", error);
+      Sentry.captureException(error, {
+        tags: { flow: "favorite_toggle", listing_kind: "commercial", surface: "mobile_map_popup" },
+        extra: { listingId: listing.id, wasAction: isFavorited ? "remove" : "add" },
+      });
     }
   }, [listing, user, isFavorited, onFavoriteChange, navigate]);
 
