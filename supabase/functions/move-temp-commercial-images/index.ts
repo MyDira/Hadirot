@@ -27,6 +27,28 @@ Deno.serve(async (req) => {
       });
     }
 
+    if (tempImages.length > 50) {
+      return new Response(JSON.stringify({ error: 'Too many images (max 50)' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!UUID_RE.test(listingId)) {
+      return new Response(JSON.stringify({ error: 'Invalid listingId format' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    if (!UUID_RE.test(userId)) {
+      return new Response(JSON.stringify({ error: 'Invalid userId format' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
     const newImageRecords: {
       listing_id: string;
       image_url: string;

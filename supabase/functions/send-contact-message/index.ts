@@ -142,6 +142,25 @@ Deno.serve(async (req) => {
       );
     }
 
+    if (formData.name.length > 200) {
+      return new Response(JSON.stringify({ error: "Field too long: name" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    if (formData.message.length > 5000) {
+      return new Response(JSON.stringify({ error: "Field too long: message" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    if (formData.phone && formData.phone.length > 30) {
+      return new Response(JSON.stringify({ error: "Field too long: phone" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(formData.email)) {
       return new Response(

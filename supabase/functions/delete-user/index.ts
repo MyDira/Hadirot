@@ -89,6 +89,27 @@ Deno.serve(async (req) => {
       );
     }
 
+    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!UUID_RE.test(userId)) {
+      return new Response(
+        JSON.stringify({ error: "Invalid userId format" }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
+    }
+
+    if (reason !== undefined && (typeof reason !== "string" || reason.length > 500)) {
+      return new Response(
+        JSON.stringify({ error: "Field too long: reason" }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
+    }
+
     // Prevent admin from deleting themselves
     if (userId === user.id) {
       return new Response(

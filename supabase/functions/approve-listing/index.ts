@@ -89,6 +89,17 @@ Deno.serve(async (req) => {
       );
     }
 
+    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!UUID_RE.test(listingId)) {
+      return new Response(
+        JSON.stringify({ error: 'Invalid listingId format' }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
+      );
+    }
+
     let listingData: { id: string; title: string | null; user_id: string } | null = null;
 
     if (isCommercial) {

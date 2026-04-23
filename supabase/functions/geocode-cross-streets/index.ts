@@ -288,12 +288,26 @@ Deno.serve(async (req: Request) => {
     const body: GeocodeRequest = await req.json();
     const { crossStreets, neighborhood } = body;
 
-    if (!crossStreets || typeof crossStreets !== 'string' || crossStreets.trim().length < 2) {
+    if (!crossStreets || typeof crossStreets !== 'string' || crossStreets.trim().length < 2 || crossStreets.length > 200) {
       return new Response(
         JSON.stringify({
           success: false,
           error: 'Invalid cross streets input',
           originalQuery: crossStreets || '',
+        } as GeocodeResult),
+        {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
+      );
+    }
+
+    if (neighborhood !== undefined && (typeof neighborhood !== 'string' || neighborhood.length > 200)) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: 'Invalid neighborhood input',
+          originalQuery: crossStreets,
         } as GeocodeResult),
         {
           status: 400,
