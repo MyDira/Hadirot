@@ -1642,6 +1642,7 @@ export function PostListing() {
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-brand-700 focus:border-brand-700"
                 placeholder="Beautiful 2BR apartment in downtown"
               />
+              <p className="mt-1 text-xs text-gray-400">Max 200 characters</p>
             </div>
 
             <div className="lg:col-span-2">
@@ -1973,13 +1974,16 @@ export function PostListing() {
                           <option value="other">Other (type below)</option>
                         </select>
                         {showCustomNeighborhood && (
-                          <input
-                            type="text"
-                            value={customNeighborhoodInput}
-                            onChange={handleCustomNeighborhoodChange}
-                            className="mt-2 w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-brand-700 focus:border-brand-700"
-                            placeholder="Enter custom neighborhood"
-                          />
+                          <>
+                            <input
+                              type="text"
+                              value={customNeighborhoodInput}
+                              onChange={handleCustomNeighborhoodChange}
+                              className="mt-2 w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-brand-700 focus:border-brand-700"
+                              placeholder="Enter custom neighborhood"
+                            />
+                            <p className="mt-1 text-xs text-gray-400">Max 200 characters</p>
+                          </>
                         )}
                       </div>
                     )}

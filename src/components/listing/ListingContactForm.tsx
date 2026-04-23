@@ -170,6 +170,7 @@ export function ListingContactForm({ listingId, onSuccess }: ListingContactFormP
         {validationErrors.userName && (
           <p className="text-red-500 text-xs mt-1">{validationErrors.userName}</p>
         )}
+        <p className="mt-1 text-xs text-gray-400">Max 200 characters</p>
       </div>
 
       <div>
