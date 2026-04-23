@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { MapPin, Star, Heart, ArrowLeft, Building, Layers, CalendarDays, Wrench, Car, Users, DollarSign, CheckCircle, Eye, BarChart3, CreditCard as Edit, EyeOff, Trash2, XCircle, Maximize2, ArrowUpFromLine, TrendingUp, Package, Zap, Droplets, Wind, Activity } from 'lucide-react';
-import { CommercialListing, CommercialSpaceType, CommercialSubtype, LeaseType, BuildOutCondition, BuildingClass } from '../config/supabase';
+import { supabase, CommercialListing, CommercialSpaceType, CommercialSubtype, LeaseType, BuildOutCondition, BuildingClass } from '../config/supabase';
 import { commercialListingsService } from '../services/commercialListings';
 import { useAuth } from '@/hooks/useAuth';
 import ImageCarousel from '@/components/listing/ImageCarousel';
@@ -302,10 +302,10 @@ function CommercialAdminBanner({
     setError(null);
     setSuccessMessage(null);
     try {
-      await commercialListingsService.updateCommercialListing(listing.id, {
-        approved: true,
-        is_active: true,
+      const { error: fnError } = await supabase.functions.invoke('approve-listing', {
+        body: { listingId: listing.id, isCommercial: true },
       });
+      if (fnError) throw fnError;
       setSuccessMessage('Listing approved successfully!');
       if (onApprove) onApprove();
     } catch (err) {

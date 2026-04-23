@@ -1,5 +1,6 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { corsHeaders } from '../_shared/cors.ts';
+import { sendViaZepto, renderBrandEmail } from '../_shared/zepto.ts';
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -115,10 +116,10 @@ Deno.serve(async (req) => {
       listingData = data;
     } else {
       const { data, error } = await supabaseClient
-        .from('public.listings')
+        .from('listings')
         .update({ approved: true, is_active: true })
         .eq('id', listingId)
-        .select('id, title, profiles!public.listings_user_id_fkey(email, full_name)')
+        .select('id, title, user_id')
         .single();
 
       console.log('[EDGE] approve-listing updated listing to approved/active', { listingId });
@@ -134,26 +135,47 @@ Deno.serve(async (req) => {
         );
       }
 
-      return new Response(
-        JSON.stringify({ message: 'Listing approved', listing: data }),
-        {
-          status: 200,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        }
-      );
+      listingData = data;
     }
 
-    const { data: ownerProfile } = await supabaseClient
-      .from('profiles')
-      .select('email, full_name')
-      .eq('id', listingData.user_id)
-      .maybeSingle();
+    // Fetch owner email from auth.users via service role — profiles does not store email
+    const { data: userData, error: userError } = await supabaseClient.auth.admin.getUserById(listingData.user_id);
+    const ownerEmail = userData?.user?.email ?? null;
+
+    if (userError || !ownerEmail) {
+      console.warn('[EDGE] approve-listing: could not fetch owner email, skipping notification', {
+        listingId,
+        userId: listingData.user_id,
+        userError,
+      });
+    } else {
+      try {
+        const listingTitle = listingData.title ?? 'Your listing';
+        const siteUrl = Deno.env.get('SITE_URL') ?? 'https://hadirot.com';
+        const listingUrl = `${siteUrl}/listing/${listingData.id}`;
+
+        const html = renderBrandEmail({
+          title: 'Your Listing Has Been Approved',
+          intro: 'Great news!',
+          bodyHtml: `<p>Your listing <strong>${listingTitle}</strong> has been approved and is now live on Hadirot.</p>`,
+          ctaLabel: 'View Live Listing',
+          ctaHref: listingUrl,
+        });
+
+        await sendViaZepto({
+          to: ownerEmail,
+          subject: `Listing Approved: ${listingTitle} is now live! - Hadirot`,
+          html,
+        });
+
+        console.log('[EDGE] approve-listing: approval email sent', { listingId, to: ownerEmail });
+      } catch (emailErr) {
+        console.error('[EDGE] approve-listing: failed to send approval email (approval still succeeded)', emailErr);
+      }
+    }
 
     return new Response(
-      JSON.stringify({
-        message: 'Listing approved',
-        listing: { ...listingData, profiles: ownerProfile ?? null },
-      }),
+      JSON.stringify({ message: 'Listing approved', listing: listingData }),
       {
         status: 200,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
