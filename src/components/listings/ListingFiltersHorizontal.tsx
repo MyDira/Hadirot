@@ -920,6 +920,8 @@ export function ListingFiltersHorizontal({
                   setTempPriceMin("");
                   setTempPriceMax("");
                   setPriceInputFocus(null);
+                  onFiltersChange({});
+                  onSearchClear?.();
                 }}
                 className="flex items-center gap-2 px-5 py-3 bg-green-50 text-green-700 rounded-xl font-medium border border-green-300 hover:bg-green-100 transition-all"
               >
