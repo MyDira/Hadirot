@@ -84,6 +84,18 @@ async function handleFeaturedCheckout(session: Stripe.Checkout.Session) {
   const durationDaysNum = parseInt(duration_days, 10);
   const supabaseAdmin = getSupabaseAdmin();
 
+  const { data: existingPurchase } = await supabaseAdmin
+    .from('featured_purchases')
+    .select('id, status')
+    .eq('stripe_checkout_session_id', session.id)
+    .neq('status', 'pending')
+    .maybeSingle();
+
+  if (existingPurchase) {
+    console.log(`Idempotency: featured purchase already processed for session ${session.id} (status: ${existingPurchase.status})`);
+    return;
+  }
+
   const { data: purchase, error: purchaseError } = await supabaseAdmin
     .from('featured_purchases')
     .update({
