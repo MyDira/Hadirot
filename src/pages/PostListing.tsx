@@ -834,14 +834,12 @@ export function PostListing() {
 
     } catch (error) {
       console.error('AI Parse Error:', error);
+      Sentry.captureException(error, { tags: { flow: "ai_parser" } });
 
-      // Better error messages for different error types
       if (error instanceof Error && error.name === 'AbortError') {
-        setAiParserError('Request timed out after 30 seconds. Please try again or check your connection.');
-      } else if (error instanceof Error) {
-        setAiParserError(`Failed to parse listing: ${error.message}`);
+        setAiParserError('Request timed out. Please try again or check your connection.');
       } else {
-        setAiParserError('Failed to connect to AI parser. Please try again.');
+        setAiParserError("Couldn't parse the listing. Please try again.");
       }
     } finally {
       setAiParserLoading(false);
@@ -1158,12 +1156,10 @@ export function PostListing() {
 
             } catch (thumbnailError) {
               console.error("❌ Failed to generate/upload video thumbnail:", thumbnailError);
-              if (thumbnailError instanceof Error) {
-                console.error("❌ Error details:", {
-                  message: thumbnailError.message,
-                  stack: thumbnailError.stack
-                });
-              }
+              Sentry.captureException(thumbnailError, {
+                tags: { flow: "video_thumbnail", stage: "post_listing" },
+                extra: { listingId: listing.id },
+              });
 
               // Still update listing with video URL even if thumbnail fails
               await listingsService.updateListing(listing.id, {
@@ -1181,12 +1177,10 @@ export function PostListing() {
           }
         } catch (videoError) {
           console.error("❌ Failed to upload video:", videoError);
-          if (videoError instanceof Error) {
-            console.error("❌ Error details:", {
-              message: videoError.message,
-              stack: videoError.stack
-            });
-          }
+          Sentry.captureException(videoError, {
+            tags: { flow: "video_upload", stage: "post_listing" },
+            extra: { listingId: listing.id },
+          });
           alert("Failed to upload video. Please try again or contact support if the issue persists.");
           // Don't block the flow if video upload fails
         } finally {
