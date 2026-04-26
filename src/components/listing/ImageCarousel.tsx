@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { ChevronLeft, ChevronRight, ZoomIn } from 'lucide-react';
 import { getStockImageForListing } from '../../utils/stockImage';
+import { LISTING_IMAGE_FALLBACK_SRC } from '../../utils/listingImageFallback';
 import { PropertyType, LeaseLength } from '../../config/supabase';
 
 type MediaItem =
@@ -319,6 +320,7 @@ export default function ImageCarousel({
             className="w-full h-full object-contain select-none"
             draggable={false}
             loading={isCurrentSlide ? 'eager' : 'lazy'}
+            onError={(e) => { (e.currentTarget as HTMLImageElement).src = LISTING_IMAGE_FALLBACK_SRC; }}
           />
         ) : media.type === 'video' && media.url ? (
           <video

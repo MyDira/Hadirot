@@ -6,6 +6,7 @@ import { Listing } from "../../config/supabase";
 import { listingsService } from "../../services/listings";
 import { useAuth } from "@/hooks/useAuth";
 import { computePrimaryListingImage, buildListingAlt } from "../../utils/stockImage";
+import { LISTING_IMAGE_FALLBACK_SRC } from "../../utils/listingImageFallback";
 import { capitalizeName } from "../../utils/formatters";
 import { gaEvent, gaListing } from "@/lib/ga";
 
@@ -257,6 +258,7 @@ export function MobileMapListingPopup({
                   neighborhood: listing.neighborhood,
                   property_type: listing.property_type,
                 }) : listing.title}
+                onError={(e) => { (e.currentTarget as HTMLImageElement).src = LISTING_IMAGE_FALLBACK_SRC; }}
               />
               {isStock && (
                 <div className="mobile-map-popup-stock-badge">Stock photo</div>
