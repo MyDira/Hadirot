@@ -1,5 +1,6 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { corsHeaders } from '../_shared/cors.ts';
+import { validateFile } from '../_shared/validateFileUpload.ts';
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -52,6 +53,15 @@ Deno.serve(async (req) => {
         if (downloadError) {
           console.error(`Error downloading temp image ${filePath}:`, downloadError);
           errors.push(`Failed to download ${filePath}: ${downloadError.message}`);
+          continue;
+        }
+
+        // Server-side validation: MIME type, extension, magic bytes, size
+        const validation = await validateFile(imageData, originalName || filePath);
+        if (!validation.valid) {
+          console.error(`Validation failed for ${filePath}: ${validation.reason}`);
+          errors.push(`Rejected ${filePath}: ${validation.reason}`);
+          await supabaseAdmin.storage.from('listing-images').remove([filePath]);
           continue;
         }
 
