@@ -112,15 +112,25 @@ Deno.serve(async (req) => {
       cancel_url: `${origin}/boost/${listing_id}?cancelled=true`,
     });
 
-    await supabaseAdmin.from("featured_purchases").insert({
-      listing_id,
-      user_id: listing.user_id,
-      stripe_checkout_session_id: session.id,
-      plan,
-      amount_cents: planConfig.amount,
-      status: "pending",
-      duration_days: planConfig.days,
-    });
+    try {
+      await supabaseAdmin.from("featured_purchases").insert({
+        listing_id,
+        user_id: listing.user_id,
+        stripe_checkout_session_id: session.id,
+        plan,
+        amount_cents: planConfig.amount,
+        status: "pending",
+        duration_days: planConfig.days,
+      });
+    } catch (insertError) {
+      if (insertError?.code === "23505") {
+        return new Response(JSON.stringify({ error: "A purchase is already pending or active for this listing" }), {
+          status: 409,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      throw insertError;
+    }
 
     return new Response(JSON.stringify({ url: session.url, session_id: session.id }), {
       status: 200,

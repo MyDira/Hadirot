@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef, useCallback } from "react";
 import { X, ChevronLeft, ChevronRight } from "lucide-react";
+import { LISTING_IMAGE_FALLBACK_SRC } from "../../utils/listingImageFallback";
 
 interface ImageZoomModalProps {
   images: Array<{ url: string; alt: string }>;
@@ -197,6 +198,7 @@ export function ImageZoomModal({ images, initialIndex, onClose }: ImageZoomModal
           className="max-w-full max-h-full object-contain select-none"
           draggable={false}
           loading={isCurrentSlide ? 'eager' : 'lazy'}
+          onError={(e) => { (e.currentTarget as HTMLImageElement).src = LISTING_IMAGE_FALLBACK_SRC; }}
           onClick={(e) => e.stopPropagation()}
         />
       </div>

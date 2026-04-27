@@ -16,6 +16,7 @@ import { capitalizeName } from "../../utils/formatters";
 import { gaListing } from "@/lib/ga";
 import NumericText from "@/components/common/NumericText";
 import { computePrimaryListingImage, buildListingAlt } from "../../utils/stockImage";
+import { LISTING_IMAGE_FALLBACK_SRC } from "../../utils/listingImageFallback";
 import { ShareButton } from "../shared/ShareButton";
 
 interface CommercialListingCardProps {
@@ -395,6 +396,7 @@ export function CommercialListingCard({
           }) : (listing.title ?? "Commercial listing")}
           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
           loading="lazy"
+          onError={(e) => { (e.currentTarget as HTMLImageElement).src = LISTING_IMAGE_FALLBACK_SRC; }}
         />
 
         {imageBadge && (

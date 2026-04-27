@@ -695,10 +695,10 @@ export function AdminPanel() {
   const approveListing = async (listingId: string) => {
     console.log('[UI] Approve clicked', { listingId });
     try {
-      await listingsService.updateListing(listingId, {
-        approved: true,
-        is_active: true,
+      const { error } = await supabase.functions.invoke('approve-listing', {
+        body: { listingId, isCommercial: false },
       });
+      if (error) throw error;
       await loadAdminData();
       setShowApproveSuccess(true);
     } catch (error) {

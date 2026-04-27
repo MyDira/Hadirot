@@ -84,6 +84,18 @@ async function handleFeaturedCheckout(session: Stripe.Checkout.Session) {
   const durationDaysNum = parseInt(duration_days, 10);
   const supabaseAdmin = getSupabaseAdmin();
 
+  const { data: existingPurchase } = await supabaseAdmin
+    .from('featured_purchases')
+    .select('id, status')
+    .eq('stripe_checkout_session_id', session.id)
+    .neq('status', 'pending')
+    .maybeSingle();
+
+  if (existingPurchase) {
+    console.log(`Idempotency: featured purchase already processed for session ${session.id} (status: ${existingPurchase.status})`);
+    return;
+  }
+
   const { data: purchase, error: purchaseError } = await supabaseAdmin
     .from('featured_purchases')
     .update({
@@ -158,6 +170,7 @@ async function handleConciergeCheckout(session: Stripe.Checkout.Session) {
   }
 
   const supabaseAdmin = getSupabaseAdmin();
+  const origin = Deno.env.get('PUBLIC_SITE_URL') || 'https://hadirot.com';
 
   const { data: profile } = await supabaseAdmin
     .from('profiles')
@@ -205,7 +218,6 @@ async function handleConciergeCheckout(session: Stripe.Checkout.Session) {
 
     const adminEmails = await getAdminEmails(supabaseAdmin);
     if (adminEmails.length > 0) {
-      const origin = 'https://hadirot.com';
       const html = brandWrap(
         'New Concierge Submission',
         `
@@ -232,7 +244,7 @@ async function handleConciergeCheckout(session: Stripe.Checkout.Session) {
         <hr style="border:none;border-top:1px solid #E5E7EB;margin:16px 0;" />
         <p>Our team will review and post your listing shortly. You'll receive a notification once it's live.</p>
         <div style="text-align:center;margin:24px 0;">
-          <a href="https://hadirot.com/account?tab=billing" style="background-color:#1E4A74;color:#FFFFFF;padding:12px 24px;text-decoration:none;border-radius:6px;display:inline-block;font-weight:bold;">View Your Account</a>
+          <a href="${origin}/account?tab=billing" style="background-color:#1E4A74;color:#FFFFFF;padding:12px 24px;text-decoration:none;border-radius:6px;display:inline-block;font-weight:bold;">View Your Account</a>
         </div>
         `,
       );
@@ -303,7 +315,7 @@ async function handleConciergeCheckout(session: Stripe.Checkout.Session) {
         </div>
         <p><strong>Subscription started:</strong> ${new Date().toLocaleDateString()}</p>
         <div style="text-align:center;margin:24px 0;">
-          <a href="https://hadirot.com/admin?tab=concierge" style="background-color:#1E4A74;color:#FFFFFF;padding:12px 24px;text-decoration:none;border-radius:6px;display:inline-block;font-weight:bold;">View in Admin Panel</a>
+          <a href="${origin}/admin?tab=concierge" style="background-color:#1E4A74;color:#FFFFFF;padding:12px 24px;text-decoration:none;border-radius:6px;display:inline-block;font-weight:bold;">View in Admin Panel</a>
         </div>
         `,
       );
@@ -359,7 +371,7 @@ async function handleConciergeCheckout(session: Stripe.Checkout.Session) {
         <p><strong>Listing Sources:</strong> Pending user setup</p>
         <p><strong>Subscription started:</strong> ${new Date().toLocaleDateString()}</p>
         <div style="text-align:center;margin:24px 0;">
-          <a href="https://hadirot.com/admin?tab=concierge" style="background-color:#1E4A74;color:#FFFFFF;padding:12px 24px;text-decoration:none;border-radius:6px;display:inline-block;font-weight:bold;">View in Admin Panel</a>
+          <a href="${origin}/admin?tab=concierge" style="background-color:#1E4A74;color:#FFFFFF;padding:12px 24px;text-decoration:none;border-radius:6px;display:inline-block;font-weight:bold;">View in Admin Panel</a>
         </div>
         `,
       );
@@ -380,9 +392,9 @@ async function handleConciergeCheckout(session: Stripe.Checkout.Session) {
         <hr style="border:none;border-top:1px solid #E5E7EB;margin:16px 0;" />
         <p><strong>Next step:</strong> Set up your listing sources so we know where to find your listings.</p>
         <div style="text-align:center;margin:24px 0;">
-          <a href="https://hadirot.com/concierge/success?tier=tier3_vip" style="background-color:#1E4A74;color:#FFFFFF;padding:12px 24px;text-decoration:none;border-radius:6px;display:inline-block;font-weight:bold;">Set Up My Listing Sources</a>
+          <a href="${origin}/concierge/success?tier=tier3_vip" style="background-color:#1E4A74;color:#FFFFFF;padding:12px 24px;text-decoration:none;border-radius:6px;display:inline-block;font-weight:bold;">Set Up My Listing Sources</a>
         </div>
-        <p style="color:#6B7280;font-size:14px;">You can also update your sources anytime from your <a href="https://hadirot.com/account?tab=billing" style="color:#1E4A74;">account billing page</a>.</p>
+        <p style="color:#6B7280;font-size:14px;">You can also update your sources anytime from your <a href="${origin}/account?tab=billing" style="color:#1E4A74;">account billing page</a>.</p>
         `,
       );
       await sendEmail(userEmail, 'Welcome to Hadirot VIP Concierge', userHtml);
