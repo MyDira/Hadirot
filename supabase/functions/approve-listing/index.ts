@@ -60,13 +60,10 @@ Deno.serve(async (req) => {
       );
     }
 
-    const { data: profile } = await supabaseAuthClient
-      .from('profiles')
-      .select('is_admin')
-      .eq('id', user.id)
-      .single();
+    const isAdminViaJwt = user.app_metadata?.is_admin === true;
 
-    if (!profile?.is_admin) {
+    if (!isAdminViaJwt) {
+      console.error('[EDGE] approve-listing rejected — not admin (JWT):', user.id);
       return new Response(
         JSON.stringify({ error: 'Insufficient permissions' }),
         {
@@ -115,10 +112,10 @@ Deno.serve(async (req) => {
       listingData = data;
     } else {
       const { data, error } = await supabaseClient
-        .from('public.listings')
+        .from('listings')
         .update({ approved: true, is_active: true })
         .eq('id', listingId)
-        .select('id, title, profiles!public.listings_user_id_fkey(email, full_name)')
+        .select('id, title, user_id')
         .single();
 
       console.log('[EDGE] approve-listing updated listing to approved/active', { listingId });
@@ -134,13 +131,7 @@ Deno.serve(async (req) => {
         );
       }
 
-      return new Response(
-        JSON.stringify({ message: 'Listing approved', listing: data }),
-        {
-          status: 200,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        }
-      );
+      listingData = data;
     }
 
     const { data: ownerProfile } = await supabaseClient
