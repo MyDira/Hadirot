@@ -26,3 +26,6 @@ dist-ssr
 
 # Supabase CLI local state (linked project, version pins, etc.)
 supabase/.temp/
+
+# Generated audit report PDF (regeneratable from /tmp/hadirot-audit-report.html)
+hadirot-audit-report.pdf
