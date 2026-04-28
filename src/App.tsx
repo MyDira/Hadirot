@@ -143,6 +143,7 @@ function App() {
                       </PasswordRecoveryGate>
                     }
                   />
+                  <Route path="/404" element={<NotFound />} />
                   <Route path="*" element={<NotFound />} />
                 </Routes>
               </Suspense>

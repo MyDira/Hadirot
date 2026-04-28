@@ -232,6 +232,16 @@ Deno.serve(async (req) => {
         return jsonResponse(400, { error: 'Event missing required fields' });
       }
 
+      if (rawSessionId.length > 100) {
+        return jsonResponse(400, { error: 'Field too long: session_id' });
+      }
+      if (rawAnonId.length > 100) {
+        return jsonResponse(400, { error: 'Field too long: anon_id' });
+      }
+      if (eventName.length > 100) {
+        return jsonResponse(400, { error: 'Field too long: event_name' });
+      }
+
       // Normalize IDs to proper UUIDs
       const sessionId = normalizeId(rawSessionId);
       const anonId = normalizeId(rawAnonId);

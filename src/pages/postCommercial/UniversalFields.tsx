@@ -152,7 +152,7 @@ export function UniversalFields({
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Listing Title
-              <span className="ml-1 text-xs font-normal text-gray-400">(optional — auto-generated if blank)</span>
+              <span className="ml-1 text-xs font-normal text-gray-400">(optional — auto-generated if blank · max 200 characters)</span>
             </label>
             <input
               type="text"
@@ -284,13 +284,16 @@ export function UniversalFields({
             <option value="other">Other (type below)</option>
           </select>
           {neighborhoodMode === "custom" && (
-            <input
-              type="text"
-              value={customNeighborhood}
-              onChange={(e) => handleCustomNeighborhood(e.target.value)}
-              placeholder="Enter neighborhood name"
-              className="mt-2 w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-teal-600 focus:border-teal-600 text-sm"
-            />
+            <>
+              <input
+                type="text"
+                value={customNeighborhood}
+                onChange={(e) => handleCustomNeighborhood(e.target.value)}
+                placeholder="Enter neighborhood name"
+                className="mt-2 w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-teal-600 focus:border-teal-600 text-sm"
+              />
+              <p className="mt-1 text-xs text-gray-400">Max 200 characters</p>
+            </>
           )}
           {errors.neighborhood && (
             <p className="text-xs text-red-600 mt-1">{errors.neighborhood}</p>

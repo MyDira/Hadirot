@@ -6,6 +6,7 @@ import { CommercialListing } from "../../config/supabase";
 import { commercialListingsService } from "../../services/commercialListings";
 import { useAuth } from "@/hooks/useAuth";
 import { computePrimaryListingImage, buildListingAlt } from "../../utils/stockImage";
+import { LISTING_IMAGE_FALLBACK_SRC } from "../../utils/listingImageFallback";
 
 interface MobileMapCommercialPopupProps {
   listing: CommercialListing | null;
@@ -172,6 +173,7 @@ export function MobileMapCommercialPopup({
                 neighborhood: listing.neighborhood,
                 commercial_space_type: listing.commercial_space_type,
               }) : (listing.title ?? "Commercial listing")}
+              onError={(e) => { (e.currentTarget as HTMLImageElement).src = LISTING_IMAGE_FALLBACK_SRC; }}
             />
             {isStock && (
               <div className="mobile-map-popup-stock-badge">Stock photo</div>

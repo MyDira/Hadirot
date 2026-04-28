@@ -205,6 +205,7 @@ export function Contact() {
               />
             </div>
             {errors.name && <p className="mt-1 text-sm text-red-600">{errors.name}</p>}
+            <p className="mt-1 text-xs text-gray-400">Max 200 characters</p>
           </div>
 
           {/* Email Field */}
@@ -250,6 +251,7 @@ export function Contact() {
                 placeholder="(555) 123-4567"
               />
             </div>
+            <p className="mt-1 text-xs text-gray-400">Max 30 characters</p>
           </div>
 
           {/* Message Field */}
@@ -269,6 +271,7 @@ export function Contact() {
               placeholder="Tell us how we can help you..."
             />
             {errors.message && <p className="mt-1 text-sm text-red-600">{errors.message}</p>}
+            <p className="mt-1 text-xs text-gray-400">Max 5,000 characters</p>
           </div>
 
           {/* Submit Button */}

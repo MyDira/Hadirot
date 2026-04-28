@@ -56,6 +56,21 @@ Deno.serve(async (req) => {
       });
     }
 
+    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!UUID_RE.test(listing_id)) {
+      return new Response(JSON.stringify({ error: 'Invalid listing_id format' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    if (typeof price_id !== 'string' || price_id.length > 100) {
+      return new Response(JSON.stringify({ error: 'Invalid price_id' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
     const supabaseAdmin = createClient(
       Deno.env.get('SUPABASE_URL')!,
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
@@ -151,15 +166,25 @@ Deno.serve(async (req) => {
 
     const amountMap: Record<string, number> = { '7day': 2500, '14day': 4000, '30day': 7500 };
 
-    await supabaseAdmin.from('featured_purchases').insert({
-      listing_id,
-      user_id: user.id,
-      stripe_checkout_session_id: session.id,
-      plan,
-      amount_cents: amountMap[plan],
-      status: 'pending',
-      duration_days: VALID_PLANS[plan],
-    });
+    try {
+      await supabaseAdmin.from('featured_purchases').insert({
+        listing_id,
+        user_id: user.id,
+        stripe_checkout_session_id: session.id,
+        plan,
+        amount_cents: amountMap[plan],
+        status: 'pending',
+        duration_days: VALID_PLANS[plan],
+      });
+    } catch (insertError) {
+      if (insertError?.code === '23505') {
+        return new Response(JSON.stringify({ error: 'A purchase is already pending or active for this listing' }), {
+          status: 409,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      throw insertError;
+    }
 
     return new Response(JSON.stringify({ url: session.url, session_id: session.id }), {
       status: 200,

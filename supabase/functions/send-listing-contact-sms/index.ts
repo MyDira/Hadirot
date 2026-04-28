@@ -118,6 +118,37 @@ Deno.serve(async (req) => {
       );
     }
 
+    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!UUID_RE.test(formData.listingId)) {
+      return new Response(
+        JSON.stringify({ error: "Invalid listingId format" }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
+    if (formData.userName.length > 200) {
+      return new Response(
+        JSON.stringify({ error: "Field too long: userName" }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
+    if (formData.userAgent && formData.userAgent.length > 500) {
+      return new Response(
+        JSON.stringify({ error: "Field too long: userAgent" }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     const formatPhoneForSMS = (phone: string): string => {

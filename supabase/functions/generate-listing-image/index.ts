@@ -32,6 +32,34 @@ Deno.serve(async (req) => {
   try {
     const { listing }: GenerateImageRequest = await req.json();
 
+    if (!listing || typeof listing !== 'object') {
+      return new Response(JSON.stringify({ error: 'Missing listing object' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    if (typeof listing.title === 'string' && listing.title.length > 200) {
+      return new Response(JSON.stringify({ error: 'Field too long: title' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    if (typeof listing.location === 'string' && listing.location.length > 200) {
+      return new Response(JSON.stringify({ error: 'Field too long: location' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    if (typeof listing.neighborhood === 'string' && listing.neighborhood.length > 200) {
+      return new Response(JSON.stringify({ error: 'Field too long: neighborhood' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
     console.log("🎨 Generating image for listing:", listing.id);
 
     // Generate HTML for the listing card

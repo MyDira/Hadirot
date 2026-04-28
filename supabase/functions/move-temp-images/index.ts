@@ -1,5 +1,6 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { corsHeaders } from '../_shared/cors.ts';
+import { validateFile } from '../_shared/validateFileUpload.ts';
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -27,6 +28,28 @@ Deno.serve(async (req) => {
       });
     }
 
+    if (tempImages.length > 50) {
+      return new Response(JSON.stringify({ error: 'Too many images (max 50)' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!UUID_RE.test(listingId)) {
+      return new Response(JSON.stringify({ error: 'Invalid listingId format' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    if (!UUID_RE.test(userId)) {
+      return new Response(JSON.stringify({ error: 'Invalid userId format' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
     const newImageRecords = [];
     const errors = [];
 
@@ -48,6 +71,15 @@ Deno.serve(async (req) => {
         if (downloadError) {
           console.error(`Error downloading temp image ${filePath}:`, downloadError);
           errors.push(`Failed to download ${filePath}: ${downloadError.message}`);
+          continue;
+        }
+
+        // Server-side validation: MIME type, extension, magic bytes, size
+        const validation = await validateFile(imageData, originalName || filePath);
+        if (!validation.valid) {
+          console.error(`Validation failed for ${filePath}: ${validation.reason}`);
+          errors.push(`Rejected ${filePath}: ${validation.reason}`);
+          await supabaseAdmin.storage.from('listing-images').remove([filePath]);
           continue;
         }
 
