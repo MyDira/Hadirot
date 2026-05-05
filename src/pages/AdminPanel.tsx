@@ -4,9 +4,10 @@ import { Users, FileText, Eye, Trash2, Shield, TrendingUp, Home, Star, Power, Ch
 import { listingsService } from '../services/listings';
 import { agenciesService } from '../services/agencies';
 import { salesService } from '../services/sales';
+import { commercialListingsService } from '../services/commercialListings';
 import { useAuth } from '@/hooks/useAuth';
 import { useAdminSignInAsUser } from '@/hooks/useAdminSignInAsUser';
-import { supabase, Profile, Listing } from '../config/supabase';
+import { supabase, Profile, Listing, CommercialListing } from '../config/supabase';
 import { formatPhoneForDisplay } from '@/utils/phone';
 import { SalesManagement } from '@/components/admin/SalesManagement';
 import { AdminFeatureModal } from '@/components/admin/AdminFeatureModal';
@@ -55,6 +56,10 @@ interface ListingSorting {
   field: 'title' | 'owner' | 'price' | 'created_at' | 'is_active' | 'is_featured';
   direction: 'asc' | 'desc';
 }
+type PendingItem =
+  | { isCommercial: false; listing: Listing }
+  | { isCommercial: true; listing: CommercialListing };
+
 // Helper function to check if a listing is currently featured (not expired)
 const isListingCurrentlyFeatured = (listing: Listing) => {
   return listing.is_featured && 
@@ -79,12 +84,12 @@ export function AdminPanel() {
   });
   const [users, setUsers] = useState<Profile[]>([]);
   const [listings, setListings] = useState<Listing[]>([]);
-  const [pendingListings, setPendingListings] = useState<Listing[]>([]);
+  const [pendingListings, setPendingListings] = useState<PendingItem[]>([]);
   const [mapModalListing, setMapModalListing] = useState<Listing | null>(null);
   const [allListings, setAllListings] = useState<Listing[]>([]);
   const [filteredListings, setFilteredListings] = useState<Listing[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
-  const [filteredPendingListings, setFilteredPendingListings] = useState<Listing[]>([]);
+  const [filteredPendingListings, setFilteredPendingListings] = useState<PendingItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [userFilters, setUserFilters] = useState({
     role: '',
@@ -191,9 +196,10 @@ export function AdminPanel() {
     if (!searchTerm.trim()) {
       setFilteredPendingListings(pendingListings);
     } else {
-      const filtered = pendingListings.filter(listing =>
-        (listing.title || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (listing.owner?.full_name || '').toLowerCase().includes(searchTerm.toLowerCase())
+      const term = searchTerm.toLowerCase();
+      const filtered = pendingListings.filter(item =>
+        (item.listing.title || '').toLowerCase().includes(term) ||
+        (item.listing.owner?.full_name || '').toLowerCase().includes(term)
       );
       setFilteredPendingListings(filtered);
     }
@@ -376,8 +382,8 @@ export function AdminPanel() {
         });
       }
 
-      // Load pending listings
-      let query = supabase
+      // Load pending listings (residential + commercial in parallel)
+      let resQuery = supabase
         .from('listings')
         .select(`
           *,
@@ -386,12 +392,24 @@ export function AdminPanel() {
         .eq('approved', false);
 
       if (pendingSort.field !== 'owner') {
-        query = query.order(pendingSort.field, { ascending: pendingSort.direction === 'asc' });
+        resQuery = resQuery.order(pendingSort.field, { ascending: pendingSort.direction === 'asc' });
       }
 
-      const { data: pending } = await query;
+      const [{ data: pendingRes }, pendingComm] = await Promise.all([
+        resQuery,
+        commercialListingsService.getAdminCommercialListings(false),
+      ]);
 
-      setPendingListings(pending || []);
+      const residentialItems: PendingItem[] = (pendingRes || []).map(l => ({ isCommercial: false, listing: l }));
+      const commercialItems: PendingItem[] = (pendingComm || []).map(l => ({ isCommercial: true, listing: l }));
+
+      const combined: PendingItem[] = [...residentialItems, ...commercialItems].sort((a, b) => {
+        const aDate = new Date(a.listing.created_at).getTime();
+        const bDate = new Date(b.listing.created_at).getTime();
+        return pendingSort.direction === 'asc' ? aDate - bDate : bDate - aDate;
+      });
+
+      setPendingListings(combined);
       setUsers(allUsers || []);
       
       // Apply date filtering
@@ -732,6 +750,36 @@ export function AdminPanel() {
     }
   };
 
+  const approveCommercialListing = async (listingId: string) => {
+    console.log('[UI] Approve commercial clicked', { listingId });
+    try {
+      const { error } = await supabase.functions.invoke('approve-listing', {
+        body: { listingId, isCommercial: true },
+      });
+      if (error) throw error;
+      await loadAdminData();
+      setShowApproveSuccess(true);
+    } catch (error) {
+      console.error('Error approving commercial listing:', error);
+      alert('Failed to approve listing. Please try again.');
+    }
+  };
+
+  const rejectCommercialListing = async (listingId: string) => {
+    if (!confirm('Are you sure you want to reject this commercial listing? This action cannot be undone.')) {
+      return;
+    }
+
+    try {
+      await commercialListingsService.deleteCommercialListing(listingId);
+      await loadAdminData();
+      alert('Listing rejected successfully!');
+    } catch (error) {
+      console.error('Error rejecting commercial listing:', error);
+      alert('Failed to reject listing. Please try again.');
+    }
+  };
+
   const handleSignInAsUser = async (targetUser: Profile) => {
     if (!profile?.is_admin) {
       return;
@@ -917,6 +965,11 @@ export function AdminPanel() {
             >
               <Icon className="w-4 h-4 mr-1 sm:mr-2" />
               {label}
+              {id === 'pending' && pendingListings.length > 0 && (
+                <span className="ml-1.5 px-1.5 py-0.5 text-xs font-semibold rounded-full bg-amber-100 text-amber-700">
+                  {pendingListings.length}
+                </span>
+              )}
             </button>
           ))}
         </nav>
@@ -1838,69 +1891,103 @@ export function AdminPanel() {
                         </tr>
                       </thead>
                       <tbody className="bg-white divide-y divide-gray-200">
-                        {filteredPendingListings.map((listing) => (
-                          <tr key={listing.id} className="hover:bg-gray-50">
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <div className="text-sm font-medium text-gray-900 truncate max-w-xs">
-                                {listing.title}
-                              </div>
-                              <div className="text-sm text-gray-500">
-                                {listing.bedrooms === 0 ? 'Studio' : `${listing.bedrooms} bed`}, {listing.bathrooms} bath
-                              </div>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <div className="text-sm text-gray-900">{listing.owner?.full_name || 'Unknown'}</div>
-                              <div className="text-sm text-gray-500 capitalize">{listing.owner?.role || 'N/A'}</div>
-                              {!listing.user_id && (
-                                <span className="inline-block mt-1 px-2 py-0.5 text-xs rounded-full bg-gray-200 text-gray-700">
-                                  Archived
-                                </span>
-                              )}
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                              {listing.call_for_price
-                                ? 'Call for Price'
-                                : listing.listing_type === 'sale'
-                                ? `$${(listing.asking_price || 0).toLocaleString()}`
-                                : `$${(listing.price || 0).toLocaleString()}/month`}
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                              {new Date(listing.created_at).toLocaleDateString()}
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                              <div className="flex items-center space-x-3">
-                                <Link
-                                  to={`/listing/${listing.id}`}
-                                  className="text-blue-600 hover:text-blue-800 transition-colors"
-                                  title="View Listing"
-                                >
-                                  <Eye className="w-4 h-4" />
-                                </Link>
-                                <button
-                                  onClick={() => setMapModalListing(listing)}
-                                  className="text-gray-500 hover:text-gray-700 transition-colors"
-                                  title="View on Map"
-                                >
-                                  <Map className="w-4 h-4" />
-                                </button>
-                                <button
-                                  onClick={() => approveListing(listing.id)}
-                                  className="text-green-600 hover:text-green-800 transition-colors"
-                                  title="Approve Listing"
-                                >
-                                  ✅
-                                </button>
-                                <button
-                                  onClick={() => rejectListing(listing.id)}
-                                  className="text-red-600 hover:text-red-800 transition-colors"
-                                  title="Reject Listing"
-                                >
-                                  ❌
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        ))}
+                        {currentPendingListings.map((item) => {
+                          const l = item.listing;
+                          const borderColor = item.isCommercial ? '#0891B2' : '#1E4A74';
+                          const viewPath = item.isCommercial
+                            ? `/commercial-listing/${l.id}`
+                            : `/listing/${l.id}`;
+                          const priceDisplay = l.call_for_price
+                            ? 'Call for Price'
+                            : item.isCommercial
+                              ? (l.listing_type === 'sale'
+                                  ? `$${((l as CommercialListing).asking_price || 0).toLocaleString()}`
+                                  : `$${(l.price || 0).toLocaleString()}/mo`)
+                              : (l.listing_type === 'sale'
+                                  ? `$${((l as Listing).asking_price || 0).toLocaleString()}`
+                                  : `$${(l.price || 0).toLocaleString()}/month`);
+                          const subText = item.isCommercial
+                            ? ((l as CommercialListing).commercial_space_type || 'Commercial')
+                            : ((l as Listing).bedrooms === 0
+                                ? 'Studio'
+                                : `${(l as Listing).bedrooms} bed`) +
+                              `, ${(l as Listing).bathrooms} bath`;
+
+                          return (
+                            <tr
+                              key={l.id}
+                              className="hover:bg-gray-50"
+                              style={{ borderLeft: `3px solid ${borderColor}` }}
+                            >
+                              <td className="px-6 py-4 whitespace-nowrap">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-sm font-medium text-gray-900 truncate max-w-xs">
+                                    {l.title}
+                                  </span>
+                                  {item.isCommercial && (
+                                    <span className="shrink-0 px-2 py-0.5 text-xs font-semibold rounded-full bg-[#0891B2] text-white">
+                                      COMM · {l.listing_type === 'sale' ? 'SALE' : 'LEASE'}
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="text-sm text-gray-500">{subText}</div>
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap">
+                                <div className="text-sm text-gray-900">{l.owner?.full_name || 'Unknown'}</div>
+                                <div className="text-sm text-gray-500 capitalize">{l.owner?.role || 'N/A'}</div>
+                                {!l.user_id && (
+                                  <span className="inline-block mt-1 px-2 py-0.5 text-xs rounded-full bg-gray-200 text-gray-700">
+                                    Archived
+                                  </span>
+                                )}
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                {priceDisplay}
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                {new Date(l.created_at).toLocaleDateString()}
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                                <div className="flex items-center space-x-3">
+                                  <Link
+                                    to={viewPath}
+                                    className="text-blue-600 hover:text-blue-800 transition-colors"
+                                    title="View Listing"
+                                  >
+                                    <Eye className="w-4 h-4" />
+                                  </Link>
+                                  {!item.isCommercial && (
+                                    <button
+                                      onClick={() => setMapModalListing(l as Listing)}
+                                      className="text-gray-500 hover:text-gray-700 transition-colors"
+                                      title="View on Map"
+                                    >
+                                      <Map className="w-4 h-4" />
+                                    </button>
+                                  )}
+                                  <button
+                                    onClick={() => item.isCommercial
+                                      ? approveCommercialListing(l.id)
+                                      : approveListing(l.id)}
+                                    className="text-green-600 hover:text-green-800 transition-colors"
+                                    title="Approve Listing"
+                                  >
+                                    ✅
+                                  </button>
+                                  <button
+                                    onClick={() => item.isCommercial
+                                      ? rejectCommercialListing(l.id)
+                                      : rejectListing(l.id)}
+                                    className="text-red-600 hover:text-red-800 transition-colors"
+                                    title="Reject Listing"
+                                  >
+                                    ❌
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
 
