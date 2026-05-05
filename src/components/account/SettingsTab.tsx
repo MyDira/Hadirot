@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   Save,
   Eye,
@@ -33,9 +33,6 @@ interface PasswordFormData {
   confirmPassword: string;
 }
 
-const AGENCY_IN_USE_MESSAGE =
-  "This agency name is already in use on Hadirot. If you meant to join that agency, ask the admin to enable your access; otherwise pick a unique name.";
-
 export default function SettingsTab() {
   const { user, profile, setProfile } = useAuth();
 
@@ -45,6 +42,11 @@ export default function SettingsTab() {
     role: "tenant",
     agency: "",
   });
+
+  const [agencySuggestions, setAgencySuggestions] = useState<string[]>([]);
+  const [showAgencySuggestions, setShowAgencySuggestions] = useState(false);
+  const agencyDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const agencyWrapperRef = useRef<HTMLDivElement>(null);
 
   const [passwordData, setPasswordData] = useState<PasswordFormData>({
     currentPassword: "",
@@ -80,11 +82,43 @@ export default function SettingsTab() {
     }
   }, [profile]);
 
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (agencyWrapperRef.current && !agencyWrapperRef.current.contains(e.target as Node)) {
+        setShowAgencySuggestions(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const fetchAgencySuggestions = (value: string) => {
+    if (agencyDebounceRef.current) clearTimeout(agencyDebounceRef.current);
+    if (value.length < 1) {
+      setAgencySuggestions([]);
+      setShowAgencySuggestions(false);
+      return;
+    }
+    agencyDebounceRef.current = setTimeout(async () => {
+      const { data } = await supabase.rpc("get_distinct_agency_names", { search_text: value });
+      if (Array.isArray(data) && data.length > 0) {
+        setAgencySuggestions(data as string[]);
+        setShowAgencySuggestions(true);
+      } else {
+        setAgencySuggestions([]);
+        setShowAgencySuggestions(false);
+      }
+    }, 300);
+  };
+
   const handleProfileInputChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>,
   ) => {
     const { name, value } = e.target;
     setProfileData((prev) => ({ ...prev, [name]: value }));
+    if (name === "agency") {
+      fetchAgencySuggestions(value);
+    }
   };
 
   const handlePasswordInputChange = (
@@ -130,32 +164,6 @@ export default function SettingsTab() {
               text: "Please enter a valid agency name.",
             });
             return;
-          }
-
-          const currentSlug = profile?.agency
-            ? agencyNameToSlug(profile.agency)
-            : null;
-
-          if (!currentSlug || currentSlug !== nextSlug) {
-            try {
-              const availability =
-                await agenciesService.checkAgencyNameAvailable(candidateName);
-
-              if (!availability.available) {
-                setMessage({ type: "error", text: AGENCY_IN_USE_MESSAGE });
-                return;
-              }
-            } catch (availabilityError) {
-              console.error(
-                "Error verifying agency availability:",
-                availabilityError,
-              );
-              setMessage({
-                type: "error",
-                text: "We couldn't verify that agency name. Please try again.",
-              });
-              return;
-            }
           }
 
           nextAgency = candidateName;
@@ -456,16 +464,41 @@ export default function SettingsTab() {
                   <Briefcase className="w-4 h-4 inline mr-2" />
                   Agency Name *
                 </label>
-                <input
-                  type="text"
-                  id="agency"
-                  name="agency"
-                  value={profileData.agency}
-                  onChange={handleProfileInputChange}
-                  required
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
-                  placeholder="Enter your agency name"
-                />
+                <div ref={agencyWrapperRef} className="relative">
+                  <input
+                    type="text"
+                    id="agency"
+                    name="agency"
+                    value={profileData.agency}
+                    onChange={handleProfileInputChange}
+                    onFocus={() => {
+                      if (profileData.agency.length >= 1 && agencySuggestions.length > 0) {
+                        setShowAgencySuggestions(true);
+                      }
+                    }}
+                    required
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
+                    placeholder="Enter your agency name"
+                    autoComplete="off"
+                  />
+                  {showAgencySuggestions && agencySuggestions.length > 0 && (
+                    <ul className="absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-md shadow-lg max-h-48 overflow-y-auto">
+                      {agencySuggestions.map((name) => (
+                        <li
+                          key={name}
+                          onMouseDown={(e) => {
+                            e.preventDefault();
+                            setProfileData((prev) => ({ ...prev, agency: name }));
+                            setShowAgencySuggestions(false);
+                          }}
+                          className="px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 cursor-pointer"
+                        >
+                          {name}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
               </div>
             )}
           </div>

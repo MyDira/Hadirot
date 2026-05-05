@@ -5,6 +5,7 @@ import * as Sentry from "@sentry/react";
 import { useAuth } from "@/hooks/useAuth";
 import { requestPasswordReset } from "../../services/email";
 import { listingsService } from "../../services/listings";
+import { supabase } from "@/config/supabase";
 
 const PENDING_AUTH_KEY = "hadirot_pending_auth";
 
@@ -73,6 +74,11 @@ export function AuthForm({ onAuthSuccess }: AuthFormProps = {}) {
     phone: "",
     agency: "",
   });
+
+  const [agencySuggestions, setAgencySuggestions] = useState<string[]>([]);
+  const [showAgencySuggestions, setShowAgencySuggestions] = useState(false);
+  const agencyDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const agencyWrapperRef = useRef<HTMLDivElement>(null);
 
   const getRoleDestination = (role: string | undefined | null): string => {
     if (role === "agent" || role === "landlord") return "/dashboard";
@@ -192,6 +198,35 @@ export function AuthForm({ onAuthSuccess }: AuthFormProps = {}) {
     }
   }, [isSignUp, showForgotPassword]);
 
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (agencyWrapperRef.current && !agencyWrapperRef.current.contains(e.target as Node)) {
+        setShowAgencySuggestions(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const fetchAgencySuggestions = (value: string) => {
+    if (agencyDebounceRef.current) clearTimeout(agencyDebounceRef.current);
+    if (value.length < 1) {
+      setAgencySuggestions([]);
+      setShowAgencySuggestions(false);
+      return;
+    }
+    agencyDebounceRef.current = setTimeout(async () => {
+      const { data } = await supabase.rpc("get_distinct_agency_names", { search_text: value });
+      if (Array.isArray(data) && data.length > 0) {
+        setAgencySuggestions(data as string[]);
+        setShowAgencySuggestions(true);
+      } else {
+        setAgencySuggestions([]);
+        setShowAgencySuggestions(false);
+      }
+    }, 300);
+  };
+
   const onClickSignIn = (e: React.MouseEvent<HTMLButtonElement>) => {
     const elapsed = performance.now() - (mountTsRef.current || 0);
     if (elapsed < 350 || signInTemporarilyDisabled) return;
@@ -206,6 +241,9 @@ export function AuthForm({ onAuthSuccess }: AuthFormProps = {}) {
       ...prev,
       [name]: value,
     }));
+    if (name === "agency") {
+      fetchAgencySuggestions(value);
+    }
   };
 
   const handleForgotPassword = async (e: React.FormEvent) => {
@@ -413,15 +451,40 @@ export function AuthForm({ onAuthSuccess }: AuthFormProps = {}) {
                       >
                         Agency Name *
                       </label>
-                      <input
-                        id="agency"
-                        name="agency"
-                        type="text"
-                        required
-                        value={formData.agency}
-                        onChange={handleInputChange}
-                        className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-[#4E4B43] focus:border-[#4E4B43]"
-                      />
+                      <div ref={agencyWrapperRef} className="relative mt-1">
+                        <input
+                          id="agency"
+                          name="agency"
+                          type="text"
+                          required
+                          value={formData.agency}
+                          onChange={handleInputChange}
+                          onFocus={() => {
+                            if (formData.agency.length >= 1 && agencySuggestions.length > 0) {
+                              setShowAgencySuggestions(true);
+                            }
+                          }}
+                          className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-[#4E4B43] focus:border-[#4E4B43]"
+                          autoComplete="off"
+                        />
+                        {showAgencySuggestions && agencySuggestions.length > 0 && (
+                          <ul className="absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-md shadow-lg max-h-48 overflow-y-auto">
+                            {agencySuggestions.map((name) => (
+                              <li
+                                key={name}
+                                onMouseDown={(e) => {
+                                  e.preventDefault();
+                                  setFormData((prev) => ({ ...prev, agency: name }));
+                                  setShowAgencySuggestions(false);
+                                }}
+                                className="px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 cursor-pointer"
+                              >
+                                {name}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
                     </div>
                   )}
 

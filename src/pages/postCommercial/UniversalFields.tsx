@@ -252,16 +252,16 @@ export function UniversalFields({
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Street A *</label>
                 <GoogleStreetAutocomplete
-                  value={crossStreetAFeature}
-                  onChange={onCrossStreetAChange}
+                  value={crossStreetAFeature?.streetName ?? ""}
+                  onSelect={onCrossStreetAChange}
                   placeholder="e.g. Avenue J"
                 />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Street B *</label>
                 <GoogleStreetAutocomplete
-                  value={crossStreetBFeature}
-                  onChange={onCrossStreetBChange}
+                  value={crossStreetBFeature?.streetName ?? ""}
+                  onSelect={onCrossStreetBChange}
                   placeholder="e.g. East 15th Street"
                 />
               </div>

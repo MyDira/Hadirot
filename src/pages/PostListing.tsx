@@ -1408,7 +1408,20 @@ export function PostListing() {
             </p>
           </button>
         </div>
-        {/* Commercial listing option hidden intentionally — all commercial infrastructure remains intact */}
+        <button
+          type="button"
+          onClick={() => navigate('/post-commercial')}
+          className="group w-full bg-white rounded-xl border border-gray-200 hover:border-gray-400 px-6 py-4 text-left transition-all hover:shadow-sm flex items-center gap-4"
+        >
+          <div className="rounded-lg p-2 bg-gray-100 group-hover:bg-gray-200 transition-colors shrink-0">
+            <Building2 className="w-5 h-5 text-gray-500" />
+          </div>
+          <div className="min-w-0">
+            <span className="text-sm font-semibold text-gray-800">Posting a commercial property?</span>
+            <span className="text-sm text-gray-500 ml-2">Use the commercial listing form.</span>
+          </div>
+          <span className="ml-auto text-xs font-medium text-[#1E4A74] group-hover:underline shrink-0">Get started &rarr;</span>
+        </button>
         </>
       ) : postMode === 'concierge' ? (
         <>

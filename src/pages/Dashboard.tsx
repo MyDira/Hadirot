@@ -1,34 +1,15 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import {
-  Edit,
-  Eye,
-  MousePointerClick,
-  MessageSquare,
-  Star,
-  Trash2,
-  Zap,
-  RefreshCw,
-  Plus,
-  EyeOff,
-  AlertTriangle,
-  Clock,
-  Home,
-  DollarSign,
-  Info,
-  CheckCircle,
-  XCircle,
-  Briefcase,
-  X,
-} from "lucide-react";
+import { CreditCard as Edit, Eye, MousePointerClick, MessageSquare, Star, Trash2, Zap, RefreshCw, Plus, EyeOff, AlertTriangle, Clock, Home, DollarSign, Info, CheckCircle, XCircle, Briefcase, X, Building2 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
-import { Listing, SaleStatus, supabase } from "../config/supabase";
+import { Listing, SaleStatus, CommercialListing, supabase } from "../config/supabase";
 import {
   listingsService,
   canExtendListing,
   getDaysUntilExpiration,
   LISTING_DURATION_DAYS,
 } from "../services/listings";
+import { commercialListingsService } from "../services/commercialListings";
 import { profilesService } from "../services/profiles";
 import { emailService } from "../services/email";
 import { InquiriesModal, Inquiry } from "../components/listing/InquiriesModal";
@@ -45,6 +26,7 @@ export default function Dashboard() {
   const { user, profile, loading: authLoading, refreshProfile } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const [listings, setListings] = useState<Listing[]>([]);
+  const [commercialListings, setCommercialListings] = useState<CommercialListing[]>([]);
   const [adminSettings, setAdminSettings] = useState<{
     max_featured_listings: number;
     max_featured_per_user: number;
@@ -68,12 +50,18 @@ export default function Dashboard() {
   const [conciergeSub, setConciergeSub] = useState<ConciergeSubscription | null>(null);
 
   const rentalListings = useMemo(
-    () => listings.filter((l) => l.listing_type !== 'sale'),
-    [listings]
+    () => [
+      ...listings.filter((l) => l.listing_type !== 'sale'),
+      ...commercialListings.filter((l) => l.listing_type !== 'sale').map((l) => ({ ...l, isCommercial: true as const })),
+    ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()),
+    [listings, commercialListings]
   );
   const salesListings = useMemo(
-    () => listings.filter((l) => l.listing_type === 'sale'),
-    [listings]
+    () => [
+      ...listings.filter((l) => l.listing_type === 'sale'),
+      ...commercialListings.filter((l) => l.listing_type === 'sale').map((l) => ({ ...l, isCommercial: true as const })),
+    ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()),
+    [listings, commercialListings]
   );
 
   const getDefaultTab = (): DashboardTab => {
@@ -210,20 +198,18 @@ export default function Dashboard() {
     if (!user) return;
 
     try {
-      const [data, counts] = await Promise.all([
+      const [data, counts, commercialData] = await Promise.all([
         listingsService.getUserListings(user.id),
         listingsService.getInquiryCountsForUser(),
+        commercialListingsService.getUserCommercialListings(user.id).catch((err) => {
+          console.error("[Dashboard] Failed to load commercial listings:", err);
+          return [] as CommercialListing[];
+        }),
       ]);
-      console.debug(
-        '[Dashboard] loaded listings with metrics',
-        data.map((listing) => ({
-          id: listing.id,
-          impressions: listing.impressions ?? 0,
-          direct_views: listing.direct_views ?? 0,
-        })),
-      );
       setListings(data);
       setInquiryCounts(counts);
+      setCommercialListings(commercialData);
+      console.debug("[Dashboard] commercial listings loaded:", commercialData.length);
     } catch (error) {
       console.error("Error loading user listings:", error);
     } finally {
@@ -454,6 +440,56 @@ export default function Dashboard() {
       console.log("✅ Listing deleted successfully");
     } catch (error) {
       console.error("❌ Error deleting listing:", error);
+      alert("Failed to delete listing. Please try again.");
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleUnpublishCommercialListing = async (listingId: string) => {
+    if (!confirm("Are you sure you want to unpublish this listing? It will be hidden from public view but can be republished later.")) {
+      return;
+    }
+    setActionLoading(listingId);
+    try {
+      await commercialListingsService.updateCommercialListing(listingId, {
+        is_active: false,
+        updated_at: new Date().toISOString(),
+      });
+      await loadUserListings();
+    } catch (error) {
+      console.error("Error unpublishing commercial listing:", error);
+      alert("Failed to unpublish listing. Please try again.");
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleRenewCommercialListing = async (listingId: string) => {
+    setActionLoading(listingId);
+    try {
+      const listing = commercialListings.find((l) => l.id === listingId);
+      const listingType = listing?.listing_type ?? 'rental';
+      await commercialListingsService.renewCommercialListing(listingId, listingType);
+      await loadUserListings();
+    } catch (error) {
+      console.error("Error renewing commercial listing:", error);
+      alert("Failed to renew listing. Please try again.");
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleDeleteCommercialListing = async (listingId: string) => {
+    if (!confirm("Are you sure you want to permanently delete this listing? This action cannot be undone.")) {
+      return;
+    }
+    setActionLoading(listingId);
+    try {
+      await commercialListingsService.deleteCommercialListing(listingId);
+      setCommercialListings((prev) => prev.filter((l) => l.id !== listingId));
+    } catch (error) {
+      console.error("Error deleting commercial listing:", error);
       alert("Failed to delete listing. Please try again.");
     } finally {
       setActionLoading(null);
@@ -784,44 +820,68 @@ export default function Dashboard() {
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                   {filteredListings.map((listing) => {
+                    const isCommercial = !!(listing as any).isCommercial;
                     const featuredImage =
                       listing.listing_images?.find((img) => img.is_featured) ||
                       listing.listing_images?.[0];
                     const isSale = listing.listing_type === 'sale';
                     const daysUntilExpiration = getDaysUntilExpiration(listing.expires_at);
-                    const extensionCheck = canExtendListing(listing);
+                    const extensionCheck = isCommercial ? { canExtend: false, reason: '' } : canExtendListing(listing as Listing);
+                    const rowStripe = isCommercial ? '3px solid #0891B2' : '3px solid #1E4A74';
+
+                    const getCommercialPriceText = () => {
+                      const cl = listing as CommercialListing;
+                      if (cl.call_for_price) return 'Contact for Price';
+                      if (isSale) return cl.asking_price != null ? formatPrice(cl.asking_price) : 'Contact for Price';
+                      return cl.price != null ? `${formatPrice(cl.price)}/mo` : 'Contact for Price';
+                    };
 
                     return (
-                      <tr key={listing.id} className="hover:bg-gray-50">
+                      <tr key={listing.id} className="hover:bg-gray-50" style={{ borderLeft: rowStripe }}>
                         <td className="px-6 py-4" style={{ maxWidth: '300px' }}>
                           <div className="flex items-center min-w-0">
-                            {featuredImage && (
+                            {featuredImage ? (
                               <img
                                 src={featuredImage.image_url}
-                                alt={listing.title}
+                                alt={listing.title ?? ''}
                                 className="w-12 h-12 object-cover rounded-lg mr-4 flex-shrink-0"
                               />
-                            )}
-                            <div className="min-w-0 flex-1">
-                              <Link
-                                to={`/listing/${listing.id}`}
-                                className="font-medium text-gray-900 hover:text-[#4E4B43] transition-colors block truncate"
-                                title={listing.title}
-                              >
-                                {listing.title}
-                              </Link>
-                              <div className="text-sm text-gray-500 truncate">
-                                {listing.bedrooms} bed, {listing.bathrooms} bath
+                            ) : isCommercial ? (
+                              <div className="w-12 h-12 rounded-lg mr-4 flex-shrink-0 bg-cyan-50 border border-cyan-200 flex items-center justify-center">
+                                <Building2 className="w-5 h-5 text-cyan-600" />
                               </div>
+                            ) : null}
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <Link
+                                  to={isCommercial ? `/commercial-listing/${listing.id}` : `/listing/${listing.id}`}
+                                  className="font-medium text-gray-900 hover:text-[#4E4B43] transition-colors truncate"
+                                  title={listing.title ?? ''}
+                                >
+                                  {listing.title}
+                                </Link>
+                                {isCommercial && (
+                                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#0891B2] text-white whitespace-nowrap flex-shrink-0">
+                                    {isSale ? 'COMM · SALE' : 'COMM · LEASE'}
+                                  </span>
+                                )}
+                              </div>
+                              {!isCommercial && (
+                                <div className="text-sm text-gray-500 truncate">
+                                  {(listing as Listing).bedrooms} bed, {(listing as Listing).bathrooms} bath
+                                </div>
+                              )}
                             </div>
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {listing.call_for_price
-                            ? 'Call for Price'
-                            : isSale
-                              ? formatPrice(listing.asking_price ?? listing.price)
-                              : `${formatPrice(listing.price)}/month`}
+                          {isCommercial
+                            ? getCommercialPriceText()
+                            : listing.call_for_price
+                              ? 'Call for Price'
+                              : isSale
+                                ? formatPrice((listing as Listing).asking_price ?? listing.price)
+                                : `${formatPrice(listing.price)}/month`}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                           <div className="flex items-center gap-1.5">
@@ -844,17 +904,21 @@ export default function Dashboard() {
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          <button
-                            type="button"
-                            onClick={() => handleOpenInquiries(listing.id, listing.title)}
-                            className="flex items-center gap-1.5 hover:text-accent-600 transition-colors cursor-pointer"
-                            title="View inquiries"
-                          >
-                            <MessageSquare className="h-4 w-4 opacity-70" aria-hidden />
-                            <span className="hover:underline">
-                              {inquiryCounts[listing.id] ?? 0}
-                            </span>
-                          </button>
+                          {isCommercial ? (
+                            <span className="text-gray-400">—</span>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => handleOpenInquiries(listing.id, listing.title)}
+                              className="flex items-center gap-1.5 hover:text-accent-600 transition-colors cursor-pointer"
+                              title="View inquiries"
+                            >
+                              <MessageSquare className="h-4 w-4 opacity-70" aria-hidden />
+                              <span className="hover:underline">
+                                {inquiryCounts[listing.id] ?? 0}
+                              </span>
+                            </button>
+                          )}
                         </td>
                         <td className="px-6 py-4">
                           <div className="flex flex-col gap-1.5">
@@ -868,10 +932,10 @@ export default function Dashboard() {
                               >
                                 {listing.is_active ? "Active" : "Inactive"}
                               </span>
-                              {listing.is_active && listing.approved && !isListingCurrentlyFeatured(listing) && (
+                              {!isCommercial && listing.is_active && listing.approved && !isListingCurrentlyFeatured(listing as Listing) && (
                                 <button
                                   onClick={() => {
-                                    setFeatureModalListing(listing);
+                                    setFeatureModalListing(listing as Listing);
                                     setShowSuccessBanner(false);
                                   }}
                                   className="text-xs bg-accent-500 hover:bg-accent-600 text-white px-3 py-1 rounded font-medium whitespace-nowrap transition-colors"
@@ -885,8 +949,8 @@ export default function Dashboard() {
                                   Pending Approval
                                 </span>
                               )}
-                              {(() => {
-                                const featuredStatus = getListingFeaturedStatus(listing);
+                              {!isCommercial && (() => {
+                                const featuredStatus = getListingFeaturedStatus(listing as Listing);
                                 if (featuredStatus === 'active') {
                                   const daysLeft = listing.featured_expires_at
                                     ? Math.max(0, Math.ceil((new Date(listing.featured_expires_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
@@ -909,18 +973,18 @@ export default function Dashboard() {
                                 return null;
                               })()}
                             </div>
-                            {isSale && listing.is_active && (
+                            {!isCommercial && isSale && listing.is_active && (
                               <div className="mt-1">
                                 <SaleStatusSelector
-                                  currentStatus={listing.sale_status}
+                                  currentStatus={(listing as Listing).sale_status}
                                   listingId={listing.id}
                                   onStatusChange={handleSaleStatusChange}
                                   disabled={actionLoading === listing.id}
                                 />
                               </div>
                             )}
-                            {isSale && !listing.is_active && listing.sale_status && (
-                              <SaleStatusBadge status={listing.sale_status} size="sm" />
+                            {!isCommercial && isSale && !listing.is_active && (listing as Listing).sale_status && (
+                              <SaleStatusBadge status={(listing as Listing).sale_status!} size="sm" />
                             )}
                           </div>
                         </td>
@@ -942,7 +1006,7 @@ export default function Dashboard() {
                               {!isSale && daysUntilExpiration <= 7 && (
                                 <button
                                   type="button"
-                                  onClick={() => handleRenewListing(listing.id)}
+                                  onClick={() => isCommercial ? handleRenewCommercialListing(listing.id) : handleRenewListing(listing.id)}
                                   disabled={actionLoading === listing.id}
                                   className="px-2.5 py-1.5 text-xs font-medium text-white bg-brand-600 hover:bg-brand-700 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
                                   title="Renew for 14 days"
@@ -950,7 +1014,7 @@ export default function Dashboard() {
                                   Renew
                                 </button>
                               )}
-                              {isSale && (
+                              {!isCommercial && isSale && (
                                 <button
                                   type="button"
                                   onClick={() => handleExtendSalesListing(listing.id)}
@@ -964,7 +1028,7 @@ export default function Dashboard() {
                                       : 'bg-gray-300 cursor-not-allowed'
                                   }`}
                                   title={extensionCheck.canExtend
-                                    ? `Extend ${listing.sale_status === 'in_contract' ? '42' : '30'} days`
+                                    ? `Extend ${(listing as Listing).sale_status === 'in_contract' ? '42' : '30'} days`
                                     : extensionCheck.reason || 'Cannot extend'}
                                 >
                                   Extend
@@ -996,7 +1060,7 @@ export default function Dashboard() {
                         <td className="sticky right-0 bg-white px-6 py-4 text-sm font-medium shadow-[-4px_0_6px_rgba(0,0,0,0.05)] z-[5]">
                           <div className="flex items-center gap-2.5">
                             <Link
-                              to={`/listing/${listing.id}`}
+                              to={isCommercial ? `/commercial-listing/${listing.id}` : `/listing/${listing.id}`}
                               title="View Listing"
                               className="flex flex-col items-center gap-1 p-1.5 text-gray-500 hover:text-[#273140] transition-colors"
                             >
@@ -1005,7 +1069,7 @@ export default function Dashboard() {
                             </Link>
 
                             <Link
-                              to={`/edit/${listing.id}`}
+                              to={isCommercial ? `/commercial/edit/${listing.id}` : `/edit/${listing.id}`}
                               className="flex flex-col items-center gap-1 p-1.5 text-gray-500 hover:text-blue-600 transition-colors"
                               title="Edit Listing"
                             >
@@ -1017,7 +1081,9 @@ export default function Dashboard() {
                               <button
                                 type="button"
                                 onClick={() =>
-                                  handleUnpublishListing(listing.id)
+                                  isCommercial
+                                    ? handleUnpublishCommercialListing(listing.id)
+                                    : handleUnpublishListing(listing.id)
                                 }
                                 disabled={
                                   actionLoading === listing.id ||
@@ -1032,7 +1098,11 @@ export default function Dashboard() {
                             ) : (
                               <button
                                 type="button"
-                                onClick={() => handleRenewListing(listing.id)}
+                                onClick={() =>
+                                  isCommercial
+                                    ? handleRenewCommercialListing(listing.id)
+                                    : handleRenewListing(listing.id)
+                                }
                                 disabled={
                                   actionLoading === listing.id ||
                                   !listing.approved
@@ -1047,7 +1117,11 @@ export default function Dashboard() {
 
                             <button
                               type="button"
-                              onClick={() => handleDeleteListing(listing.id)}
+                              onClick={() =>
+                                isCommercial
+                                  ? handleDeleteCommercialListing(listing.id)
+                                  : handleDeleteListing(listing.id)
+                              }
                               disabled={actionLoading === listing.id}
                               className="flex flex-col items-center gap-1 p-1.5 text-gray-500 hover:text-red-600 transition-colors"
                               title="Delete Listing"
