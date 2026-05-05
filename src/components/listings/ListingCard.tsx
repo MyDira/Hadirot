@@ -95,6 +95,9 @@ export function ListingCard({
     if (listing.admin_custom_agency_name) {
       return listing.admin_custom_agency_name;
     }
+    if (listing.admin_listing_type_display === 'agent') {
+      return "Real Estate Agent";
+    }
     if (listing.admin_listing_type_display === 'owner') {
       return "Owner";
     }
