@@ -25,6 +25,7 @@ const ContentManagement = lazy(() => import('./pages/ContentManagement').then(m 
 const DigestManager = lazy(() => import('./pages/DigestManager').then(m => ({ default: m.DigestManager })));
 const DigestGlobalSettings = lazy(() => import('./pages/DigestGlobalSettings').then(m => ({ default: m.DigestGlobalSettings })));
 const PostListing = lazy(() => import('./pages/PostListing').then(m => ({ default: m.PostListing })));
+const PostListingWizard = lazy(() => import('./pages/postListingWizard/PostListingWizard').then(m => ({ default: m.PostListingWizard })));
 const PostCommercialListing = lazy(() => import('./pages/PostCommercialListing').then(m => ({ default: m.PostCommercialListing })));
 const EditListing = lazy(() => import('./pages/EditListing').then(m => ({ default: m.EditListing })));
 const Account = lazy(() => import('./pages/Account').then(m => ({ default: m.Account })));
@@ -100,6 +101,7 @@ function App() {
                   <Route path="/browse" element={<BrowseListings />} />
                   <Route path="/browse-sales" element={<BrowseSales />} />
                   <Route path="/post" element={<PostListing />} />
+                  <Route path="/post-listing-new" element={<PostListingWizard />} />
                   <Route path="/post-commercial" element={<PostCommercialListing />} />
                   <Route path="/edit/:id" element={<EditListing />} />
                   <Route path="/listing/:id" element={<ListingDetail />} />
