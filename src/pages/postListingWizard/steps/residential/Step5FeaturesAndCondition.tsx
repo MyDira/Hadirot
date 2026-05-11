@@ -14,11 +14,11 @@ const TIPS = {
 
 const UTILITY_OPTIONS = [
   { value: 'heat', label: 'Heat' },
+  { value: 'hot_water', label: 'Hot Water' },
   { value: 'gas', label: 'Gas' },
   { value: 'electric', label: 'Electric' },
-  { value: 'water', label: 'Water' },
+  { value: 'water', label: 'Water & Sewer' },
   { value: 'internet', label: 'Internet' },
-  { value: 'cable', label: 'Cable' },
 ];
 
 const AC_OPTIONS = [
@@ -30,10 +30,15 @@ const AC_OPTIONS = [
 
 const PARKING_OPTIONS = [
   { value: 'no', label: 'No Parking' },
-  { value: 'yes', label: 'Paid / Additional Cost' },
+  { value: 'yes', label: 'Available' },
   { value: 'included', label: 'Included' },
   { value: 'optional', label: 'Optional' },
 ] as const;
+
+const APPLIANCE_OPTIONS = [
+  { field: 'washer_dryer_hookup' as const, label: 'Washer/Dryer Hookup' },
+  { field: 'dishwasher' as const, label: 'Dishwasher' },
+];
 
 const CONDITION_OPTIONS = [
   { value: 'modern', label: 'Modern' },
@@ -97,37 +102,6 @@ export function Step5FeaturesAndCondition({ formData, updateFormData, onNext, on
             </div>
           </div>
 
-          {/* Heat — shows current synced value */}
-          <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
-            <span className="text-sm font-medium text-gray-700 w-20 flex-shrink-0">Heat</span>
-            <div className="flex gap-2">
-              {(['included', 'tenant_pays'] as const).map(v => (
-                <button
-                  key={v}
-                  type="button"
-                  onClick={() => {
-                    updateFormData({ heat: v });
-                    // Sync utilities_included
-                    const current = formData.utilities_included ?? [];
-                    if (v === 'included' && !current.includes('heat')) {
-                      updateFormData({ utilities_included: [...current, 'heat'] });
-                    } else if (v === 'tenant_pays' && current.includes('heat')) {
-                      updateFormData({ utilities_included: current.filter(u => u !== 'heat') });
-                    }
-                  }}
-                  className={`px-3 py-1.5 rounded-md border text-xs font-medium transition-all ${
-                    formData.heat === v
-                      ? 'bg-brand-700 border-brand-700 text-white'
-                      : 'bg-white border-gray-300 text-gray-600 hover:border-brand-300'
-                  }`}
-                >
-                  {v === 'included' ? 'Included' : 'Tenant Pays'}
-                </button>
-              ))}
-            </div>
-            <span className="text-xs text-gray-400 ml-1">Synced with utilities above</span>
-          </div>
-
           {/* AC Type */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Air Conditioning</label>
@@ -170,23 +144,23 @@ export function Step5FeaturesAndCondition({ formData, updateFormData, onNext, on
             </div>
           </div>
 
-          {/* Toggles */}
+          {/* Appliances */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Appliances</label>
-            <div className="flex flex-wrap gap-3">
-              {[
-                { field: 'washer_dryer_hookup' as const, label: 'Washer/Dryer Hookup' },
-                { field: 'dishwasher' as const, label: 'Dishwasher' },
-              ].map(({ field, label }) => (
-                <label key={field} className="flex items-center gap-2 cursor-pointer select-none">
-                  <input
-                    type="checkbox"
-                    checked={!!formData[field]}
-                    onChange={e => updateFormData({ [field]: e.target.checked })}
-                    className="h-4 w-4 text-accent-500 focus:ring-accent-500 border-gray-300 rounded"
-                  />
-                  <span className="text-sm text-gray-700">{label}</span>
-                </label>
+            <div className="flex flex-wrap gap-2">
+              {APPLIANCE_OPTIONS.map(({ field, label }) => (
+                <button
+                  key={field}
+                  type="button"
+                  onClick={() => updateFormData({ [field]: !formData[field] })}
+                  className={`px-4 py-2 rounded-lg border text-sm font-medium transition-all ${
+                    formData[field]
+                      ? 'bg-brand-700 border-brand-700 text-white'
+                      : 'bg-white border-gray-300 text-gray-700 hover:border-brand-300'
+                  }`}
+                >
+                  {label}
+                </button>
               ))}
             </div>
           </div>
@@ -234,21 +208,6 @@ export function Step5FeaturesAndCondition({ formData, updateFormData, onNext, on
               />
               <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs">sq ft</span>
             </div>
-          </div>
-
-          {/* Tenant Notes */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Notes for Tenants
-              <span className="ml-1.5 text-xs font-normal text-gray-400">(optional)</span>
-            </label>
-            <textarea
-              value={formData.tenant_notes ?? ''}
-              onChange={e => updateFormData({ tenant_notes: e.target.value })}
-              rows={3}
-              placeholder="e.g. Pets allowed with deposit. Laundry in building. Quiet building…"
-              className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-accent-500 focus:border-accent-500 resize-none"
-            />
           </div>
         </div>
 

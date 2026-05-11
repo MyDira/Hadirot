@@ -159,7 +159,7 @@ export function Step4Location({
               <h2 className="text-xl font-semibold text-gray-900">Location</h2>
               <p className="text-sm text-gray-500 mt-0.5">
                 {addressMode === 'cross_streets'
-                  ? 'Enter the two cross streets closest to the unit'
+                  ? 'Enter the two cross streets of the nearest intersection'
                   : 'Enter the full street address'}
               </p>
             </div>
