@@ -317,7 +317,7 @@ export function ListingCard({
             text={
               isSaleListing
                 ? (listing.full_address || listing.location || "")
-                : (listing.cross_streets ?? listing.location) || ""
+                : (listing.full_address || listing.cross_streets ?? listing.location) || ""
             }
           />
         </div>

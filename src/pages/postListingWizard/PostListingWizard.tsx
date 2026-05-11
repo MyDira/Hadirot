@@ -101,7 +101,9 @@ export function PostListingWizard() {
         user_id: user.id,
         neighborhood: wizard.resolvedNeighborhood,
         location: wizard.formData.location,
-        full_address: null,
+        full_address: wizard.formData.street_address
+          ? [wizard.formData.street_address, wizard.formData.unit_number ? `Unit ${wizard.formData.unit_number}` : ''].filter(Boolean).join(', ')
+          : null,
         is_active: false,
         approved: false,
         is_featured: false,
