@@ -4,12 +4,10 @@ import type { ListingFormData } from '../../../postListing/types';
 import { StepTips } from '../../StepTips';
 
 const TIPS = {
-  heading: 'Choosing your property type',
+  heading: 'Property & Layout',
   bullets: [
-    'Studio = 0 bedrooms. Great for solo renters.',
-    'Duplex units share a building but have separate entrances and floors.',
-    'Basement apartments should be listed as Basement — not Apartment in Building.',
-    'The "+1" additional room captures bedrooms on a different floor or home offices.',
+    'Basement bedrooms belong here — renters don\'t count a separated floor as a real bedroom.',
+    'Full House, Duplex, and Basement listings get a special tag on the listing card.',
   ],
 };
 

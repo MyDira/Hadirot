@@ -6,12 +6,11 @@ import type { Profile } from '../../../../config/supabase';
 import { StepTips } from '../../StepTips';
 
 const TIPS = {
-  heading: 'Final check',
+  heading: 'Contact & Review',
   bullets: [
-    'Verify your phone number — that\'s how renters reach you.',
-    'SMS inquiries will be sent to the number you enter.',
+    'Double-check your phone number — that\'s how renters reach you.',
+    'We\'ll send you SMS updates on your listing status — standard rates apply.',
     'Your listing will be reviewed before going live.',
-    'You\'ll get a notification when it\'s approved.',
   ],
 };
 

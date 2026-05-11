@@ -6,12 +6,11 @@ import type { MediaFile } from '../../../../components/shared/MediaUploader';
 import { StepTips } from '../../StepTips';
 
 const TIPS = {
-  heading: 'Photos & description',
+  heading: 'Photos & Description',
   bullets: [
-    'Photos are optional — listings without photos will show a stock image.',
-    'Adding photos significantly increases the number of inquiries you receive.',
-    'Include living room, bedroom, kitchen, and bathroom if possible.',
-    'Good natural lighting makes a big difference.',
+    'Photos make a significant difference in inquiries — the more the better, up to 10.',
+    'Include living room, bedroom, kitchen, and bathroom for best results.',
+    'Your first photo is the listing thumbnail — make it count.',
   ],
 };
 

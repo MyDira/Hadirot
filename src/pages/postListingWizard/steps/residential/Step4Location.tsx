@@ -6,12 +6,11 @@ import { LocationPicker } from '../../../../components/listing/LocationPicker';
 import { StepTips } from '../../StepTips';
 
 const TIPS = {
-  heading: 'Setting your location',
+  heading: 'Location',
   bullets: [
-    'Enter the two cross streets closest to the unit (e.g. "Ocean Ave & Ave J").',
-    'Cross streets are the standard format for Brooklyn rentals — your exact address is never shown publicly.',
-    'Use the map to drag the pin to the exact spot.',
-    'Pick the neighborhood that best describes where the unit is located.',
+    'Use cross streets if you want to keep your exact address private.',
+    'The pin is how tenants browse — an inaccurate pin means missed leads.',
+    'For cross streets, enter the intersection closest to the unit.',
   ],
 };
 

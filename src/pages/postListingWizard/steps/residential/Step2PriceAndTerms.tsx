@@ -4,11 +4,10 @@ import type { ListingFormData } from '../../../postListing/types';
 import { StepTips } from '../../StepTips';
 
 const TIPS = {
-  heading: 'Pricing your rental',
+  heading: 'Price & Terms',
   bullets: [
-    'No-fee listings get significantly more inquiries on HaDirot.',
-    'Use "Call for Price" if you prefer not to display a number publicly.',
-    'NYC law restricts how broker fees on rentals can be advertised — listings may be reviewed by our team.',
+    'A real price filters out unqualified leads — renters self-select before reaching out.',
+    'NYC law restricts advertising fees on rentals — fee listings are reviewed by our team.',
   ],
 };
 

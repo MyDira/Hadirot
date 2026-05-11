@@ -4,12 +4,11 @@ import type { ListingFormData } from '../../../postListing/types';
 import { StepTips } from '../../StepTips';
 
 const TIPS = {
-  heading: 'Features drive search results',
+  heading: 'Features & Condition',
   bullets: [
-    '"Heat included" is the most-searched utility filter on HaDirot.',
-    'Every amenity you add surfaces your listing to more renters.',
-    'Checking "Heat" in utilities automatically sets the heat field.',
-    'Square footage is optional but helpful for serious searchers.',
+    'Parking is one of the most-filtered amenities — mark it accurately.',
+    'Every feature you add surfaces your listing to more renters.',
+    'Square footage is optional but helps serious searchers.',
   ],
 };
 
