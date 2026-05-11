@@ -103,8 +103,8 @@ export function Step2PriceAndTerms({ formData, updateFormData, onNext, onBack }:
                   }
                   className={`px-4 py-2 rounded-lg border text-sm font-medium transition-all ${
                     formData.lease_length === opt.value
-                      ? 'bg-accent-500 border-accent-500 text-white'
-                      : 'bg-white border-gray-300 text-gray-700 hover:border-accent-400'
+                      ? 'bg-brand-700 border-brand-700 text-white'
+                      : 'bg-white border-gray-300 text-gray-700 hover:border-brand-300'
                   }`}
                 >
                   {opt.label}

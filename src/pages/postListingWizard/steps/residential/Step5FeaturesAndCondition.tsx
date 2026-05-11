@@ -86,8 +86,8 @@ export function Step5FeaturesAndCondition({ formData, updateFormData, onNext, on
                     onClick={() => toggleUtility(opt.value)}
                     className={`px-4 py-2 rounded-lg border text-sm font-medium transition-all ${
                       active
-                        ? 'bg-accent-500 border-accent-500 text-white'
-                        : 'bg-white border-gray-300 text-gray-700 hover:border-accent-400'
+                        ? 'bg-brand-700 border-brand-700 text-white'
+                        : 'bg-white border-gray-300 text-gray-700 hover:border-brand-300'
                     }`}
                   >
                     {opt.label}
@@ -117,8 +117,8 @@ export function Step5FeaturesAndCondition({ formData, updateFormData, onNext, on
                   }}
                   className={`px-3 py-1.5 rounded-md border text-xs font-medium transition-all ${
                     formData.heat === v
-                      ? 'bg-accent-500 border-accent-500 text-white'
-                      : 'bg-white border-gray-300 text-gray-600 hover:border-accent-400'
+                      ? 'bg-brand-700 border-brand-700 text-white'
+                      : 'bg-white border-gray-300 text-gray-600 hover:border-brand-300'
                   }`}
                 >
                   {v === 'included' ? 'Included' : 'Tenant Pays'}
@@ -139,8 +139,8 @@ export function Step5FeaturesAndCondition({ formData, updateFormData, onNext, on
                   onClick={() => updateFormData({ ac_type: opt.value || null })}
                   className={`px-4 py-2 rounded-lg border text-sm font-medium transition-all ${
                     (formData.ac_type ?? '') === opt.value
-                      ? 'bg-accent-500 border-accent-500 text-white'
-                      : 'bg-white border-gray-300 text-gray-700 hover:border-accent-400'
+                      ? 'bg-brand-700 border-brand-700 text-white'
+                      : 'bg-white border-gray-300 text-gray-700 hover:border-brand-300'
                   }`}
                 >
                   {opt.label}
@@ -160,8 +160,8 @@ export function Step5FeaturesAndCondition({ formData, updateFormData, onNext, on
                   onClick={() => updateFormData({ parking: opt.value })}
                   className={`px-4 py-2 rounded-lg border text-sm font-medium transition-all ${
                     formData.parking === opt.value
-                      ? 'bg-accent-500 border-accent-500 text-white'
-                      : 'bg-white border-gray-300 text-gray-700 hover:border-accent-400'
+                      ? 'bg-brand-700 border-brand-700 text-white'
+                      : 'bg-white border-gray-300 text-gray-700 hover:border-brand-300'
                   }`}
                 >
                   {opt.label}
@@ -204,8 +204,8 @@ export function Step5FeaturesAndCondition({ formData, updateFormData, onNext, on
                     onClick={() => toggleCondition(opt.value)}
                     className={`px-4 py-2 rounded-lg border text-sm font-medium transition-all ${
                       active
-                        ? 'bg-accent-500 border-accent-500 text-white'
-                        : 'bg-white border-gray-300 text-gray-700 hover:border-accent-400'
+                        ? 'bg-brand-700 border-brand-700 text-white'
+                        : 'bg-white border-gray-300 text-gray-700 hover:border-brand-300'
                     }`}
                   >
                     {opt.label}

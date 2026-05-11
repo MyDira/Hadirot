@@ -77,11 +77,11 @@ export function Step1PropertyTypeAndLayout({ formData, updateFormData, onNext, o
                     onClick={() => updateFormData({ property_type: pt.value })}
                     className={`flex flex-col items-center justify-center gap-2 p-4 rounded-xl border-2 text-center transition-all aspect-square ${
                       selected
-                        ? 'border-accent-500 bg-accent-50 text-accent-800'
+                        ? 'border-brand-700 bg-brand-50 text-brand-800'
                         : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300'
                     }`}
                   >
-                    <span className={selected ? 'text-accent-600' : 'text-gray-400'}>
+                    <span className={selected ? 'text-brand-700' : 'text-gray-400'}>
                       {pt.icon}
                     </span>
                     <span className="text-xs font-medium leading-tight whitespace-pre-line">
@@ -109,8 +109,8 @@ export function Step1PropertyTypeAndLayout({ formData, updateFormData, onNext, o
                   }}
                   className={`px-4 py-2 rounded-lg border text-sm font-medium transition-all ${
                     formData.bedrooms === opt.value
-                      ? 'bg-accent-500 border-accent-500 text-white'
-                      : 'bg-white border-gray-300 text-gray-700 hover:border-accent-400'
+                      ? 'bg-brand-700 border-brand-700 text-white'
+                      : 'bg-white border-gray-300 text-gray-700 hover:border-brand-300'
                   }`}
                 >
                   {opt.label}
@@ -134,8 +134,8 @@ export function Step1PropertyTypeAndLayout({ formData, updateFormData, onNext, o
                     onClick={() => updateFormData({ additional_rooms: opt.value })}
                     className={`px-4 py-2 rounded-lg border text-sm font-medium transition-all ${
                       formData.additional_rooms === opt.value
-                        ? 'bg-accent-500 border-accent-500 text-white'
-                        : 'bg-white border-gray-300 text-gray-700 hover:border-accent-400'
+                        ? 'bg-brand-700 border-brand-700 text-white'
+                        : 'bg-white border-gray-300 text-gray-700 hover:border-brand-300'
                     }`}
                   >
                     {opt.label}
@@ -156,8 +156,8 @@ export function Step1PropertyTypeAndLayout({ formData, updateFormData, onNext, o
                   onClick={() => updateFormData({ bathrooms: opt.value })}
                   className={`px-4 py-2 rounded-lg border text-sm font-medium transition-all ${
                     formData.bathrooms === opt.value
-                      ? 'bg-accent-500 border-accent-500 text-white'
-                      : 'bg-white border-gray-300 text-gray-700 hover:border-accent-400'
+                      ? 'bg-brand-700 border-brand-700 text-white'
+                      : 'bg-white border-gray-300 text-gray-700 hover:border-brand-300'
                   }`}
                 >
                   {opt.label}
