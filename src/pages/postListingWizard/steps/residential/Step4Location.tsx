@@ -251,11 +251,14 @@ export function Step4Location({
             <p className="text-sm text-gray-500 mb-3">{showMapHint}</p>
             <LocationPicker
               crossStreets={locationPickerCrossStreets}
-              crossStreetAFeature={addressMode === 'cross_streets' ? crossStreetAFeature : null}
-              crossStreetBFeature={addressMode === 'cross_streets' ? crossStreetBFeature : null}
+              crossStreetAFeature={addressMode === 'cross_streets' ? crossStreetAFeature : undefined}
+              crossStreetBFeature={addressMode === 'cross_streets' ? crossStreetBFeature : undefined}
               neighborhood={resolvedNeighborhood}
               latitude={formData.latitude}
               longitude={formData.longitude}
+              preResolvedLatitude={addressMode === 'full_address' && fullAddressResult ? fullAddressResult.latitude : undefined}
+              preResolvedLongitude={addressMode === 'full_address' && fullAddressResult ? fullAddressResult.longitude : undefined}
+              hideFindOnMap={addressMode === 'full_address'}
               onLocationChange={(lat, lng) => updateFormData({ latitude: lat, longitude: lng })}
               onNeighborhoodChange={n => {
                 if (n && neighborhoodSelectValue !== 'other') {

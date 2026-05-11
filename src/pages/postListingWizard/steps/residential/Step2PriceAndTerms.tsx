@@ -6,7 +6,7 @@ import { StepTips } from '../../StepTips';
 const TIPS = {
   heading: 'Price & Terms',
   bullets: [
-    'A real price filters out unqualified leads — renters self-select before reaching out.',
+    'A real price filters out unqualified leads.',
     'NYC law restricts advertising fees on rentals — fee listings are reviewed by our team.',
   ],
 };

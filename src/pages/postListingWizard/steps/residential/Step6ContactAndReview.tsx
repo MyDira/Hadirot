@@ -78,7 +78,15 @@ export function Step6ContactAndReview({
       ? `${formData.bedrooms}+${formData.additional_rooms} BR`
       : `${formData.bedrooms} BR`;
 
-  const reviewSections: { title: string; rows: ReviewRow[] }[] = [
+  const reviewSections: { title: string; rows: ReviewRow[]; longValue?: boolean }[] = [
+    {
+      title: 'Listing Details',
+      rows: [
+        { label: 'Title', value: formData.title?.trim() || '(auto-generated on submit)' },
+        { label: 'Description', value: formData.description?.trim() || '' },
+      ].filter(r => r.value),
+      longValue: true,
+    },
     {
       title: 'Property',
       rows: [
@@ -182,9 +190,12 @@ export function Step6ContactAndReview({
                   </h3>
                   <div className="bg-gray-50 rounded-lg border border-gray-200 divide-y divide-gray-200">
                     {section.rows.map(row => (
-                      <div key={row.label} className="flex justify-between items-baseline px-4 py-2.5">
-                        <span className="text-sm text-gray-600">{row.label}</span>
-                        <span className="text-sm font-medium text-gray-900 text-right ml-4 max-w-[60%] truncate">
+                      <div
+                        key={row.label}
+                        className={`px-4 py-2.5 ${section.longValue ? 'flex flex-col gap-0.5' : 'flex justify-between items-baseline'}`}
+                      >
+                        <span className="text-sm text-gray-500">{row.label}</span>
+                        <span className={`text-sm font-medium text-gray-900 ${section.longValue ? '' : 'text-right ml-4 max-w-[60%] truncate'}`}>
                           {row.value}
                         </span>
                       </div>

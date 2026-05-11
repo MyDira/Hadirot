@@ -95,8 +95,26 @@ export function PostListingWizard() {
 
       const imageMedia = mediaFiles.filter(m => m.type === 'image');
 
+      // Auto-generate title if left blank
+      const autoTitle = (() => {
+        if (wizard.formData.title?.trim()) return wizard.formData.title.trim();
+        const { bedrooms, additional_rooms, property_type } = wizard.formData;
+        const bedroomLabel = bedrooms === 0 ? 'Studio' : `${bedrooms}${additional_rooms > 0 ? `+${additional_rooms}` : ''} BR`;
+        const typeLabels: Record<string, string> = {
+          apartment_building: 'Apartment',
+          apartment_house: 'Apartment',
+          full_house: 'Full House',
+          duplex: 'Duplex',
+          basement: 'Basement Apt',
+        };
+        const typeLabel = typeLabels[property_type] || '';
+        const locationPart = wizard.resolvedNeighborhood || wizard.formData.location || '';
+        return [bedroomLabel, typeLabel, locationPart ? `— ${locationPart}` : ''].filter(Boolean).join(' ');
+      })();
+
       const payload = {
         ...wizard.formData,
+        title: autoTitle,
         listing_type: 'rental' as const,
         user_id: user.id,
         neighborhood: wizard.resolvedNeighborhood,
@@ -117,6 +135,20 @@ export function PostListingWizard() {
         additional_rooms: wizard.formData.additional_rooms > 0 ? wizard.formData.additional_rooms : null,
         utilities_included: wizard.formData.utilities_included?.length > 0 ? wizard.formData.utilities_included : null,
         tenant_notes: wizard.formData.tenant_notes || null,
+        // Enum fields that default to "" must be null — DB rejects empty strings
+        basement_type: wizard.formData.basement_type || null,
+        building_type: wizard.formData.building_type || null,
+        delivery_condition: (wizard.formData as any).delivery_condition || null,
+        heating_type: wizard.formData.heating_type || null,
+        laundry_type: (wizard.formData as any).laundry_type || null,
+        occupancy_status: (wizard.formData as any).occupancy_status || null,
+        property_condition: (wizard.formData as any).property_condition || null,
+        driveway_status: (wizard.formData as any).driveway_status || null,
+        // Array/text fields — ensure clean nulls
+        basement_notes: wizard.formData.basement_notes || null,
+        outdoor_space: wizard.formData.outdoor_space?.length > 0 ? wizard.formData.outdoor_space : null,
+        interior_features: wizard.formData.interior_features?.length > 0 ? wizard.formData.interior_features : null,
+        rent_roll_data: wizard.formData.rent_roll_data?.length > 0 ? wizard.formData.rent_roll_data : null,
         latitude: wizard.formData.latitude,
         longitude: wizard.formData.longitude,
         // strip UI-only fields

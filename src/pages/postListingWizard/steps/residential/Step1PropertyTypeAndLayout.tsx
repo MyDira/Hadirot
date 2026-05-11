@@ -6,7 +6,7 @@ import { StepTips } from '../../StepTips';
 const TIPS = {
   heading: 'Property & Layout',
   bullets: [
-    'Basement bedrooms belong here — renters don\'t count a separated floor as a real bedroom.',
+    'Basement bedrooms belong here — tenants don\'t count a separated floor as a real bedroom.',
     'Full House, Duplex, and Basement listings get a special tag on the listing card.',
   ],
 };
