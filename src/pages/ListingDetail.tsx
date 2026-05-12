@@ -742,6 +742,10 @@ export function ListingDetail() {
                   <span className="bg-[#667B9A] text-white px-3 py-1 rounded-full text-sm font-medium whitespace-nowrap">
                     {listing.admin_custom_agency_name}
                   </span>
+                ) : listing.admin_listing_type_display === 'agent' ? (
+                  <span className="bg-[#667B9A] text-white px-3 py-1 rounded-full text-sm font-medium whitespace-nowrap">
+                    Real Estate Agent
+                  </span>
                 ) : listing.owner?.role === "agent" && listing.owner?.agency && agencyPageExists ? (
                   <Link
                     to={`/agencies/${agencyNameToSlug(listing.owner.agency)}`}
