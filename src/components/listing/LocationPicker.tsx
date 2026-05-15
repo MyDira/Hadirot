@@ -27,6 +27,7 @@ interface LocationPickerProps {
   disabled?: boolean;
   preResolvedLatitude?: number | null;
   preResolvedLongitude?: number | null;
+  hideFindOnMap?: boolean;
 }
 
 export function LocationPicker({
@@ -46,6 +47,7 @@ export function LocationPicker({
   disabled = false,
   preResolvedLatitude,
   preResolvedLongitude,
+  hideFindOnMap = false,
 }: LocationPickerProps) {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
@@ -285,29 +287,33 @@ export function LocationPicker({
     <>
       <div className="space-y-3">
         <div className="flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            onClick={handleFindOnMap}
-            disabled={isFindOnMapDisabled()}
-            className="inline-flex items-center px-4 py-2 bg-accent-500 text-white text-sm font-medium rounded-md hover:bg-accent-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-          >
-            {isGeocoding ? (
-              <>
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                Finding...
-              </>
-            ) : (
-              <>
-                <Search className="w-4 h-4 mr-2" />
-                Find on Map
-              </>
-            )}
-          </button>
+          {!hideFindOnMap && (
+            <button
+              type="button"
+              onClick={handleFindOnMap}
+              disabled={isFindOnMapDisabled()}
+              className="inline-flex items-center px-4 py-2 bg-accent-500 text-white text-sm font-medium rounded-md hover:bg-accent-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              {isGeocoding ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Finding...
+                </>
+              ) : (
+                <>
+                  <Search className="w-4 h-4 mr-2" />
+                  Find on Map
+                </>
+              )}
+            </button>
+          )}
 
           <span
             title={
-              (crossStreetAFeature !== undefined || crossStreetBFeature !== undefined) &&
-              (!crossStreetAFeature || !crossStreetBFeature || !latitude || !longitude)
+              hideFindOnMap && preResolvedLatitude == null
+                ? "Select an address from the autocomplete first"
+                : (crossStreetAFeature !== undefined || crossStreetBFeature !== undefined) &&
+                  (!crossStreetAFeature || !crossStreetBFeature || !latitude || !longitude)
                 ? "Use 'Find on Map' first to locate your cross streets"
                 : undefined
             }
@@ -317,14 +323,16 @@ export function LocationPicker({
               onClick={handleOpenModalManually}
               disabled={
                 disabled ||
-                ((crossStreetAFeature !== undefined || crossStreetBFeature !== undefined)
-                  ? !crossStreetAFeature || !crossStreetBFeature || !latitude || !longitude
-                  : false)
+                (hideFindOnMap
+                  ? preResolvedLatitude == null
+                  : (crossStreetAFeature !== undefined || crossStreetBFeature !== undefined)
+                    ? !crossStreetAFeature || !crossStreetBFeature || !latitude || !longitude
+                    : false)
               }
               className="inline-flex items-center px-4 py-2 border border-[#273140] text-[#273140] text-sm font-medium rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               <MapPin className="w-4 h-4 mr-2" />
-              Set Pin Location
+              Set Pin Location Manually
             </button>
           </span>
 
