@@ -7,6 +7,7 @@ import { AuthForm } from '../../components/auth/AuthForm';
 import { listingsService, getExpirationDate, getAdminActiveDays } from '../../services/listings';
 import { useListingMedia } from '../listing/useListingMedia';
 import { useWizardState } from './useWizardState';
+import { WizardUIContext } from './WizardContext';
 import { PathPicker } from './PathPicker';
 import { WizardBreadcrumb } from './WizardBreadcrumb';
 import { ComingSoon } from './ComingSoon';
@@ -267,6 +268,7 @@ export function PostListingWizard() {
   };
 
   return (
+    <WizardUIContext.Provider value={{ currentStep: wizard.currentStep, totalSteps: 6, lastSavedAt: wizard.lastSavedAt }}>
     <>
       <WizardBreadcrumb
         currentStep={wizard.currentStep}
@@ -295,5 +297,6 @@ export function PostListingWizard() {
         <AuthForm onSuccess={() => setShowAuthModal(false)} />
       </Modal>
     </>
+    </WizardUIContext.Provider>
   );
 }

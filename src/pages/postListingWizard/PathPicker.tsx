@@ -1,5 +1,5 @@
 import React from 'react';
-import { Home, Building2, Store, DollarSign, Star } from 'lucide-react';
+import { Home, Building2, Store, DollarSign, Star, Clock } from 'lucide-react';
 import type { WizardPath } from './useWizardState';
 
 interface PathCard {
@@ -63,6 +63,10 @@ export function PathPicker({ onSelect }: PathPickerProps) {
       <div className="text-center mb-8">
         <h1 className="text-3xl font-bold text-gray-900 mb-2">Post a Listing</h1>
         <p className="text-gray-500 text-base">What type of listing are you posting?</p>
+        <p className="flex items-center justify-center gap-1.5 text-xs text-gray-400 mt-2">
+          <Clock className="w-3.5 h-3.5" />
+          Takes 1–2 minutes
+        </p>
       </div>
 
       <div className="grid grid-cols-2 gap-4 mb-4">
