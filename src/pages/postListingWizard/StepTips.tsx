@@ -1,13 +1,71 @@
-import React, { useState } from 'react';
-import { ChevronDown, ChevronUp } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { ChevronDown, ChevronUp, Clock, CheckCircle } from 'lucide-react';
+import { useWizardUI } from './WizardContext';
 
 interface StepTipsProps {
   heading: string;
   bullets: string[];
 }
 
+// Seconds shown at the start of each step (step 5 = final = "Review and Post")
+const STEP_SECONDS = [90, 75, 60, 45, 30, 0];
+
+function CountdownOrReview({ currentStep }: { currentStep: number }) {
+  const isFinal = currentStep >= 5;
+  const seconds = STEP_SECONDS[currentStep] ?? 0;
+
+  if (isFinal) {
+    return (
+      <p className="flex items-center gap-2 text-xs text-accent-600 font-medium px-1">
+        <CheckCircle className="w-3.5 h-3.5 flex-shrink-0" />
+        Review and Post
+      </p>
+    );
+  }
+
+  return (
+    <p className="flex items-center gap-2 text-xs text-gray-400 font-medium px-1">
+      <Clock className="w-3 h-3 flex-shrink-0" />
+      ~{seconds}s remaining
+    </p>
+  );
+}
+
+function DraftSavedFlash({ lastSavedAt }: { lastSavedAt: Date | null }) {
+  const [visible, setVisible] = useState(false);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const prevTs = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (!lastSavedAt) return;
+    const ts = lastSavedAt.getTime();
+    if (prevTs.current === ts) return;
+    prevTs.current = ts;
+
+    setVisible(true);
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => setVisible(false), 2500);
+
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, [lastSavedAt]);
+
+  return (
+    <div
+      className={`flex items-center gap-2 text-xs text-accent-600 font-medium px-1 transition-opacity duration-500 ${
+        visible ? 'opacity-100' : 'opacity-0'
+      }`}
+    >
+      <span className="w-1.5 h-1.5 rounded-full bg-accent-500 flex-shrink-0" />
+      Draft saved
+    </div>
+  );
+}
+
 export function StepTips({ heading, bullets }: StepTipsProps) {
   const [open, setOpen] = useState(false);
+  const { currentStep, lastSavedAt } = useWizardUI();
 
   return (
     <>
@@ -28,10 +86,11 @@ export function StepTips({ heading, bullets }: StepTipsProps) {
               ))}
             </ul>
           </div>
-          <p className="flex items-center gap-2 text-xs text-accent-600 font-medium px-1">
-            <span className="w-1.5 h-1.5 rounded-full bg-accent-500 flex-shrink-0" />
-            Draft saved automatically
-          </p>
+
+          <div className="space-y-1.5">
+            <DraftSavedFlash lastSavedAt={lastSavedAt} />
+            <CountdownOrReview currentStep={currentStep} />
+          </div>
         </div>
       </aside>
 

@@ -63,6 +63,7 @@ export function useWizardState(userId: string | null) {
   const [customNeighborhoodInput, setCustomNeighborhoodInput] = useState('');
   const [isLocationConfirmed, setIsLocationConfirmed] = useState(false);
   const [initialized, setInitialized] = useState(false);
+  const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
 
   // Load persisted state on mount
   useEffect(() => {
@@ -92,6 +93,7 @@ export function useWizardState(userId: string | null) {
       neighborhoodSelectValue,
       customNeighborhoodInput,
     });
+    setLastSavedAt(new Date());
   }, [initialized, userId, selectedPath, currentStep, formData, crossStreetAFeature, crossStreetBFeature, neighborhoodSelectValue, customNeighborhoodInput]);
 
   // heat ↔ utilities_included bidirectional sync (verbatim from PostListing.tsx)
@@ -168,5 +170,6 @@ export function useWizardState(userId: string | null) {
     setIsLocationConfirmed,
     resolvedNeighborhood,
     clearDraft,
+    lastSavedAt,
   };
 }
