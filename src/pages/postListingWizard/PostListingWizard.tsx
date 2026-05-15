@@ -1,10 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import * as Sentry from '@sentry/react';
 import { useAuth } from '@/hooks/useAuth';
 import { Modal } from '../../components/shared/Modal';
 import { AuthForm } from '../../components/auth/AuthForm';
 import { listingsService, getExpirationDate, getAdminActiveDays } from '../../services/listings';
+import { salesService } from '../../services/sales';
+import { PermissionRequestModal } from '../postListing/PermissionRequestModal';
 import { useListingMedia } from '../listing/useListingMedia';
 import { useWizardState } from './useWizardState';
 import { WizardUIContext } from './WizardContext';
@@ -17,6 +19,32 @@ import { Step3ShowItOff } from './steps/residential/Step3ShowItOff';
 import { Step4Location } from './steps/residential/Step4Location';
 import { Step5FeaturesAndCondition } from './steps/residential/Step5FeaturesAndCondition';
 import { Step6ContactAndReview } from './steps/residential/Step6ContactAndReview';
+import { Step1SalePropertyAndLayout } from './steps/sale/Step1SalePropertyAndLayout';
+import { Step2SaleSizeAndPrice } from './steps/sale/Step2SaleSizeAndPrice';
+import { Step3SaleShowItOff } from './steps/sale/Step3SaleShowItOff';
+import { Step4SaleLocation } from './steps/sale/Step4SaleLocation';
+import { Step5SaleConditionAndStatus } from './steps/sale/Step5SaleConditionAndStatus';
+import { Step6SaleOptionalFeatures } from './steps/sale/Step6SaleOptionalFeatures';
+import { Step7SaleContactAndReview } from './steps/sale/Step7SaleContactAndReview';
+
+const RENTAL_STEP_LABELS = [
+  'Property & Layout',
+  'Price & Terms',
+  'Photos & Description',
+  'Location',
+  'Features & Condition',
+  'Contact & Review',
+];
+
+const SALE_STEP_LABELS = [
+  'Property & Layout',
+  'Size & Price',
+  'Photos & Description',
+  'Location',
+  'Condition & Status',
+  'Optional Features',
+  'Contact & Review',
+];
 
 export function PostListingWizard() {
   const { user, profile } = useAuth();
@@ -25,7 +53,16 @@ export function PostListingWizard() {
   const [loading, setLoading] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
+  // Sales permission state
+  const [canPostSales, setCanPostSales] = useState(false);
+  const [salesUniversalAccess, setSalesUniversalAccess] = useState(false);
+  const [showPermissionModal, setShowPermissionModal] = useState(false);
+  const [permissionMessage, setPermissionMessage] = useState('');
+  const [requestingPermission, setRequestingPermission] = useState(false);
+
   const wizard = useWizardState(user?.id ?? null);
+
+  const isSalePath = wizard.selectedPath === 'residential_sale';
 
   const {
     mediaFiles,
@@ -37,9 +74,36 @@ export function PostListingWizard() {
     uploadPendingMedia,
   } = useListingMedia({
     userId: user?.id ?? null,
-    isSaleListing: false,
+    isSaleListing: isSalePath,
     allowAnonymous: true,
   });
+
+  // Load sales permission flags
+  useEffect(() => {
+    salesService.getSalesSettings().then(s => setSalesUniversalAccess(!!s?.sales_universal_access));
+    if (user?.id) {
+      salesService.canUserPostSales(user.id).then(setCanPostSales);
+    } else {
+      setCanPostSales(false);
+    }
+  }, [user?.id]);
+
+  const hasSalesAccess = canPostSales || salesUniversalAccess;
+
+  const handlePermissionRequest = async () => {
+    if (!user) return;
+    setRequestingPermission(true);
+    try {
+      await salesService.createPermissionRequest(user.id, permissionMessage);
+      setShowPermissionModal(false);
+      setPermissionMessage('');
+      alert('Your request has been submitted. An admin will review it shortly.');
+    } catch (err: any) {
+      alert(err?.message || 'Failed to submit request. Please try again.');
+    } finally {
+      setRequestingPermission(false);
+    }
+  };
 
   if (!wizard.initialized) return null;
 
@@ -54,6 +118,11 @@ export function PostListingWizard() {
 
   const handleSelectPath = (path: Parameters<typeof wizard.setSelectedPath>[0]) => {
     if (!requireAuth()) return;
+    // Sales path requires permission
+    if (path === 'residential_sale' && !hasSalesAccess) {
+      setShowPermissionModal(true);
+      return;
+    }
     wizard.setSelectedPath(path);
   };
 
@@ -91,8 +160,13 @@ export function PostListingWizard() {
         return;
       }
 
-      const { rentalDays } = await getAdminActiveDays();
-      const expiresAt = getExpirationDate('rental', undefined, rentalDays);
+      const { rentalDays, saleDays } = await getAdminActiveDays();
+      const activeDays = isSalePath ? saleDays : rentalDays;
+      const expiresAt = getExpirationDate(
+        isSalePath ? 'sale' : 'rental',
+        isSalePath ? 'available' : null,
+        activeDays
+      );
 
       const imageMedia = mediaFiles.filter(m => m.type === 'image');
 
@@ -100,6 +174,20 @@ export function PostListingWizard() {
       const autoTitle = (() => {
         if (wizard.formData.title?.trim()) return wizard.formData.title.trim();
         const { bedrooms, additional_rooms, property_type } = wizard.formData;
+        if (isSalePath) {
+          const saleTypeLabels: Record<string, string> = {
+            single_family: 'Single-Family',
+            two_family: 'Two-Family',
+            three_family: 'Three-Family',
+            four_family: 'Multi-Family',
+            condo: 'Condo',
+            co_op: 'Co-op',
+          };
+          const typeLabel = saleTypeLabels[property_type] || '';
+          const bedroomLabel = bedrooms === 0 ? 'Studio' : `${bedrooms} BR`;
+          const locationPart = wizard.resolvedNeighborhood || wizard.formData.location || '';
+          return [bedroomLabel, typeLabel, locationPart ? `— ${locationPart}` : ''].filter(Boolean).join(' ');
+        }
         const bedroomLabel = bedrooms === 0 ? 'Studio' : `${bedrooms}${additional_rooms > 0 ? `+${additional_rooms}` : ''} BR`;
         const typeLabels: Record<string, string> = {
           apartment_building: 'Apartment',
@@ -116,7 +204,7 @@ export function PostListingWizard() {
       const payload = {
         ...wizard.formData,
         title: autoTitle,
-        listing_type: 'rental' as const,
+        listing_type: (isSalePath ? 'sale' : 'rental') as 'sale' | 'rental',
         user_id: user.id,
         neighborhood: wizard.resolvedNeighborhood,
         location: wizard.formData.location,
@@ -127,9 +215,13 @@ export function PostListingWizard() {
         approved: false,
         is_featured: false,
         expires_at: expiresAt.toISOString(),
-        price: wizard.formData.call_for_price ? null : wizard.formData.price,
-        asking_price: null,
-        sale_status: null,
+        price: isSalePath
+          ? null
+          : (wizard.formData.call_for_price ? null : wizard.formData.price),
+        asking_price: isSalePath
+          ? (wizard.formData.call_for_price ? null : wizard.formData.asking_price)
+          : null,
+        sale_status: isSalePath ? 'available' : null,
         call_for_price: !!wizard.formData.call_for_price,
         ac_type: wizard.formData.ac_type || null,
         apartment_conditions: wizard.formData.apartment_conditions?.length > 0 ? wizard.formData.apartment_conditions : null,
@@ -150,6 +242,31 @@ export function PostListingWizard() {
         outdoor_space: wizard.formData.outdoor_space?.length > 0 ? wizard.formData.outdoor_space : null,
         interior_features: wizard.formData.interior_features?.length > 0 ? wizard.formData.interior_features : null,
         rent_roll_data: wizard.formData.rent_roll_data?.length > 0 ? wizard.formData.rent_roll_data : null,
+        // Sale-specific number fields (use computed dimensions if user picked dimension mode)
+        building_size_sqft: isSalePath
+          ? (wizard.formData.building_size_input_mode === 'dimensions' && wizard.formData.building_length_ft && wizard.formData.building_width_ft
+              ? Math.round(wizard.formData.building_length_ft * wizard.formData.building_width_ft)
+              : (wizard.formData.building_size_sqft || null))
+          : null,
+        lot_size_sqft: isSalePath
+          ? (wizard.formData.lot_size_input_mode === 'dimensions' && wizard.formData.property_length_ft && wizard.formData.property_width_ft
+              ? Math.round(wizard.formData.property_length_ft * wizard.formData.property_width_ft)
+              : (wizard.formData.lot_size_sqft || null))
+          : null,
+        building_length_ft: isSalePath ? (wizard.formData.building_length_ft || null) : null,
+        building_width_ft: isSalePath ? (wizard.formData.building_width_ft || null) : null,
+        property_length_ft: isSalePath ? (wizard.formData.property_length_ft || null) : null,
+        property_width_ft: isSalePath ? (wizard.formData.property_width_ft || null) : null,
+        number_of_floors: isSalePath ? (wizard.formData.number_of_floors || null) : null,
+        unit_count: isSalePath ? (wizard.formData.unit_count || null) : null,
+        year_built: isSalePath ? (wizard.formData.year_built || null) : null,
+        year_renovated: isSalePath ? (wizard.formData.year_renovated || null) : null,
+        property_taxes: isSalePath ? (wizard.formData.property_taxes || null) : null,
+        hoa_fees: isSalePath ? (wizard.formData.hoa_fees || null) : null,
+        rent_roll_total: isSalePath ? (wizard.formData.rent_roll_total || null) : null,
+        multi_family: isSalePath
+          ? ['two_family', 'three_family', 'four_family'].includes(wizard.formData.property_type)
+          : null,
         latitude: wizard.formData.latitude,
         longitude: wizard.formData.longitude,
         // strip UI-only fields
@@ -198,11 +315,19 @@ export function PostListingWizard() {
         <Modal isOpen={showAuthModal} onClose={() => setShowAuthModal(false)} title="Sign in to continue">
           <AuthForm onAuthSuccess={() => setShowAuthModal(false)} />
         </Modal>
+        <PermissionRequestModal
+          isOpen={showPermissionModal}
+          onClose={() => { setShowPermissionModal(false); setPermissionMessage(''); }}
+          permissionRequestMessage={permissionMessage}
+          setPermissionRequestMessage={setPermissionMessage}
+          requestingPermission={requestingPermission}
+          onSubmit={handlePermissionRequest}
+        />
       </>
     );
   }
 
-  if (wizard.selectedPath !== 'residential_rent') {
+  if (wizard.selectedPath !== 'residential_rent' && wizard.selectedPath !== 'residential_sale') {
     return <ComingSoon onBack={() => wizard.setSelectedPath(null)} />;
   }
 
@@ -214,6 +339,63 @@ export function PostListingWizard() {
   };
 
   const renderStep = () => {
+    if (isSalePath) {
+      switch (wizard.currentStep) {
+        case 0:
+          return <Step1SalePropertyAndLayout {...stepProps} />;
+        case 1:
+          return <Step2SaleSizeAndPrice {...stepProps} />;
+        case 2:
+          return (
+            <Step3SaleShowItOff
+              {...stepProps}
+              mediaFiles={mediaFiles}
+              uploadingMedia={uploadingMedia}
+              onMediaAdd={handleMediaAdd}
+              onMediaRemove={handleMediaRemove}
+              onSetFeatured={handleSetFeatured}
+              maxAllowedFiles={maxAllowedFiles}
+            />
+          );
+        case 3:
+          return (
+            <Step4SaleLocation
+              {...stepProps}
+              crossStreetAFeature={wizard.crossStreetAFeature}
+              setCrossStreetAFeature={wizard.setCrossStreetAFeature}
+              crossStreetBFeature={wizard.crossStreetBFeature}
+              setCrossStreetBFeature={wizard.setCrossStreetBFeature}
+              neighborhoodSelectValue={wizard.neighborhoodSelectValue}
+              setNeighborhoodSelectValue={wizard.setNeighborhoodSelectValue}
+              customNeighborhoodInput={wizard.customNeighborhoodInput}
+              setCustomNeighborhoodInput={wizard.setCustomNeighborhoodInput}
+              isLocationConfirmed={wizard.isLocationConfirmed}
+              setIsLocationConfirmed={wizard.setIsLocationConfirmed}
+            />
+          );
+        case 4:
+          return <Step5SaleConditionAndStatus {...stepProps} />;
+        case 5:
+          return <Step6SaleOptionalFeatures {...stepProps} />;
+        case 6:
+          return (
+            <Step7SaleContactAndReview
+              {...stepProps}
+              mediaFiles={mediaFiles}
+              resolvedNeighborhood={wizard.resolvedNeighborhood}
+              loading={loading}
+              uploadingMedia={uploadingMedia}
+              submitError={submitError}
+              onSubmit={handleSubmit}
+              profile={profile ?? null}
+            />
+          );
+        default:
+          return null;
+      }
+    }
+
+    // Rental path
     switch (wizard.currentStep) {
       case 0:
         return <Step1PropertyTypeAndLayout {...stepProps} />;
@@ -267,12 +449,16 @@ export function PostListingWizard() {
     }
   };
 
+  const stepLabels = isSalePath ? SALE_STEP_LABELS : RENTAL_STEP_LABELS;
+  const totalSteps = stepLabels.length;
+
   return (
-    <WizardUIContext.Provider value={{ currentStep: wizard.currentStep, totalSteps: 6, lastSavedAt: wizard.lastSavedAt }}>
+    <WizardUIContext.Provider value={{ currentStep: wizard.currentStep, totalSteps, lastSavedAt: wizard.lastSavedAt }}>
     <>
       <WizardBreadcrumb
         currentStep={wizard.currentStep}
         onGoToStep={handleGoToStep}
+        stepLabels={stepLabels}
       />
 
       <div className="max-w-5xl mx-auto px-4 pt-4 pb-2">
@@ -280,7 +466,7 @@ export function PostListingWizard() {
           <h1 className="text-lg font-bold text-gray-900">Post a Listing</h1>
           <span className="inline-flex items-center gap-1.5 text-xs font-medium bg-accent-50 text-accent-700 border border-accent-200 px-2.5 py-1 rounded-full">
             <span className="w-1.5 h-1.5 rounded-full bg-accent-500 flex-shrink-0" />
-            Residential · For rent
+            {isSalePath ? 'Residential · For sale' : 'Residential · For rent'}
           </span>
         </div>
       </div>

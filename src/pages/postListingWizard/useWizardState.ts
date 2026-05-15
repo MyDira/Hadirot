@@ -11,6 +11,7 @@ export type WizardPath =
   | 'concierge';
 
 export const RESIDENTIAL_RENT_STEPS = 6;
+export const RESIDENTIAL_SALE_STEPS = 7;
 
 interface PersistedState {
   selectedPath: WizardPath | null;
@@ -51,6 +52,13 @@ function clearStorage(userId: string) {
 const RENTAL_INITIAL: ListingFormData = {
   ...INITIAL_FORM_DATA,
   listing_type: 'rental',
+};
+
+const SALE_INITIAL: ListingFormData = {
+  ...INITIAL_FORM_DATA,
+  listing_type: 'sale',
+  sale_status: 'available',
+  parking: 'no',
 };
 
 export function useWizardState(userId: string | null) {
@@ -119,6 +127,12 @@ export function useWizardState(userId: string | null) {
     setIsLocationConfirmed(false);
     if (path === 'residential_rent') {
       setFormData({ ...RENTAL_INITIAL });
+      setCrossStreetAFeature(null);
+      setCrossStreetBFeature(null);
+      setNeighborhoodSelectValue('');
+      setCustomNeighborhoodInput('');
+    } else if (path === 'residential_sale') {
+      setFormData({ ...SALE_INITIAL });
       setCrossStreetAFeature(null);
       setCrossStreetBFeature(null);
       setNeighborhoodSelectValue('');

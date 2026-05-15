@@ -7,12 +7,13 @@ interface StepTipsProps {
   bullets: string[];
 }
 
-// Seconds shown at the start of each step (step 5 = final = "Review and Post")
-const STEP_SECONDS = [90, 75, 60, 45, 30, 0];
-
-function CountdownOrReview({ currentStep }: { currentStep: number }) {
-  const isFinal = currentStep >= 5;
-  const seconds = STEP_SECONDS[currentStep] ?? 0;
+function CountdownOrReview({ currentStep, totalSteps }: { currentStep: number; totalSteps: number }) {
+  const finalIdx = totalSteps - 1;
+  const isFinal = currentStep >= finalIdx;
+  // Distribute time across non-final steps. Total budget ~90s for 6-step wizards, ~120s for 7-step.
+  const totalBudget = totalSteps >= 7 ? 120 : 90;
+  const perStep = Math.round(totalBudget / Math.max(1, finalIdx) / 5) * 5; // round to nearest 5s
+  const remaining = Math.max(0, totalBudget - currentStep * perStep);
 
   if (isFinal) {
     return (
@@ -26,7 +27,7 @@ function CountdownOrReview({ currentStep }: { currentStep: number }) {
   return (
     <p className="flex items-center gap-2 text-xs text-gray-400 font-medium px-1">
       <Clock className="w-3 h-3 flex-shrink-0" />
-      ~{seconds}s remaining
+      ~{remaining}s remaining
     </p>
   );
 }
@@ -65,7 +66,7 @@ function DraftSavedFlash({ lastSavedAt }: { lastSavedAt: Date | null }) {
 
 export function StepTips({ heading, bullets }: StepTipsProps) {
   const [open, setOpen] = useState(false);
-  const { currentStep, lastSavedAt } = useWizardUI();
+  const { currentStep, totalSteps, lastSavedAt } = useWizardUI();
 
   return (
     <>
@@ -89,7 +90,7 @@ export function StepTips({ heading, bullets }: StepTipsProps) {
 
           <div className="space-y-1.5">
             <DraftSavedFlash lastSavedAt={lastSavedAt} />
-            <CountdownOrReview currentStep={currentStep} />
+            <CountdownOrReview currentStep={currentStep} totalSteps={totalSteps} />
           </div>
         </div>
       </aside>

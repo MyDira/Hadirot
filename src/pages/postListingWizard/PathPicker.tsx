@@ -24,7 +24,7 @@ const CARDS: PathCard[] = [
     icon: <Building2 className="w-7 h-7" />,
     title: 'Residential Sale',
     description: 'Single-family, condos & multi-family',
-    active: false,
+    active: true,
   },
   {
     path: 'commercial_lease',

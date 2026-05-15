@@ -1,7 +1,7 @@
 import React from 'react';
 import { Check } from 'lucide-react';
 
-const STEP_LABELS = [
+const DEFAULT_STEP_LABELS = [
   'Property & Layout',
   'Price & Terms',
   'Photos & Description',
@@ -13,9 +13,11 @@ const STEP_LABELS = [
 interface WizardBreadcrumbProps {
   currentStep: number;
   onGoToStep: (step: number) => void;
+  stepLabels?: string[];
 }
 
-export function WizardBreadcrumb({ currentStep, onGoToStep }: WizardBreadcrumbProps) {
+export function WizardBreadcrumb({ currentStep, onGoToStep, stepLabels }: WizardBreadcrumbProps) {
+  const STEP_LABELS = stepLabels && stepLabels.length > 0 ? stepLabels : DEFAULT_STEP_LABELS;
   return (
     <div className="w-full bg-white border-b border-gray-200">
       <div className="max-w-5xl mx-auto px-4 py-3">
