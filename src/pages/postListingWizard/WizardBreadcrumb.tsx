@@ -1,4 +1,5 @@
 import React from 'react';
+import { Check } from 'lucide-react';
 
 const STEP_LABELS = [
   'Property & Layout',
@@ -36,26 +37,34 @@ export function WizardBreadcrumb({ currentStep, onGoToStep }: WizardBreadcrumbPr
         <ol className="hidden sm:flex items-center gap-0.5 overflow-x-auto">
           {STEP_LABELS.map((label, idx) => {
             const active = idx === currentStep;
+            const completed = idx < currentStep;
+            const future = idx > currentStep;
+            const clickable = completed || active; // can navigate to completed or current; not future
 
             return (
               <li key={label} className="flex items-center gap-0.5 flex-shrink-0">
                 <button
                   type="button"
-                  onClick={() => onGoToStep(idx)}
+                  onClick={() => clickable && onGoToStep(idx)}
+                  disabled={future}
                   className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs transition-colors ${
                     active
                       ? 'bg-gray-100 font-bold text-gray-900'
-                      : 'font-medium text-gray-400 hover:text-gray-600 hover:bg-gray-50'
+                      : completed
+                      ? 'font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-50 cursor-pointer'
+                      : 'font-medium text-gray-300 cursor-not-allowed'
                   }`}
                 >
                   <span
                     className={`flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${
                       active
                         ? 'bg-accent-500 text-white'
-                        : 'bg-gray-200 text-gray-500'
+                        : completed
+                        ? 'bg-brand-700 text-white'
+                        : 'bg-gray-200 text-gray-400'
                     }`}
                   >
-                    {idx + 1}
+                    {completed ? <Check className="w-3 h-3" strokeWidth={3} /> : idx + 1}
                   </span>
                   {label}
                 </button>
