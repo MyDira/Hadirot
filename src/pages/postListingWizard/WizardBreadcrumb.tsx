@@ -14,9 +14,10 @@ interface WizardBreadcrumbProps {
   currentStep: number;
   onGoToStep: (step: number) => void;
   stepLabels?: string[];
+  allowFreeNavigation?: boolean;
 }
 
-export function WizardBreadcrumb({ currentStep, onGoToStep, stepLabels }: WizardBreadcrumbProps) {
+export function WizardBreadcrumb({ currentStep, onGoToStep, stepLabels, allowFreeNavigation }: WizardBreadcrumbProps) {
   const STEP_LABELS = stepLabels && stepLabels.length > 0 ? stepLabels : DEFAULT_STEP_LABELS;
   return (
     <div className="w-full bg-white border-b border-gray-200">
@@ -41,19 +42,21 @@ export function WizardBreadcrumb({ currentStep, onGoToStep, stepLabels }: Wizard
             const active = idx === currentStep;
             const completed = idx < currentStep;
             const future = idx > currentStep;
-            const clickable = completed || active; // can navigate to completed or current; not future
+            const clickable = allowFreeNavigation ? true : (completed || active);
 
             return (
               <li key={label} className="flex items-center gap-0.5 flex-shrink-0">
                 <button
                   type="button"
                   onClick={() => clickable && onGoToStep(idx)}
-                  disabled={future}
+                  disabled={!clickable}
                   className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs transition-colors ${
                     active
                       ? 'bg-gray-100 font-bold text-gray-900'
                       : completed
                       ? 'font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-50 cursor-pointer'
+                      : allowFreeNavigation
+                      ? 'font-medium text-gray-400 hover:text-gray-700 hover:bg-gray-50 cursor-pointer'
                       : 'font-medium text-gray-300 cursor-not-allowed'
                   }`}
                 >

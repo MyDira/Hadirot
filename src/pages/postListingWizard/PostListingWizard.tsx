@@ -459,6 +459,7 @@ export function PostListingWizard() {
         currentStep={wizard.currentStep}
         onGoToStep={handleGoToStep}
         stepLabels={stepLabels}
+        allowFreeNavigation={isSalePath}
       />
 
       <div className="max-w-5xl mx-auto px-4 pt-4 pb-2">
