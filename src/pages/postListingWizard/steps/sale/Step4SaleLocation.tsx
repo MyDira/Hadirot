@@ -9,9 +9,9 @@ import { StepTips } from '../../StepTips';
 const TIPS = {
   heading: 'Location',
   bullets: [
-    'Exact address mode is best for active listings — gets you on the map and in address search.',
-    'Cross streets mode keeps the exact address private — useful for off-market or pre-listing properties where you don\'t want the address public yet.',
-    'The pin is how buyers browse. Wrong pin = missed showings.',
+    'Use Cross Streets to keep the exact address private — ideal for off-market listings where you want inquiries without full exposure.',
+    'Use Exact Address for maximum visibility.',
+    'Either way, confirm the map pin landed in the right spot before moving on.',
   ],
 };
 

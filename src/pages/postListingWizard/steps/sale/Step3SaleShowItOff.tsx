@@ -8,11 +8,9 @@ import { StepTips } from '../../StepTips';
 const TIPS = {
   heading: 'Photos & Description',
   bullets: [
-    'Photos are the #1 factor in whether someone clicks. Outside shot, kitchen, living room, primary bedroom are must-haves.',
-    'Tech tip: photos taken in landscape (sideways) look much better on listing cards than portrait (vertical).',
-    'Tech tip: if photos look sideways or upside down, retake them — phone rotation metadata sometimes confuses websites.',
-    'The first photo is the thumbnail. Make it the strongest one.',
-    'Skip describing what\'s in the photos — describe what you can\'t see (block, schools nearby, layout flow).',
+    'Photos are the #1 reason buyers click — or don\'t. At least 3–5 photos from different rooms make a real difference. Max 20.',
+    'If this is an off-market listing, upload a flyer or a clean exterior photo instead.',
+    'Your description is your pitch — mention recent renovations, standout features, and anything that makes this property worth a look.',
   ],
 };
 

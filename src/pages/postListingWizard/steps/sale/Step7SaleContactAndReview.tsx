@@ -6,12 +6,10 @@ import type { Profile } from '../../../../config/supabase';
 import { StepTips } from '../../StepTips';
 
 const TIPS = {
-  heading: 'Step 6 of 6 — Contact & Review',
+  heading: 'Contact & Review',
   bullets: [
-    'Double-check your phone number — it\'s how buyers reach you.',
-    'Tech tip: make sure your phone can receive texts from numbers you don\'t know — buyers often text first.',
-    'We\'ll review your listing before it goes live; expect 24h.',
-    'This is your last chance to review everything before submitting.',
+    'Read through the full summary carefully before submitting.',
+    'Once live, buyers are already forming an impression — errors or missing info can cost you inquiries.',
   ],
 };
 

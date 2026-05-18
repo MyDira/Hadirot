@@ -6,10 +6,8 @@ import { StepTips } from '../../StepTips';
 const TIPS = {
   heading: 'Basic Info',
   bullets: [
-    'Be honest about property type — buyers filter by it; mislabeled listings hide from the buyers who actually want you.',
-    'Building type affects price expectations significantly for sales — pick carefully.',
-    'Set a realistic asking price. Overpriced listings sit; underpriced listings attract multiple offers.',
-    '"Call for Price" hides the price from buyers who filter by price range — use it only if you have a reason.',
+    'Double-check your bed/bath count — buyers filter by this first.',
+    'If you\'re unsure of the building type, "Fully Attached" means shared walls on both sides (like a rowhouse).',
   ],
 };
 

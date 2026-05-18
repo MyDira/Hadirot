@@ -7,11 +7,9 @@ import { StepTips } from '../../StepTips';
 const TIPS = {
   heading: 'Details & Features',
   bullets: [
-    'Year built and year renovated help buyers compare your property to others — be approximate if you\'re unsure.',
-    'Property taxes and HOA/maintenance fees are often dealbreakers — buyers want these upfront.',
-    'Occupancy and delivery status tell buyers what they\'re actually walking into.',
-    'Every feature box you check is another search filter buyers use to find you. Be thorough.',
-    'Multi-family listings without a rent roll get fewer investor inquiries. Even rough numbers help.',
+    'Property taxes: check your latest NYC Finance bill or search your address on nycproperty.nyc.gov — buyers factor this into their offer.',
+    'For multi-family properties, a complete rent roll significantly increases buyer confidence.',
+    'Fill in what you can — the more complete your listing, the fewer back-and-forth calls.',
   ],
 };
 

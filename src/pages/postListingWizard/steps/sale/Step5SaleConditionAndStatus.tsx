@@ -6,10 +6,8 @@ import { StepTips } from '../../StepTips';
 const TIPS = {
   heading: 'Size & Condition',
   bullets: [
-    'Be honest about condition. "Fair" or "Needs Work" attracts the right buyers and avoids wasting your time on showings that won\'t convert.',
-    'Building size and lot size are key search filters for buyers — enter them in whichever format you know.',
-    'You can enter square footage directly, or use length × width if that\'s how you know the dimensions.',
-    'Number of floors helps buyers understand the layout at a glance.',
+    'Be honest about condition — buyers will see the property. Overstating it wastes everyone\'s time.',
+    'Square footage and lot size help buyers compare properties — include it if you know it.',
   ],
 };
 
