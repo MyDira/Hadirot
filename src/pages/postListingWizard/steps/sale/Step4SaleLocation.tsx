@@ -267,7 +267,7 @@ export function Step4SaleLocation({
                 ? (fullAddressResult?.longitude ?? formData.longitude ?? undefined)
                 : undefined}
               hideFindOnMap={addressMode === 'full_address'}
-              initialConfirmed={addressMode === 'full_address' ? isLocationConfirmed : false}
+              initialConfirmed={isLocationConfirmed}
               onLocationChange={(lat, lng) => updateFormData({ latitude: lat, longitude: lng })}
               onNeighborhoodChange={n => {
                 if (n && neighborhoodSelectValue !== 'other') {

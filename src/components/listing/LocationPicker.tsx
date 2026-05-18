@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useState, useCallback } from "react";
 import mapboxgl from "mapbox-gl";
-import { MapPin, Search, Loader2, CheckCircle, Maximize2, Check } from "lucide-react";
+import { MapPin, Loader2, Maximize2, Check } from "lucide-react";
 import { MAPBOX_ACCESS_TOKEN } from "@/config/env";
 import { geocodeCrossStreets, formatCorrectionMessage } from "@/services/geocoding";
 import { reverseGeocode } from "@/services/reverseGeocode";
@@ -68,6 +68,9 @@ export function LocationPicker({
   const prevPreResolvedLat = useRef(preResolvedLatitude);
   const prevPreResolvedLng = useRef(preResolvedLongitude);
 
+  // Track previous crossStreets string to detect when the user picks a new combination
+  const prevCrossStreets = useRef(crossStreets);
+
   const performReverseGeocode = useCallback(
     async (lat: number, lng: number) => {
       setIsReverseGeocoding(true);
@@ -117,6 +120,56 @@ export function LocationPicker({
       performReverseGeocode(preResolvedLatitude, preResolvedLongitude);
     }
   }, [preResolvedLatitude, preResolvedLongitude, hideFindOnMap]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Auto-geocode when both cross streets are selected and the combined string changes.
+  // Mirrors how full-address mode auto-drops a pin when a Google Place is selected.
+  useEffect(() => {
+    if (hideFindOnMap) return; // full-address mode uses preResolved coords instead
+    if (!crossStreetAFeature || !crossStreetBFeature) return;
+
+    const changed = crossStreets !== prevCrossStreets.current;
+    prevCrossStreets.current = crossStreets;
+    if (!changed || !crossStreets.trim()) return;
+
+    setIsGeocoding(true);
+    setGeocodeError(null);
+    setGeocodeSuccess(null);
+    setIsLocationConfirmed(false);
+    if (onConfirmationStatusChange) onConfirmationStatusChange(false);
+    if (onGeocodeStatusChange) onGeocodeStatusChange(null, null);
+
+    geocodeCrossStreets({ crossStreets: crossStreets.trim(), neighborhood: neighborhood?.trim() })
+      .then(result => {
+        if (result.success && result.coordinates) {
+          const { latitude: lat, longitude: lng } = result.coordinates;
+          setIsLocationSet(true);
+          onLocationChange(lat, lng);
+          if (map.current) map.current.flyTo({ center: [lng, lat], zoom: 16, duration: 1000 });
+
+          const correctionMessage = formatCorrectionMessage(result);
+          if (correctionMessage) {
+            setGeocodeSuccess(correctionMessage);
+            if (onGeocodeStatusChange) onGeocodeStatusChange(null, correctionMessage);
+          }
+
+          if (result.neighborhood && onNeighborhoodChange) {
+            onNeighborhoodChange(result.neighborhood);
+          } else {
+            performReverseGeocode(lat, lng);
+          }
+        } else {
+          const errorMsg = result.error || "Location not found. Try a different format (e.g., 'Avenue J & East 15th Street')";
+          setGeocodeError(errorMsg);
+          if (onGeocodeStatusChange) onGeocodeStatusChange(errorMsg, null);
+        }
+      })
+      .catch(() => {
+        const errorMsg = "Failed to find location. Please try again.";
+        setGeocodeError(errorMsg);
+        if (onGeocodeStatusChange) onGeocodeStatusChange(errorMsg, null);
+      })
+      .finally(() => setIsGeocoding(false));
+  }, [crossStreets, crossStreetAFeature, crossStreetBFeature]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!mapContainer.current || !MAPBOX_ACCESS_TOKEN) return;
@@ -168,105 +221,6 @@ export function LocationPicker({
     }
   }, [latitude, longitude, mapLoaded]);
 
-  const handleFindOnMap = async () => {
-    if (preResolvedLatitude != null && preResolvedLongitude != null) {
-      const lat = preResolvedLatitude;
-      const lng = preResolvedLongitude;
-
-      setIsGeocoding(true);
-      setGeocodeError(null);
-      setGeocodeSuccess(null);
-      if (onGeocodeStatusChange) onGeocodeStatusChange(null, null);
-
-      setIsLocationSet(true);
-      onLocationChange(lat, lng);
-
-      if (map.current) {
-        map.current.flyTo({
-          center: [lng, lat],
-          zoom: 16,
-          duration: 1000,
-        });
-      }
-
-      performReverseGeocode(lat, lng);
-
-      setIsLocationConfirmed(false);
-      if (onConfirmationStatusChange) onConfirmationStatusChange(false);
-      setRequiresConfirmation(true);
-      setShowMapModal(true);
-      setIsGeocoding(false);
-      return;
-    }
-
-    if (!crossStreets.trim()) {
-      const errorMsg = "Please enter cross streets first";
-      setGeocodeError(errorMsg);
-      setGeocodeSuccess(null);
-      if (onGeocodeStatusChange) onGeocodeStatusChange(errorMsg, null);
-      return;
-    }
-
-    setIsGeocoding(true);
-    setGeocodeError(null);
-    setGeocodeSuccess(null);
-    if (onGeocodeStatusChange) onGeocodeStatusChange(null, null);
-
-    try {
-      const result = await geocodeCrossStreets({
-        crossStreets: crossStreets.trim(),
-        neighborhood: neighborhood?.trim(),
-      });
-
-      if (result.success && result.coordinates) {
-        const { latitude: lat, longitude: lng } = result.coordinates;
-        setIsLocationSet(true);
-        onLocationChange(lat, lng);
-
-        if (map.current) {
-          map.current.flyTo({
-            center: [lng, lat],
-            zoom: 16,
-            duration: 1000,
-          });
-        }
-
-        const correctionMessage = formatCorrectionMessage(result);
-        let successMsg = null;
-        if (correctionMessage) {
-          successMsg = correctionMessage;
-          setGeocodeSuccess(correctionMessage);
-        } else if (result.normalizedQuery && result.normalizedQuery !== crossStreets.trim()) {
-          successMsg = `Found: ${result.normalizedQuery}`;
-          setGeocodeSuccess(successMsg);
-        }
-        if (onGeocodeStatusChange) onGeocodeStatusChange(null, successMsg);
-
-        if (result.neighborhood && onNeighborhoodChange) {
-          onNeighborhoodChange(result.neighborhood);
-        } else {
-          performReverseGeocode(lat, lng);
-        }
-
-        setIsLocationConfirmed(false);
-        if (onConfirmationStatusChange) onConfirmationStatusChange(false);
-        setRequiresConfirmation(true);
-        setShowMapModal(true);
-      } else {
-        const errorMsg = result.error || "Location not found. Try a different format (e.g., 'Avenue J & East 15th Street')";
-        setGeocodeError(errorMsg);
-        if (onGeocodeStatusChange) onGeocodeStatusChange(errorMsg, null);
-      }
-    } catch (error) {
-      console.error("Geocoding error:", error);
-      const errorMsg = "Failed to find location. Please try again.";
-      setGeocodeError(errorMsg);
-      if (onGeocodeStatusChange) onGeocodeStatusChange(errorMsg, null);
-    } finally {
-      setIsGeocoding(false);
-    }
-  };
-
   const handleLocationConfirm = (lat: number, lng: number) => {
     setIsLocationSet(true);
     onLocationChange(lat, lng);
@@ -303,15 +257,6 @@ export function LocationPicker({
     setShowMapModal(true);
   };
 
-  const isFindOnMapDisabled = () => {
-    if (disabled || isGeocoding) return true;
-    if (preResolvedLatitude != null && preResolvedLongitude != null) return false;
-    if (crossStreetAFeature !== undefined || crossStreetBFeature !== undefined) {
-      return !crossStreetAFeature || !crossStreetBFeature;
-    }
-    return !crossStreets.trim();
-  };
-
   if (!MAPBOX_ACCESS_TOKEN) {
     return (
       <div className="bg-amber-50 border border-amber-200 rounded-md p-4 text-amber-800 text-sm">
@@ -325,106 +270,56 @@ export function LocationPicker({
     <>
       <div className="space-y-3">
         <div className="flex flex-wrap items-center gap-2">
-          {hideFindOnMap ? (
-            /* ── Full-address mode: explicit confirm + separate adjust ── */
+          {/* ── Geocoding spinner (cross-streets auto-geocoding in progress) ── */}
+          {isGeocoding && (
+            <span className="inline-flex items-center px-4 py-2 text-sm text-gray-500">
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              Finding location…
+            </span>
+          )}
+
+          {/* ── Confirm button — shown after geocoding, before user confirms ── */}
+          {isLocationSet && !isLocationConfirmed && !isGeocoding && (
+            <button
+              type="button"
+              onClick={handleDirectConfirm}
+              disabled={disabled}
+              className="inline-flex items-center px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              <Check className="w-4 h-4 mr-2" />
+              Confirm Location
+            </button>
+          )}
+
+          {/* ── Confirmed badge ── */}
+          {isLocationSet && isLocationConfirmed && !isGeocoding && (
+            <span className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-green-700 bg-green-50 border border-green-200 rounded-md">
+              <Check className="w-4 h-4" />
+              Location Confirmed
+            </span>
+          )}
+
+          {/* ── Set Pin Manually + Clear — shown whenever a location is set ── */}
+          {isLocationSet && !isGeocoding && (
             <>
-              {isLocationSet && !isLocationConfirmed && (
-                <button
-                  type="button"
-                  onClick={handleDirectConfirm}
-                  disabled={disabled}
-                  className="inline-flex items-center px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                >
-                  <Check className="w-4 h-4 mr-2" />
-                  Confirm Location
-                </button>
-              )}
-
-              {isLocationSet && isLocationConfirmed && (
-                <span className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-green-700 bg-green-50 border border-green-200 rounded-md">
-                  <Check className="w-4 h-4" />
-                  Location Confirmed
-                </span>
-              )}
-
               <button
                 type="button"
                 onClick={handleOpenModalManually}
-                disabled={disabled || !isLocationSet}
-                title={!isLocationSet ? "Select an address from the autocomplete first" : undefined}
+                disabled={disabled}
                 className="inline-flex items-center px-4 py-2 border border-[#273140] text-[#273140] text-sm font-medium rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 <MapPin className="w-4 h-4 mr-2" />
                 Set Pin Manually
               </button>
 
-              {isLocationSet && (
-                <button
-                  type="button"
-                  onClick={handleClearLocation}
-                  disabled={disabled}
-                  className="inline-flex items-center px-3 py-2 text-sm text-gray-500 hover:text-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                >
-                  Clear
-                </button>
-              )}
-            </>
-          ) : (
-            /* ── Cross-streets mode: find on map + manual pin ── */
-            <>
               <button
                 type="button"
-                onClick={handleFindOnMap}
-                disabled={isFindOnMapDisabled()}
-                className="inline-flex items-center px-4 py-2 bg-accent-500 text-white text-sm font-medium rounded-md hover:bg-accent-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                onClick={handleClearLocation}
+                disabled={disabled}
+                className="inline-flex items-center px-3 py-2 text-sm text-gray-500 hover:text-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
-                {isGeocoding ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Finding...
-                  </>
-                ) : (
-                  <>
-                    <Search className="w-4 h-4 mr-2" />
-                    Find on Map
-                  </>
-                )}
+                Clear
               </button>
-
-              <span
-                title={
-                  (crossStreetAFeature !== undefined || crossStreetBFeature !== undefined) &&
-                  (!crossStreetAFeature || !crossStreetBFeature || !latitude || !longitude)
-                    ? "Use 'Find on Map' first to locate your cross streets"
-                    : undefined
-                }
-              >
-                <button
-                  type="button"
-                  onClick={handleOpenModalManually}
-                  disabled={
-                    disabled ||
-                    ((crossStreetAFeature !== undefined || crossStreetBFeature !== undefined)
-                      ? !crossStreetAFeature || !crossStreetBFeature || !latitude || !longitude
-                      : false)
-                  }
-                  className="inline-flex items-center px-4 py-2 border border-[#273140] text-[#273140] text-sm font-medium rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                >
-                  <MapPin className="w-4 h-4 mr-2" />
-                  Set Pin Location Manually
-                </button>
-              </span>
-
-              {isLocationSet && (
-                <button
-                  type="button"
-                  onClick={handleClearLocation}
-                  disabled={disabled}
-                  className="inline-flex items-center px-3 py-2 text-sm text-gray-600 hover:text-gray-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                >
-                  Clear Location
-                </button>
-              )}
             </>
           )}
         </div>
@@ -467,25 +362,21 @@ export function LocationPicker({
 
         <div className="flex items-center gap-2 text-sm">
           <MapPin className="w-4 h-4 flex-shrink-0 text-gray-400" />
-          {isLocationSet ? (
+          {isGeocoding ? (
+            <span className="text-gray-500">Locating intersection…</span>
+          ) : isLocationSet ? (
             <span className={isLocationConfirmed ? "text-gray-600" : "text-amber-700"}>
-              {isReverseGeocoding ? (
-                "Detecting neighborhood…"
-              ) : hideFindOnMap ? (
-                isLocationConfirmed
-                  ? "Location confirmed. Use 'Set Pin Manually' to reposition if needed."
-                  : "Pin placed — confirm the location or use 'Set Pin Manually' if it landed in the wrong spot."
-              ) : isLocationConfirmed ? (
-                "Location confirmed. Click the map or use 'Set Pin Location Manually' to adjust."
-              ) : (
-                "Location placed — open the map to review and confirm the pin."
-              )}
+              {isReverseGeocoding
+                ? "Detecting neighborhood…"
+                : isLocationConfirmed
+                ? "Location confirmed. Use 'Set Pin Manually' to reposition if needed."
+                : "Pin placed — confirm the location or use 'Set Pin Manually' if it landed in the wrong spot."}
             </span>
           ) : (
             <span className="text-gray-500">
               {hideFindOnMap
                 ? "Enter your address above to drop a pin on the map."
-                : `Use "Find on Map" to geocode your cross streets, or set the pin manually.`}
+                : "Select both cross streets above to automatically drop a pin on the map."}
             </span>
           )}
         </div>
