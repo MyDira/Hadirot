@@ -158,7 +158,7 @@ export function LocationPicker({
             performReverseGeocode(lat, lng);
           }
         } else {
-          const errorMsg = result.error || "Location not found. Try a different format (e.g., 'Avenue J & East 15th Street')";
+          const errorMsg = "No intersection found — these streets may not cross in this area. Try a nearby block or check the street names.";
           setGeocodeError(errorMsg);
           if (onGeocodeStatusChange) onGeocodeStatusChange(errorMsg, null);
         }
