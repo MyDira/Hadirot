@@ -1,4 +1,5 @@
 import { supabase } from "../config/supabase";
+import { GOOGLE_MAPS_API_KEY } from "@/config/env";
 
 interface ReverseGeocodeResult {
   zipCode: string | null;
@@ -7,23 +8,20 @@ interface ReverseGeocodeResult {
   borough: string | null;
 }
 
-interface MapboxFeature {
-  id: string;
-  text: string;
-  place_name: string;
-  place_type: string[];
-  context?: Array<{
-    id: string;
-    text: string;
-    short_code?: string;
-  }>;
+interface GoogleAddressComponent {
+  long_name: string;
+  short_name: string;
+  types: string[];
 }
 
-interface MapboxResponse {
-  features: MapboxFeature[];
+interface GoogleGeocodeResult {
+  address_components: GoogleAddressComponent[];
 }
 
-const MAPBOX_ACCESS_TOKEN = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN;
+interface GoogleGeocodeResponse {
+  status: string;
+  results: GoogleGeocodeResult[];
+}
 
 export async function reverseGeocode(
   lat: number,
@@ -36,16 +34,19 @@ export async function reverseGeocode(
     borough: null,
   };
 
-  if (!MAPBOX_ACCESS_TOKEN) {
-    console.error("Mapbox access token not configured");
+  if (!GOOGLE_MAPS_API_KEY) {
+    console.error("Google Maps API key not configured");
     return result;
   }
 
   try {
+    const params = new URLSearchParams({
+      latlng: `${lat},${lng}`,
+      key: GOOGLE_MAPS_API_KEY,
+    });
+
     const response = await fetch(
-      `https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?` +
-        `types=postcode,neighborhood,locality,place&` +
-        `access_token=${MAPBOX_ACCESS_TOKEN}`
+      `https://maps.googleapis.com/maps/api/geocode/json?${params}`
     );
 
     if (!response.ok) {
@@ -53,50 +54,48 @@ export async function reverseGeocode(
       return result;
     }
 
-    const data: MapboxResponse = await response.json();
+    const data: GoogleGeocodeResponse = await response.json();
 
-    for (const feature of data.features) {
-      const placeType = feature.place_type[0];
-
-      if (placeType === "postcode" && !result.zipCode) {
-        result.zipCode = feature.text;
-      }
-
-      if (placeType === "neighborhood" && !result.neighborhood) {
-        result.neighborhood = feature.text;
-      }
-
-      if (placeType === "locality" && !result.borough) {
-        result.borough = feature.text;
-      }
-
-      if (placeType === "place" && !result.city) {
-        result.city = feature.text;
-      }
-
-      if (feature.context) {
-        for (const ctx of feature.context) {
-          if (ctx.id.startsWith("postcode") && !result.zipCode) {
-            result.zipCode = ctx.text;
-          }
-          if (ctx.id.startsWith("neighborhood") && !result.neighborhood) {
-            result.neighborhood = ctx.text;
-          }
-          if (ctx.id.startsWith("locality") && !result.borough) {
-            result.borough = ctx.text;
-          }
-          if (ctx.id.startsWith("place") && !result.city) {
-            result.city = ctx.text;
-          }
-        }
-      }
+    if (data.status !== "OK" || !data.results?.length) {
+      return result;
     }
 
-    if (!result.neighborhood && result.borough) {
-      const locationResult = await lookupNeighborhoodFromDatabase(lat, lng);
-      if (locationResult) {
-        result.neighborhood = locationResult;
+    // Walk all results and pick the best component for each field
+    for (const geocodeResult of data.results) {
+      for (const component of geocodeResult.address_components) {
+        const types = component.types;
+
+        if (!result.zipCode && types.includes("postal_code")) {
+          result.zipCode = component.long_name;
+        }
+
+        if (!result.neighborhood && types.includes("neighborhood")) {
+          result.neighborhood = component.long_name;
+        }
+
+        // sublocality_level_1 is often the neighborhood in NYC (e.g. "Midwood")
+        if (!result.neighborhood && types.includes("sublocality_level_1")) {
+          result.neighborhood = component.long_name;
+        }
+
+        // sublocality covers borough-level (Brooklyn, Queens, etc.)
+        if (!result.borough && types.includes("sublocality")) {
+          result.borough = component.long_name;
+        }
+
+        if (!result.city && types.includes("locality")) {
+          result.city = component.long_name;
+        }
       }
+
+      // Stop as soon as we have all four fields
+      if (result.zipCode && result.neighborhood && result.borough && result.city) break;
+    }
+
+    // If Google didn't return a neighborhood, fall back to our spatial DB lookup
+    if (!result.neighborhood) {
+      const dbNeighborhood = await lookupNeighborhoodFromDatabase(lat, lng);
+      if (dbNeighborhood) result.neighborhood = dbNeighborhood;
     }
 
     return result;
@@ -106,9 +105,11 @@ export async function reverseGeocode(
   }
 }
 
+// ── Neighborhood DB cache ─────────────────────────────────────────────────────
 // Small in-memory cache keyed by rounded coordinates. Reverse geocoding is
 // called repeatedly for nearby points (map pins, listing detail loads). 3
 // decimal places ≈ 110m precision — fine for neighborhood resolution.
+
 const NEIGHBORHOOD_CACHE_MAX = 500;
 const neighborhoodCache = new Map<string, string | null>();
 
@@ -126,8 +127,6 @@ async function lookupNeighborhoodFromDatabase(
   }
 
   try {
-    // Filter in SQL instead of pulling all neighborhoods to the client. At
-    // ~145 rows this mostly saves payload bytes today; scales with the table.
     const { data, error } = await supabase
       .from("location_search_index")
       .select("name")
@@ -139,16 +138,14 @@ async function lookupNeighborhoodFromDatabase(
       .limit(1)
       .maybeSingle();
 
-    const result = error || !data ? null : data.name ?? null;
+    const dbResult = error || !data ? null : data.name ?? null;
 
-    // LRU-ish eviction: when cache is full, drop the oldest entry (Map
-    // preserves insertion order).
     if (neighborhoodCache.size >= NEIGHBORHOOD_CACHE_MAX) {
       const oldest = neighborhoodCache.keys().next().value;
       if (oldest !== undefined) neighborhoodCache.delete(oldest);
     }
-    neighborhoodCache.set(key, result);
-    return result;
+    neighborhoodCache.set(key, dbResult);
+    return dbResult;
   } catch {
     return null;
   }
@@ -163,15 +160,9 @@ export async function updateListingLocationFields(
 
   const updates: Record<string, string | null> = {};
 
-  if (geoResult.zipCode) {
-    updates.zip_code = geoResult.zipCode;
-  }
-  if (geoResult.neighborhood) {
-    updates.neighborhood = geoResult.neighborhood;
-  }
-  if (geoResult.city) {
-    updates.city = geoResult.city;
-  }
+  if (geoResult.zipCode) updates.zip_code = geoResult.zipCode;
+  if (geoResult.neighborhood) updates.neighborhood = geoResult.neighborhood;
+  if (geoResult.city) updates.city = geoResult.city;
 
   if (Object.keys(updates).length > 0) {
     const { error } = await supabase

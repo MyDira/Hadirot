@@ -6,8 +6,8 @@ import {
 } from './normalizer.ts';
 import { corsHeaders } from "../_shared/cors.ts";
 
-const NYC_BOUNDING_BOX = '-74.2591,40.4774,-73.7002,40.9176';
-const BROOKLYN_CENTER = [-73.9442, 40.6782];
+// NYC bounding box for biasing results (SW corner | NE corner)
+const NYC_BOUNDS = '40.4774,-74.2591|40.9176,-73.7002';
 
 function buildCacheKey(crossStreets: string, neighborhood?: string): string {
   const norm = (s: string) => s.trim().toLowerCase().replace(/\s+/g, ' ');
@@ -77,59 +77,46 @@ interface GeocodeResult {
   corrections?: string[];
 }
 
-interface MapboxFeature {
-  center: [number, number];
-  place_name: string;
-  relevance: number;
-  place_type: string[];
-  context?: Array<{
-    id: string;
-    text: string;
-  }>;
+interface GoogleCoords {
+  lat: number;
+  lng: number;
 }
 
-interface MapboxResponse {
-  features: MapboxFeature[];
-}
+// ── Google Geocoding ──────────────────────────────────────────────────────────
 
-async function geocodeWithMapbox(
+async function geocodeWithGoogle(
   query: string,
-  mapboxToken: string
-): Promise<MapboxFeature | null> {
-  const encodedQuery = encodeURIComponent(query);
+  apiKey: string,
+): Promise<GoogleCoords | null> {
+  const params = new URLSearchParams({
+    address: query,
+    key: apiKey,
+    bounds: NYC_BOUNDS,
+  });
 
-  const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodedQuery}.json?` +
-    `access_token=${mapboxToken}` +
-    `&bbox=${NYC_BOUNDING_BOX}` +
-    `&proximity=${BROOKLYN_CENTER.join(',')}` +
-    `&types=address,poi` +
-    `&limit=1` +
-    `&country=US`;
+  const url = `https://maps.googleapis.com/maps/api/geocode/json?${params}`;
 
   try {
     const response = await fetch(url);
-
     if (!response.ok) {
-      console.error(`Mapbox API error: ${response.status}`);
+      console.error(`Google Geocoding API error: ${response.status}`);
       return null;
     }
 
-    const data: MapboxResponse = await response.json();
+    const data = await response.json();
 
-    if (data.features && data.features.length > 0) {
-      const feature = data.features[0];
+    if (data.status === 'OK' && data.results?.length > 0) {
+      const loc = data.results[0].geometry?.location;
+      if (loc) return { lat: loc.lat, lng: loc.lng };
+    }
 
-      if (feature.relevance < 0.5) {
-        console.log(`Low relevance score (${feature.relevance}) for query: ${query}`);
-        return null;
-      }
-
-      return feature;
+    if (data.status !== 'ZERO_RESULTS') {
+      console.error(`Google Geocoding status: ${data.status}`);
     }
 
     return null;
   } catch (error) {
-    console.error('Mapbox geocoding error:', error);
+    console.error('Google Geocoding error:', error);
     return null;
   }
 }
@@ -137,54 +124,62 @@ async function geocodeWithMapbox(
 async function reverseGeocode(
   lat: number,
   lng: number,
-  mapboxToken: string
+  apiKey: string,
 ): Promise<string | null> {
-  const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?` +
-    `access_token=${mapboxToken}` +
-    `&types=neighborhood,locality,place`;
+  const params = new URLSearchParams({
+    latlng: `${lat},${lng}`,
+    key: apiKey,
+    result_type: 'neighborhood|sublocality',
+  });
+
+  const url = `https://maps.googleapis.com/maps/api/geocode/json?${params}`;
 
   try {
     const response = await fetch(url);
     if (!response.ok) return null;
 
-    const data: MapboxResponse = await response.json();
+    const data = await response.json();
 
-    if (data.features && data.features.length > 0) {
-      const neighborhoodFeature = data.features.find(
-        f => f.place_type.includes('neighborhood') || f.place_type.includes('locality')
-      );
-
-      if (neighborhoodFeature) {
-        return neighborhoodFeature.place_name?.split(',')[0] || null;
+    if (data.status === 'OK' && data.results?.length > 0) {
+      for (const result of data.results) {
+        const comp = (result.address_components ?? []).find(
+          (c: { types: string[] }) =>
+            c.types.includes('neighborhood') ||
+            c.types.includes('sublocality_level_1'),
+        );
+        if (comp) return comp.long_name;
       }
     }
 
     return null;
   } catch (error) {
-    console.error('Reverse geocoding error:', error);
+    console.error('Google reverse geocoding error:', error);
     return null;
   }
 }
 
+// ── Query fallback chain ──────────────────────────────────────────────────────
+
 async function tryGeocodingWithFallbacks(
   parsed: ReturnType<typeof parseCrossStreets>,
   neighborhood: string | undefined,
-  mapboxToken: string
-): Promise<{ feature: MapboxFeature | null; query: string; fallback: string }> {
+  apiKey: string,
+): Promise<{ coords: GoogleCoords | null; query: string; fallback: string }> {
   const variations = generateQueryVariations(parsed);
   const locationSuffixes = neighborhood
     ? [`${neighborhood}, Brooklyn, NY`, 'Brooklyn, NY', 'New York, NY']
     : ['Brooklyn, NY', 'New York, NY'];
 
+  // Primary: try all query variations × location suffixes
   for (const variation of variations) {
     for (const suffix of locationSuffixes) {
       const query = `${variation}, ${suffix}`;
       console.log(`Trying geocode query: ${query}`);
 
-      const feature = await geocodeWithMapbox(query, mapboxToken);
-      if (feature) {
+      const coords = await geocodeWithGoogle(query, apiKey);
+      if (coords) {
         return {
-          feature,
+          coords,
           query: variation,
           fallback: variation === variations[0] ? 'none' : `variation: ${variation}`,
         };
@@ -192,31 +187,26 @@ async function tryGeocodingWithFallbacks(
     }
   }
 
+  // Fuzzy match on street 1
   if (parsed.street1 && parsed.street1.type !== 'unknown') {
     const fuzzyMatch1 = fuzzyMatchStreet(parsed.street1.original);
     if (fuzzyMatch1 && fuzzyMatch1 !== parsed.street1.normalized) {
       console.log(`Fuzzy match for street1: ${parsed.street1.original} -> ${fuzzyMatch1}`);
 
       for (const suffix of locationSuffixes) {
-        let query: string;
-        if (parsed.street2) {
-          query = `${fuzzyMatch1} & ${parsed.street2.normalized}, ${suffix}`;
-        } else {
-          query = `${fuzzyMatch1}, ${suffix}`;
-        }
+        const query = parsed.street2
+          ? `${fuzzyMatch1} & ${parsed.street2.normalized}, ${suffix}`
+          : `${fuzzyMatch1}, ${suffix}`;
 
-        const feature = await geocodeWithMapbox(query, mapboxToken);
-        if (feature) {
-          return {
-            feature,
-            query: query.split(',')[0],
-            fallback: `fuzzy match: ${fuzzyMatch1}`,
-          };
+        const coords = await geocodeWithGoogle(query, apiKey);
+        if (coords) {
+          return { coords, query: query.split(',')[0], fallback: `fuzzy match: ${fuzzyMatch1}` };
         }
       }
     }
   }
 
+  // Fuzzy match on street 2
   if (parsed.street2 && parsed.street2.type !== 'unknown') {
     const fuzzyMatch2 = fuzzyMatchStreet(parsed.street2.original);
     if (fuzzyMatch2 && fuzzyMatch2 !== parsed.street2.normalized) {
@@ -224,64 +214,49 @@ async function tryGeocodingWithFallbacks(
 
       for (const suffix of locationSuffixes) {
         const query = `${parsed.street1.normalized} & ${fuzzyMatch2}, ${suffix}`;
-
-        const feature = await geocodeWithMapbox(query, mapboxToken);
-        if (feature) {
-          return {
-            feature,
-            query: query.split(',')[0],
-            fallback: `fuzzy match: ${fuzzyMatch2}`,
-          };
+        const coords = await geocodeWithGoogle(query, apiKey);
+        if (coords) {
+          return { coords, query: query.split(',')[0], fallback: `fuzzy match: ${fuzzyMatch2}` };
         }
       }
     }
   }
 
+  // Last resort: single street fallback
   for (const suffix of ['Brooklyn, NY', 'New York, NY']) {
     const query = `${parsed.street1.normalized}, ${suffix}`;
     console.log(`Trying single street fallback: ${query}`);
 
-    const feature = await geocodeWithMapbox(query, mapboxToken);
-    if (feature) {
-      return {
-        feature,
-        query: parsed.street1.normalized,
-        fallback: 'single street only',
-      };
+    const coords = await geocodeWithGoogle(query, apiKey);
+    if (coords) {
+      return { coords, query: parsed.street1.normalized, fallback: 'single street only' };
     }
   }
 
-  return { feature: null, query: '', fallback: 'all attempts failed' };
+  return { coords: null, query: '', fallback: 'all attempts failed' };
 }
+
+// ── Request handler ───────────────────────────────────────────────────────────
 
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
-    return new Response(null, {
-      status: 200,
-      headers: corsHeaders,
-    });
+    return new Response(null, { status: 200, headers: corsHeaders });
   }
 
   try {
     if (req.method !== 'POST') {
       return new Response(
         JSON.stringify({ error: 'Method not allowed' }),
-        {
-          status: 405,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        }
+        { status: 405, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
       );
     }
 
-    const mapboxToken = Deno.env.get('MAPBOX_ACCESS_TOKEN');
-    if (!mapboxToken) {
-      console.error('MAPBOX_ACCESS_TOKEN not configured');
+    const googleApiKey = Deno.env.get('GOOGLE_MAPS_API_KEY');
+    if (!googleApiKey) {
+      console.error('GOOGLE_MAPS_API_KEY not configured');
       return new Response(
         JSON.stringify({ error: 'Geocoding service not configured' }),
-        {
-          status: 500,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        }
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
       );
     }
 
@@ -290,34 +265,21 @@ Deno.serve(async (req: Request) => {
 
     if (!crossStreets || typeof crossStreets !== 'string' || crossStreets.trim().length < 2 || crossStreets.length > 200) {
       return new Response(
-        JSON.stringify({
-          success: false,
-          error: 'Invalid cross streets input',
-          originalQuery: crossStreets || '',
-        } as GeocodeResult),
-        {
-          status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        }
+        JSON.stringify({ success: false, error: 'Invalid cross streets input', originalQuery: crossStreets || '' } as GeocodeResult),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
       );
     }
 
     if (neighborhood !== undefined && (typeof neighborhood !== 'string' || neighborhood.length > 200)) {
       return new Response(
-        JSON.stringify({
-          success: false,
-          error: 'Invalid neighborhood input',
-          originalQuery: crossStreets,
-        } as GeocodeResult),
-        {
-          status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        }
+        JSON.stringify({ success: false, error: 'Invalid neighborhood input', originalQuery: crossStreets } as GeocodeResult),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
       );
     }
 
     console.log(`Geocoding request: "${crossStreets}" (neighborhood: ${neighborhood || 'not specified'})`);
 
+    // Cache lookup
     const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
     const cacheClient = supabaseUrl && supabaseServiceKey
@@ -349,13 +311,9 @@ Deno.serve(async (req: Request) => {
       corrections.push(`"${parsed.street2.original}" -> "${parsed.street2.normalized}"`);
     }
 
-    const { feature, query, fallback } = await tryGeocodingWithFallbacks(
-      parsed,
-      neighborhood,
-      mapboxToken
-    );
+    const { coords, query, fallback } = await tryGeocodingWithFallbacks(parsed, neighborhood, googleApiKey);
 
-    if (!feature) {
+    if (!coords) {
       const notFoundResult: GeocodeResult = {
         success: false,
         error: 'Location not found. Try a different format (e.g., "Avenue J & East 15th Street")',
@@ -372,19 +330,16 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    const [lng, lat] = feature.center;
+    const { lat, lng } = coords;
 
     let detectedNeighborhood = neighborhood;
     if (!detectedNeighborhood) {
-      detectedNeighborhood = await reverseGeocode(lat, lng, mapboxToken) || undefined;
+      detectedNeighborhood = await reverseGeocode(lat, lng, googleApiKey) || undefined;
     }
 
     const result: GeocodeResult = {
       success: true,
-      coordinates: {
-        latitude: lat,
-        longitude: lng,
-      },
+      coordinates: { latitude: lat, longitude: lng },
       originalQuery: crossStreets,
       normalizedQuery: query,
       neighborhood: detectedNeighborhood,
@@ -398,25 +353,15 @@ Deno.serve(async (req: Request) => {
       await writeCache(cacheClient, cacheKey, crossStreets, neighborhood, result);
     }
 
-    return new Response(
-      JSON.stringify(result),
-      {
-        status: 200,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      }
-    );
+    return new Response(JSON.stringify(result), {
+      status: 200,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
   } catch (error) {
     console.error('Unexpected error in geocode-cross-streets:', error);
     return new Response(
-      JSON.stringify({
-        success: false,
-        error: 'Failed to geocode location. Please try again.',
-        originalQuery: '',
-      } as GeocodeResult),
-      {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      }
+      JSON.stringify({ success: false, error: 'Failed to geocode location. Please try again.', originalQuery: '' } as GeocodeResult),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
     );
   }
 });
