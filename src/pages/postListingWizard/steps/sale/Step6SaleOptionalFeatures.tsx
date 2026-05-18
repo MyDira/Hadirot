@@ -148,7 +148,10 @@ function MultiPills({
 }
 
 export function Step6SaleOptionalFeatures({ formData, updateFormData, onNext, onBack }: Props) {
-  const isMultiFamily = ['two_family', 'three_family', 'four_family'].includes(formData.property_type);
+  const isMultiFamily =
+    formData.property_type === 'two_family' ||
+    formData.property_type === 'three_family' ||
+    formData.property_type === 'four_family';
 
   const toggle = (key: 'outdoor_space' | 'interior_features' | 'apartment_conditions' | 'utilities_included', v: string) => {
     const arr = (formData[key] as string[]) || [];

@@ -214,40 +214,41 @@ export function Step5SaleConditionAndStatus({ formData, updateFormData, onNext, 
             )}
           </div>
 
-          {/* Number of Floors */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Number of Floors
-              <span className="ml-1.5 text-xs font-normal text-gray-400">(optional)</span>
-            </label>
-            <input
-              type="number"
-              min={1}
-              max={10}
-              value={formData.number_of_floors ?? ''}
-              onChange={e => updateFormData({ number_of_floors: e.target.value ? Number(e.target.value) : undefined })}
-              placeholder="e.g. 2"
-              className="w-32 px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-accent-500 focus:border-accent-500"
-            />
-          </div>
-
-          {/* Number of Units — only for four_family */}
-          {showUnitCount && (
+          {/* Number of Floors + Number of Units (side by side) */}
+          <div className="flex flex-wrap gap-6">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Number of Units
+                Number of Floors
                 <span className="ml-1.5 text-xs font-normal text-gray-400">(optional)</span>
               </label>
               <input
                 type="number"
-                min={2}
-                value={formData.unit_count ?? ''}
-                onChange={e => updateFormData({ unit_count: e.target.value ? Number(e.target.value) : undefined })}
-                placeholder="e.g. 6"
+                min={1}
+                max={10}
+                value={formData.number_of_floors ?? ''}
+                onChange={e => updateFormData({ number_of_floors: e.target.value ? Number(e.target.value) : undefined })}
+                placeholder="e.g. 2"
                 className="w-32 px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-accent-500 focus:border-accent-500"
               />
             </div>
-          )}
+
+            {showUnitCount && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Number of Units
+                  <span className="ml-1.5 text-xs font-normal text-gray-400">(optional)</span>
+                </label>
+                <input
+                  type="number"
+                  min={2}
+                  value={formData.unit_count ?? ''}
+                  onChange={e => updateFormData({ unit_count: e.target.value ? Number(e.target.value) : undefined })}
+                  placeholder="e.g. 6"
+                  className="w-32 px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-accent-500 focus:border-accent-500"
+                />
+              </div>
+            )}
+          </div>
 
           {/* Parking */}
           <div className="pt-5 border-t border-gray-100">

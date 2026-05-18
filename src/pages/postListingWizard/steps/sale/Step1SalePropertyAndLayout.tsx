@@ -4,7 +4,7 @@ import type { ListingFormData } from '../../../postListing/types';
 import { StepTips } from '../../StepTips';
 
 const TIPS = {
-  heading: 'Property & Price',
+  heading: 'Basic Info',
   bullets: [
     'Be honest about property type — buyers filter by it; mislabeled listings hide from the buyers who actually want you.',
     'Building type affects price expectations significantly for sales — pick carefully.',
@@ -153,7 +153,7 @@ export function Step1SalePropertyAndLayout({ formData, updateFormData, onNext, o
     <div className="flex gap-8 items-start">
       <div className="flex-1 min-w-0 space-y-5">
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-          <h2 className="text-xl font-semibold text-gray-900 mb-5">Property & Layout</h2>
+          <h2 className="text-xl font-semibold text-gray-900 mb-5">Basic Info</h2>
 
           {/* Property Type */}
           <div className="mb-6">

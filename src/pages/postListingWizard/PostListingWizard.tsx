@@ -36,7 +36,7 @@ const RENTAL_STEP_LABELS = [
 ];
 
 const SALE_STEP_LABELS = [
-  'Property & Price',
+  'Basic Info',
   'Photos & Description',
   'Location',
   'Size & Condition',

@@ -89,8 +89,8 @@ export function StepTips({ heading, bullets }: StepTipsProps) {
           </div>
 
           <div className="space-y-1.5">
-            <DraftSavedFlash lastSavedAt={lastSavedAt} />
             <CountdownOrReview currentStep={currentStep} totalSteps={totalSteps} />
+            <DraftSavedFlash lastSavedAt={lastSavedAt} />
           </div>
         </div>
       </aside>
