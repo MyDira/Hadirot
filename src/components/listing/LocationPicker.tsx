@@ -97,7 +97,8 @@ export function LocationPicker({
     }
   }, [latitude, longitude, onConfirmationStatusChange]);
 
-  // When a new address is picked in full-address mode, reset the confirmation state
+  // When a new address is picked in full-address mode, reset confirmation and
+  // auto-populate neighborhood via reverse geocoding (same as cross-streets mode).
   useEffect(() => {
     if (!hideFindOnMap) return;
     const latChanged = preResolvedLatitude !== prevPreResolvedLat.current;
@@ -109,6 +110,8 @@ export function LocationPicker({
       setIsLocationConfirmed(false);
       setRequiresConfirmation(false);
       if (onConfirmationStatusChange) onConfirmationStatusChange(false);
+      // Auto-fill neighborhood from the geocoded address
+      performReverseGeocode(preResolvedLatitude, preResolvedLongitude);
     }
   }, [preResolvedLatitude, preResolvedLongitude, hideFindOnMap]); // eslint-disable-line react-hooks/exhaustive-deps
 
