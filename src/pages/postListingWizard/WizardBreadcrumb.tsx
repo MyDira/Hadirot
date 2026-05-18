@@ -65,7 +65,7 @@ export function WizardBreadcrumb({ currentStep, onGoToStep, stepLabels, allowFre
                       active
                         ? 'bg-accent-500 text-white'
                         : completed
-                        ? 'bg-brand-700 text-white'
+                        ? 'bg-accent-500 text-white'
                         : 'bg-gray-200 text-gray-400'
                     }`}
                   >
