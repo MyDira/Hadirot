@@ -5,14 +5,27 @@ import type { RentRollUnit } from '../../../../config/supabase';
 import { StepTips } from '../../StepTips';
 
 const TIPS = {
-  heading: 'Optional Features',
+  heading: 'Details & Features',
   bullets: [
-    'Every box you check is another search filter buyers use to find you. Be thorough.',
+    'Year built and year renovated help buyers compare your property to others — be approximate if you\'re unsure.',
+    'Property taxes and HOA/maintenance fees are often dealbreakers — buyers want these upfront.',
+    'Occupancy and delivery status tell buyers what they\'re actually walking into.',
+    'Every feature box you check is another search filter buyers use to find you. Be thorough.',
     'Multi-family listings without a rent roll get fewer investor inquiries. Even rough numbers help.',
-    'For multi-family: lease end dates are gold for buyers — note them under tenant notes if you have them.',
-    'Tech tip: this whole step is optional, but a complete listing tends to attract 2–3× more views.',
   ],
 };
+
+const OCCUPANCY = [
+  { value: 'owner_occupied', label: 'Owner Occupied' },
+  { value: 'tenant_occupied', label: 'Tenant Occupied' },
+  { value: 'vacant', label: 'Vacant' },
+] as const;
+
+const DELIVERY = [
+  { value: 'vacant_at_closing', label: 'Vacant at Closing' },
+  { value: 'subject_to_lease', label: 'Subject to Lease' },
+  { value: 'negotiable', label: 'Negotiable' },
+] as const;
 
 const HEATING = [
   { value: 'forced_air', label: 'Forced Hot Air' },
@@ -157,36 +170,130 @@ export function Step6SaleOptionalFeatures({ formData, updateFormData, onNext, on
       <div className="flex-1 min-w-0 space-y-5">
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 space-y-6">
           <div>
-            <h2 className="text-xl font-semibold text-gray-900">Optional Features</h2>
+            <h2 className="text-xl font-semibold text-gray-900">Details & Features</h2>
             <p className="text-sm text-gray-500 mt-0.5">Everything here is optional — but more details means more inquiries.</p>
           </div>
 
-          {/* HVAC */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Year Built & Year Renovated */}
+          <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Heating Type</label>
-              <Pills options={HEATING} value={formData.heating_type as any}
-                onChange={v => updateFormData({ heating_type: (v ?? null) as any })} />
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Year Built
+                <span className="ml-1.5 text-xs font-normal text-gray-400">(optional)</span>
+              </label>
+              <input
+                type="number"
+                min={1800}
+                max={new Date().getFullYear() + 5}
+                value={formData.year_built ?? ''}
+                onChange={e => updateFormData({ year_built: e.target.value ? Number(e.target.value) : undefined })}
+                placeholder="e.g. 1950"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-accent-500 focus:border-accent-500"
+              />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">AC Type</label>
-              <Pills options={AC} value={formData.ac_type as any}
-                onChange={v => updateFormData({ ac_type: (v ?? null) as any })} />
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Year Renovated
+                <span className="ml-1.5 text-xs font-normal text-gray-400">(optional)</span>
+              </label>
+              <input
+                type="number"
+                min={1800}
+                max={new Date().getFullYear() + 5}
+                value={formData.year_renovated ?? ''}
+                onChange={e => updateFormData({ year_renovated: e.target.value ? Number(e.target.value) : undefined })}
+                placeholder="e.g. 2020"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-accent-500 focus:border-accent-500"
+              />
             </div>
           </div>
 
-          {/* Laundry & Basement */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Property Taxes & HOA/Maintenance */}
+          <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Laundry</label>
-              <Pills options={LAUNDRY} value={formData.laundry_type as any}
-                onChange={v => updateFormData({ laundry_type: (v ?? '') as any })} />
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Annual Property Taxes
+                <span className="ml-1.5 text-xs font-normal text-gray-400">(optional)</span>
+              </label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
+                <input
+                  type="number"
+                  min={0}
+                  value={formData.property_taxes ?? ''}
+                  onChange={e => updateFormData({ property_taxes: e.target.value ? Number(e.target.value) : undefined })}
+                  placeholder="e.g. 8000"
+                  className="w-full pl-7 pr-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-accent-500 focus:border-accent-500"
+                />
+              </div>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Basement</label>
-              <Pills options={BASEMENT} value={formData.basement_type as any}
-                onChange={v => updateFormData({ basement_type: (v ?? '') as any })} />
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                {formData.property_type === 'co_op' ? 'Monthly Maintenance' : 'HOA Fees / Monthly Maintenance'}
+                <span className="ml-1.5 text-xs font-normal text-gray-400">(optional)</span>
+              </label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
+                <input
+                  type="number"
+                  min={0}
+                  value={formData.hoa_fees ?? ''}
+                  onChange={e => updateFormData({ hoa_fees: e.target.value ? Number(e.target.value) : undefined })}
+                  placeholder="e.g. 450"
+                  className="w-full pl-7 pr-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-accent-500 focus:border-accent-500"
+                />
+              </div>
             </div>
+          </div>
+
+          {/* Occupancy Status */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Occupancy Status
+              <span className="ml-1.5 text-xs font-normal text-gray-400">(optional)</span>
+            </label>
+            <Pills options={OCCUPANCY} value={formData.occupancy_status as any}
+              onChange={v => updateFormData({ occupancy_status: (v ?? '') as any })} />
+          </div>
+
+          {/* Delivery Status */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Delivery Status
+              <span className="ml-1.5 text-xs font-normal text-gray-400">(optional)</span>
+            </label>
+            <Pills options={DELIVERY} value={formData.delivery_condition as any}
+              onChange={v => updateFormData({ delivery_condition: (v ?? '') as any })} />
+          </div>
+
+          <div className="pt-2 border-t border-gray-100" />
+
+          {/* Heating Type */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Heating Type</label>
+            <Pills options={HEATING} value={formData.heating_type as any}
+              onChange={v => updateFormData({ heating_type: (v ?? null) as any })} />
+          </div>
+
+          {/* AC Type */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">AC Type</label>
+            <Pills options={AC} value={formData.ac_type as any}
+              onChange={v => updateFormData({ ac_type: (v ?? null) as any })} />
+          </div>
+
+          {/* Laundry */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Laundry</label>
+            <Pills options={LAUNDRY} value={formData.laundry_type as any}
+              onChange={v => updateFormData({ laundry_type: (v ?? '') as any })} />
+          </div>
+
+          {/* Basement */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Basement</label>
+            <Pills options={BASEMENT} value={formData.basement_type as any}
+              onChange={v => updateFormData({ basement_type: (v ?? '') as any })} />
           </div>
 
           {formData.basement_type && formData.basement_type !== 'none' && (

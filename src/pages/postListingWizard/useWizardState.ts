@@ -11,7 +11,7 @@ export type WizardPath =
   | 'concierge';
 
 export const RESIDENTIAL_RENT_STEPS = 6;
-export const RESIDENTIAL_SALE_STEPS = 7;
+export const RESIDENTIAL_SALE_STEPS = 6;
 
 interface PersistedState {
   selectedPath: WizardPath | null;

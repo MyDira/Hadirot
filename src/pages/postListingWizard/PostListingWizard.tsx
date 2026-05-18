@@ -20,7 +20,6 @@ import { Step4Location } from './steps/residential/Step4Location';
 import { Step5FeaturesAndCondition } from './steps/residential/Step5FeaturesAndCondition';
 import { Step6ContactAndReview } from './steps/residential/Step6ContactAndReview';
 import { Step1SalePropertyAndLayout } from './steps/sale/Step1SalePropertyAndLayout';
-import { Step2SaleSizeAndPrice } from './steps/sale/Step2SaleSizeAndPrice';
 import { Step3SaleShowItOff } from './steps/sale/Step3SaleShowItOff';
 import { Step4SaleLocation } from './steps/sale/Step4SaleLocation';
 import { Step5SaleConditionAndStatus } from './steps/sale/Step5SaleConditionAndStatus';
@@ -37,12 +36,11 @@ const RENTAL_STEP_LABELS = [
 ];
 
 const SALE_STEP_LABELS = [
-  'Property & Layout',
-  'Size & Price',
+  'Property & Price',
   'Photos & Description',
   'Location',
-  'Condition & Status',
-  'Optional Features',
+  'Size & Condition',
+  'Details & Features',
   'Contact & Review',
 ];
 
@@ -344,8 +342,6 @@ export function PostListingWizard() {
         case 0:
           return <Step1SalePropertyAndLayout {...stepProps} />;
         case 1:
-          return <Step2SaleSizeAndPrice {...stepProps} />;
-        case 2:
           return (
             <Step3SaleShowItOff
               {...stepProps}
@@ -357,7 +353,7 @@ export function PostListingWizard() {
               maxAllowedFiles={maxAllowedFiles}
             />
           );
-        case 3:
+        case 2:
           return (
             <Step4SaleLocation
               {...stepProps}
@@ -373,11 +369,11 @@ export function PostListingWizard() {
               setIsLocationConfirmed={wizard.setIsLocationConfirmed}
             />
           );
-        case 4:
+        case 3:
           return <Step5SaleConditionAndStatus {...stepProps} />;
-        case 5:
+        case 4:
           return <Step6SaleOptionalFeatures {...stepProps} />;
-        case 6:
+        case 5:
           return (
             <Step7SaleContactAndReview
               {...stepProps}

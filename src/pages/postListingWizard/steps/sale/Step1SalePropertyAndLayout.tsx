@@ -4,11 +4,12 @@ import type { ListingFormData } from '../../../postListing/types';
 import { StepTips } from '../../StepTips';
 
 const TIPS = {
-  heading: 'Property & Layout',
+  heading: 'Property & Price',
   bullets: [
     'Be honest about property type — buyers filter by it; mislabeled listings hide from the buyers who actually want you.',
     'Building type affects price expectations significantly for sales — pick carefully.',
-    'Year built can be approximate. Year renovated only counts if it was a real renovation, not paint.',
+    'Set a realistic asking price. Overpriced listings sit; underpriced listings attract multiple offers.',
+    '"Call for Price" hides the price from buyers who filter by price range — use it only if you have a reason.',
   ],
 };
 
@@ -133,13 +134,12 @@ interface Props {
 }
 
 export function Step1SalePropertyAndLayout({ formData, updateFormData, onNext, onBack }: Props) {
-  const showUnitCount = formData.property_type === 'four_family';
-
   const canContinue =
     !!formData.property_type &&
     !!formData.building_type &&
     formData.bedrooms !== undefined &&
-    !!formData.bathrooms;
+    !!formData.bathrooms &&
+    (formData.call_for_price || (!!formData.asking_price && formData.asking_price > 0));
 
   const handlePropertyTypeSelect = (value: string) => {
     const updates: Partial<ListingFormData> = { property_type: value as ListingFormData['property_type'] };
@@ -251,74 +251,36 @@ export function Step1SalePropertyAndLayout({ formData, updateFormData, onNext, o
             </div>
           </div>
 
-          {/* Floors / Year Built / Year Renovated */}
-          <div className="grid grid-cols-3 gap-4 mb-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Floors
-                <span className="ml-1.5 text-xs font-normal text-gray-400">(optional)</span>
-              </label>
-              <input
-                type="number"
-                min={1}
-                max={10}
-                value={formData.number_of_floors ?? ''}
-                onChange={e => updateFormData({ number_of_floors: e.target.value ? Number(e.target.value) : undefined })}
-                placeholder="e.g. 2"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-accent-500 focus:border-accent-500"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Year Built
-                <span className="ml-1.5 text-xs font-normal text-gray-400">(optional)</span>
-              </label>
-              <input
-                type="number"
-                min={1800}
-                max={new Date().getFullYear() + 5}
-                value={formData.year_built ?? ''}
-                onChange={e => updateFormData({ year_built: e.target.value ? Number(e.target.value) : undefined })}
-                placeholder="e.g. 1950"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-accent-500 focus:border-accent-500"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Year Renovated
-                <span className="ml-1.5 text-xs font-normal text-gray-400">(optional)</span>
-              </label>
-              <input
-                type="number"
-                min={1800}
-                max={new Date().getFullYear() + 5}
-                value={formData.year_renovated ?? ''}
-                onChange={e => updateFormData({ year_renovated: e.target.value ? Number(e.target.value) : undefined })}
-                placeholder="e.g. 2020"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-accent-500 focus:border-accent-500"
-              />
-            </div>
-          </div>
-
-          {/* Number of Units — bottom row, only for true multi-family (4+) */}
-          {showUnitCount && (
-            <div className="grid grid-cols-3 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Number of Units
-                  <span className="ml-1.5 text-xs font-normal text-gray-400">(optional)</span>
-                </label>
+          {/* Asking Price */}
+          <div className="pt-2 border-t border-gray-100">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Asking Price <span className="text-red-500">*</span>
+            </label>
+            <div className="flex items-center gap-4">
+              <div className="relative w-56">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
                 <input
                   type="number"
-                  min={2}
-                  value={formData.unit_count ?? ''}
-                  onChange={e => updateFormData({ unit_count: e.target.value ? Number(e.target.value) : undefined })}
-                  placeholder="e.g. 6"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-accent-500 focus:border-accent-500"
+                  min={1}
+                  step={1000}
+                  value={formData.asking_price ?? ''}
+                  onChange={e => updateFormData({ asking_price: e.target.value ? Number(e.target.value) : undefined })}
+                  placeholder="e.g. 850000"
+                  disabled={!!formData.call_for_price}
+                  className="w-full pl-7 pr-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-accent-500 focus:border-accent-500 disabled:bg-gray-50 disabled:text-gray-400"
                 />
               </div>
+              <label className="flex items-center gap-2 cursor-pointer text-sm text-gray-700">
+                <input
+                  type="checkbox"
+                  checked={!!formData.call_for_price}
+                  onChange={e => updateFormData({ call_for_price: e.target.checked })}
+                  className="h-4 w-4 text-accent-500 focus:ring-accent-500 border-gray-300 rounded"
+                />
+                Call for Price
+              </label>
             </div>
-          )}
+          </div>
         </div>
 
         <div className="flex items-center justify-between">
