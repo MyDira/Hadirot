@@ -1,5 +1,5 @@
 import React from 'react';
-import { ArrowLeft, ArrowRight, Home, Building2, Grid2x2 } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Home } from 'lucide-react';
 import type { ListingFormData } from '../../../postListing/types';
 import { StepTips } from '../../StepTips';
 
@@ -12,39 +12,127 @@ const TIPS = {
   ],
 };
 
-// Distinct inline SVG icon for a 2-family building (2 floor bands)
-const TwoFamilyIcon = () => (
-  <svg viewBox="0 0 20 20" fill="none" className="w-5 h-5" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
-    <rect x="2" y="8" width="16" height="10" rx="1" />
-    <line x1="2" y1="13" x2="18" y2="13" />
-    <polyline points="1,9 10,3 19,9" />
-    <rect x="5.5" y="14.5" width="3" height="3.5" />
-    <rect x="11.5" y="14.5" width="3" height="3.5" />
-    <rect x="8" y="9.5" width="4" height="2.5" rx="0.5" />
+// ── Custom property-type icons ────────────────────────────────────────────────
+// All share the same 24×24 viewBox and stroke style so they feel like a family.
+
+/** 1-story house — same roof angle as the 2 & 3 family, single floor */
+const SingleFamilyIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" className="w-7 h-7" stroke="currentColor" strokeWidth={1.4} strokeLinecap="round" strokeLinejoin="round">
+    <path d="M3 11.5L12 4l9 7.5" />
+    <rect x="3" y="11.5" width="18" height="10.5" rx="0.5" />
+    <rect x="6" y="13.5" width="4" height="3.5" rx="0.5" />
+    <rect x="14" y="13.5" width="4" height="3.5" rx="0.5" />
+    <rect x="10" y="16.5" width="4" height="5.5" rx="0.5" />
   </svg>
 );
 
-// Distinct inline SVG icon for a 3-family building (3 floor bands)
-const ThreeFamilyIcon = () => (
-  <svg viewBox="0 0 20 20" fill="none" className="w-5 h-5" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
-    <rect x="2" y="5" width="16" height="13" rx="1" />
-    <line x1="2" y1="10" x2="18" y2="10" />
-    <line x1="2" y1="14.5" x2="18" y2="14.5" />
-    <rect x="5.5" y="11" width="3" height="2.5" rx="0.5" />
-    <rect x="11.5" y="11" width="3" height="2.5" rx="0.5" />
-    <rect x="5.5" y="15.5" width="3" height="2.5" rx="0.5" />
-    <rect x="11.5" y="15.5" width="3" height="2.5" rx="0.5" />
-    <rect x="7.5" y="6" width="5" height="3" rx="0.5" />
+/** 2-story house — same roofline, body split into 2 floors */
+const TwoFamilyIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" className="w-7 h-7" stroke="currentColor" strokeWidth={1.4} strokeLinecap="round" strokeLinejoin="round">
+    <path d="M3 11.5L12 4l9 7.5" />
+    <rect x="3" y="11.5" width="18" height="10.5" rx="0.5" />
+    <line x1="3" y1="16.5" x2="21" y2="16.5" />
+    {/* upper floor windows */}
+    <rect x="5.5" y="12.5" width="4" height="3" rx="0.5" />
+    <rect x="14.5" y="12.5" width="4" height="3" rx="0.5" />
+    {/* door on lower floor */}
+    <rect x="10" y="17.5" width="4" height="4.5" rx="0.5" />
   </svg>
 );
+
+/** 3-story house — roof raised to accommodate the extra floor, 2 floor dividers */
+const ThreeFamilyIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" className="w-7 h-7" stroke="currentColor" strokeWidth={1.4} strokeLinecap="round" strokeLinejoin="round">
+    <path d="M3 9.5L12 2l9 7.5" />
+    <rect x="3" y="9.5" width="18" height="12.5" rx="0.5" />
+    <line x1="3" y1="13.7" x2="21" y2="13.7" />
+    <line x1="3" y1="17.9" x2="21" y2="17.9" />
+    {/* top floor */}
+    <rect x="6" y="10.5" width="3.5" height="2.5" rx="0.5" />
+    <rect x="14.5" y="10.5" width="3.5" height="2.5" rx="0.5" />
+    {/* middle floor */}
+    <rect x="6" y="14.7" width="3.5" height="2.5" rx="0.5" />
+    <rect x="14.5" y="14.7" width="3.5" height="2.5" rx="0.5" />
+    {/* door on ground floor */}
+    <rect x="10" y="18.8" width="4" height="3.2" rx="0.5" />
+  </svg>
+);
+
+/** 4+ unit apartment building — flat-roofed, wider, 3 window columns × 3 rows */
+const MultiFamilyIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" className="w-7 h-7" stroke="currentColor" strokeWidth={1.4} strokeLinecap="round" strokeLinejoin="round">
+    <rect x="2" y="4" width="20" height="18" rx="1" />
+    <line x1="2" y1="9.3"  x2="22" y2="9.3" />
+    <line x1="2" y1="14.6" x2="22" y2="14.6" />
+    {/* row 1 */}
+    <rect x="4.5" y="5.5" width="4" height="3" rx="0.5" />
+    <rect x="10"  y="5.5" width="4" height="3" rx="0.5" />
+    <rect x="15.5" y="5.5" width="4" height="3" rx="0.5" />
+    {/* row 2 */}
+    <rect x="4.5" y="10.8" width="4" height="3" rx="0.5" />
+    <rect x="10"  y="10.8" width="4" height="3" rx="0.5" />
+    <rect x="15.5" y="10.8" width="4" height="3" rx="0.5" />
+    {/* ground floor: door + side windows */}
+    <rect x="4.5" y="16" width="4" height="6" rx="0.5" />
+    <rect x="10"  y="16.5" width="4" height="5.5" rx="0.5" />
+    <rect x="15.5" y="16" width="4" height="6" rx="0.5" />
+  </svg>
+);
+
+/** Condo — slim modern tower, tall and narrow, 4 window rows */
+const CondoIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" className="w-7 h-7" stroke="currentColor" strokeWidth={1.4} strokeLinecap="round" strokeLinejoin="round">
+    <rect x="5" y="1" width="14" height="21" rx="1" />
+    <line x1="5" y1="6.5"  x2="19" y2="6.5" />
+    <line x1="5" y1="11.5" x2="19" y2="11.5" />
+    <line x1="5" y1="16.5" x2="19" y2="16.5" />
+    {/* row 1 */}
+    <rect x="7" y="2.5" width="4" height="3" rx="0.5" />
+    <rect x="13" y="2.5" width="4" height="3" rx="0.5" />
+    {/* row 2 */}
+    <rect x="7" y="8" width="4" height="3" rx="0.5" />
+    <rect x="13" y="8" width="4" height="3" rx="0.5" />
+    {/* row 3 */}
+    <rect x="7" y="13" width="4" height="3" rx="0.5" />
+    <rect x="13" y="13" width="4" height="3" rx="0.5" />
+    {/* lobby / entry */}
+    <rect x="10" y="18" width="4" height="4" rx="0.5" />
+  </svg>
+);
+
+/** Co-op — wider classic pre-war building, 3-column façade, cornice line */
+const CoopIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" className="w-7 h-7" stroke="currentColor" strokeWidth={1.4} strokeLinecap="round" strokeLinejoin="round">
+    {/* cornice / parapet */}
+    <rect x="1" y="3" width="22" height="2" rx="0.5" />
+    {/* main body */}
+    <rect x="1" y="5" width="22" height="17" rx="0.5" />
+    <line x1="1" y1="10.5" x2="23" y2="10.5" />
+    <line x1="1" y1="16"   x2="23" y2="16" />
+    {/* row 1 — 3 windows */}
+    <rect x="3"  y="6.5" width="4" height="3" rx="0.5" />
+    <rect x="10" y="6.5" width="4" height="3" rx="0.5" />
+    <rect x="17" y="6.5" width="4" height="3" rx="0.5" />
+    {/* row 2 — 3 windows */}
+    <rect x="3"  y="12" width="4" height="3" rx="0.5" />
+    <rect x="10" y="12" width="4" height="3" rx="0.5" />
+    <rect x="17" y="12" width="4" height="3" rx="0.5" />
+    {/* ground: door + flanking windows */}
+    <rect x="3"  y="17.5" width="4" height="4.5" rx="0.5" />
+    <rect x="10" y="17"   width="4" height="5"   rx="0.5" />
+    <rect x="17" y="17.5" width="4" height="4.5" rx="0.5" />
+  </svg>
+);
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 const PROPERTY_TYPES = [
-  { value: 'single_family', label: 'Single-Family', icon: <Home className="w-5 h-5" /> },
+  { value: 'single_family', label: 'Single-Family', icon: <SingleFamilyIcon /> },
   { value: 'two_family',    label: 'Two-Family',    icon: <TwoFamilyIcon /> },
   { value: 'three_family',  label: 'Three-Family',  icon: <ThreeFamilyIcon /> },
-  { value: 'four_family',   label: 'Multi-Family',  icon: <Building2 className="w-5 h-5" /> },
-  { value: 'condo',         label: 'Condo',         icon: <Grid2x2 className="w-5 h-5" /> },
-  { value: 'co_op',         label: 'Co-op',         icon: <Grid2x2 className="w-5 h-5" /> },
+  { value: 'four_family',   label: 'Multi-Family',  icon: <MultiFamilyIcon /> },
+  { value: 'condo',         label: 'Condo',         icon: <CondoIcon /> },
+  { value: 'co_op',         label: 'Co-op',         icon: <CoopIcon /> },
 ] as const;
 
 const BUILDING_TYPES = [
@@ -84,7 +172,7 @@ interface Props {
 }
 
 export function Step1SalePropertyAndLayout({ formData, updateFormData, onNext, onBack }: Props) {
-  // Only four_family (truly variable unit count) shows the units field
+  // Only true multi-family (4+) has a variable unit count worth specifying
   const showUnitCount = formData.property_type === 'four_family';
 
   const canContinue =
@@ -95,7 +183,7 @@ export function Step1SalePropertyAndLayout({ formData, updateFormData, onNext, o
 
   const handlePropertyTypeSelect = (value: string) => {
     const updates: Partial<ListingFormData> = { property_type: value as ListingFormData['property_type'] };
-    // Auto-select Apartment building type for Condo and Co-op (user can still change)
+    // Condo and Co-op are always apartments — auto-select but let user override
     if (value === 'condo' || value === 'co_op') {
       updates.building_type = 'apartment';
     }
@@ -121,7 +209,7 @@ export function Step1SalePropertyAndLayout({ formData, updateFormData, onNext, o
                     key={pt.value}
                     type="button"
                     onClick={() => handlePropertyTypeSelect(pt.value)}
-                    className={`flex flex-col items-center justify-center gap-1.5 p-3 rounded-xl border-2 text-center transition-all aspect-square ${
+                    className={`flex flex-col items-center justify-center gap-2 p-3 rounded-xl border-2 text-center transition-all aspect-square ${
                       selected
                         ? 'border-brand-700 bg-brand-50 text-brand-800'
                         : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300'
@@ -253,7 +341,7 @@ export function Step1SalePropertyAndLayout({ formData, updateFormData, onNext, o
             </div>
           </div>
 
-          {/* Number of Units — bottom row, only for true multi-family */}
+          {/* Number of Units — bottom row, only for true multi-family (4+) */}
           {showUnitCount && (
             <div className="grid grid-cols-3 gap-4">
               <div>
