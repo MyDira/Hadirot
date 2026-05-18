@@ -89,7 +89,7 @@ export function Step4Location({
         latitude: result.latitude,
         longitude: result.longitude,
       });
-      setIsLocationConfirmed(true);
+      setIsLocationConfirmed(false); // user must click Confirm Location button
     } else {
       updateFormData({
         street_address: '',

@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useState, useCallback } from "react";
 import mapboxgl from "mapbox-gl";
-import { MapPin, Search, Loader2, CheckCircle, Maximize2 } from "lucide-react";
+import { MapPin, Search, Loader2, CheckCircle, Maximize2, Check } from "lucide-react";
 import { MAPBOX_ACCESS_TOKEN } from "@/config/env";
 import { geocodeCrossStreets, formatCorrectionMessage } from "@/services/geocoding";
 import { reverseGeocode } from "@/services/reverseGeocode";
@@ -61,6 +61,10 @@ export function LocationPicker({
   const [requiresConfirmation, setRequiresConfirmation] = useState(false);
   const [isLocationConfirmed, setIsLocationConfirmed] = useState(false);
 
+  // Track previous pre-resolved coords to detect a new address being selected
+  const prevPreResolvedLat = useRef(preResolvedLatitude);
+  const prevPreResolvedLng = useRef(preResolvedLongitude);
+
   const performReverseGeocode = useCallback(
     async (lat: number, lng: number) => {
       setIsReverseGeocoding(true);
@@ -83,6 +87,30 @@ export function LocationPicker({
     },
     [onNeighborhoodChange, onZipCodeChange, onCityChange]
   );
+
+  // Confirm the geocoded address without opening the modal (full-address mode)
+  const handleDirectConfirm = useCallback(() => {
+    if (latitude && longitude) {
+      setIsLocationConfirmed(true);
+      setRequiresConfirmation(false);
+      if (onConfirmationStatusChange) onConfirmationStatusChange(true);
+    }
+  }, [latitude, longitude, onConfirmationStatusChange]);
+
+  // When a new address is picked in full-address mode, reset the confirmation state
+  useEffect(() => {
+    if (!hideFindOnMap) return;
+    const latChanged = preResolvedLatitude !== prevPreResolvedLat.current;
+    const lngChanged = preResolvedLongitude !== prevPreResolvedLng.current;
+    prevPreResolvedLat.current = preResolvedLatitude;
+    prevPreResolvedLng.current = preResolvedLongitude;
+
+    if ((latChanged || lngChanged) && preResolvedLatitude != null && preResolvedLongitude != null) {
+      setIsLocationConfirmed(false);
+      setRequiresConfirmation(false);
+      if (onConfirmationStatusChange) onConfirmationStatusChange(false);
+    }
+  }, [preResolvedLatitude, preResolvedLongitude, hideFindOnMap]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!mapContainer.current || !MAPBOX_ACCESS_TOKEN) return;
@@ -127,6 +155,10 @@ export function LocationPicker({
         duration: 1000,
       });
       setIsLocationSet(true);
+    } else {
+      // Coordinates were cleared externally (e.g. address field was cleared)
+      setIsLocationSet(false);
+      setIsLocationConfirmed(false);
     }
   }, [latitude, longitude, mapLoaded]);
 
@@ -287,64 +319,107 @@ export function LocationPicker({
     <>
       <div className="space-y-3">
         <div className="flex flex-wrap items-center gap-2">
-          {!hideFindOnMap && (
-            <button
-              type="button"
-              onClick={handleFindOnMap}
-              disabled={isFindOnMapDisabled()}
-              className="inline-flex items-center px-4 py-2 bg-accent-500 text-white text-sm font-medium rounded-md hover:bg-accent-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              {isGeocoding ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Finding...
-                </>
-              ) : (
-                <>
-                  <Search className="w-4 h-4 mr-2" />
-                  Find on Map
-                </>
+          {hideFindOnMap ? (
+            /* ── Full-address mode: explicit confirm + separate adjust ── */
+            <>
+              {isLocationSet && !isLocationConfirmed && (
+                <button
+                  type="button"
+                  onClick={handleDirectConfirm}
+                  disabled={disabled}
+                  className="inline-flex items-center px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  <Check className="w-4 h-4 mr-2" />
+                  Confirm Location
+                </button>
               )}
-            </button>
-          )}
 
-          <span
-            title={
-              hideFindOnMap && preResolvedLatitude == null
-                ? "Select an address from the autocomplete first"
-                : (crossStreetAFeature !== undefined || crossStreetBFeature !== undefined) &&
+              {isLocationSet && isLocationConfirmed && (
+                <span className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-green-700 bg-green-50 border border-green-200 rounded-md">
+                  <Check className="w-4 h-4" />
+                  Location Confirmed
+                </span>
+              )}
+
+              <button
+                type="button"
+                onClick={handleOpenModalManually}
+                disabled={disabled || !isLocationSet}
+                title={!isLocationSet ? "Select an address from the autocomplete first" : undefined}
+                className="inline-flex items-center px-4 py-2 border border-[#273140] text-[#273140] text-sm font-medium rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                <MapPin className="w-4 h-4 mr-2" />
+                Set Pin Manually
+              </button>
+
+              {isLocationSet && (
+                <button
+                  type="button"
+                  onClick={handleClearLocation}
+                  disabled={disabled}
+                  className="inline-flex items-center px-3 py-2 text-sm text-gray-500 hover:text-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  Clear
+                </button>
+              )}
+            </>
+          ) : (
+            /* ── Cross-streets mode: find on map + manual pin ── */
+            <>
+              <button
+                type="button"
+                onClick={handleFindOnMap}
+                disabled={isFindOnMapDisabled()}
+                className="inline-flex items-center px-4 py-2 bg-accent-500 text-white text-sm font-medium rounded-md hover:bg-accent-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                {isGeocoding ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Finding...
+                  </>
+                ) : (
+                  <>
+                    <Search className="w-4 h-4 mr-2" />
+                    Find on Map
+                  </>
+                )}
+              </button>
+
+              <span
+                title={
+                  (crossStreetAFeature !== undefined || crossStreetBFeature !== undefined) &&
                   (!crossStreetAFeature || !crossStreetBFeature || !latitude || !longitude)
-                ? "Use 'Find on Map' first to locate your cross streets"
-                : undefined
-            }
-          >
-            <button
-              type="button"
-              onClick={handleOpenModalManually}
-              disabled={
-                disabled ||
-                (hideFindOnMap
-                  ? preResolvedLatitude == null
-                  : (crossStreetAFeature !== undefined || crossStreetBFeature !== undefined)
-                    ? !crossStreetAFeature || !crossStreetBFeature || !latitude || !longitude
-                    : false)
-              }
-              className="inline-flex items-center px-4 py-2 border border-[#273140] text-[#273140] text-sm font-medium rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              <MapPin className="w-4 h-4 mr-2" />
-              Set Pin Location Manually
-            </button>
-          </span>
+                    ? "Use 'Find on Map' first to locate your cross streets"
+                    : undefined
+                }
+              >
+                <button
+                  type="button"
+                  onClick={handleOpenModalManually}
+                  disabled={
+                    disabled ||
+                    ((crossStreetAFeature !== undefined || crossStreetBFeature !== undefined)
+                      ? !crossStreetAFeature || !crossStreetBFeature || !latitude || !longitude
+                      : false)
+                  }
+                  className="inline-flex items-center px-4 py-2 border border-[#273140] text-[#273140] text-sm font-medium rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  <MapPin className="w-4 h-4 mr-2" />
+                  Set Pin Location Manually
+                </button>
+              </span>
 
-          {isLocationSet && (
-            <button
-              type="button"
-              onClick={handleClearLocation}
-              disabled={disabled}
-              className="inline-flex items-center px-3 py-2 text-sm text-gray-600 hover:text-gray-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              Clear Location
-            </button>
+              {isLocationSet && (
+                <button
+                  type="button"
+                  onClick={handleClearLocation}
+                  disabled={disabled}
+                  className="inline-flex items-center px-3 py-2 text-sm text-gray-600 hover:text-gray-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  Clear Location
+                </button>
+              )}
+            </>
           )}
         </div>
 
@@ -385,20 +460,26 @@ export function LocationPicker({
         </div>
 
         <div className="flex items-center gap-2 text-sm">
-          <MapPin className="w-4 h-4 flex-shrink-0" />
+          <MapPin className="w-4 h-4 flex-shrink-0 text-gray-400" />
           {isLocationSet ? (
             <span className={isLocationConfirmed ? "text-gray-600" : "text-amber-700"}>
               {isReverseGeocoding ? (
-                "Detecting neighborhood..."
+                "Detecting neighborhood…"
+              ) : hideFindOnMap ? (
+                isLocationConfirmed
+                  ? "Location confirmed. Use 'Set Pin Manually' to reposition if needed."
+                  : "Pin placed — confirm the location or use 'Set Pin Manually' if it landed in the wrong spot."
               ) : isLocationConfirmed ? (
-                "Location confirmed. Click map to adjust or use 'Set Pin Location' button."
+                "Location confirmed. Click the map or use 'Set Pin Location Manually' to adjust."
               ) : (
-                "Location needs confirmation - click to review and confirm"
+                "Location placed — open the map to review and confirm the pin."
               )}
             </span>
           ) : (
-            <span className="text-gray-600">
-              Use "Find on Map" to geocode address, or click "Set Pin Location" to manually position.
+            <span className="text-gray-500">
+              {hideFindOnMap
+                ? "Enter your address above to drop a pin on the map."
+                : `Use "Find on Map" to geocode your cross streets, or set the pin manually.`}
             </span>
           )}
         </div>
