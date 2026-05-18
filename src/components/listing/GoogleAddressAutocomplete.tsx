@@ -59,7 +59,8 @@ export function GoogleAddressAutocomplete({
 }: GoogleAddressAutocompleteProps) {
   const [inputValue, setInputValue] = useState(value);
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
-  const [isSelected, setIsSelected] = useState(false);
+  // If value is already populated on mount (e.g. returning to this step), treat it as selected
+  const [isSelected, setIsSelected] = useState(!!value);
   const [isLoading, setIsLoading] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
   const [error, setError] = useState<string | null>(null);

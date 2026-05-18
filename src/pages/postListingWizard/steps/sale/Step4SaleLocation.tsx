@@ -124,7 +124,8 @@ export function Step4SaleLocation({
     neighborhoodSelectValue === 'other' ? customNeighborhoodInput.trim() : neighborhoodSelectValue;
 
   const crossStreetsReady = !!crossStreetAFeature && !!crossStreetBFeature;
-  const fullAddressReady = !!fullAddressResult;
+  // Derive from formData so canContinue survives step navigation (fullAddressResult is local and resets)
+  const fullAddressReady = !!(formData.street_address?.trim() && formData.latitude && formData.longitude);
 
   const canContinue =
     (addressMode === 'cross_streets' ? crossStreetsReady : fullAddressReady) &&
@@ -143,7 +144,9 @@ export function Step4SaleLocation({
   // What to pass to LocationPicker as crossStreets for geocoding/display
   const locationPickerCrossStreets =
     addressMode === 'full_address'
-      ? `${fullAddressResult?.streetAddress || ''}, ${fullAddressResult?.city || ''}, ${fullAddressResult?.state || ''}`
+      ? (fullAddressResult
+          ? `${fullAddressResult.streetAddress}, ${fullAddressResult.city}, ${fullAddressResult.state}`
+          : formData.street_address || '')   // fallback when returning to step
       : formData.location;
 
   const showMapHint =
@@ -257,9 +260,14 @@ export function Step4SaleLocation({
               neighborhood={resolvedNeighborhood}
               latitude={formData.latitude}
               longitude={formData.longitude}
-              preResolvedLatitude={addressMode === 'full_address' && fullAddressResult ? fullAddressResult.latitude : undefined}
-              preResolvedLongitude={addressMode === 'full_address' && fullAddressResult ? fullAddressResult.longitude : undefined}
+              preResolvedLatitude={addressMode === 'full_address'
+                ? (fullAddressResult?.latitude ?? formData.latitude ?? undefined)
+                : undefined}
+              preResolvedLongitude={addressMode === 'full_address'
+                ? (fullAddressResult?.longitude ?? formData.longitude ?? undefined)
+                : undefined}
               hideFindOnMap={addressMode === 'full_address'}
+              initialConfirmed={addressMode === 'full_address' ? isLocationConfirmed : false}
               onLocationChange={(lat, lng) => updateFormData({ latitude: lat, longitude: lng })}
               onNeighborhoodChange={n => {
                 if (n && neighborhoodSelectValue !== 'other') {

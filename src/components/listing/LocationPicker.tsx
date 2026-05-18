@@ -28,6 +28,8 @@ interface LocationPickerProps {
   preResolvedLatitude?: number | null;
   preResolvedLongitude?: number | null;
   hideFindOnMap?: boolean;
+  /** Pre-seed the confirmed state when returning to this step with an already-confirmed location */
+  initialConfirmed?: boolean;
 }
 
 export function LocationPicker({
@@ -48,6 +50,7 @@ export function LocationPicker({
   preResolvedLatitude,
   preResolvedLongitude,
   hideFindOnMap = false,
+  initialConfirmed = false,
 }: LocationPickerProps) {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
@@ -59,7 +62,7 @@ export function LocationPicker({
   const [isLocationSet, setIsLocationSet] = useState(false);
   const [showMapModal, setShowMapModal] = useState(false);
   const [requiresConfirmation, setRequiresConfirmation] = useState(false);
-  const [isLocationConfirmed, setIsLocationConfirmed] = useState(false);
+  const [isLocationConfirmed, setIsLocationConfirmed] = useState(initialConfirmed);
 
   // Track previous pre-resolved coords to detect a new address being selected
   const prevPreResolvedLat = useRef(preResolvedLatitude);
