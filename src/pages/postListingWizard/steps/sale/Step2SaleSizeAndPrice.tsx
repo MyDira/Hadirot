@@ -40,8 +40,44 @@ export function Step2SaleSizeAndPrice({ formData, updateFormData, onNext, onBack
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
           <h2 className="text-xl font-semibold text-gray-900 mb-5">Size & Price</h2>
 
-          {/* Building Size */}
+          {/* Asking Price */}
           <div className="mb-6">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Asking Price <span className="text-red-500">*</span>
+            </label>
+            <div className="flex items-center gap-3 flex-wrap">
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
+                <input
+                  type="number"
+                  min={1}
+                  step={1000}
+                  value={formData.asking_price ?? ''}
+                  onChange={e => updateFormData({ asking_price: e.target.value ? Number(e.target.value) : null })}
+                  disabled={formData.call_for_price}
+                  placeholder="e.g. 850000"
+                  className="pl-7 pr-3 py-2 border border-gray-300 rounded-md text-sm w-44 focus:ring-accent-500 focus:border-accent-500 disabled:bg-gray-50 disabled:text-gray-400"
+                />
+              </div>
+              <label className="flex items-center gap-2 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={formData.call_for_price}
+                  onChange={e =>
+                    updateFormData({
+                      call_for_price: e.target.checked,
+                      asking_price: e.target.checked ? null : formData.asking_price,
+                    })
+                  }
+                  className="h-4 w-4 text-accent-500 focus:ring-accent-500 border-gray-300 rounded"
+                />
+                <span className="text-sm text-gray-700">Call for Price</span>
+              </label>
+            </div>
+          </div>
+
+          {/* Building Size */}
+          <div className="mb-6 pt-4 border-t border-gray-100">
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Building Size
               <span className="ml-1.5 text-xs font-normal text-gray-400">(optional)</span>
@@ -148,42 +184,6 @@ export function Step2SaleSizeAndPrice({ formData, updateFormData, onNext, onBack
                 className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-accent-500 focus:border-accent-500"
               />
             )}
-          </div>
-
-          {/* Asking Price */}
-          <div className="mb-6 pt-4 border-t border-gray-100">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Asking Price <span className="text-red-500">*</span>
-            </label>
-            <div className="flex items-center gap-3 flex-wrap">
-              <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
-                <input
-                  type="number"
-                  min={1}
-                  step={1000}
-                  value={formData.asking_price ?? ''}
-                  onChange={e => updateFormData({ asking_price: e.target.value ? Number(e.target.value) : null })}
-                  disabled={formData.call_for_price}
-                  placeholder="e.g. 850000"
-                  className="pl-7 pr-3 py-2 border border-gray-300 rounded-md text-sm w-44 focus:ring-accent-500 focus:border-accent-500 disabled:bg-gray-50 disabled:text-gray-400"
-                />
-              </div>
-              <label className="flex items-center gap-2 cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  checked={formData.call_for_price}
-                  onChange={e =>
-                    updateFormData({
-                      call_for_price: e.target.checked,
-                      asking_price: e.target.checked ? null : formData.asking_price,
-                    })
-                  }
-                  className="h-4 w-4 text-accent-500 focus:ring-accent-500 border-gray-300 rounded"
-                />
-                <span className="text-sm text-gray-700">Call for Price</span>
-              </label>
-            </div>
           </div>
 
           {/* Taxes & HOA */}
