@@ -453,9 +453,9 @@ export function PostListingWizard() {
     <>
       <WizardBreadcrumb
         currentStep={wizard.currentStep}
+        highWaterStep={wizard.highWaterStep}
         onGoToStep={handleGoToStep}
         stepLabels={stepLabels}
-        allowFreeNavigation={isSalePath}
       />
 
       <div className="max-w-5xl mx-auto px-4 pt-4 pb-2">

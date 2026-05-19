@@ -16,6 +16,8 @@ export const RESIDENTIAL_SALE_STEPS = 6;
 interface PersistedState {
   selectedPath: WizardPath | null;
   currentStep: number;
+  /** Furthest step the user has ever reached by pressing Continue. */
+  highWaterStep: number;
   formData: ListingFormData;
   crossStreetAFeature: GoogleStreetFeature | null;
   crossStreetBFeature: GoogleStreetFeature | null;
@@ -64,6 +66,7 @@ const SALE_INITIAL: ListingFormData = {
 export function useWizardState(userId: string | null) {
   const [selectedPath, setSelectedPathRaw] = useState<WizardPath | null>(null);
   const [currentStep, setCurrentStep] = useState(0);
+  const [highWaterStep, setHighWaterStep] = useState(0);
   const [formData, setFormData] = useState<ListingFormData>(RENTAL_INITIAL);
   const [crossStreetAFeature, setCrossStreetAFeature] = useState<GoogleStreetFeature | null>(null);
   const [crossStreetBFeature, setCrossStreetBFeature] = useState<GoogleStreetFeature | null>(null);
@@ -80,6 +83,7 @@ export function useWizardState(userId: string | null) {
     if (saved) {
       setSelectedPathRaw(saved.selectedPath);
       setCurrentStep(saved.currentStep);
+      setHighWaterStep(saved.highWaterStep ?? saved.currentStep);
       setFormData(saved.formData);
       setCrossStreetAFeature(saved.crossStreetAFeature);
       setCrossStreetBFeature(saved.crossStreetBFeature);
@@ -95,6 +99,7 @@ export function useWizardState(userId: string | null) {
     saveToStorage(userId, {
       selectedPath,
       currentStep,
+      highWaterStep,
       formData,
       crossStreetAFeature,
       crossStreetBFeature,
@@ -102,7 +107,7 @@ export function useWizardState(userId: string | null) {
       customNeighborhoodInput,
     });
     setLastSavedAt(new Date());
-  }, [initialized, userId, selectedPath, currentStep, formData, crossStreetAFeature, crossStreetBFeature, neighborhoodSelectValue, customNeighborhoodInput]);
+  }, [initialized, userId, selectedPath, currentStep, highWaterStep, formData, crossStreetAFeature, crossStreetBFeature, neighborhoodSelectValue, customNeighborhoodInput]);
 
   // heat ↔ utilities_included bidirectional sync (verbatim from PostListing.tsx)
   useEffect(() => {
@@ -140,7 +145,14 @@ export function useWizardState(userId: string | null) {
     }
   }, []);
 
-  const nextStep = useCallback(() => setCurrentStep(s => s + 1), []);
+  const nextStep = useCallback(() => {
+    setCurrentStep(s => {
+      const next = s + 1;
+      // Advance the high-water mark when the user completes a new step.
+      setHighWaterStep(hw => Math.max(hw, next));
+      return next;
+    });
+  }, []);
   const prevStep = useCallback(() => setCurrentStep(s => Math.max(0, s - 1)), []);
   const goToStep = useCallback((n: number) => setCurrentStep(n), []);
 
@@ -148,6 +160,7 @@ export function useWizardState(userId: string | null) {
     if (userId) clearStorage(userId);
     setSelectedPathRaw(null);
     setCurrentStep(0);
+    setHighWaterStep(0);
     setFormData(RENTAL_INITIAL);
     setCrossStreetAFeature(null);
     setCrossStreetBFeature(null);
@@ -166,6 +179,7 @@ export function useWizardState(userId: string | null) {
     selectedPath,
     setSelectedPath,
     currentStep,
+    highWaterStep,
     nextStep,
     prevStep,
     goToStep,

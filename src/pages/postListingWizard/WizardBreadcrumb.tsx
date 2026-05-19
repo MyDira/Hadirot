@@ -12,12 +12,13 @@ const DEFAULT_STEP_LABELS = [
 
 interface WizardBreadcrumbProps {
   currentStep: number;
+  /** Furthest step index the user has reached by pressing Continue. */
+  highWaterStep: number;
   onGoToStep: (step: number) => void;
   stepLabels?: string[];
-  allowFreeNavigation?: boolean;
 }
 
-export function WizardBreadcrumb({ currentStep, onGoToStep, stepLabels, allowFreeNavigation }: WizardBreadcrumbProps) {
+export function WizardBreadcrumb({ currentStep, highWaterStep, onGoToStep, stepLabels }: WizardBreadcrumbProps) {
   const STEP_LABELS = stepLabels && stepLabels.length > 0 ? stepLabels : DEFAULT_STEP_LABELS;
   return (
     <div className="w-full bg-white border-b border-gray-200">
@@ -40,31 +41,30 @@ export function WizardBreadcrumb({ currentStep, onGoToStep, stepLabels, allowFre
         <ol className="hidden sm:flex items-center gap-0.5 overflow-x-auto">
           {STEP_LABELS.map((label, idx) => {
             const active = idx === currentStep;
+            // A step is visited (and thus clickable) if the user has ever reached it.
+            // highWaterStep is the index of the furthest step reached via Continue.
+            const visited = idx <= highWaterStep;
             const completed = idx < currentStep;
-            const future = idx > currentStep;
-            const clickable = allowFreeNavigation ? true : (completed || active);
 
             return (
               <li key={label} className="flex items-center gap-0.5 flex-shrink-0">
                 <button
                   type="button"
-                  onClick={() => clickable && onGoToStep(idx)}
-                  disabled={!clickable}
+                  onClick={() => visited && !active && onGoToStep(idx)}
+                  disabled={!visited || active}
                   className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs transition-colors ${
                     active
-                      ? 'bg-gray-100 font-bold text-gray-900'
-                      : completed
+                      ? 'bg-gray-100 font-bold text-gray-900 cursor-default'
+                      : visited
                       ? 'font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-50 cursor-pointer'
-                      : allowFreeNavigation
-                      ? 'font-medium text-gray-400 hover:text-gray-700 hover:bg-gray-50 cursor-pointer'
                       : 'font-medium text-gray-300 cursor-not-allowed'
                   }`}
                 >
                   <span
                     className={`flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${
-                      active
+                      active || completed
                         ? 'bg-accent-500 text-white'
-                        : completed
+                        : visited
                         ? 'bg-accent-500 text-white'
                         : 'bg-gray-200 text-gray-400'
                     }`}
