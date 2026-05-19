@@ -6,6 +6,9 @@ export interface GoogleStreetFeature {
   placeId: string;
   streetName: string;
   formattedName: string;
+  /** Coordinates of the street's midpoint — populated after place-details fetch */
+  latitude?: number;
+  longitude?: number;
 }
 
 interface GoogleStreetAutocompleteProps {
@@ -13,6 +16,11 @@ interface GoogleStreetAutocompleteProps {
   onSelect: (feature: GoogleStreetFeature | null) => void;
   placeholder?: string;
   disabled?: boolean;
+  /**
+   * When set, restrict suggestions to a ~1.5 km box around this point.
+   * Used to lock Street B to the same neighbourhood as Street A.
+   */
+  nearLatLng?: { lat: number; lng: number };
 }
 
 declare global {
@@ -51,6 +59,7 @@ export function GoogleStreetAutocomplete({
   onSelect,
   placeholder = "Enter street name",
   disabled = false,
+  nearLatLng,
 }: GoogleStreetAutocompleteProps) {
   const [inputValue, setInputValue] = useState(value);
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
@@ -118,15 +127,27 @@ export function GoogleStreetAutocomplete({
     setIsLoading(true);
     setError(null);
 
+    // Build a strictly-bounded request so suggestions stay within the chosen area.
+    // When Street A has been picked, narrow to a ~1.5 km box around it so Street B
+    // only shows streets that could realistically intersect with it.
+    const DELTA = 0.015; // ≈ 1.5 km in each direction
+    const bounds = nearLatLng
+      ? new window.google.maps.LatLngBounds(
+          { lat: nearLatLng.lat - DELTA, lng: nearLatLng.lng - DELTA },
+          { lat: nearLatLng.lat + DELTA, lng: nearLatLng.lng + DELTA }
+        )
+      : new window.google.maps.LatLngBounds(
+          { lat: 40.4774, lng: -74.2591 },
+          { lat: 40.9176, lng: -73.7002 }
+        );
+
     autocompleteService.current.getPlacePredictions(
       {
         input: query,
         types: ["route"],
         componentRestrictions: { country: "us" },
-        locationBias: new window.google.maps.LatLngBounds(
-          { lat: 40.4774, lng: -74.2591 },
-          { lat: 40.9176, lng: -73.7002 }
-        ),
+        bounds,
+        strictBounds: true, // hard-restrict to the box above
       },
       (predictions, status) => {
         setIsLoading(false);
@@ -156,17 +177,57 @@ export function GoogleStreetAutocomplete({
     );
   }
 
-  function handleSelectSuggestion(suggestion: Suggestion) {
-    const feature: GoogleStreetFeature = {
+  /** Fetch the midpoint coordinates for a placeId via the Places Details API. */
+  function fetchPlaceCoords(placeId: string): Promise<{ lat: number; lng: number } | null> {
+    return new Promise((resolve) => {
+      const service = new window.google.maps.places.PlacesService(
+        document.createElement("div")
+      );
+      service.getDetails(
+        { placeId, fields: ["geometry"] },
+        (result, status) => {
+          if (
+            status === window.google.maps.places.PlacesServiceStatus.OK &&
+            result?.geometry?.location
+          ) {
+            resolve({
+              lat: result.geometry.location.lat(),
+              lng: result.geometry.location.lng(),
+            });
+          } else {
+            resolve(null);
+          }
+        }
+      );
+    });
+  }
+
+  async function handleSelectSuggestion(suggestion: Suggestion) {
+    // Show the locked/selected state immediately for a snappy UI.
+    const tempFeature: GoogleStreetFeature = {
       placeId: suggestion.placeId,
       streetName: suggestion.mainText,
       formattedName: suggestion.description,
     };
-    setSelectedFeature(feature);
+    setSelectedFeature(tempFeature);
     setInputValue(suggestion.mainText);
     setSuggestions([]);
     setShowDropdown(false);
-    onSelect(feature);
+    onSelect(tempFeature);
+
+    // Enrich the feature with coordinates so the sibling autocomplete can bias
+    // its suggestions to the same neighbourhood. This fires a single Places
+    // Details call and is transparent to the user.
+    const coords = await fetchPlaceCoords(suggestion.placeId);
+    if (coords) {
+      const enriched: GoogleStreetFeature = {
+        ...tempFeature,
+        latitude: coords.lat,
+        longitude: coords.lng,
+      };
+      setSelectedFeature(enriched);
+      onSelect(enriched);
+    }
   }
 
   function handleInputChange(e: React.ChangeEvent<HTMLInputElement>) {

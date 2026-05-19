@@ -216,6 +216,11 @@ export function Step4SaleLocation({
                   value={crossStreetBFeature?.streetName}
                   onSelect={handleStreetBSelect}
                   placeholder="e.g. Ave J"
+                  nearLatLng={
+                    crossStreetAFeature?.latitude != null && crossStreetAFeature?.longitude != null
+                      ? { lat: crossStreetAFeature.latitude, lng: crossStreetAFeature.longitude }
+                      : undefined
+                  }
                 />
               </div>
             </div>

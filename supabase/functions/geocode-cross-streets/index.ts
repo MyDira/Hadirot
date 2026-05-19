@@ -9,6 +9,15 @@ import { corsHeaders } from "../_shared/cors.ts";
 // NYC bounding box for biasing results (SW corner | NE corner)
 const NYC_BOUNDS = '40.4774,-74.2591|40.9176,-73.7002';
 
+// Hard limits — any geocoded coordinate outside this box is rejected outright.
+const NYC_LAT_MIN = 40.4774, NYC_LAT_MAX = 40.9176;
+const NYC_LNG_MIN = -74.2591, NYC_LNG_MAX = -73.7002;
+
+function isInNYC(lat: number, lng: number): boolean {
+  return lat >= NYC_LAT_MIN && lat <= NYC_LAT_MAX &&
+         lng >= NYC_LNG_MIN && lng <= NYC_LNG_MAX;
+}
+
 function buildCacheKey(crossStreets: string, neighborhood?: string): string {
   const norm = (s: string) => s.trim().toLowerCase().replace(/\s+/g, ' ');
   return `${norm(crossStreets)}|${norm(neighborhood ?? '')}`;
@@ -121,7 +130,8 @@ async function geocodeWithGoogle(
         : data.results;
 
       const loc = candidates[0]?.geometry?.location;
-      if (loc) return { lat: loc.lat, lng: loc.lng };
+      // Reject anything that geocoded outside the five boroughs / NYC metro.
+      if (loc && isInNYC(loc.lat, loc.lng)) return { lat: loc.lat, lng: loc.lng };
     }
 
     if (data.status !== 'ZERO_RESULTS') {
