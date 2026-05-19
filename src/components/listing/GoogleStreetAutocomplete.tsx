@@ -127,27 +127,32 @@ export function GoogleStreetAutocomplete({
     setIsLoading(true);
     setError(null);
 
-    // Build a strictly-bounded request so suggestions stay within the chosen area.
-    // When Street A has been picked, narrow to a ~1.5 km box around it so Street B
-    // only shows streets that could realistically intersect with it.
+    // When Street A has been picked, hard-restrict Street B to a ~1.5 km box
+    // around Street A so only streets that could realistically intersect appear.
+    // Without a nearLatLng (i.e. Street A itself), just bias toward NYC — don't
+    // restrict — so the user can type freely without hitting a hard wall.
     const DELTA = 0.015; // ≈ 1.5 km in each direction
-    const bounds = nearLatLng
-      ? new window.google.maps.LatLngBounds(
-          { lat: nearLatLng.lat - DELTA, lng: nearLatLng.lng - DELTA },
-          { lat: nearLatLng.lat + DELTA, lng: nearLatLng.lng + DELTA }
-        )
-      : new window.google.maps.LatLngBounds(
-          { lat: 40.4774, lng: -74.2591 },
-          { lat: 40.9176, lng: -73.7002 }
-        );
+    const locationOptions = nearLatLng
+      ? {
+          bounds: new window.google.maps.LatLngBounds(
+            { lat: nearLatLng.lat - DELTA, lng: nearLatLng.lng - DELTA },
+            { lat: nearLatLng.lat + DELTA, lng: nearLatLng.lng + DELTA }
+          ),
+          strictBounds: true,
+        }
+      : {
+          locationBias: new window.google.maps.LatLngBounds(
+            { lat: 40.4774, lng: -74.2591 },
+            { lat: 40.9176, lng: -73.7002 }
+          ),
+        };
 
     autocompleteService.current.getPlacePredictions(
       {
         input: query,
         types: ["route"],
         componentRestrictions: { country: "us" },
-        bounds,
-        strictBounds: true, // hard-restrict to the box above
+        ...locationOptions,
       },
       (predictions, status) => {
         setIsLoading(false);
