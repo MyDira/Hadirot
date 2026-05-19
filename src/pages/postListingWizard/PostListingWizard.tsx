@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import * as Sentry from '@sentry/react';
 import { useAuth } from '@/hooks/useAuth';
@@ -8,7 +8,7 @@ import { listingsService, getExpirationDate, getAdminActiveDays } from '../../se
 import { salesService } from '../../services/sales';
 import { PermissionRequestModal } from '../postListing/PermissionRequestModal';
 import { useListingMedia } from '../listing/useListingMedia';
-import { useWizardState } from './useWizardState';
+import { useWizardState, type WizardPath } from './useWizardState';
 import { WizardUIContext } from './WizardContext';
 import { PathPicker } from './PathPicker';
 import { WizardBreadcrumb } from './WizardBreadcrumb';
@@ -43,6 +43,79 @@ const SALE_STEP_LABELS = [
   'Details & Features',
   'Contact & Review',
 ];
+
+// ── Change Listing Type dropdown ──────────────────────────────────────────────
+
+const LISTING_TYPE_OPTIONS: { path: WizardPath; label: string; sub: string }[] = [
+  { path: 'residential_rent', label: 'Residential Rental', sub: 'Apartment, room, house for rent' },
+  { path: 'residential_sale', label: 'Residential Sale',   sub: 'House, condo, co-op for sale'   },
+  { path: 'commercial_lease', label: 'Commercial Lease',   sub: 'Office, retail, industrial'      },
+  { path: 'commercial_sale',  label: 'Commercial Sale',    sub: 'Office, retail, industrial'      },
+];
+
+function ChangeListingTypeButton({
+  currentPath,
+  onChangePath,
+}: {
+  currentPath: WizardPath | null;
+  onChangePath: (path: WizardPath) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, []);
+
+  return (
+    <div ref={ref} className="relative flex-shrink-0">
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        className="inline-flex items-center gap-1.5 text-xs font-medium text-gray-500 hover:text-gray-800 border border-gray-200 hover:border-gray-300 bg-white hover:bg-gray-50 px-3 py-1.5 rounded-lg transition-colors"
+      >
+        Change listing type
+        <svg className={`w-3.5 h-3.5 transition-transform ${open ? 'rotate-180' : ''}`} viewBox="0 0 20 20" fill="currentColor">
+          <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clipRule="evenodd" />
+        </svg>
+      </button>
+
+      {open && (
+        <div className="absolute right-0 top-full mt-1.5 w-64 bg-white border border-gray-200 rounded-xl shadow-lg z-50 overflow-hidden">
+          <p className="px-4 pt-3 pb-1.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">
+            Switch to
+          </p>
+          {LISTING_TYPE_OPTIONS.map(({ path, label, sub }) => {
+            const isCurrent = path === currentPath;
+            return (
+              <button
+                key={path}
+                type="button"
+                disabled={isCurrent}
+                onClick={() => { onChangePath(path); setOpen(false); }}
+                className={`w-full text-left px-4 py-2.5 flex flex-col transition-colors ${
+                  isCurrent
+                    ? 'bg-accent-50 cursor-default'
+                    : 'hover:bg-gray-50 cursor-pointer'
+                }`}
+              >
+                <span className={`text-sm font-medium ${isCurrent ? 'text-accent-700' : 'text-gray-800'}`}>
+                  {label}
+                  {isCurrent && <span className="ml-2 text-[10px] font-semibold uppercase tracking-wide text-accent-500">current</span>}
+                </span>
+                <span className="text-xs text-gray-400 mt-0.5">{sub}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export function PostListingWizard() {
   const { user, profile } = useAuth();
@@ -459,12 +532,22 @@ export function PostListingWizard() {
       />
 
       <div className="max-w-5xl mx-auto px-4 pt-4 pb-2">
-        <div className="flex items-center gap-3">
-          <h1 className="text-lg font-bold text-gray-900">Post a Listing</h1>
-          <span className="inline-flex items-center gap-1.5 text-xs font-medium bg-accent-50 text-accent-700 border border-accent-200 px-2.5 py-1 rounded-full">
-            <span className="w-1.5 h-1.5 rounded-full bg-accent-500 flex-shrink-0" />
-            {isSalePath ? 'Residential · For sale' : 'Residential · For rent'}
-          </span>
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <h1 className="text-lg font-bold text-gray-900">Post a Listing</h1>
+            <span className="inline-flex items-center gap-1.5 text-xs font-medium bg-accent-50 text-accent-700 border border-accent-200 px-2.5 py-1 rounded-full">
+              <span className="w-1.5 h-1.5 rounded-full bg-accent-500 flex-shrink-0" />
+              {isSalePath ? 'Residential · For sale' : 'Residential · For rent'}
+            </span>
+          </div>
+
+          <ChangeListingTypeButton
+            currentPath={wizard.selectedPath}
+            onChangePath={(path) => {
+              wizard.clearDraft();
+              handleSelectPath(path);
+            }}
+          />
         </div>
       </div>
 
