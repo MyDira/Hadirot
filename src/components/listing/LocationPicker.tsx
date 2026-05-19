@@ -125,7 +125,15 @@ export function LocationPicker({
   // Mirrors how full-address mode auto-drops a pin when a Google Place is selected.
   useEffect(() => {
     if (hideFindOnMap) return; // full-address mode uses preResolved coords instead
-    if (!crossStreetAFeature || !crossStreetBFeature) return;
+    if (!crossStreetAFeature || !crossStreetBFeature) {
+      // Either street was cleared — drop any stale intersection error so the
+      // user isn't blocked by a message that no longer reflects their inputs.
+      if (geocodeError) {
+        setGeocodeError(null);
+        if (onGeocodeStatusChange) onGeocodeStatusChange(null, null);
+      }
+      return;
+    }
 
     const changed = crossStreets !== prevCrossStreets.current;
     prevCrossStreets.current = crossStreets;
@@ -158,14 +166,20 @@ export function LocationPicker({
             performReverseGeocode(lat, lng);
           }
         } else {
-          const errorMsg = "No intersection found — these streets may not cross in this area. Try a nearby block or check the street names.";
+          // No intersection — clear any stale coords so the Continue gate
+          // cannot pass on a previous pair's lat/lng.
+          const errorMsg = "These streets don't intersect — pick a cross street that actually crosses the first one.";
           setGeocodeError(errorMsg);
+          setIsLocationSet(false);
+          onLocationChange(null, null);
           if (onGeocodeStatusChange) onGeocodeStatusChange(errorMsg, null);
         }
       })
       .catch(() => {
         const errorMsg = "Failed to find location. Please try again.";
         setGeocodeError(errorMsg);
+        setIsLocationSet(false);
+        onLocationChange(null, null);
         if (onGeocodeStatusChange) onGeocodeStatusChange(errorMsg, null);
       })
       .finally(() => setIsGeocoding(false));
@@ -359,6 +373,12 @@ export function LocationPicker({
             </div>
           </div>
         </div>
+
+        {geocodeError && !isGeocoding && (
+          <div className="px-3 py-2 bg-red-50 border border-red-200 rounded-md text-sm text-red-700">
+            {geocodeError}
+          </div>
+        )}
 
         <div className="flex items-center gap-2 text-sm">
           <MapPin className="w-4 h-4 flex-shrink-0 text-gray-400" />
