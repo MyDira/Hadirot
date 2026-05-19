@@ -9,6 +9,11 @@ export interface GoogleStreetFeature {
   /** Coordinates of the street's midpoint — populated after place-details fetch */
   latitude?: number;
   longitude?: number;
+  /** Bounding box covering the full length of the street — used to bias the sibling autocomplete */
+  viewport?: {
+    sw: { lat: number; lng: number };
+    ne: { lat: number; lng: number };
+  };
 }
 
 interface GoogleStreetAutocompleteProps {
@@ -17,10 +22,18 @@ interface GoogleStreetAutocompleteProps {
   placeholder?: string;
   disabled?: boolean;
   /**
-   * When set, restrict suggestions to a ~1.5 km box around this point.
-   * Used to lock Street B to the same neighbourhood as Street A.
+   * Bounding box of the sibling street (full length). When set, restrict suggestions
+   * to streets whose geometry overlaps this box — narrows Street B to plausible
+   * crossings of Street A.
    */
-  nearLatLng?: { lat: number; lng: number };
+  nearViewport?: {
+    sw: { lat: number; lng: number };
+    ne: { lat: number; lng: number };
+  };
+  /** Force the input into an error visual state regardless of internal selection state. */
+  invalid?: boolean;
+  /** Error message rendered below the input when `invalid` is true. */
+  errorMessage?: string | null;
 }
 
 declare global {
@@ -59,7 +72,9 @@ export function GoogleStreetAutocomplete({
   onSelect,
   placeholder = "Enter street name",
   disabled = false,
-  nearLatLng,
+  nearViewport,
+  invalid = false,
+  errorMessage = null,
 }: GoogleStreetAutocompleteProps) {
   const [inputValue, setInputValue] = useState(value);
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
@@ -127,16 +142,18 @@ export function GoogleStreetAutocomplete({
     setIsLoading(true);
     setError(null);
 
-    // When Street A has been picked, hard-restrict Street B to a ~1.5 km box
-    // around Street A so only streets that could realistically intersect appear.
-    // Without a nearLatLng (i.e. Street A itself), just bias toward NYC — don't
-    // restrict — so the user can type freely without hitting a hard wall.
-    const DELTA = 0.015; // ≈ 1.5 km in each direction
-    const locationOptions = nearLatLng
+    // When Street A has been picked, hard-restrict Street B to a box covering
+    // Street A's full length (its Places viewport) plus a small pad — so only
+    // streets whose geometry plausibly overlaps Street A can appear. This is
+    // strictly a narrowing step: the authoritative intersection check happens
+    // when the pair is geocoded with result_type=intersection.
+    // Without a nearViewport (i.e. Street A itself), just bias toward NYC.
+    const PAD = 0.003; // ≈ 300 m pad so cross streets at the very edge still appear
+    const locationOptions = nearViewport
       ? {
           bounds: new window.google.maps.LatLngBounds(
-            { lat: nearLatLng.lat - DELTA, lng: nearLatLng.lng - DELTA },
-            { lat: nearLatLng.lat + DELTA, lng: nearLatLng.lng + DELTA }
+            { lat: nearViewport.sw.lat - PAD, lng: nearViewport.sw.lng - PAD },
+            { lat: nearViewport.ne.lat + PAD, lng: nearViewport.ne.lng + PAD }
           ),
           strictBounds: true,
         }
@@ -182,8 +199,12 @@ export function GoogleStreetAutocomplete({
     );
   }
 
-  /** Fetch the midpoint coordinates for a placeId via the Places Details API. */
-  function fetchPlaceCoords(placeId: string): Promise<{ lat: number; lng: number } | null> {
+  /** Fetch the midpoint + viewport for a placeId via the Places Details API. */
+  function fetchPlaceGeometry(placeId: string): Promise<{
+    lat: number;
+    lng: number;
+    viewport?: { sw: { lat: number; lng: number }; ne: { lat: number; lng: number } };
+  } | null> {
     return new Promise((resolve) => {
       const service = new window.google.maps.places.PlacesService(
         document.createElement("div")
@@ -195,9 +216,16 @@ export function GoogleStreetAutocomplete({
             status === window.google.maps.places.PlacesServiceStatus.OK &&
             result?.geometry?.location
           ) {
+            const vp = result.geometry.viewport;
             resolve({
               lat: result.geometry.location.lat(),
               lng: result.geometry.location.lng(),
+              viewport: vp
+                ? {
+                    sw: { lat: vp.getSouthWest().lat(), lng: vp.getSouthWest().lng() },
+                    ne: { lat: vp.getNorthEast().lat(), lng: vp.getNorthEast().lng() },
+                  }
+                : undefined,
             });
           } else {
             resolve(null);
@@ -220,15 +248,17 @@ export function GoogleStreetAutocomplete({
     setShowDropdown(false);
     onSelect(tempFeature);
 
-    // Enrich the feature with coordinates so the sibling autocomplete can bias
-    // its suggestions to the same neighbourhood. This fires a single Places
-    // Details call and is transparent to the user.
-    const coords = await fetchPlaceCoords(suggestion.placeId);
-    if (coords) {
+    // Enrich the feature with midpoint + viewport so the sibling autocomplete
+    // can restrict its suggestions to streets that overlap this street's full
+    // length. This fires a single Places Details call and is transparent to
+    // the user.
+    const geom = await fetchPlaceGeometry(suggestion.placeId);
+    if (geom) {
       const enriched: GoogleStreetFeature = {
         ...tempFeature,
-        latitude: coords.lat,
-        longitude: coords.lng,
+        latitude: geom.lat,
+        longitude: geom.lng,
+        viewport: geom.viewport,
       };
       setSelectedFeature(enriched);
       onSelect(enriched);
@@ -251,8 +281,9 @@ export function GoogleStreetAutocomplete({
     onSelect(null);
   }
 
-  const isValid = !!selectedFeature;
+  const isValid = !!selectedFeature && !invalid;
   const hasInput = inputValue.trim().length > 0;
+  const showExternalError = invalid && !!errorMessage;
 
   return (
     <div ref={containerRef} className="relative">
@@ -269,6 +300,8 @@ export function GoogleStreetAutocomplete({
           className={`w-full px-3 py-2 pr-10 border rounded-md focus:ring-brand-700 focus:border-brand-700 disabled:opacity-50 disabled:cursor-not-allowed ${
             isValid
               ? "border-green-500 bg-green-50"
+              : invalid
+              ? "border-red-500 bg-red-50"
               : hasInput && !isLoading
               ? "border-red-500"
               : "border-gray-300"
@@ -295,7 +328,9 @@ export function GoogleStreetAutocomplete({
 
       {error && <p className="text-xs text-red-600 mt-1">{error}</p>}
 
-      {!isValid && hasInput && !isLoading && suggestions.length === 0 && !error && (
+      {showExternalError && <p className="text-xs text-red-600 mt-1">{errorMessage}</p>}
+
+      {!isValid && !invalid && hasInput && !isLoading && suggestions.length === 0 && !error && (
         <p className="text-xs text-red-600 mt-1">Please select a street from the dropdown</p>
       )}
 
