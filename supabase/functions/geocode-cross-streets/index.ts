@@ -113,7 +113,14 @@ async function geocodeWithGoogle(
     const data = await response.json();
 
     if (data.status === 'OK' && data.results?.length > 0) {
-      const loc = data.results[0].geometry?.location;
+      // When enforcing intersection, only accept results whose type is 'intersection'.
+      // Google may return 'route'-typed results even when result_type=intersection is
+      // requested — those must be rejected so parallel streets don't slip through.
+      const candidates = requireIntersection
+        ? data.results.filter((r: { types?: string[] }) => r.types?.includes('intersection'))
+        : data.results;
+
+      const loc = candidates[0]?.geometry?.location;
       if (loc) return { lat: loc.lat, lng: loc.lng };
     }
 
