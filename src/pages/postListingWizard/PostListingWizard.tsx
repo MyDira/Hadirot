@@ -46,11 +46,11 @@ const SALE_STEP_LABELS = [
 
 // ── Change Listing Type dropdown ──────────────────────────────────────────────
 
-const LISTING_TYPE_OPTIONS: { path: WizardPath; label: string; sub: string }[] = [
+const LISTING_TYPE_OPTIONS: { path: WizardPath; label: string; sub: string; comingSoon?: boolean }[] = [
   { path: 'residential_rent', label: 'Residential Rental', sub: 'Apartment, room, house for rent' },
   { path: 'residential_sale', label: 'Residential Sale',   sub: 'House, condo, co-op for sale'   },
-  { path: 'commercial_lease', label: 'Commercial Lease',   sub: 'Office, retail, industrial'      },
-  { path: 'commercial_sale',  label: 'Commercial Sale',    sub: 'Office, retail, industrial'      },
+  { path: 'commercial_lease', label: 'Commercial Lease',   sub: 'Office, retail, industrial',     comingSoon: true },
+  { path: 'commercial_sale',  label: 'Commercial Sale',    sub: 'Office, retail, industrial',     comingSoon: true },
 ];
 
 function ChangeListingTypeButton({
@@ -89,23 +89,31 @@ function ChangeListingTypeButton({
           <p className="px-4 pt-3 pb-1.5 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">
             Switch to
           </p>
-          {LISTING_TYPE_OPTIONS.map(({ path, label, sub }) => {
+          {LISTING_TYPE_OPTIONS.map(({ path, label, sub, comingSoon }) => {
             const isCurrent = path === currentPath;
+            const isDisabled = isCurrent || comingSoon;
             return (
               <button
                 key={path}
                 type="button"
-                disabled={isCurrent}
-                onClick={() => { onChangePath(path); setOpen(false); }}
+                disabled={isDisabled}
+                onClick={() => { if (!isDisabled) { onChangePath(path); setOpen(false); } }}
                 className={`w-full text-left px-4 py-2.5 flex flex-col transition-colors ${
                   isCurrent
                     ? 'bg-accent-50 cursor-default'
+                    : comingSoon
+                    ? 'opacity-50 cursor-not-allowed'
                     : 'hover:bg-gray-50 cursor-pointer'
                 }`}
               >
-                <span className={`text-sm font-medium ${isCurrent ? 'text-accent-700' : 'text-gray-800'}`}>
+                <span className={`text-sm font-medium flex items-center gap-2 ${isCurrent ? 'text-accent-700' : 'text-gray-800'}`}>
                   {label}
-                  {isCurrent && <span className="ml-2 text-[10px] font-semibold uppercase tracking-wide text-accent-500">current</span>}
+                  {isCurrent && (
+                    <span className="text-[10px] font-semibold uppercase tracking-wide text-accent-500">current</span>
+                  )}
+                  {comingSoon && (
+                    <span className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">Coming soon</span>
+                  )}
                 </span>
                 <span className="text-xs text-gray-400 mt-0.5">{sub}</span>
               </button>
