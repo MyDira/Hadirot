@@ -78,7 +78,11 @@ export function GoogleStreetAutocomplete({
 }: GoogleStreetAutocompleteProps) {
   const [inputValue, setInputValue] = useState(value);
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
-  const [selectedFeature, setSelectedFeature] = useState<GoogleStreetFeature | null>(null);
+  // Seed from `value` on first mount so the input shows as valid (green, no red
+  // glow) when the user navigates back to a step where a street was already picked.
+  const [selectedFeature, setSelectedFeature] = useState<GoogleStreetFeature | null>(
+    value ? { placeId: "external-value", streetName: value, formattedName: value } : null
+  );
   const [isLoading, setIsLoading] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -106,6 +110,9 @@ export function GoogleStreetAutocomplete({
           streetName: value,
           formattedName: value,
         });
+      } else {
+        // Parent cleared the value (e.g. mode switch or Clear button) — reset.
+        setSelectedFeature(null);
       }
     }
   }, [value]);
@@ -308,18 +315,20 @@ export function GoogleStreetAutocomplete({
           }`}
         />
 
-        {!isValid && (
+        {!selectedFeature && (
           <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
             {isLoading && <Loader2 className="w-4 h-4 text-gray-400 animate-spin" />}
             {!isLoading && hasInput && <X className="w-4 h-4 text-red-500" />}
           </div>
         )}
 
-        {isValid && (
+        {selectedFeature && (
           <button
             type="button"
             onClick={handleClear}
-            className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 hover:text-gray-600"
+            className={`absolute inset-y-0 right-0 flex items-center pr-3 ${
+              invalid ? "text-red-500 hover:text-red-700" : "text-gray-400 hover:text-gray-600"
+            }`}
           >
             <X className="w-4 h-4" />
           </button>
