@@ -87,12 +87,19 @@ interface GoogleCoords {
 async function geocodeWithGoogle(
   query: string,
   apiKey: string,
+  requireIntersection = false,
 ): Promise<GoogleCoords | null> {
   const params = new URLSearchParams({
     address: query,
     key: apiKey,
     bounds: NYC_BOUNDS,
   });
+
+  // When requireIntersection=true, Google will only return results whose type
+  // is "intersection". Parallel or non-crossing streets return ZERO_RESULTS.
+  if (requireIntersection) {
+    params.set('result_type', 'intersection');
+  }
 
   const url = `https://maps.googleapis.com/maps/api/geocode/json?${params}`;
 
@@ -170,13 +177,18 @@ async function tryGeocodingWithFallbacks(
     ? [`${neighborhood}, Brooklyn, NY`, 'Brooklyn, NY', 'New York, NY']
     : ['Brooklyn, NY', 'New York, NY'];
 
-  // Primary: try all query variations × location suffixes
+  // Whether both streets were provided — determines if we enforce intersection validation
+  const hasBothStreets = !!parsed.street2;
+
+  // Primary: try all query variations × location suffixes.
+  // When two streets are present, require result_type=intersection so Google
+  // rejects parallel / non-crossing streets outright.
   for (const variation of variations) {
     for (const suffix of locationSuffixes) {
       const query = `${variation}, ${suffix}`;
       console.log(`Trying geocode query: ${query}`);
 
-      const coords = await geocodeWithGoogle(query, apiKey);
+      const coords = await geocodeWithGoogle(query, apiKey, hasBothStreets);
       if (coords) {
         return {
           coords,
@@ -194,11 +206,11 @@ async function tryGeocodingWithFallbacks(
       console.log(`Fuzzy match for street1: ${parsed.street1.original} -> ${fuzzyMatch1}`);
 
       for (const suffix of locationSuffixes) {
-        const query = parsed.street2
-          ? `${fuzzyMatch1} & ${parsed.street2.normalized}, ${suffix}`
+        const query = hasBothStreets
+          ? `${fuzzyMatch1} & ${parsed.street2!.normalized}, ${suffix}`
           : `${fuzzyMatch1}, ${suffix}`;
 
-        const coords = await geocodeWithGoogle(query, apiKey);
+        const coords = await geocodeWithGoogle(query, apiKey, hasBothStreets);
         if (coords) {
           return { coords, query: query.split(',')[0], fallback: `fuzzy match: ${fuzzyMatch1}` };
         }
@@ -214,7 +226,7 @@ async function tryGeocodingWithFallbacks(
 
       for (const suffix of locationSuffixes) {
         const query = `${parsed.street1.normalized} & ${fuzzyMatch2}, ${suffix}`;
-        const coords = await geocodeWithGoogle(query, apiKey);
+        const coords = await geocodeWithGoogle(query, apiKey, true);
         if (coords) {
           return { coords, query: query.split(',')[0], fallback: `fuzzy match: ${fuzzyMatch2}` };
         }
@@ -222,14 +234,18 @@ async function tryGeocodingWithFallbacks(
     }
   }
 
-  // Last resort: single street fallback
-  for (const suffix of ['Brooklyn, NY', 'New York, NY']) {
-    const query = `${parsed.street1.normalized}, ${suffix}`;
-    console.log(`Trying single street fallback: ${query}`);
+  // Single-street fallback — only used when no second street was provided.
+  // When both streets are present we must NOT fall back to one street, because
+  // that would accept parallel streets that share a neighbourhood.
+  if (!hasBothStreets) {
+    for (const suffix of ['Brooklyn, NY', 'New York, NY']) {
+      const query = `${parsed.street1.normalized}, ${suffix}`;
+      console.log(`Trying single street fallback: ${query}`);
 
-    const coords = await geocodeWithGoogle(query, apiKey);
-    if (coords) {
-      return { coords, query: parsed.street1.normalized, fallback: 'single street only' };
+      const coords = await geocodeWithGoogle(query, apiKey, false);
+      if (coords) {
+        return { coords, query: parsed.street1.normalized, fallback: 'single street only' };
+      }
     }
   }
 
