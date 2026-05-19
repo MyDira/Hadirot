@@ -44,9 +44,10 @@ export function WizardBreadcrumb({ currentStep, highWaterStep, onGoToStep, stepL
             // A step is visited (and thus clickable) if the user has ever reached it.
             // highWaterStep is the index of the furthest step reached via Continue.
             const visited = idx <= highWaterStep;
-            // Show a checkmark on any visited step that isn't the current one —
-            // this persists even when the user navigates back.
-            const showCheck = visited && !active;
+            // Show a checkmark on steps the user has *completed* (pressed Continue from),
+            // which is every step strictly before the high-water mark. The high-water
+            // step itself hasn't been continued from yet, so it keeps its number.
+            const showCheck = idx < highWaterStep && !active;
 
             return (
               <li key={label} className="flex items-center gap-0.5 flex-shrink-0">
