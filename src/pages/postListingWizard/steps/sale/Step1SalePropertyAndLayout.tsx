@@ -12,75 +12,144 @@ const TIPS = {
 };
 
 // ── Icons ─────────────────────────────────────────────────────────────────────
-// All share the same 24×24 viewBox, strokeWidth 1.5, round caps/joins.
-// The single/two/three family series uses an identical silhouette that grows
-// taller with each floor added — one horizontal line per extra floor.
+// House series (1–3 family): same peaked silhouette, grows taller with each
+// unit. Two-family shows two entry doors (duplex). Three-family is a taller
+// urban rowhouse with two floor bands.
+// Building series (multi / condo / co-op): flat-roof shapes, clearly distinct
+// proportions and details so each is immediately recognisable.
 
-/** 1-story house: peaked roof + single floor body + door */
+/** Single-family: classic peaked house, one door, two windows */
 const SingleFamilyIcon = () => (
   <svg viewBox="0 0 24 24" fill="none" className="w-8 h-8"
     stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
+    {/* Roof */}
     <path d="M3 11L12 3l9 8" />
+    {/* Walls */}
     <path d="M4 11v11h16V11" />
+    {/* Left window */}
+    <rect x="5.5" y="13" width="3.5" height="3" rx="0.5" />
+    {/* Right window */}
+    <rect x="15" y="13" width="3.5" height="3" rx="0.5" />
+    {/* Central door */}
     <path d="M10 22v-5h4v5" />
   </svg>
 );
 
-/** 2-story house: same silhouette + 1 floor divider */
+/**
+ * Two-family: two-storey house with a floor-divider line and two entry
+ * doors side by side — the visual cue for a duplex.
+ */
 const TwoFamilyIcon = () => (
   <svg viewBox="0 0 24 24" fill="none" className="w-8 h-8"
     stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
-    <path d="M3 11L12 3l9 8" />
-    <path d="M4 11v11h16V11" />
-    <line x1="4" y1="16.5" x2="20" y2="16.5" />
-    <path d="M10 22v-4h4v4" />
+    {/* Roof (higher peak = taller building) */}
+    <path d="M3 10L12 2l9 8" />
+    {/* Walls */}
+    <path d="M4 10v12h16V10" />
+    {/* Floor divider */}
+    <line x1="4" y1="16" x2="20" y2="16" />
+    {/* 2nd-floor windows */}
+    <rect x="5.5" y="11" width="3" height="2.5" rx="0.5" />
+    <rect x="15.5" y="11" width="3" height="2.5" rx="0.5" />
+    {/* 1st-floor: two doors (left unit + right unit) */}
+    <rect x="5.5" y="17.5" width="3" height="4.5" rx="0.5" />
+    <rect x="15.5" y="17.5" width="3" height="4.5" rx="0.5" />
   </svg>
 );
 
-/** 3-story house: roof raised one step + 2 floor dividers */
+/**
+ * Three-family: tall urban rowhouse / brownstone with two floor bands,
+ * a stoop step, and one window per floor.
+ */
 const ThreeFamilyIcon = () => (
   <svg viewBox="0 0 24 24" fill="none" className="w-8 h-8"
     stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
+    {/* Roof */}
     <path d="M3 9.5L12 2l9 7.5" />
+    {/* Walls */}
     <path d="M4 9.5v12.5h16V9.5" />
+    {/* Floor dividers */}
     <line x1="4" y1="13.8" x2="20" y2="13.8" />
-    <line x1="4" y1="18.1" x2="20" y2="18.1" />
+    <line x1="4" y1="18"   x2="20" y2="18" />
+    {/* Windows — one centred per floor */}
+    <rect x="9" y="10.3" width="6" height="2.5" rx="0.5" />
+    <rect x="9" y="14.8" width="6" height="2.5" rx="0.5" />
+    {/* Stoop step + door */}
+    <line x1="8" y1="22" x2="16" y2="22" />
     <path d="M10 22v-3.5h4V22" />
   </svg>
 );
 
-/** Multi-family: flat-top apartment block, 3 equal floors, wider proportions */
+/**
+ * Multi-family (4+): wide, squat apartment building — flat roof with a
+ * parapet coping, three floors, 2 × 2 window grid, central entry.
+ */
 const MultiFamilyIcon = () => (
   <svg viewBox="0 0 24 24" fill="none" className="w-8 h-8"
     stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
-    <rect x="2" y="4" width="20" height="18" rx="1" />
-    <line x1="2" y1="10" x2="22" y2="10" />
-    <line x1="2" y1="16" x2="22" y2="16" />
+    {/* Parapet / roofline coping */}
+    <rect x="1" y="3" width="22" height="2.5" rx="0.5" />
+    {/* Main body */}
+    <rect x="1" y="5.5" width="22" height="16.5" rx="0" />
+    {/* Floor dividers */}
+    <line x1="1" y1="11" x2="23" y2="11" />
+    <line x1="1" y1="16.5" x2="23" y2="16.5" />
+    {/* Windows 2 × 2 (top two floors) */}
+    <rect x="3.5" y="6.5"  width="3.5" height="3" rx="0.5" />
+    <rect x="17"  y="6.5"  width="3.5" height="3" rx="0.5" />
+    <rect x="3.5" y="12"   width="3.5" height="3" rx="0.5" />
+    <rect x="17"  y="12"   width="3.5" height="3" rx="0.5" />
+    {/* Central door */}
     <path d="M10 22v-5h4v5" />
   </svg>
 );
 
-/** Condo: slim modern tower — tall & narrow, 4 floor bands */
+/**
+ * Condo: slim modern tower — tall & narrow with 4 floor bands and a
+ * 2 × 4 window grid, clearly taller-to-wider ratio than multi-family.
+ */
 const CondoIcon = () => (
   <svg viewBox="0 0 24 24" fill="none" className="w-8 h-8"
     stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
-    <rect x="6" y="1" width="12" height="21" rx="1" />
-    <line x1="6" y1="6.5"  x2="18" y2="6.5" />
-    <line x1="6" y1="12"   x2="18" y2="12" />
-    <line x1="6" y1="17"   x2="18" y2="17" />
-    <path d="M10 22v-4.5h4V22" />
+    {/* Tower body */}
+    <rect x="5" y="1" width="14" height="21" rx="1" />
+    {/* Floor dividers */}
+    <line x1="5" y1="6.5"  x2="19" y2="6.5" />
+    <line x1="5" y1="11.5" x2="19" y2="11.5" />
+    <line x1="5" y1="16.5" x2="19" y2="16.5" />
+    {/* Windows 2 × 3 */}
+    <rect x="6.5" y="2.5"  width="3" height="3" rx="0.5" />
+    <rect x="14.5" y="2.5" width="3" height="3" rx="0.5" />
+    <rect x="6.5" y="7.5"  width="3" height="3" rx="0.5" />
+    <rect x="14.5" y="7.5" width="3" height="3" rx="0.5" />
+    <rect x="6.5" y="12.5" width="3" height="3" rx="0.5" />
+    <rect x="14.5" y="12.5" width="3" height="3" rx="0.5" />
+    {/* Door */}
+    <path d="M10 22v-5h4v5" />
   </svg>
 );
 
-/** Co-op: wide pre-war building — low & wide, classical arched entry */
+/**
+ * Co-op: wide pre-war / classical building — low & wide, decorative
+ * cornice band at top, 3 × 2 window grid, arched central entry.
+ */
 const CoopIcon = () => (
   <svg viewBox="0 0 24 24" fill="none" className="w-8 h-8"
     stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
-    <rect x="1" y="4" width="22" height="18" rx="1" />
-    <line x1="1" y1="10" x2="23" y2="10" />
-    <line x1="1" y1="16" x2="23" y2="16" />
-    {/* Arched door — the semicircular arch is the visual cue for pre-war/classical */}
-    <path d="M9 22v-2a3 3 0 0 1 6 0v2" />
+    {/* Decorative cornice band */}
+    <rect x="1" y="3" width="22" height="3" rx="0.5" />
+    {/* Building body */}
+    <path d="M1 6h22v16H1z" />
+    {/* Floor divider */}
+    <line x1="1" y1="13" x2="23" y2="13" />
+    {/* Windows 3 × 2 */}
+    <rect x="2.5" y="7.5"  width="3.5" height="3.5" rx="0.5" />
+    <rect x="10.25" y="7.5" width="3.5" height="3.5" rx="0.5" />
+    <rect x="18"  y="7.5"  width="3.5" height="3.5" rx="0.5" />
+    <rect x="2.5" y="14"   width="3.5" height="3.5" rx="0.5" />
+    <rect x="18"  y="14"   width="3.5" height="3.5" rx="0.5" />
+    {/* Arched entry — pre-war / classical identifier */}
+    <path d="M9.5 22v-3.5a2.5 2.5 0 015 0V22" />
   </svg>
 );
 
