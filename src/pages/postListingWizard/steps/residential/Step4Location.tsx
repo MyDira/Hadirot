@@ -61,6 +61,7 @@ export function Step4Location({
 }: Step4Props) {
   const [addressMode, setAddressMode] = useState<AddressMode>('cross_streets');
   const [fullAddressResult, setFullAddressResult] = useState<GooglePlaceResult | null>(null);
+  const [intersectionError, setIntersectionError] = useState<string | null>(null);
 
   // ── Cross streets handlers ──────────────────────────────────────────────────
   const handleStreetASelect = (feature: GoogleStreetFeature | null) => {
@@ -69,6 +70,7 @@ export function Step4Location({
       location: `${feature?.streetName || ''} & ${crossStreetBFeature?.streetName || ''}`.trim().replace(/^&\s*|\s*&$/, ''),
     });
     setIsLocationConfirmed(false);
+    setIntersectionError(null);
   };
 
   const handleStreetBSelect = (feature: GoogleStreetFeature | null) => {
@@ -77,6 +79,7 @@ export function Step4Location({
       location: `${crossStreetAFeature?.streetName || ''} & ${feature?.streetName || ''}`.trim().replace(/^&\s*|\s*&$/, ''),
     });
     setIsLocationConfirmed(false);
+    setIntersectionError(null);
   };
 
   // ── Full address handler ────────────────────────────────────────────────────
@@ -105,6 +108,7 @@ export function Step4Location({
   const handleModeSwitch = (mode: AddressMode) => {
     if (mode === addressMode) return;
     setAddressMode(mode);
+    setIntersectionError(null);
     // Clear whichever side we're leaving
     if (mode === 'full_address') {
       setCrossStreetAFeature(null);
@@ -215,11 +219,9 @@ export function Step4Location({
                   value={crossStreetBFeature?.streetName}
                   onSelect={handleStreetBSelect}
                   placeholder="e.g. Ave J"
-                  nearLatLng={
-                    crossStreetAFeature?.latitude != null && crossStreetAFeature?.longitude != null
-                      ? { lat: crossStreetAFeature.latitude, lng: crossStreetAFeature.longitude }
-                      : undefined
-                  }
+                  nearViewport={crossStreetAFeature?.viewport}
+                  invalid={!!intersectionError && !!crossStreetBFeature}
+                  errorMessage={intersectionError}
                 />
               </div>
             </div>
@@ -287,6 +289,7 @@ export function Step4Location({
                 }
               }}
               onConfirmationStatusChange={confirmed => setIsLocationConfirmed(confirmed)}
+              onGeocodeStatusChange={err => setIntersectionError(err)}
             />
           </div>
 
