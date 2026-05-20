@@ -1050,6 +1050,7 @@ export function AdminPanel() {
                     { icon: Mail,       label: 'Digest Manager',        desc: 'Create WhatsApp digest messages',             iconBg: 'bg-purple-100',  iconColor: 'text-purple-600',  onClick: () => navigate('/admin/digest-manager') },
                     { icon: DollarSign, label: 'Sales System',          desc: 'Manage sales listings and commissions',       iconBg: 'bg-emerald-100', iconColor: 'text-emerald-600', onClick: () => handleTabChange('sales') },
                     { icon: Briefcase,  label: 'Concierge',             desc: 'Manage concierge subscriptions',              iconBg: 'bg-indigo-100',  iconColor: 'text-indigo-600',  onClick: () => handleTabChange('concierge') },
+                    { icon: Home,       label: 'Old Listing Form',      desc: 'Classic listing form (pre-wizard)',           iconBg: 'bg-gray-100',    iconColor: 'text-gray-600',    onClick: () => navigate('/post-old') },
                   ].map(({ icon: ToolIcon, label, desc, iconBg, iconColor, onClick }) => (
                     <button
                       key={label}

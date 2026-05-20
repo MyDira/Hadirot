@@ -54,6 +54,7 @@ interface Step7Props {
   submitError: string | null;
   onSubmit: () => void;
   profile: Profile | null;
+  submitLabel?: string;
 }
 
 export function Step7SaleContactAndReview({
@@ -67,6 +68,7 @@ export function Step7SaleContactAndReview({
   submitError,
   onSubmit,
   profile,
+  submitLabel = 'Post Listing',
 }: Step7Props) {
   // Pre-fill contact info from profile on first load
   useEffect(() => {
@@ -340,7 +342,7 @@ export function Step7SaleContactAndReview({
               ) : (
                 <>
                   <Send className="w-4 h-4" />
-                  Post Listing
+                  {submitLabel}
                 </>
               )}
             </button>

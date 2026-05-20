@@ -197,6 +197,7 @@ export function useWizardState(userId: string | null) {
     isLocationConfirmed,
     setIsLocationConfirmed,
     resolvedNeighborhood,
+    setHighWaterStep,
     clearDraft,
     lastSavedAt,
   };
