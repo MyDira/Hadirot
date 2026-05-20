@@ -32,6 +32,7 @@ import { Step4CommercialSpaceDetails } from './steps/commercial/Step4CommercialS
 import { Step5CommercialOptionalDetails } from './steps/commercial/Step5CommercialOptionalDetails';
 import { Step6CommercialContactAndReview } from './steps/commercial/Step6CommercialContactAndReview';
 import { commercialListingsService } from '../../services/commercialListings';
+import { emailService, renderBrandEmail } from '../../services/email';
 import type { MediaFile } from '../../components/shared/MediaUploader';
 
 const RENTAL_STEP_LABELS = [
@@ -461,6 +462,27 @@ export function PostListingWizard() {
       wizard.clearDraft();
       setCommercialMediaFiles([]);
       navigate(`/dashboard?new_listing=true&listing_id=${listing.id}`);
+
+      // Branded confirmation email — matches residential pattern.
+      try {
+        const siteUrl = window.location.origin;
+        const userName = profile?.full_name || 'A user';
+        const titleForEmail = autoTitle || 'your commercial listing';
+        const html = renderBrandEmail({
+          title: 'New Listing Posted',
+          intro: `${userName} has posted a new listing.`,
+          bodyHtml: '<p>View the listing here:</p>',
+          ctaLabel: 'View Listing',
+          ctaHref: `${siteUrl}/commercial-listing/${listing.id}`,
+        });
+        await emailService.sendEmail({
+          to: user.email!,
+          subject: `Listing Submitted: ${titleForEmail} - HaDirot`,
+          html,
+        });
+      } catch (emailErr) {
+        console.warn('Failed to send commercial listing submission email', emailErr);
+      }
     } catch (err: any) {
       Sentry.captureException(err);
       setSubmitError(err?.message || 'Something went wrong. Please try again.');
@@ -621,6 +643,26 @@ export function PostListingWizard() {
 
       wizard.clearDraft();
       navigate(`/dashboard?new_listing=true&listing_id=${listing.id}`);
+
+      // Branded confirmation email — matches legacy residential pattern.
+      try {
+        const siteUrl = window.location.origin;
+        const userName = profile?.full_name || 'A user';
+        const html = renderBrandEmail({
+          title: 'New Listing Posted',
+          intro: `${userName} has posted a new listing.`,
+          bodyHtml: '<p>View the listing here:</p>',
+          ctaLabel: 'View Listing',
+          ctaHref: `${siteUrl}/listing/${listing.id}`,
+        });
+        await emailService.sendEmail({
+          to: user.email!,
+          subject: `Listing Submitted: ${autoTitle} - HaDirot`,
+          html,
+        });
+      } catch (emailErr) {
+        console.warn('Failed to send residential listing submission email', emailErr);
+      }
     } catch (err: any) {
       Sentry.captureException(err);
       setSubmitError(err?.message || 'Something went wrong. Please try again.');
