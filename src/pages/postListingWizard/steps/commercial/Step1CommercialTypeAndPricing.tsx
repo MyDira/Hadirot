@@ -160,7 +160,7 @@ export function Step1CommercialTypeAndPricing({
                   key={opt.value}
                   type="button"
                   onClick={() => handleTypeClick(opt.value)}
-                  className={`flex flex-col items-center justify-center gap-1.5 p-2 rounded-xl border-2 text-center transition-all h-[76px] ${
+                  className={`flex flex-col items-center justify-center gap-1.5 p-2 rounded-xl border-2 text-center transition-all aspect-square ${
                     selected
                       ? 'border-brand-700 bg-brand-50 text-brand-800'
                       : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300'
