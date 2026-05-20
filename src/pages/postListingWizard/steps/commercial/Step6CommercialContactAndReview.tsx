@@ -1,5 +1,13 @@
 import React, { useEffect } from 'react';
 import { ArrowLeft, Send, CheckCircle, Image, AlertCircle } from 'lucide-react';
+import { StepTips } from '../../StepTips';
+
+const TIPS = {
+  heading: 'Review & Submit',
+  bullets: [
+    'Tips will appear here.',
+  ],
+};
 import type { MediaFile } from '../../../../components/shared/MediaUploader';
 import type { Profile } from '../../../../config/supabase';
 import type { CommercialStepProps } from './_StepShell';
@@ -163,6 +171,7 @@ export function Step6CommercialContactAndReview({
   const photoCount = mediaFiles.filter(m => m.type === 'image').length;
 
   return (
+    <div className="flex gap-8 items-start">
     <div className="flex-1 min-w-0 space-y-6">
       {/* Contact Info */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
@@ -301,7 +310,7 @@ export function Step6CommercialContactAndReview({
         <button
           type="button"
           onClick={onBack}
-          className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700 transition-colors"
+          className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700 py-2.5 transition-colors"
         >
           <ArrowLeft className="w-4 h-4" /> Back
         </button>
@@ -314,6 +323,8 @@ export function Step6CommercialContactAndReview({
           {loading ? 'Submitting…' : (<>Post Listing <Send className="w-4 h-4" /></>)}
         </button>
       </div>
+    </div>
+    <StepTips {...TIPS} />
     </div>
   );
 }

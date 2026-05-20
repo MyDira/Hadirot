@@ -1,9 +1,17 @@
 import React, { useState } from 'react';
 import { ArrowLeft, ArrowRight } from 'lucide-react';
+import { StepTips } from '../../StepTips';
 import {
   GoogleStreetAutocomplete,
   GoogleStreetFeature,
 } from '../../../../components/listing/GoogleStreetAutocomplete';
+
+const TIPS = {
+  heading: 'Location',
+  bullets: [
+    'Tips will appear here.',
+  ],
+};
 import {
   GoogleAddressAutocomplete,
   GooglePlaceResult,
@@ -140,6 +148,7 @@ export function Step3CommercialLocation({
       : 'Verify the pin dropped at your address — drag to adjust if needed.';
 
   return (
+    <div className="flex gap-8 items-start">
     <div className="flex-1 min-w-0 space-y-5">
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
         <div className="flex items-center justify-between mb-5">
@@ -300,36 +309,36 @@ export function Step3CommercialLocation({
         </div>
       </div>
 
+      {!canContinue && (crossStreetAFeature || crossStreetBFeature || fullAddressResult || formData.full_address) && (
+        <p className="text-xs text-gray-400 text-right -mb-2">
+          {addressMode === 'cross_streets' && (!crossStreetAFeature || !crossStreetBFeature)
+            ? 'Enter both cross streets'
+            : !resolvedNeighborhood
+            ? 'Select a neighborhood'
+            : !isLocationConfirmed
+            ? 'Confirm the map pin to continue'
+            : ''}
+        </p>
+      )}
       <div className="flex items-center justify-between">
         <button
           type="button"
           onClick={onBack}
-          className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700 transition-colors"
+          className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700 py-2.5 transition-colors"
         >
           <ArrowLeft className="w-4 h-4" /> Back
         </button>
-        <div className="flex flex-col items-end gap-1">
-          {!canContinue && (crossStreetAFeature || crossStreetBFeature || fullAddressResult || formData.full_address) && (
-            <p className="text-xs text-gray-400">
-              {addressMode === 'cross_streets' && (!crossStreetAFeature || !crossStreetBFeature)
-                ? 'Enter both cross streets'
-                : !resolvedNeighborhood
-                ? 'Select a neighborhood'
-                : !isLocationConfirmed
-                ? 'Confirm the map pin to continue'
-                : ''}
-            </p>
-          )}
-          <button
-            type="button"
-            onClick={onNext}
-            disabled={!canContinue}
-            className="flex items-center gap-2 bg-accent-500 text-white px-6 py-2.5 rounded-lg text-sm font-semibold hover:bg-accent-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            Continue <ArrowRight className="w-4 h-4" />
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={onNext}
+          disabled={!canContinue}
+          className="flex items-center gap-2 bg-accent-500 text-white px-6 py-2.5 rounded-lg text-sm font-semibold hover:bg-accent-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          Continue <ArrowRight className="w-4 h-4" />
+        </button>
       </div>
+    </div>
+    <StepTips {...TIPS} />
     </div>
   );
 }

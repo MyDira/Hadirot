@@ -12,7 +12,14 @@ import {
 import type { CommercialSpaceType, CommercialSubtype } from '../../../../config/supabase';
 import { SPACE_TYPE_SUBTYPES, TYPE_SPECIFIC_FIELD_KEYS } from '../../../postCommercial/typeFieldConfigs';
 import type { CommercialListingFormData } from '../../../postCommercial/commercialTypes';
-import { StepShell, type CommercialStepProps } from './_StepShell';
+import { StepShell, type CommercialStepProps, type StepTipsData } from './_StepShell';
+
+const TIPS: StepTipsData = {
+  heading: 'Type & Pricing',
+  bullets: [
+    'Tips will appear here.',
+  ],
+};
 
 const SPACE_TYPES: { value: CommercialSpaceType; label: string; icon: React.ReactNode }[] = [
   { value: 'storefront',          label: 'Retail / Storefront', icon: <Store className="w-6 h-6" /> },
@@ -139,13 +146,13 @@ export function Step1CommercialTypeAndPricing({
 
   return (
     <>
-      <StepShell title="Type & Pricing" onBack={onBack} onNext={onNext} canContinue={canContinue}>
+      <StepShell title="Type & Pricing" onBack={onBack} onNext={onNext} canContinue={canContinue} tips={TIPS}>
         {/* Space Type grid */}
         <div className="mb-6">
           <label className="block text-sm font-medium text-gray-700 mb-3">
             Space Type <span className="text-red-500">*</span>
           </label>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          <div className="grid grid-cols-4 gap-2 max-w-xs">
             {SPACE_TYPES.map(opt => {
               const selected = formData.commercial_space_type === opt.value;
               return (
@@ -153,14 +160,14 @@ export function Step1CommercialTypeAndPricing({
                   key={opt.value}
                   type="button"
                   onClick={() => handleTypeClick(opt.value)}
-                  className={`flex flex-col items-center justify-center gap-2 p-3 rounded-xl border-2 text-center transition-all aspect-square ${
+                  className={`flex flex-col items-center justify-center gap-1.5 p-2 rounded-xl border-2 text-center transition-all h-[68px] ${
                     selected
                       ? 'border-brand-700 bg-brand-50 text-brand-800'
                       : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300'
                   }`}
                 >
                   <span className={selected ? 'text-brand-700' : 'text-gray-400'}>{opt.icon}</span>
-                  <span className="text-[11px] font-medium leading-tight">{opt.label}</span>
+                  <span className="text-[9px] font-medium leading-tight">{opt.label}</span>
                 </button>
               );
             })}

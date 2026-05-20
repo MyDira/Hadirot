@@ -2,7 +2,14 @@ import React from 'react';
 import { TYPE_SPECIFIC_FIELDS, type TypeSpecificField } from '../../../postCommercial/typeFieldConfigs';
 import type { CommercialListingFormData } from '../../../postCommercial/commercialTypes';
 import type { CommercialSpaceType } from '../../../../config/supabase';
-import { StepShell, type CommercialStepProps } from './_StepShell';
+import { StepShell, type CommercialStepProps, type StepTipsData } from './_StepShell';
+
+const TIPS: StepTipsData = {
+  heading: 'Space Details',
+  bullets: [
+    'Tips will appear here.',
+  ],
+};
 import { WizardTriStateToggle } from './_TriStateToggle';
 
 const FLOOR_LEVEL_OPTIONS = [
@@ -158,7 +165,7 @@ export function Step4CommercialSpaceDetails({ formData, updateFormData, isSale, 
     : [];
 
   return (
-    <StepShell title="Space Details" onBack={onBack} onNext={onNext}>
+    <StepShell title="Space Details" onBack={onBack} onNext={onNext} tips={TIPS}>
       {/* Type-specific fields */}
       {typeFields.length > 0 && (
         <div className="mb-6">

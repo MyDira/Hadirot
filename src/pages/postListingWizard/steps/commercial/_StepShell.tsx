@@ -1,6 +1,7 @@
 import React from 'react';
 import { ArrowLeft, ArrowRight } from 'lucide-react';
 import type { CommercialListingFormData } from '../../../postCommercial/commercialTypes';
+import { StepTips } from '../../StepTips';
 
 export interface CommercialStepProps {
   formData: CommercialListingFormData;
@@ -8,6 +9,11 @@ export interface CommercialStepProps {
   isSale: boolean;
   onNext: () => void;
   onBack: () => void;
+}
+
+export interface StepTipsData {
+  heading: string;
+  bullets: string[];
 }
 
 interface StepShellProps {
@@ -19,12 +25,9 @@ interface StepShellProps {
   isSubmit?: boolean;
   submitLabel?: string;
   submitting?: boolean;
+  tips?: StepTipsData;
 }
 
-/**
- * Shared layout for commercial wizard steps — title card + Back/Continue footer.
- * Steps render their own field UI inside `children`.
- */
 export function StepShell({
   title,
   children,
@@ -34,8 +37,9 @@ export function StepShell({
   isSubmit = false,
   submitLabel = 'Submit Listing',
   submitting = false,
+  tips,
 }: StepShellProps) {
-  return (
+  const inner = (
     <div className="flex-1 min-w-0 space-y-5">
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
         <h2 className="text-xl font-semibold text-gray-900 mb-5">{title}</h2>
@@ -46,7 +50,7 @@ export function StepShell({
         <button
           type="button"
           onClick={onBack}
-          className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700 transition-colors"
+          className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700 py-2.5 transition-colors"
         >
           <ArrowLeft className="w-4 h-4" /> Back
         </button>
@@ -64,4 +68,15 @@ export function StepShell({
       </div>
     </div>
   );
+
+  if (tips) {
+    return (
+      <div className="flex gap-8 items-start">
+        {inner}
+        <StepTips {...tips} />
+      </div>
+    );
+  }
+
+  return inner;
 }

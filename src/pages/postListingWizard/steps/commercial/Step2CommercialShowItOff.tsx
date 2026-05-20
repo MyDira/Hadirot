@@ -5,6 +5,14 @@ import type { MediaFile } from '../../../../components/shared/MediaUploader';
 import { DESCRIPTION_PLACEHOLDERS } from '../../../postCommercial/typeFieldConfigs';
 import type { CommercialSpaceType } from '../../../../config/supabase';
 import type { CommercialStepProps } from './_StepShell';
+import { StepTips } from '../../StepTips';
+
+const TIPS = {
+  heading: 'Photos & Description',
+  bullets: [
+    'Tips will appear here.',
+  ],
+};
 
 interface Props extends CommercialStepProps {
   mediaFiles: MediaFile[];
@@ -35,6 +43,7 @@ export function Step2CommercialShowItOff({
     : 'Describe the space — layout, finishes, condition, standout features…';
 
   return (
+    <div className="flex gap-8 items-start">
     <div className="flex-1 min-w-0 space-y-5">
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
         <h2 className="text-xl font-semibold text-gray-900 mb-1">
@@ -110,7 +119,7 @@ export function Step2CommercialShowItOff({
         <button
           type="button"
           onClick={onBack}
-          className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700 transition-colors"
+          className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700 py-2.5 transition-colors"
         >
           <ArrowLeft className="w-4 h-4" /> Back
         </button>
@@ -123,6 +132,8 @@ export function Step2CommercialShowItOff({
           {uploadingMedia ? 'Uploading…' : (<>Continue <ArrowRight className="w-4 h-4" /></>)}
         </button>
       </div>
+    </div>
+    <StepTips {...TIPS} />
     </div>
   );
 }
