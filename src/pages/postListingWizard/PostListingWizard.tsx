@@ -25,12 +25,7 @@ import { Step4SaleLocation } from './steps/sale/Step4SaleLocation';
 import { Step5SaleConditionAndStatus } from './steps/sale/Step5SaleConditionAndStatus';
 import { Step6SaleOptionalFeatures } from './steps/sale/Step6SaleOptionalFeatures';
 import { Step7SaleContactAndReview } from './steps/sale/Step7SaleContactAndReview';
-import { Step1CommercialTypeAndPricing } from './steps/commercial/Step1CommercialTypeAndPricing';
-import { Step2CommercialShowItOff } from './steps/commercial/Step2CommercialShowItOff';
-import { Step3CommercialLocation } from './steps/commercial/Step3CommercialLocation';
-import { Step4CommercialSpaceDetails } from './steps/commercial/Step4CommercialSpaceDetails';
-import { Step5CommercialOptionalDetails } from './steps/commercial/Step5CommercialOptionalDetails';
-import { Step6CommercialContactAndReview } from './steps/commercial/Step6CommercialContactAndReview';
+import { CommercialStepsRouter } from './CommercialStepsRouter';
 import { commercialListingsService } from '../../services/commercialListings';
 import { emailService, renderBrandEmail } from '../../services/email';
 import type { MediaFile } from '../../components/shared/MediaUploader';
@@ -706,67 +701,39 @@ export function PostListingWizard() {
     onBack: handleBack,
   };
 
-  const commercialStepProps = {
-    formData: wizard.commercialFormData,
-    updateFormData: wizard.updateCommercialFormData,
-    isSale: isCommercialSale,
-    onNext: handleNext,
-    onBack: handleBack,
-  };
-
   const renderStep = () => {
     if (isCommercial) {
-      switch (wizard.currentStep) {
-        case 0:
-          return <Step1CommercialTypeAndPricing {...commercialStepProps} />;
-        case 1:
-          return (
-            <Step2CommercialShowItOff
-              {...commercialStepProps}
-              mediaFiles={commercialMediaFiles}
-              uploadingMedia={uploadingCommercialMedia}
-              onMediaAdd={handleCommercialMediaAdd}
-              onMediaRemove={handleCommercialMediaRemove}
-              onSetFeatured={handleCommercialSetFeatured}
-              maxAllowedFiles={20}
-            />
-          );
-        case 2:
-          return (
-            <Step3CommercialLocation
-              {...commercialStepProps}
-              crossStreetAFeature={wizard.crossStreetAFeature}
-              setCrossStreetAFeature={wizard.setCrossStreetAFeature}
-              crossStreetBFeature={wizard.crossStreetBFeature}
-              setCrossStreetBFeature={wizard.setCrossStreetBFeature}
-              neighborhoodSelectValue={wizard.neighborhoodSelectValue}
-              setNeighborhoodSelectValue={wizard.setNeighborhoodSelectValue}
-              customNeighborhoodInput={wizard.customNeighborhoodInput}
-              setCustomNeighborhoodInput={wizard.setCustomNeighborhoodInput}
-              isLocationConfirmed={wizard.isLocationConfirmed}
-              setIsLocationConfirmed={wizard.setIsLocationConfirmed}
-            />
-          );
-        case 3:
-          return <Step4CommercialSpaceDetails {...commercialStepProps} />;
-        case 4:
-          return <Step5CommercialOptionalDetails {...commercialStepProps} />;
-        case 5:
-          return (
-            <Step6CommercialContactAndReview
-              {...commercialStepProps}
-              mediaFiles={commercialMediaFiles}
-              resolvedNeighborhood={wizard.resolvedNeighborhood}
-              loading={loading}
-              uploadingMedia={uploadingCommercialMedia}
-              submitError={submitError}
-              onSubmit={handleCommercialSubmit}
-              profile={profile ?? null}
-            />
-          );
-        default:
-          return null;
-      }
+      return (
+        <CommercialStepsRouter
+          currentStep={wizard.currentStep}
+          formData={wizard.commercialFormData}
+          updateFormData={wizard.updateCommercialFormData}
+          isSale={isCommercialSale}
+          onNext={handleNext}
+          onBack={handleBack}
+          mediaFiles={commercialMediaFiles}
+          uploadingMedia={uploadingCommercialMedia}
+          onMediaAdd={handleCommercialMediaAdd}
+          onMediaRemove={handleCommercialMediaRemove}
+          onSetFeatured={handleCommercialSetFeatured}
+          maxAllowedFiles={20}
+          crossStreetAFeature={wizard.crossStreetAFeature}
+          setCrossStreetAFeature={wizard.setCrossStreetAFeature}
+          crossStreetBFeature={wizard.crossStreetBFeature}
+          setCrossStreetBFeature={wizard.setCrossStreetBFeature}
+          neighborhoodSelectValue={wizard.neighborhoodSelectValue}
+          setNeighborhoodSelectValue={wizard.setNeighborhoodSelectValue}
+          customNeighborhoodInput={wizard.customNeighborhoodInput}
+          setCustomNeighborhoodInput={wizard.setCustomNeighborhoodInput}
+          isLocationConfirmed={wizard.isLocationConfirmed}
+          setIsLocationConfirmed={wizard.setIsLocationConfirmed}
+          resolvedNeighborhood={wizard.resolvedNeighborhood}
+          loading={loading}
+          submitError={submitError}
+          onSubmit={handleCommercialSubmit}
+          profile={profile ?? null}
+        />
+      );
     }
 
     if (isSalePath) {

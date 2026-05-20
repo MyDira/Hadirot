@@ -42,7 +42,6 @@ export function Step6CommercialContactAndReview({
     if (profile?.phone && !formData.contact_phone) {
       updateFormData({ contact_phone: profile.phone });
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile]);
 
   const canSubmit =
@@ -256,8 +255,7 @@ export function Step6CommercialContactAndReview({
                   .slice(0, 8)
                   .map(m => (
                     <div key={m.id} className="relative aspect-square rounded-md overflow-hidden border border-gray-200">
-                      {/* eslint-disable-next-line jsx-a11y/alt-text */}
-                      <img src={m.url} className="w-full h-full object-cover" />
+                      <img src={m.url} alt="Listing photo" className="w-full h-full object-cover" />
                       {m.is_featured && (
                         <span className="absolute top-1 left-1 text-[10px] px-1.5 py-0.5 rounded bg-accent-500 text-white">
                           Cover

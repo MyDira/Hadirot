@@ -72,10 +72,6 @@ function BuildingFields({
   formData: CommercialListingFormData;
   update: (u: Partial<CommercialListingFormData>) => void;
 }) {
-  const subleaseVal: boolean | null =
-    (formData as any).sublease === true ? true : (formData as any).sublease === false ? false : null;
-  const _ = subleaseVal; // sublease lives in Lease Terms below; placeholder ref to avoid lint
-  void _;
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-4 pt-3">
       <div>
