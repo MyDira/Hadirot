@@ -160,7 +160,7 @@ export function Step1CommercialTypeAndPricing({
                   key={opt.value}
                   type="button"
                   onClick={() => handleTypeClick(opt.value)}
-                  className={`flex flex-col items-center justify-center gap-1.5 p-2 rounded-xl border-2 text-center transition-all aspect-square ${
+                  className={`flex flex-col items-center justify-center gap-1.5 p-2 rounded-xl border-2 text-center transition-all h-[90px] ${
                     selected
                       ? 'border-brand-700 bg-brand-50 text-brand-800'
                       : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300'
@@ -203,35 +203,34 @@ export function Step1CommercialTypeAndPricing({
           </div>
         )}
 
-        {/* Sizing + Pricing — inline row */}
+        {/* Sizing + Pricing — full-width grid */}
         <div className="pt-2 border-t border-gray-100">
-          <div className="flex flex-wrap items-end gap-4">
-
-            {/* Available SF */}
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">
-                Available SF <span className="text-red-500">*</span>
-              </label>
-              <div className="relative w-36">
-                <input
-                  type="number"
-                  min={1}
-                  value={formData.available_sf ?? ''}
-                  onChange={e => updateFormData({ available_sf: e.target.value ? Number(e.target.value) : null })}
-                  placeholder="e.g. 1200"
-                  className="w-full pl-3 pr-10 py-2 border border-gray-300 rounded-md text-sm focus:ring-accent-500 focus:border-accent-500"
-                />
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs">SF</span>
+          {isSale ? (
+            <div className="grid grid-cols-2 gap-3">
+              {/* Available SF */}
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">
+                  Available SF <span className="text-red-500">*</span>
+                </label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    min={1}
+                    value={formData.available_sf ?? ''}
+                    onChange={e => updateFormData({ available_sf: e.target.value ? Number(e.target.value) : null })}
+                    placeholder="e.g. 1200"
+                    className="w-full pl-3 pr-10 py-2 border border-gray-300 rounded-md text-sm focus:ring-accent-500 focus:border-accent-500"
+                  />
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs">SF</span>
+                </div>
               </div>
-            </div>
 
-            {isSale ? (
-              /* Sale: Asking Price */
+              {/* Asking Price */}
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">
                   Asking Price <span className="text-red-500">*</span>
                 </label>
-                <div className="relative w-44">
+                <div className="relative">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
                   <input
                     type="number"
@@ -244,66 +243,90 @@ export function Step1CommercialTypeAndPricing({
                     className="w-full pl-7 pr-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-accent-500 focus:border-accent-500 disabled:bg-gray-50 disabled:text-gray-400"
                   />
                 </div>
+                <label className="flex items-center gap-2 cursor-pointer text-xs text-gray-600 mt-2">
+                  <input
+                    type="checkbox"
+                    checked={!!formData.call_for_price}
+                    onChange={e => updateFormData({ call_for_price: e.target.checked })}
+                    className="h-3.5 w-3.5 text-accent-500 focus:ring-accent-500 border-gray-300 rounded"
+                  />
+                  Contact for pricing
+                </label>
               </div>
-            ) : (
-              <>
-                {/* Lease: Monthly Rent */}
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">
-                    Monthly Rent <span className="text-red-500">*</span>
-                  </label>
-                  <div className="relative w-36">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
-                    <input
-                      type="number"
-                      min={1}
-                      value={formData.price ?? ''}
-                      onChange={e => updateFormData({ price: e.target.value ? Number(e.target.value) : null })}
-                      placeholder="e.g. 5,500"
-                      disabled={!!formData.call_for_price}
-                      className="w-full pl-7 pr-10 py-2 border border-gray-300 rounded-md text-sm focus:ring-accent-500 focus:border-accent-500 disabled:bg-gray-50 disabled:text-gray-400"
-                    />
-                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs">/mo</span>
-                  </div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-3 gap-3">
+              {/* Available SF */}
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">
+                  Available SF <span className="text-red-500">*</span>
+                </label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    min={1}
+                    value={formData.available_sf ?? ''}
+                    onChange={e => updateFormData({ available_sf: e.target.value ? Number(e.target.value) : null })}
+                    placeholder="e.g. 1200"
+                    className="w-full pl-3 pr-10 py-2 border border-gray-300 rounded-md text-sm focus:ring-accent-500 focus:border-accent-500"
+                  />
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs">SF</span>
                 </div>
+              </div>
 
-                {/* Lease: Price / SF / yr */}
-                {!formData.call_for_price && (
-                  <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">
-                      $/SF/yr <span className="text-gray-400 font-normal">(auto)</span>
-                    </label>
-                    <div className="relative w-32">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
-                      <input
-                        type="number"
-                        min={0}
-                        step={0.01}
-                        value={formData.price_per_sf_year ?? ''}
-                        onChange={e => {
-                          pricePerSfManuallyEdited.current = true;
-                          updateFormData({ price_per_sf_year: e.target.value ? Number(e.target.value) : null });
-                        }}
-                        placeholder="—"
-                        className="w-full pl-7 pr-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-accent-500 focus:border-accent-500"
-                      />
-                    </div>
-                  </div>
-                )}
-              </>
-            )}
+              {/* Monthly Rent */}
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">
+                  Monthly Rent <span className="text-red-500">*</span>
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
+                  <input
+                    type="number"
+                    min={1}
+                    value={formData.price ?? ''}
+                    onChange={e => updateFormData({ price: e.target.value ? Number(e.target.value) : null })}
+                    placeholder="e.g. 5,500"
+                    disabled={!!formData.call_for_price}
+                    className="w-full pl-7 pr-10 py-2 border border-gray-300 rounded-md text-sm focus:ring-accent-500 focus:border-accent-500 disabled:bg-gray-50 disabled:text-gray-400"
+                  />
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs">/mo</span>
+                </div>
+                <label className="flex items-center gap-2 cursor-pointer text-xs text-gray-600 mt-2">
+                  <input
+                    type="checkbox"
+                    checked={!!formData.call_for_price}
+                    onChange={e => updateFormData({ call_for_price: e.target.checked })}
+                    className="h-3.5 w-3.5 text-accent-500 focus:ring-accent-500 border-gray-300 rounded"
+                  />
+                  Contact for pricing
+                </label>
+              </div>
 
-            {/* Contact for pricing */}
-            <label className="flex items-center gap-2 cursor-pointer text-sm text-gray-700 pb-2">
-              <input
-                type="checkbox"
-                checked={!!formData.call_for_price}
-                onChange={e => updateFormData({ call_for_price: e.target.checked })}
-                className="h-4 w-4 text-accent-500 focus:ring-accent-500 border-gray-300 rounded"
-              />
-              Contact for pricing
-            </label>
-          </div>
+              {/* $/SF/yr */}
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">
+                  $/SF/yr <span className="text-gray-400 font-normal">(auto)</span>
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
+                  <input
+                    type="number"
+                    min={0}
+                    step={0.01}
+                    value={formData.price_per_sf_year ?? ''}
+                    onChange={e => {
+                      pricePerSfManuallyEdited.current = true;
+                      updateFormData({ price_per_sf_year: e.target.value ? Number(e.target.value) : null });
+                    }}
+                    placeholder="—"
+                    disabled={!!formData.call_for_price}
+                    className="w-full pl-7 pr-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-accent-500 focus:border-accent-500 disabled:bg-gray-50 disabled:text-gray-400"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </StepShell>
 
