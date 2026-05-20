@@ -201,18 +201,6 @@ export function Step6CommercialContactAndReview({
               className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-accent-500 focus:border-accent-500"
             />
           </div>
-          <div className="sm:col-span-2">
-            <label className="block text-sm font-medium text-gray-700 mb-1">Posting As</label>
-            <select
-              value={formData.admin_listing_type_display || 'agent'}
-              onChange={e => updateFormData({ admin_listing_type_display: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-accent-500 focus:border-accent-500 bg-white"
-            >
-              <option value="agent">Agent / Broker</option>
-              <option value="owner">Owner</option>
-              <option value="management">Management</option>
-            </select>
-          </div>
         </div>
       </div>
 
