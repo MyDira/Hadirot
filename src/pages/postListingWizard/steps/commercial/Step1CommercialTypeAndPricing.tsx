@@ -22,14 +22,14 @@ const TIPS: StepTipsData = {
 };
 
 const SPACE_TYPES: { value: CommercialSpaceType; label: string; icon: React.ReactNode }[] = [
-  { value: 'storefront',          label: 'Retail / Storefront', icon: <Store className="w-6 h-6" /> },
-  { value: 'restaurant',          label: 'Restaurant',          icon: <UtensilsCrossed className="w-6 h-6" /> },
-  { value: 'office',              label: 'Office',              icon: <Briefcase className="w-6 h-6" /> },
-  { value: 'warehouse',           label: 'Warehouse',           icon: <Warehouse className="w-6 h-6" /> },
-  { value: 'industrial',          label: 'Industrial',          icon: <Factory className="w-6 h-6" /> },
-  { value: 'mixed_use',           label: 'Mixed Use',           icon: <Building2 className="w-6 h-6" /> },
-  { value: 'community_facility',  label: 'Community Facility',  icon: <Users className="w-6 h-6" /> },
-  { value: 'basement_commercial', label: 'Basement Commercial', icon: <ArrowDownToLine className="w-6 h-6" /> },
+  { value: 'storefront',          label: 'Retail / Storefront', icon: <Store className="w-8 h-8" /> },
+  { value: 'restaurant',          label: 'Restaurant',          icon: <UtensilsCrossed className="w-8 h-8" /> },
+  { value: 'office',              label: 'Office',              icon: <Briefcase className="w-8 h-8" /> },
+  { value: 'warehouse',           label: 'Warehouse',           icon: <Warehouse className="w-8 h-8" /> },
+  { value: 'industrial',          label: 'Industrial',          icon: <Factory className="w-8 h-8" /> },
+  { value: 'mixed_use',           label: 'Mixed Use',           icon: <Building2 className="w-8 h-8" /> },
+  { value: 'community_facility',  label: 'Community Facility',  icon: <Users className="w-8 h-8" /> },
+  { value: 'basement_commercial', label: 'Basement Commercial', icon: <ArrowDownToLine className="w-8 h-8" /> },
 ];
 
 const TYPE_SPECIFIC_RESET: Partial<CommercialListingFormData> = {
@@ -160,7 +160,7 @@ export function Step1CommercialTypeAndPricing({
                   key={opt.value}
                   type="button"
                   onClick={() => handleTypeClick(opt.value)}
-                  className={`flex flex-col items-center justify-center gap-1.5 p-2 rounded-xl border-2 text-center transition-all aspect-square ${
+                  className={`flex flex-col items-center justify-center gap-1 p-1.5 rounded-xl border-2 text-center transition-all aspect-square ${
                     selected
                       ? 'border-brand-700 bg-brand-50 text-brand-800'
                       : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300'
