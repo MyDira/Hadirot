@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { ListingFormData } from '../postListing/types';
 import { INITIAL_FORM_DATA } from '../postListing/types';
+import type { CommercialListingFormData } from '../postCommercial/commercialTypes';
+import { INITIAL_COMMERCIAL_FORM_DATA } from '../postCommercial/commercialTypes';
 import type { GoogleStreetFeature } from '../../components/listing/GoogleStreetAutocomplete';
 
 export type WizardPath =
@@ -12,6 +14,11 @@ export type WizardPath =
 
 export const RESIDENTIAL_RENT_STEPS = 6;
 export const RESIDENTIAL_SALE_STEPS = 6;
+export const COMMERCIAL_STEPS = 6;
+
+export function isCommercialPath(path: WizardPath | null): boolean {
+  return path === 'commercial_lease' || path === 'commercial_sale';
+}
 
 interface PersistedState {
   selectedPath: WizardPath | null;
@@ -19,6 +26,7 @@ interface PersistedState {
   /** Furthest step the user has ever reached by pressing Continue. */
   highWaterStep: number;
   formData: ListingFormData;
+  commercialFormData?: CommercialListingFormData;
   crossStreetAFeature: GoogleStreetFeature | null;
   crossStreetBFeature: GoogleStreetFeature | null;
   neighborhoodSelectValue: string;
@@ -63,11 +71,22 @@ const SALE_INITIAL: ListingFormData = {
   parking: 'no',
 };
 
+const COMMERCIAL_LEASE_INITIAL: CommercialListingFormData = {
+  ...INITIAL_COMMERCIAL_FORM_DATA,
+  listing_type: 'rental',
+};
+
+const COMMERCIAL_SALE_INITIAL: CommercialListingFormData = {
+  ...INITIAL_COMMERCIAL_FORM_DATA,
+  listing_type: 'sale',
+};
+
 export function useWizardState(userId: string | null) {
   const [selectedPath, setSelectedPathRaw] = useState<WizardPath | null>(null);
   const [currentStep, setCurrentStep] = useState(0);
   const [highWaterStep, setHighWaterStep] = useState(0);
   const [formData, setFormData] = useState<ListingFormData>(RENTAL_INITIAL);
+  const [commercialFormData, setCommercialFormData] = useState<CommercialListingFormData>(COMMERCIAL_LEASE_INITIAL);
   const [crossStreetAFeature, setCrossStreetAFeature] = useState<GoogleStreetFeature | null>(null);
   const [crossStreetBFeature, setCrossStreetBFeature] = useState<GoogleStreetFeature | null>(null);
   const [neighborhoodSelectValue, setNeighborhoodSelectValue] = useState('');
@@ -85,6 +104,9 @@ export function useWizardState(userId: string | null) {
       setCurrentStep(saved.currentStep);
       setHighWaterStep(saved.highWaterStep ?? saved.currentStep);
       setFormData(saved.formData);
+      if (saved.commercialFormData) {
+        setCommercialFormData(saved.commercialFormData);
+      }
       setCrossStreetAFeature(saved.crossStreetAFeature);
       setCrossStreetBFeature(saved.crossStreetBFeature);
       setNeighborhoodSelectValue(saved.neighborhoodSelectValue);
@@ -101,13 +123,14 @@ export function useWizardState(userId: string | null) {
       currentStep,
       highWaterStep,
       formData,
+      commercialFormData,
       crossStreetAFeature,
       crossStreetBFeature,
       neighborhoodSelectValue,
       customNeighborhoodInput,
     });
     setLastSavedAt(new Date());
-  }, [initialized, userId, selectedPath, currentStep, highWaterStep, formData, crossStreetAFeature, crossStreetBFeature, neighborhoodSelectValue, customNeighborhoodInput]);
+  }, [initialized, userId, selectedPath, currentStep, highWaterStep, formData, commercialFormData, crossStreetAFeature, crossStreetBFeature, neighborhoodSelectValue, customNeighborhoodInput]);
 
   // heat ↔ utilities_included bidirectional sync (verbatim from PostListing.tsx)
   useEffect(() => {
@@ -126,6 +149,10 @@ export function useWizardState(userId: string | null) {
     setFormData(prev => ({ ...prev, ...updates }));
   }, []);
 
+  const updateCommercialFormData = useCallback((updates: Partial<CommercialListingFormData>) => {
+    setCommercialFormData(prev => ({ ...prev, ...updates }));
+  }, []);
+
   const setSelectedPath = useCallback((path: WizardPath | null) => {
     setSelectedPathRaw(path);
     setCurrentStep(0);
@@ -138,6 +165,18 @@ export function useWizardState(userId: string | null) {
       setCustomNeighborhoodInput('');
     } else if (path === 'residential_sale') {
       setFormData({ ...SALE_INITIAL });
+      setCrossStreetAFeature(null);
+      setCrossStreetBFeature(null);
+      setNeighborhoodSelectValue('');
+      setCustomNeighborhoodInput('');
+    } else if (path === 'commercial_lease') {
+      setCommercialFormData({ ...COMMERCIAL_LEASE_INITIAL });
+      setCrossStreetAFeature(null);
+      setCrossStreetBFeature(null);
+      setNeighborhoodSelectValue('');
+      setCustomNeighborhoodInput('');
+    } else if (path === 'commercial_sale') {
+      setCommercialFormData({ ...COMMERCIAL_SALE_INITIAL });
       setCrossStreetAFeature(null);
       setCrossStreetBFeature(null);
       setNeighborhoodSelectValue('');
@@ -162,6 +201,7 @@ export function useWizardState(userId: string | null) {
     setCurrentStep(0);
     setHighWaterStep(0);
     setFormData(RENTAL_INITIAL);
+    setCommercialFormData(COMMERCIAL_LEASE_INITIAL);
     setCrossStreetAFeature(null);
     setCrossStreetBFeature(null);
     setNeighborhoodSelectValue('');
@@ -186,6 +226,9 @@ export function useWizardState(userId: string | null) {
     formData,
     updateFormData,
     setFormData,
+    commercialFormData,
+    updateCommercialFormData,
+    setCommercialFormData,
     crossStreetAFeature,
     setCrossStreetAFeature,
     crossStreetBFeature,

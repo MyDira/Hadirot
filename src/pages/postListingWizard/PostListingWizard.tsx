@@ -8,7 +8,7 @@ import { listingsService, getExpirationDate, getAdminActiveDays } from '../../se
 import { salesService } from '../../services/sales';
 import { PermissionRequestModal } from '../postListing/PermissionRequestModal';
 import { useListingMedia } from '../listing/useListingMedia';
-import { useWizardState, type WizardPath } from './useWizardState';
+import { useWizardState, type WizardPath, isCommercialPath } from './useWizardState';
 import { WizardUIContext } from './WizardContext';
 import { PathPicker } from './PathPicker';
 import { WizardBreadcrumb } from './WizardBreadcrumb';
@@ -25,6 +25,14 @@ import { Step4SaleLocation } from './steps/sale/Step4SaleLocation';
 import { Step5SaleConditionAndStatus } from './steps/sale/Step5SaleConditionAndStatus';
 import { Step6SaleOptionalFeatures } from './steps/sale/Step6SaleOptionalFeatures';
 import { Step7SaleContactAndReview } from './steps/sale/Step7SaleContactAndReview';
+import { Step1CommercialTypeAndPricing } from './steps/commercial/Step1CommercialTypeAndPricing';
+import { Step2CommercialShowItOff } from './steps/commercial/Step2CommercialShowItOff';
+import { Step3CommercialLocation } from './steps/commercial/Step3CommercialLocation';
+import { Step4CommercialSpaceDetails } from './steps/commercial/Step4CommercialSpaceDetails';
+import { Step5CommercialOptionalDetails } from './steps/commercial/Step5CommercialOptionalDetails';
+import { Step6CommercialContactAndReview } from './steps/commercial/Step6CommercialContactAndReview';
+import { commercialListingsService } from '../../services/commercialListings';
+import type { MediaFile } from '../../components/shared/MediaUploader';
 
 const RENTAL_STEP_LABELS = [
   'Property & Layout',
@@ -44,13 +52,22 @@ const SALE_STEP_LABELS = [
   'Contact & Review',
 ];
 
+const COMMERCIAL_STEP_LABELS = [
+  'Type & Pricing',
+  'Photos & Description',
+  'Location',
+  'Space Details',
+  'Optional Details',
+  'Contact & Review',
+];
+
 // ── Change Listing Type dropdown ──────────────────────────────────────────────
 
 const LISTING_TYPE_OPTIONS: { path: WizardPath; label: string; sub: string; comingSoon?: boolean }[] = [
   { path: 'residential_rent', label: 'Residential Rental', sub: 'Apartment, room, house for rent' },
   { path: 'residential_sale', label: 'Residential Sale',   sub: 'House, condo, co-op for sale'   },
-  { path: 'commercial_lease', label: 'Commercial Lease',   sub: 'Office, retail, industrial',     comingSoon: true },
-  { path: 'commercial_sale',  label: 'Commercial Sale',    sub: 'Office, retail, industrial',     comingSoon: true },
+  { path: 'commercial_lease', label: 'Commercial Rental',  sub: 'Office, retail, industrial'     },
+  { path: 'commercial_sale',  label: 'Commercial Sale',    sub: 'Office, retail, industrial'     },
 ];
 
 function ChangeListingTypeButton({
@@ -142,6 +159,12 @@ export function PostListingWizard() {
   const wizard = useWizardState(user?.id ?? null);
 
   const isSalePath = wizard.selectedPath === 'residential_sale';
+  const isCommercial = isCommercialPath(wizard.selectedPath);
+  const isCommercialSale = wizard.selectedPath === 'commercial_sale';
+
+  // Commercial paths manage media locally (matches legacy /post-commercial flow).
+  const [commercialMediaFiles, setCommercialMediaFiles] = useState<MediaFile[]>([]);
+  const [uploadingCommercialMedia, setUploadingCommercialMedia] = useState(false);
 
   const {
     mediaFiles,
@@ -156,6 +179,49 @@ export function PostListingWizard() {
     isSaleListing: isSalePath,
     allowAnonymous: true,
   });
+
+  const handleCommercialMediaAdd = async (files: File[]) => {
+    setUploadingCommercialMedia(true);
+    try {
+      const newFiles: MediaFile[] = files
+        .filter(file => {
+          const isImage = file.type.startsWith('image/');
+          const isVideo =
+            file.type === 'video/mp4' ||
+            file.type === 'video/webm' ||
+            file.type === 'video/quicktime';
+          return isImage || isVideo;
+        })
+        .map(file => ({
+          id: `${Date.now()}-${Math.random()}`,
+          type: file.type.startsWith('image/') ? ('image' as const) : ('video' as const),
+          file,
+          url: URL.createObjectURL(file),
+          is_featured: false,
+          originalName: file.name,
+        }));
+      if (newFiles.length > 0 && !commercialMediaFiles.some(m => m.is_featured)) {
+        newFiles[0].is_featured = true;
+      }
+      setCommercialMediaFiles(prev => [...prev, ...newFiles]);
+    } finally {
+      setUploadingCommercialMedia(false);
+    }
+  };
+
+  const handleCommercialMediaRemove = (id: string) => {
+    setCommercialMediaFiles(prev => {
+      const filtered = prev.filter(m => m.id !== id);
+      if (!filtered.some(m => m.is_featured) && filtered.length > 0) {
+        filtered[0] = { ...filtered[0], is_featured: true };
+      }
+      return filtered;
+    });
+  };
+
+  const handleCommercialSetFeatured = (id: string) => {
+    setCommercialMediaFiles(prev => prev.map(m => ({ ...m, is_featured: m.id === id })));
+  };
 
   // Load sales permission flags
   useEffect(() => {
@@ -202,6 +268,10 @@ export function PostListingWizard() {
       setShowPermissionModal(true);
       return;
     }
+    // Reset commercial media when switching paths
+    if (isCommercialPath(path)) {
+      setCommercialMediaFiles([]);
+    }
     wizard.setSelectedPath(path);
   };
 
@@ -223,6 +293,179 @@ export function PostListingWizard() {
   const handleGoToStep = (step: number) => {
     wizard.goToStep(step);
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleCommercialSubmit = async () => {
+    if (!user) { setShowAuthModal(true); return; }
+    setLoading(true);
+    setSubmitError(null);
+
+    try {
+      const fd = wizard.commercialFormData;
+      const { rentalDays, saleDays } = await getAdminActiveDays();
+      const activeDays = isCommercialSale ? saleDays : rentalDays;
+      const expiresAt = getExpirationDate(
+        isCommercialSale ? 'sale' : 'rental',
+        isCommercialSale ? 'available' : undefined,
+        activeDays
+      );
+
+      const cross_street_a = wizard.crossStreetAFeature?.streetName || null;
+      const cross_street_b = wizard.crossStreetBFeature?.streetName || null;
+
+      const autoTitle =
+        fd.title.trim() ||
+        [
+          fd.full_address || (cross_street_a && cross_street_b ? `${cross_street_a} & ${cross_street_b}` : ''),
+          fd.commercial_space_type
+            ? fd.commercial_space_type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
+            : '',
+        ]
+          .filter(Boolean)
+          .join(' — ');
+
+      const payload = {
+        user_id: user.id,
+        agency_id: null,
+        listing_type: (isCommercialSale ? 'sale' : 'rental') as 'rental' | 'sale',
+        is_commercial: true,
+        title: autoTitle || null,
+        description: fd.description || null,
+        neighborhood: wizard.resolvedNeighborhood || fd.neighborhood || null,
+        full_address: fd.full_address || null,
+        cross_street_a,
+        cross_street_b,
+        latitude: fd.latitude,
+        longitude: fd.longitude,
+        price: !isCommercialSale && !fd.call_for_price ? fd.price : null,
+        asking_price: isCommercialSale && !fd.call_for_price ? fd.asking_price : null,
+        call_for_price: fd.call_for_price,
+        contact_name: fd.contact_name,
+        contact_phone: fd.contact_phone,
+        is_featured: false,
+        featured_expires_at: null,
+        featured_started_at: null,
+        featured_plan: null,
+        is_active: false,
+        approved: false,
+        expires_at: expiresAt.toISOString(),
+        deactivated_at: null,
+        last_published_at: null,
+        last_deactivation_email_sent_at: null,
+        views: 0,
+        impressions: 0,
+        direct_views: 0,
+        admin_custom_agency_name: null,
+        admin_listing_type_display: fd.admin_listing_type_display || null,
+        video_url: fd.video_url || null,
+        video_thumbnail_url: null,
+        commercial_space_type: fd.commercial_space_type,
+        commercial_subtype: fd.commercial_subtype,
+        available_sf: fd.available_sf,
+        price_per_sf_year: !isCommercialSale ? fd.price_per_sf_year : null,
+        lease_type: fd.lease_type,
+        build_out_condition: fd.build_out_condition,
+        floor_level: fd.floor_level || null,
+        ceiling_height_ft: fd.ceiling_height_ft,
+        frontage_ft: fd.frontage_ft,
+        clear_height_ft: fd.clear_height_ft,
+        loading_docks: fd.loading_docks,
+        drive_in_doors: fd.drive_in_doors,
+        building_class: fd.building_class,
+        exam_rooms: fd.exam_rooms,
+        kitchen_exhaust: fd.kitchen_exhaust,
+        grease_trap: fd.grease_trap,
+        corner_location: fd.corner_location,
+        three_phase_power: fd.three_phase_power,
+        private_offices: fd.private_offices,
+        ada_accessible: fd.ada_accessible,
+        separate_entrance: fd.separate_entrance,
+        previous_use: fd.previous_use || null,
+        seating_capacity: fd.seating_capacity,
+        gas_line: fd.gas_line,
+        total_building_sf: fd.total_building_sf,
+        construction_type: fd.construction_type || null,
+        parking_spaces: fd.parking_spaces,
+        parking_type: fd.parking_type || null,
+        parking_ratio: fd.parking_ratio || null,
+        signage_rights: fd.signage_rights,
+        private_entrance: fd.private_entrance,
+        elevator_count: fd.elevator_count,
+        freight_elevator_count: fd.freight_elevator_count,
+        zoning_code: fd.zoning_code || null,
+        sprinkler_type: fd.sprinkler_type || null,
+        electrical_amps: fd.electrical_amps,
+        electrical_voltage: fd.electrical_voltage || null,
+        rail_access: fd.rail_access,
+        column_spacing: fd.column_spacing || null,
+        hvac_type: fd.hvac_type || null,
+        foot_traffic_vpd: fd.foot_traffic_vpd,
+        liquor_license_transferable: fd.liquor_license_transferable,
+        conference_rooms: fd.conference_rooms,
+        capacity_min: fd.capacity_min,
+        capacity_max: fd.capacity_max,
+        layout_type: fd.layout_type || null,
+        plumbing_wet_columns: fd.plumbing_wet_columns,
+        waiting_room: fd.waiting_room,
+        natural_light: fd.natural_light,
+        ventilation: fd.ventilation,
+        moisture_waterproofing: fd.moisture_waterproofing,
+        outdoor_space: fd.outdoor_space || null,
+        permitted_uses_commercial: fd.permitted_uses_commercial || null,
+        use_restrictions: fd.use_restrictions || null,
+        occupancy_limit: fd.occupancy_limit,
+        office_warehouse_ratio: fd.office_warehouse_ratio || null,
+        floor_load_capacity: fd.floor_load_capacity || null,
+        truck_court_depth: fd.truck_court_depth || null,
+        crane_capacity: fd.crane_capacity || null,
+        use_breakdown: fd.use_breakdown || null,
+        current_rental_income: fd.current_rental_income,
+        year_built: fd.year_built,
+        year_renovated: fd.year_renovated,
+        number_of_floors: fd.number_of_floors,
+        unit_count: fd.unit_count,
+        lease_term_text: fd.lease_term_text || null,
+        cam_per_sf: fd.cam_per_sf,
+        expense_stop_per_sf: fd.expense_stop_per_sf,
+        ti_allowance_per_sf: fd.ti_allowance_per_sf,
+        renewal_options: fd.renewal_options || null,
+        escalation: fd.escalation || null,
+        sublease: fd.sublease,
+        security_deposit: fd.security_deposit || null,
+        available_date: fd.available_date || null,
+        cap_rate: fd.cap_rate,
+        noi: fd.noi,
+        property_taxes_annual: fd.property_taxes_annual,
+        tenancy_type: fd.tenancy_type,
+        current_lease_tenant: fd.current_lease_tenant || null,
+        current_lease_expiration: fd.current_lease_expiration || null,
+        current_lease_rent: fd.current_lease_rent,
+      };
+
+      const listing = await commercialListingsService.createCommercialListing(payload as any);
+
+      // Upload images
+      const imageFiles = commercialMediaFiles.filter(m => m.type === 'image' && m.file);
+      for (let i = 0; i < imageFiles.length; i++) {
+        const mf = imageFiles[i];
+        if (!mf.file) continue;
+        try {
+          const url = await commercialListingsService.uploadCommercialListingImage(mf.file, listing.id);
+          await commercialListingsService.addCommercialListingImage(listing.id, url, mf.is_featured, i);
+        } catch (err) {
+          console.error('Failed to upload commercial image:', err);
+          Sentry.captureException(err);
+        }
+      }
+
+      wizard.clearDraft();
+      setCommercialMediaFiles([]);
+      navigate(`/dashboard?new_listing=true&listing_id=${listing.id}`);
+    } catch (err: any) {
+      Sentry.captureException(err);
+      setSubmitError(err?.message || 'Something went wrong. Please try again.');
+      setLoading(false);
+    }
   };
 
   const handleSubmit = async () => {
@@ -406,7 +649,11 @@ export function PostListingWizard() {
     );
   }
 
-  if (wizard.selectedPath !== 'residential_rent' && wizard.selectedPath !== 'residential_sale') {
+  if (
+    wizard.selectedPath !== 'residential_rent' &&
+    wizard.selectedPath !== 'residential_sale' &&
+    !isCommercial
+  ) {
     return <ComingSoon onBack={() => wizard.setSelectedPath(null)} />;
   }
 
@@ -417,7 +664,69 @@ export function PostListingWizard() {
     onBack: handleBack,
   };
 
+  const commercialStepProps = {
+    formData: wizard.commercialFormData,
+    updateFormData: wizard.updateCommercialFormData,
+    isSale: isCommercialSale,
+    onNext: handleNext,
+    onBack: handleBack,
+  };
+
   const renderStep = () => {
+    if (isCommercial) {
+      switch (wizard.currentStep) {
+        case 0:
+          return <Step1CommercialTypeAndPricing {...commercialStepProps} />;
+        case 1:
+          return (
+            <Step2CommercialShowItOff
+              {...commercialStepProps}
+              mediaFiles={commercialMediaFiles}
+              uploadingMedia={uploadingCommercialMedia}
+              onMediaAdd={handleCommercialMediaAdd}
+              onMediaRemove={handleCommercialMediaRemove}
+              onSetFeatured={handleCommercialSetFeatured}
+              maxAllowedFiles={20}
+            />
+          );
+        case 2:
+          return (
+            <Step3CommercialLocation
+              {...commercialStepProps}
+              crossStreetAFeature={wizard.crossStreetAFeature}
+              setCrossStreetAFeature={wizard.setCrossStreetAFeature}
+              crossStreetBFeature={wizard.crossStreetBFeature}
+              setCrossStreetBFeature={wizard.setCrossStreetBFeature}
+              neighborhoodSelectValue={wizard.neighborhoodSelectValue}
+              setNeighborhoodSelectValue={wizard.setNeighborhoodSelectValue}
+              customNeighborhoodInput={wizard.customNeighborhoodInput}
+              setCustomNeighborhoodInput={wizard.setCustomNeighborhoodInput}
+              isLocationConfirmed={wizard.isLocationConfirmed}
+              setIsLocationConfirmed={wizard.setIsLocationConfirmed}
+            />
+          );
+        case 3:
+          return <Step4CommercialSpaceDetails {...commercialStepProps} />;
+        case 4:
+          return <Step5CommercialOptionalDetails {...commercialStepProps} />;
+        case 5:
+          return (
+            <Step6CommercialContactAndReview
+              {...commercialStepProps}
+              mediaFiles={commercialMediaFiles}
+              resolvedNeighborhood={wizard.resolvedNeighborhood}
+              loading={loading}
+              uploadingMedia={uploadingCommercialMedia}
+              submitError={submitError}
+              onSubmit={handleCommercialSubmit}
+              profile={profile ?? null}
+            />
+          );
+        default:
+          return null;
+      }
+    }
+
     if (isSalePath) {
       switch (wizard.currentStep) {
         case 0:
@@ -526,7 +835,11 @@ export function PostListingWizard() {
     }
   };
 
-  const stepLabels = isSalePath ? SALE_STEP_LABELS : RENTAL_STEP_LABELS;
+  const stepLabels = isCommercial
+    ? COMMERCIAL_STEP_LABELS
+    : isSalePath
+    ? SALE_STEP_LABELS
+    : RENTAL_STEP_LABELS;
   const totalSteps = stepLabels.length;
 
   return (
@@ -545,7 +858,9 @@ export function PostListingWizard() {
             <h1 className="text-lg font-bold text-gray-900">Post a Listing</h1>
             <span className="inline-flex items-center gap-1.5 text-xs font-medium bg-accent-50 text-accent-700 border border-accent-200 px-2.5 py-1 rounded-full">
               <span className="w-1.5 h-1.5 rounded-full bg-accent-500 flex-shrink-0" />
-              {isSalePath ? 'Residential · For sale' : 'Residential · For rent'}
+              {isCommercial
+                ? (isCommercialSale ? 'Commercial · For sale' : 'Commercial · For rent')
+                : (isSalePath ? 'Residential · For sale' : 'Residential · For rent')}
             </span>
           </div>
 
