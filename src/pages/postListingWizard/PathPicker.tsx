@@ -16,7 +16,7 @@ const CARDS: PathCard[] = [
     path: 'residential_rent',
     icon: <Home className="w-9 h-9" />,
     title: 'Residential Rental',
-    description: 'Apartments, houses & rooms for rent',
+    description: 'Apartments & houses for rent',
     active: true,
   },
   {
@@ -76,7 +76,7 @@ export function PathPicker({ onSelect }: PathPickerProps) {
             type="button"
             onClick={() => card.active && onSelect(card.path)}
             disabled={!card.active}
-            className={`flex flex-col items-center justify-center gap-2.5 p-4 rounded-2xl border-2 text-center transition-all ${
+            className={`aspect-square flex flex-col items-center justify-center gap-2.5 p-4 rounded-2xl border-2 text-center transition-all ${
               card.active
                 ? 'border-gray-200 bg-white hover:border-accent-500 hover:shadow-md cursor-pointer'
                 : 'border-gray-100 bg-gray-50 cursor-not-allowed opacity-60'
