@@ -152,7 +152,7 @@ export function Step1CommercialTypeAndPricing({
           <label className="block text-sm font-medium text-gray-700 mb-3">
             Space Type <span className="text-red-500">*</span>
           </label>
-          <div className="grid grid-cols-4 gap-2 max-w-xs">
+          <div className="grid grid-cols-4 gap-2">
             {SPACE_TYPES.map(opt => {
               const selected = formData.commercial_space_type === opt.value;
               return (
@@ -160,14 +160,14 @@ export function Step1CommercialTypeAndPricing({
                   key={opt.value}
                   type="button"
                   onClick={() => handleTypeClick(opt.value)}
-                  className={`flex flex-col items-center justify-center gap-1.5 p-2 rounded-xl border-2 text-center transition-all h-[68px] ${
+                  className={`flex flex-col items-center justify-center gap-1.5 p-2 rounded-xl border-2 text-center transition-all h-[76px] ${
                     selected
                       ? 'border-brand-700 bg-brand-50 text-brand-800'
                       : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300'
                   }`}
                 >
                   <span className={selected ? 'text-brand-700' : 'text-gray-400'}>{opt.icon}</span>
-                  <span className="text-[9px] font-medium leading-tight">{opt.label}</span>
+                  <span className="text-[10px] font-medium leading-tight">{opt.label}</span>
                 </button>
               );
             })}
@@ -203,33 +203,35 @@ export function Step1CommercialTypeAndPricing({
           </div>
         )}
 
-        {/* Available SF */}
-        <div className="mb-6">
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Available Square Feet <span className="text-red-500">*</span>
-          </label>
-          <div className="relative w-56">
-            <input
-              type="number"
-              min={1}
-              value={formData.available_sf ?? ''}
-              onChange={e => updateFormData({ available_sf: e.target.value ? Number(e.target.value) : null })}
-              placeholder="e.g. 1200"
-              className="w-full pl-3 pr-12 py-2 border border-gray-300 rounded-md text-sm focus:ring-accent-500 focus:border-accent-500"
-            />
-            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">SF</span>
-          </div>
-        </div>
-
-        {/* Pricing */}
+        {/* Sizing + Pricing — inline row */}
         <div className="pt-2 border-t border-gray-100">
-          {isSale ? (
-            <>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Asking Price <span className="text-red-500">*</span>
+          <div className="flex flex-wrap items-end gap-4">
+
+            {/* Available SF */}
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">
+                Available SF <span className="text-red-500">*</span>
               </label>
-              <div className="flex items-center gap-4 flex-wrap">
-                <div className="relative w-56">
+              <div className="relative w-36">
+                <input
+                  type="number"
+                  min={1}
+                  value={formData.available_sf ?? ''}
+                  onChange={e => updateFormData({ available_sf: e.target.value ? Number(e.target.value) : null })}
+                  placeholder="e.g. 1200"
+                  className="w-full pl-3 pr-10 py-2 border border-gray-300 rounded-md text-sm focus:ring-accent-500 focus:border-accent-500"
+                />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs">SF</span>
+              </div>
+            </div>
+
+            {isSale ? (
+              /* Sale: Asking Price */
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">
+                  Asking Price <span className="text-red-500">*</span>
+                </label>
+                <div className="relative w-44">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
                   <input
                     type="number"
@@ -237,78 +239,71 @@ export function Step1CommercialTypeAndPricing({
                     step={1000}
                     value={formData.asking_price ?? ''}
                     onChange={e => updateFormData({ asking_price: e.target.value ? Number(e.target.value) : null })}
-                    placeholder="e.g. 1500000"
+                    placeholder="e.g. 1,500,000"
                     disabled={!!formData.call_for_price}
                     className="w-full pl-7 pr-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-accent-500 focus:border-accent-500 disabled:bg-gray-50 disabled:text-gray-400"
                   />
                 </div>
-                <label className="flex items-center gap-2 cursor-pointer text-sm text-gray-700">
-                  <input
-                    type="checkbox"
-                    checked={!!formData.call_for_price}
-                    onChange={e => updateFormData({ call_for_price: e.target.checked })}
-                    className="h-4 w-4 text-accent-500 focus:ring-accent-500 border-gray-300 rounded"
-                  />
-                  Contact for pricing
-                </label>
               </div>
-            </>
-          ) : (
-            <>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Monthly Rent <span className="text-red-500">*</span>
-              </label>
-              <div className="flex items-center gap-4 flex-wrap">
-                <div className="relative w-56">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
-                  <input
-                    type="number"
-                    min={1}
-                    value={formData.price ?? ''}
-                    onChange={e => updateFormData({ price: e.target.value ? Number(e.target.value) : null })}
-                    placeholder="e.g. 5500"
-                    disabled={!!formData.call_for_price}
-                    className="w-full pl-7 pr-12 py-2 border border-gray-300 rounded-md text-sm focus:ring-accent-500 focus:border-accent-500 disabled:bg-gray-50 disabled:text-gray-400"
-                  />
-                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs">/ mo</span>
-                </div>
-                <label className="flex items-center gap-2 cursor-pointer text-sm text-gray-700">
-                  <input
-                    type="checkbox"
-                    checked={!!formData.call_for_price}
-                    onChange={e => updateFormData({ call_for_price: e.target.checked })}
-                    className="h-4 w-4 text-accent-500 focus:ring-accent-500 border-gray-300 rounded"
-                  />
-                  Contact for pricing
-                </label>
-              </div>
-
-              {/* Auto-calculated price/SF/year */}
-              {!formData.call_for_price && (
-                <div className="mt-3">
-                  <label className="block text-xs font-medium text-gray-500 mb-1">
-                    Price per SF / year (auto-calculated, editable)
+            ) : (
+              <>
+                {/* Lease: Monthly Rent */}
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">
+                    Monthly Rent <span className="text-red-500">*</span>
                   </label>
-                  <div className="relative w-56">
+                  <div className="relative w-36">
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
                     <input
                       type="number"
-                      min={0}
-                      step={0.01}
-                      value={formData.price_per_sf_year ?? ''}
-                      onChange={e => {
-                        pricePerSfManuallyEdited.current = true;
-                        updateFormData({ price_per_sf_year: e.target.value ? Number(e.target.value) : null });
-                      }}
-                      placeholder="—"
-                      className="w-full pl-7 pr-14 py-2 border border-gray-300 rounded-md text-sm focus:ring-accent-500 focus:border-accent-500"
+                      min={1}
+                      value={formData.price ?? ''}
+                      onChange={e => updateFormData({ price: e.target.value ? Number(e.target.value) : null })}
+                      placeholder="e.g. 5,500"
+                      disabled={!!formData.call_for_price}
+                      className="w-full pl-7 pr-10 py-2 border border-gray-300 rounded-md text-sm focus:ring-accent-500 focus:border-accent-500 disabled:bg-gray-50 disabled:text-gray-400"
                     />
-                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs">/ SF/yr</span>
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs">/mo</span>
                   </div>
                 </div>
-              )}
-            </>
-          )}
+
+                {/* Lease: Price / SF / yr */}
+                {!formData.call_for_price && (
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">
+                      $/SF/yr <span className="text-gray-400 font-normal">(auto)</span>
+                    </label>
+                    <div className="relative w-32">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
+                      <input
+                        type="number"
+                        min={0}
+                        step={0.01}
+                        value={formData.price_per_sf_year ?? ''}
+                        onChange={e => {
+                          pricePerSfManuallyEdited.current = true;
+                          updateFormData({ price_per_sf_year: e.target.value ? Number(e.target.value) : null });
+                        }}
+                        placeholder="—"
+                        className="w-full pl-7 pr-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-accent-500 focus:border-accent-500"
+                      />
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* Contact for pricing */}
+            <label className="flex items-center gap-2 cursor-pointer text-sm text-gray-700 pb-2">
+              <input
+                type="checkbox"
+                checked={!!formData.call_for_price}
+                onChange={e => updateFormData({ call_for_price: e.target.checked })}
+                className="h-4 w-4 text-accent-500 focus:ring-accent-500 border-gray-300 rounded"
+              />
+              Contact for pricing
+            </label>
+          </div>
         </div>
       </StepShell>
 
