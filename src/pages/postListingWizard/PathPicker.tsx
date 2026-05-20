@@ -29,7 +29,7 @@ const CARDS: PathCard[] = [
   {
     path: 'commercial_lease',
     icon: <Store className="w-9 h-9" />,
-    title: 'Commercial Lease',
+    title: 'Commercial Rental',
     description: 'Office, retail & industrial spaces',
     active: false,
   },
@@ -76,7 +76,7 @@ export function PathPicker({ onSelect }: PathPickerProps) {
             type="button"
             onClick={() => card.active && onSelect(card.path)}
             disabled={!card.active}
-            className={`aspect-square flex flex-col items-center justify-center gap-2.5 p-4 rounded-2xl border-2 text-center transition-all ${
+            className={`aspect-[1/0.88] flex flex-col items-center justify-center gap-2 p-3 rounded-2xl border-2 text-center transition-all ${
               card.active
                 ? 'border-gray-200 bg-white hover:border-accent-500 hover:shadow-md cursor-pointer'
                 : 'border-gray-100 bg-gray-50 cursor-not-allowed opacity-60'
