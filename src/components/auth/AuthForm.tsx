@@ -17,9 +17,12 @@ export type AuthSuccessMethod = "email_signin" | "email_signup";
 
 interface AuthFormProps {
   onAuthSuccess?: (info?: { method: AuthSuccessMethod }) => void;
+  // When true, render without the full-page chrome (gray bg, page heading,
+  // inner shadow card). Use this when AuthForm is embedded inside a modal.
+  compact?: boolean;
 }
 
-export function AuthForm({ onAuthSuccess }: AuthFormProps = {}) {
+export function AuthForm({ onAuthSuccess, compact = false }: AuthFormProps = {}) {
   const location = useLocation();
   const [isSignUp, setIsSignUp] = useState(location.state?.isSignUp || false);
   const [showPassword, setShowPassword] = useState(false);
@@ -273,15 +276,33 @@ export function AuthForm({ onAuthSuccess }: AuthFormProps = {}) {
   };
 
   return (
-    <div className="bg-gray-50 flex flex-col justify-center py-8 sm:px-6 lg:px-8">
-      <div className="sm:mx-auto sm:w-full sm:max-w-md">
-        <h2 className="text-center text-3xl font-bold text-gray-900">
-          {isSignUp ? "Create your account" : "Sign in to your account"}
-        </h2>
-      </div>
+    <div
+      className={
+        compact
+          ? "w-full"
+          : "bg-gray-50 flex flex-col justify-center py-8 sm:px-6 lg:px-8"
+      }
+    >
+      {!compact && (
+        <div className="sm:mx-auto sm:w-full sm:max-w-md">
+          <h2 className="text-center text-3xl font-bold text-gray-900">
+            {isSignUp ? "Create your account" : "Sign in to your account"}
+          </h2>
+        </div>
+      )}
 
-      <div className="mt-6 sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10">
+      <div
+        className={
+          compact ? "w-full" : "mt-6 sm:mx-auto sm:w-full sm:max-w-md"
+        }
+      >
+        <div
+          className={
+            compact
+              ? "w-full"
+              : "bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10"
+          }
+        >
           {showForgotPassword ? (
             <form className="space-y-6" onSubmit={handleForgotPassword}>
               {error && (

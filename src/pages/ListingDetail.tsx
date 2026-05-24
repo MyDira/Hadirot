@@ -1506,19 +1506,15 @@ export function ListingDetail() {
       <Modal
         isOpen={authModalOpen}
         onClose={handleAuthModalClose}
-        title={
-          authModalAction === "reveal_phone"
-            ? "Sign in to reveal phone number"
-            : "Sign in to send callback request"
-        }
+        title="Sign in to continue"
       >
-        <div className="space-y-4">
-          <p className="text-gray-600">
+        <div className="space-y-3">
+          <p className="text-sm text-gray-500">
             {authModalAction === "reveal_phone"
-              ? "Please sign in or create an account to see the contact phone number. Your action will continue automatically."
-              : "Please sign in or create an account to send your callback request. Your message will be sent automatically once you're signed in."}
+              ? "We'll show the phone number as soon as you're signed in."
+              : "We'll send your callback request as soon as you're signed in."}
           </p>
-          <AuthForm onAuthSuccess={handleAuthSuccessFromModal} />
+          <AuthForm onAuthSuccess={handleAuthSuccessFromModal} compact />
         </div>
       </Modal>
     </div>
