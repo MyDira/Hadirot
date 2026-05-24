@@ -1,21 +1,41 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Phone } from 'lucide-react';
+import { sendCommercialContactSms } from '../../services/listingContact';
+
+export interface CommercialContactFormData {
+  userName: string;
+  userPhone: string;
+  consentToFollowup: boolean;
+}
 
 interface CommercialContactFormProps {
   commercialListingId: string;
   onSuccess?: () => void;
+  isAuthenticated?: boolean;
+  onAuthRequired?: (formData: CommercialContactFormData) => void;
+  defaultSuccess?: boolean;
 }
 
-export function CommercialContactForm({ commercialListingId, onSuccess }: CommercialContactFormProps) {
-  const [formData, setFormData] = useState({
+export function CommercialContactForm({
+  commercialListingId,
+  onSuccess,
+  isAuthenticated = true,
+  onAuthRequired,
+  defaultSuccess = false,
+}: CommercialContactFormProps) {
+  const [formData, setFormData] = useState<CommercialContactFormData>({
     userName: '',
     userPhone: '',
     consentToFollowup: true,
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState(false);
+  const [success, setSuccess] = useState(defaultSuccess);
+
+  useEffect(() => {
+    if (defaultSuccess) setSuccess(true);
+  }, [defaultSuccess]);
   const [validationErrors, setValidationErrors] = useState({
     userName: '',
     userPhone: '',
@@ -68,49 +88,31 @@ export function CommercialContactForm({ commercialListingId, onSuccess }: Commer
     }
   };
 
-  const getSessionId = (): string => {
-    let sessionId = sessionStorage.getItem('analytics_session_id');
-    if (!sessionId) {
-      sessionId = `${Date.now()}-${Math.random().toString(36).substring(7)}`;
-      sessionStorage.setItem('analytics_session_id', sessionId);
-    }
-    return sessionId;
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!validateForm()) return;
+
+    if (!isAuthenticated && onAuthRequired) {
+      onAuthRequired({
+        userName: formData.userName.trim(),
+        userPhone: formData.userPhone,
+        consentToFollowup: formData.consentToFollowup,
+      });
+      return;
+    }
 
     setLoading(true);
     setError(null);
     setSuccess(false);
 
     try {
-      const functionUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-listing-contact-sms`;
-
-      const response = await fetch(functionUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-        },
-        body: JSON.stringify({
-          isCommercial: true,
-          commercialListingId,
-          userName: formData.userName.trim(),
-          userPhone: formData.userPhone,
-          consentToFollowup: formData.consentToFollowup,
-          sessionId: getSessionId(),
-          userAgent: navigator.userAgent,
-        }),
+      await sendCommercialContactSms({
+        commercialListingId,
+        userName: formData.userName,
+        userPhone: formData.userPhone,
+        consentToFollowup: formData.consentToFollowup,
       });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to send contact request');
-      }
 
       setSuccess(true);
       setFormData({ userName: '', userPhone: '', consentToFollowup: true });

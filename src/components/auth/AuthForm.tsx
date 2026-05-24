@@ -6,44 +6,23 @@ import { useAuth } from "@/hooks/useAuth";
 import { requestPasswordReset } from "../../services/email";
 import { listingsService } from "../../services/listings";
 import { supabase } from "@/config/supabase";
+import {
+  savePendingAuth,
+  consumePendingAuth,
+  type PendingAction,
+  type PendingAuthState,
+} from "@/lib/pendingAuth";
 
-const PENDING_AUTH_KEY = "hadirot_pending_auth";
-
-interface PendingAction {
-  type: "favorite";
-  listingId: string;
-  currentlyFavorited: boolean;
-}
-
-interface PendingAuthState {
-  from?: string;
-  pendingAction?: PendingAction;
-}
-
-function savePendingAuth(state: PendingAuthState) {
-  try {
-    sessionStorage.setItem(PENDING_AUTH_KEY, JSON.stringify(state));
-  } catch (err){
-    console.error("Auth Storage Error:", err);
-  }
-}
-
-function consumePendingAuth(): PendingAuthState | null {
-  try {
-    const raw = sessionStorage.getItem(PENDING_AUTH_KEY);
-    if (!raw) return null;
-    sessionStorage.removeItem(PENDING_AUTH_KEY);
-    return JSON.parse(raw) as PendingAuthState;
-  } catch {
-    return null;
-  }
-}
+export type AuthSuccessMethod = "email_signin" | "email_signup";
 
 interface AuthFormProps {
-  onAuthSuccess?: () => void;
+  onAuthSuccess?: (info?: { method: AuthSuccessMethod }) => void;
+  // When true, render without the full-page chrome (gray bg, page heading,
+  // inner shadow card). Use this when AuthForm is embedded inside a modal.
+  compact?: boolean;
 }
 
-export function AuthForm({ onAuthSuccess }: AuthFormProps = {}) {
+export function AuthForm({ onAuthSuccess, compact = false }: AuthFormProps = {}) {
   const location = useLocation();
   const [isSignUp, setIsSignUp] = useState(location.state?.isSignUp || false);
   const [showPassword, setShowPassword] = useState(false);
@@ -176,7 +155,7 @@ export function AuthForm({ onAuthSuccess }: AuthFormProps = {}) {
       // Post-auth flow (favorite replay + redirect) is handled centrally by
       // the useEffect above. In modal mode we hand off to the caller.
       if (onAuthSuccess) {
-        onAuthSuccess();
+        onAuthSuccess({ method: isSignUp ? "email_signup" : "email_signin" });
       }
     } catch (err) {
       Sentry.captureException(err, {
@@ -297,15 +276,33 @@ export function AuthForm({ onAuthSuccess }: AuthFormProps = {}) {
   };
 
   return (
-    <div className="bg-gray-50 flex flex-col justify-center py-8 sm:px-6 lg:px-8">
-      <div className="sm:mx-auto sm:w-full sm:max-w-md">
-        <h2 className="text-center text-3xl font-bold text-gray-900">
-          {isSignUp ? "Create your account" : "Sign in to your account"}
-        </h2>
-      </div>
+    <div
+      className={
+        compact
+          ? "w-full"
+          : "bg-gray-50 flex flex-col justify-center py-8 sm:px-6 lg:px-8"
+      }
+    >
+      {!compact && (
+        <div className="sm:mx-auto sm:w-full sm:max-w-md">
+          <h2 className="text-center text-3xl font-bold text-gray-900">
+            {isSignUp ? "Create your account" : "Sign in to your account"}
+          </h2>
+        </div>
+      )}
 
-      <div className="mt-6 sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10">
+      <div
+        className={
+          compact ? "w-full" : "mt-6 sm:mx-auto sm:w-full sm:max-w-md"
+        }
+      >
+        <div
+          className={
+            compact
+              ? "w-full"
+              : "bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10"
+          }
+        >
           {showForgotPassword ? (
             <form className="space-y-6" onSubmit={handleForgotPassword}>
               {error && (

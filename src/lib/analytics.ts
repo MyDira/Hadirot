@@ -479,6 +479,54 @@ export function trackMapPinClick(listingId: string): void {
   track('map_pin_click', { listing_id: listingId });
 }
 
+export type LoginGateAction = 'reveal_phone' | 'send_callback';
+export type LoginGateListingType = 'rental' | 'commercial';
+export type LoginGateMethod = 'email_signin' | 'email_signup' | 'google';
+
+interface LoginGateBaseProps {
+  action: LoginGateAction;
+  listingId: string;
+  listingType: LoginGateListingType;
+}
+
+export function trackLoginGateShown(props: LoginGateBaseProps): void {
+  track('login_gate_shown', {
+    action: props.action,
+    listing_id: props.listingId,
+    listing_type: props.listingType,
+  });
+}
+
+export function trackLoginGateDismissed(props: LoginGateBaseProps): void {
+  track('login_gate_dismissed', {
+    action: props.action,
+    listing_id: props.listingId,
+    listing_type: props.listingType,
+  });
+}
+
+export function trackLoginGateAuthSuccess(
+  props: LoginGateBaseProps & { method: LoginGateMethod },
+): void {
+  track('login_gate_auth_success', {
+    action: props.action,
+    listing_id: props.listingId,
+    listing_type: props.listingType,
+    method: props.method,
+  });
+}
+
+export function trackLoginGateActionCompleted(
+  props: LoginGateBaseProps & { method?: LoginGateMethod },
+): void {
+  track('login_gate_action_completed', {
+    action: props.action,
+    listing_id: props.listingId,
+    listing_type: props.listingType,
+    method: props.method,
+  });
+}
+
 function getPostingSession(): { attemptId: string; sessionId: string } {
   const sessionId = ensureSession(Date.now());
   let attemptId = safeSessionGet(POST_ATTEMPT_KEY);
