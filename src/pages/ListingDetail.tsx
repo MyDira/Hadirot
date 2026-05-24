@@ -1507,6 +1507,7 @@ export function ListingDetail() {
         isOpen={authModalOpen}
         onClose={handleAuthModalClose}
         title="Sign in to continue"
+        size="md"
       >
         <div className="space-y-3">
           <p className="text-sm text-gray-500">
