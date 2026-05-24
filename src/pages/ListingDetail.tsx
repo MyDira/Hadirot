@@ -175,11 +175,57 @@ export function ListingDetail() {
     }
   }, [id, user, authLoading]);
 
-  // Post-auth replay. Fires once after the user becomes authenticated AND a
-  // pending listing-action is waiting in sessionStorage for this listing.
-  // Handles both the in-page email modal path and the Google OAuth round
-  // trip (page reload, no React state survives). Guarded by a ref so it
-  // can never run twice for the same login.
+  // Replays a pending listing-action (reveal phone or send callback) after
+  // a successful authentication. Idempotent via pendingActionHandledRef.
+  // Called from two places:
+  //   1. handleAuthSuccessFromModal — fires immediately on email signin/signup
+  //      so we don't have to wait for React's `user` state to propagate from
+  //      Supabase's async auth listener.
+  //   2. The post-auth effect below — covers the Google OAuth round trip
+  //      (whole page reloaded, modal handler never fired on this mount).
+  const replayPendingListingAction = React.useCallback(async () => {
+    if (pendingActionHandledRef.current) return;
+    if (!id) return;
+
+    const pending = peekPendingListingAction();
+    if (!pending || pending.listingId !== id) return;
+
+    pendingActionHandledRef.current = true;
+
+    try {
+      if (pending.type === "reveal_phone") {
+        setPhoneRevealedSession(id);
+        setPhoneRevealKey((k) => k + 1);
+        gaListing("listing_contact_click", id, { contact_method: "phone" });
+        trackPhoneReveal(id);
+      } else if (pending.type === "send_callback") {
+        await sendListingContactSms({
+          listingId: id,
+          userName: pending.userName,
+          userPhone: pending.userPhone,
+          consentToFollowup: pending.consentToFollowup,
+        });
+        setCallbackJustSent(true);
+      }
+
+      trackLoginGateActionCompleted({
+        action:
+          pending.type === "reveal_phone" ? "reveal_phone" : "send_callback",
+        listingId: id,
+        listingType: "rental",
+      });
+    } catch (err) {
+      console.error("Failed to replay pending listing action:", err);
+      // Let the user retry the click.
+      pendingActionHandledRef.current = false;
+    } finally {
+      clearPendingListingAction();
+    }
+  }, [id]);
+
+  // Google OAuth path: the modal handler never fired on this mount because
+  // the page was reloaded. Detect the round trip on first authenticated
+  // render and emit auth_success + run the replay.
   useEffect(() => {
     if (!user || !id || authLoading) return;
     if (pendingActionHandledRef.current) return;
@@ -187,62 +233,20 @@ export function ListingDetail() {
     const pending = peekPendingListingAction();
     if (!pending || pending.listingId !== id) return;
 
-    pendingActionHandledRef.current = true;
-
-    // Google OAuth path: the modal callback didn't fire on this mount, so
-    // emit auth_success ourselves with method='google'. The provider check
-    // is best-effort — Supabase exposes it on app_metadata after OAuth.
     const provider = (user.app_metadata as { provider?: string } | undefined)
       ?.provider;
-    if (
-      provider === "google" &&
-      !authModalOpen /* OAuth path: no modal open on mount */
-    ) {
-      // Heuristic: if authModalAction is null on this mount, we never went
-      // through the email modal — must be OAuth. Fire auth_success.
-      if (!authModalAction) {
-        trackLoginGateAuthSuccess({
-          action:
-            pending.type === "reveal_phone" ? "reveal_phone" : "send_callback",
-          listingId: id,
-          listingType: "rental",
-          method: "google",
-        });
-      }
+    if (provider === "google" && !authModalAction) {
+      trackLoginGateAuthSuccess({
+        action:
+          pending.type === "reveal_phone" ? "reveal_phone" : "send_callback",
+        listingId: id,
+        listingType: "rental",
+        method: "google",
+      });
     }
 
-    (async () => {
-      try {
-        if (pending.type === "reveal_phone") {
-          setPhoneRevealedSession(id);
-          setPhoneRevealKey((k) => k + 1);
-          gaListing("listing_contact_click", id, { contact_method: "phone" });
-          trackPhoneReveal(id);
-        } else if (pending.type === "send_callback") {
-          await sendListingContactSms({
-            listingId: id,
-            userName: pending.userName,
-            userPhone: pending.userPhone,
-            consentToFollowup: pending.consentToFollowup,
-          });
-          setCallbackJustSent(true);
-        }
-
-        trackLoginGateActionCompleted({
-          action:
-            pending.type === "reveal_phone" ? "reveal_phone" : "send_callback",
-          listingId: id,
-          listingType: "rental",
-        });
-      } catch (err) {
-        console.error("Failed to replay pending listing action:", err);
-        // Surface no error UI here — the callback form will revert to its
-        // default state and the user can retry.
-      } finally {
-        clearPendingListingAction();
-      }
-    })();
-  }, [user, id, authLoading, authModalAction, authModalOpen]);
+    void replayPendingListingAction();
+  }, [user, id, authLoading, authModalAction, replayPendingListingAction]);
 
   // Check if agency page exists
   useEffect(() => {
@@ -454,7 +458,11 @@ export function ListingDetail() {
     }
     setAuthModalOpen(false);
     setAuthModalAction(null);
-    // Pending action replay happens in the effect below, once `user` flips.
+    // Replay immediately. Don't wait for the `user` state to propagate from
+    // Supabase's async auth listener — the sessionStorage payload has every-
+    // thing we need to fire the SMS and the Edge Function doesn't require
+    // an auth token.
+    void replayPendingListingAction();
   };
 
   const handleMessageClick = () => {

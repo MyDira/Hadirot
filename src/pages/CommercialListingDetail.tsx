@@ -503,16 +503,56 @@ export function CommercialListingDetail() {
     }
   }, [id]);
 
-  // Replays a pending listing action after the user authenticates. Covers
-  // both the in-page email modal path and the Google OAuth round trip.
+  // Replays a pending listing-action. Called from handleAuthSuccessFromModal
+  // (email path) and from the post-auth effect below (Google OAuth path).
+  // Idempotent via pendingActionHandledRef.
+  const replayPendingListingAction = React.useCallback(async () => {
+    if (pendingActionHandledRef.current) return;
+    if (!id) return;
+
+    const pending = peekPendingListingAction();
+    if (!pending || pending.listingId !== id) return;
+
+    pendingActionHandledRef.current = true;
+
+    try {
+      if (pending.type === 'reveal_phone') {
+        setPhoneRevealedSession(id);
+        setPhoneRevealKey((k) => k + 1);
+        gaListing('commercial_listing_contact_click', id, {
+          contact_method: 'phone',
+        });
+      } else if (pending.type === 'send_callback') {
+        await sendCommercialContactSms({
+          commercialListingId: id,
+          userName: pending.userName,
+          userPhone: pending.userPhone,
+          consentToFollowup: pending.consentToFollowup,
+        });
+        setCallbackJustSent(true);
+      }
+
+      trackLoginGateActionCompleted({
+        action:
+          pending.type === 'reveal_phone' ? 'reveal_phone' : 'send_callback',
+        listingId: id,
+        listingType: 'commercial',
+      });
+    } catch (err) {
+      console.error('Failed to replay pending commercial listing action:', err);
+      pendingActionHandledRef.current = false;
+    } finally {
+      clearPendingListingAction();
+    }
+  }, [id]);
+
+  // Google OAuth path: detect post-redirect on first authenticated mount.
   useEffect(() => {
     if (!user || !id || authLoading) return;
     if (pendingActionHandledRef.current) return;
 
     const pending = peekPendingListingAction();
     if (!pending || pending.listingId !== id) return;
-
-    pendingActionHandledRef.current = true;
 
     const provider = (user.app_metadata as { provider?: string } | undefined)
       ?.provider;
@@ -526,37 +566,8 @@ export function CommercialListingDetail() {
       });
     }
 
-    (async () => {
-      try {
-        if (pending.type === 'reveal_phone') {
-          setPhoneRevealedSession(id);
-          setPhoneRevealKey((k) => k + 1);
-          gaListing('commercial_listing_contact_click', id, {
-            contact_method: 'phone',
-          });
-        } else if (pending.type === 'send_callback') {
-          await sendCommercialContactSms({
-            commercialListingId: id,
-            userName: pending.userName,
-            userPhone: pending.userPhone,
-            consentToFollowup: pending.consentToFollowup,
-          });
-          setCallbackJustSent(true);
-        }
-
-        trackLoginGateActionCompleted({
-          action:
-            pending.type === 'reveal_phone' ? 'reveal_phone' : 'send_callback',
-          listingId: id,
-          listingType: 'commercial',
-        });
-      } catch (err) {
-        console.error('Failed to replay pending commercial listing action:', err);
-      } finally {
-        clearPendingListingAction();
-      }
-    })();
-  }, [user, id, authLoading, authModalAction]);
+    void replayPendingListingAction();
+  }, [user, id, authLoading, authModalAction, replayPendingListingAction]);
 
   useEffect(() => {
     if (!listing?.id) return;
@@ -782,6 +793,7 @@ export function CommercialListingDetail() {
     }
     setAuthModalOpen(false);
     setAuthModalAction(null);
+    void replayPendingListingAction();
   };
 
   const ContactCard = (

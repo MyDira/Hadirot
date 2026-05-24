@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Phone } from 'lucide-react';
 import { sendListingContactSms } from '../../services/listingContact';
@@ -32,6 +32,13 @@ export function ListingContactForm({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(defaultSuccess);
+
+  // Sync external success signal (used when the parent submitted on the user's
+  // behalf after a post-auth replay — the form was already mounted, so the
+  // initial useState above didn't pick up the later prop change).
+  useEffect(() => {
+    if (defaultSuccess) setSuccess(true);
+  }, [defaultSuccess]);
   const [validationErrors, setValidationErrors] = useState({
     userName: '',
     userPhone: '',

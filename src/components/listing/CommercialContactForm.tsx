@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Phone } from 'lucide-react';
 import { sendCommercialContactSms } from '../../services/listingContact';
@@ -32,6 +32,10 @@ export function CommercialContactForm({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(defaultSuccess);
+
+  useEffect(() => {
+    if (defaultSuccess) setSuccess(true);
+  }, [defaultSuccess]);
   const [validationErrors, setValidationErrors] = useState({
     userName: '',
     userPhone: '',
