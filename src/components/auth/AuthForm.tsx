@@ -6,38 +6,12 @@ import { useAuth } from "@/hooks/useAuth";
 import { requestPasswordReset } from "../../services/email";
 import { listingsService } from "../../services/listings";
 import { supabase } from "@/config/supabase";
-
-const PENDING_AUTH_KEY = "hadirot_pending_auth";
-
-interface PendingAction {
-  type: "favorite";
-  listingId: string;
-  currentlyFavorited: boolean;
-}
-
-interface PendingAuthState {
-  from?: string;
-  pendingAction?: PendingAction;
-}
-
-function savePendingAuth(state: PendingAuthState) {
-  try {
-    sessionStorage.setItem(PENDING_AUTH_KEY, JSON.stringify(state));
-  } catch (err){
-    console.error("Auth Storage Error:", err);
-  }
-}
-
-function consumePendingAuth(): PendingAuthState | null {
-  try {
-    const raw = sessionStorage.getItem(PENDING_AUTH_KEY);
-    if (!raw) return null;
-    sessionStorage.removeItem(PENDING_AUTH_KEY);
-    return JSON.parse(raw) as PendingAuthState;
-  } catch {
-    return null;
-  }
-}
+import {
+  savePendingAuth,
+  consumePendingAuth,
+  type PendingAction,
+  type PendingAuthState,
+} from "@/lib/pendingAuth";
 
 interface AuthFormProps {
   onAuthSuccess?: () => void;
