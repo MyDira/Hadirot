@@ -46,13 +46,32 @@ import { agenciesService } from "../services/agencies";
 import { agencyNameToSlug } from "../utils/agency";
 import { ReportRentedButton } from "../components/listing/ReportRentedButton";
 import { ImageZoomModal } from "../components/listing/ImageZoomModal";
-import { ListingContactForm } from "../components/listing/ListingContactForm";
+import { ListingContactForm, type ListingContactFormData } from "../components/listing/ListingContactForm";
 import { AdminListingBanner } from "../components/listing/AdminListingBanner";
 import { formatLeaseLength } from "../utils/formatters";
 import { ListingLocationMap } from "../components/listing/ListingLocationMapLazy";
 import { SaleStatusBadge } from "../components/listings/SaleStatusBadge";
 import { ContactProfileBubble } from "../components/common/ContactProfileBubble";
-import { PhoneNumberReveal } from "../components/common/PhoneNumberReveal";
+import {
+  PhoneNumberReveal,
+  setPhoneRevealedSession,
+} from "../components/common/PhoneNumberReveal";
+import { Modal } from "../components/shared/Modal";
+import { AuthForm, type AuthSuccessMethod } from "../components/auth/AuthForm";
+import { savePendingAuth } from "../lib/pendingAuth";
+import {
+  savePendingListingAction,
+  peekPendingListingAction,
+  clearPendingListingAction,
+} from "../lib/pendingListingAction";
+import { sendListingContactSms } from "../services/listingContact";
+import {
+  trackLoginGateShown,
+  trackLoginGateDismissed,
+  trackLoginGateAuthSuccess,
+  trackLoginGateActionCompleted,
+  type LoginGateAction,
+} from "../lib/analytics";
 
 const SCROLL_THRESHOLDS = [25, 50, 75, 100] as const;
 
@@ -76,6 +95,17 @@ export function ListingDetail() {
   const [agencyPageExists, setAgencyPageExists] = useState<boolean>(false);
   const [zoomModalOpen, setZoomModalOpen] = useState(false);
   const [zoomInitialIndex, setZoomInitialIndex] = useState(0);
+
+  // Login-gate state. When a logged-out user clicks reveal-phone or submits
+  // the callback form, we save what they were trying to do and open the
+  // auth modal. After they log in (email or Google OAuth), the pending
+  // action is replayed automatically.
+  const [authModalOpen, setAuthModalOpen] = useState(false);
+  const [authModalAction, setAuthModalAction] =
+    useState<LoginGateAction | null>(null);
+  const [callbackJustSent, setCallbackJustSent] = useState(false);
+  const [phoneRevealKey, setPhoneRevealKey] = useState(0);
+  const pendingActionHandledRef = React.useRef(false);
 
   const getOrdinalSuffixText = (num: number): string => {
     const j = num % 10;
@@ -144,6 +174,75 @@ export function ListingDetail() {
       loadListing();
     }
   }, [id, user, authLoading]);
+
+  // Post-auth replay. Fires once after the user becomes authenticated AND a
+  // pending listing-action is waiting in sessionStorage for this listing.
+  // Handles both the in-page email modal path and the Google OAuth round
+  // trip (page reload, no React state survives). Guarded by a ref so it
+  // can never run twice for the same login.
+  useEffect(() => {
+    if (!user || !id || authLoading) return;
+    if (pendingActionHandledRef.current) return;
+
+    const pending = peekPendingListingAction();
+    if (!pending || pending.listingId !== id) return;
+
+    pendingActionHandledRef.current = true;
+
+    // Google OAuth path: the modal callback didn't fire on this mount, so
+    // emit auth_success ourselves with method='google'. The provider check
+    // is best-effort — Supabase exposes it on app_metadata after OAuth.
+    const provider = (user.app_metadata as { provider?: string } | undefined)
+      ?.provider;
+    if (
+      provider === "google" &&
+      !authModalOpen /* OAuth path: no modal open on mount */
+    ) {
+      // Heuristic: if authModalAction is null on this mount, we never went
+      // through the email modal — must be OAuth. Fire auth_success.
+      if (!authModalAction) {
+        trackLoginGateAuthSuccess({
+          action:
+            pending.type === "reveal_phone" ? "reveal_phone" : "send_callback",
+          listingId: id,
+          listingType: "rental",
+          method: "google",
+        });
+      }
+    }
+
+    (async () => {
+      try {
+        if (pending.type === "reveal_phone") {
+          setPhoneRevealedSession(id);
+          setPhoneRevealKey((k) => k + 1);
+          gaListing("listing_contact_click", id, { contact_method: "phone" });
+          trackPhoneReveal(id);
+        } else if (pending.type === "send_callback") {
+          await sendListingContactSms({
+            listingId: id,
+            userName: pending.userName,
+            userPhone: pending.userPhone,
+            consentToFollowup: pending.consentToFollowup,
+          });
+          setCallbackJustSent(true);
+        }
+
+        trackLoginGateActionCompleted({
+          action:
+            pending.type === "reveal_phone" ? "reveal_phone" : "send_callback",
+          listingId: id,
+          listingType: "rental",
+        });
+      } catch (err) {
+        console.error("Failed to replay pending listing action:", err);
+        // Surface no error UI here — the callback form will revert to its
+        // default state and the user can retry.
+      } finally {
+        clearPendingListingAction();
+      }
+    })();
+  }, [user, id, authLoading, authModalAction, authModalOpen]);
 
   // Check if agency page exists
   useEffect(() => {
@@ -288,10 +387,74 @@ export function ListingDetail() {
     }
   };
 
-  const handleCallClick = () => {
+  const openAuthGate = (action: LoginGateAction) => {
     if (!listing?.id) return;
+    setAuthModalAction(action);
+    setAuthModalOpen(true);
+    trackLoginGateShown({
+      action,
+      listingId: listing.id,
+      listingType: "rental",
+    });
+  };
+
+  const handleCallClick = (): boolean | void => {
+    if (!listing?.id) return;
+    if (!user) {
+      savePendingListingAction({
+        type: "reveal_phone",
+        listingId: listing.id,
+        listingType: "rental",
+      });
+      savePendingAuth({ from: window.location.pathname });
+      openAuthGate("reveal_phone");
+      return false;
+    }
     gaListing("listing_contact_click", listing.id, { contact_method: "phone" });
     trackPhoneReveal(listing.id);
+  };
+
+  const handleCallbackAuthRequired = (formData: ListingContactFormData) => {
+    if (!listing?.id) return;
+    savePendingListingAction({
+      type: "send_callback",
+      listingId: listing.id,
+      listingType: "rental",
+      userName: formData.userName,
+      userPhone: formData.userPhone,
+      consentToFollowup: formData.consentToFollowup,
+    });
+    savePendingAuth({ from: window.location.pathname });
+    openAuthGate("send_callback");
+  };
+
+  const handleAuthModalClose = () => {
+    if (!user && authModalAction && listing?.id) {
+      // Bounce: dismissed without authenticating. Clear pending state too
+      // so a stale action doesn't fire if they later log in via another path.
+      trackLoginGateDismissed({
+        action: authModalAction,
+        listingId: listing.id,
+        listingType: "rental",
+      });
+      clearPendingListingAction();
+    }
+    setAuthModalOpen(false);
+    setAuthModalAction(null);
+  };
+
+  const handleAuthSuccessFromModal = (info?: { method: AuthSuccessMethod }) => {
+    if (authModalAction && listing?.id && info?.method) {
+      trackLoginGateAuthSuccess({
+        action: authModalAction,
+        listingId: listing.id,
+        listingType: "rental",
+        method: info.method,
+      });
+    }
+    setAuthModalOpen(false);
+    setAuthModalAction(null);
+    // Pending action replay happens in the effect below, once `user` flips.
   };
 
   const handleMessageClick = () => {
@@ -663,6 +826,7 @@ export function ListingDetail() {
                         {listing.contact_name}
                         <span className="mx-2 text-gray-400">•</span>
                         <PhoneNumberReveal
+                          key={`reveal-mobile-${phoneRevealKey}`}
                           phoneNumber={listing.contact_phone}
                           listingId={listing.id}
                           onReveal={handleCallClick}
@@ -676,7 +840,12 @@ export function ListingDetail() {
               </div>
 
               <div className="mb-6">
-                <ListingContactForm listingId={listing.id} />
+                <ListingContactForm
+                  listingId={listing.id}
+                  isAuthenticated={!!user}
+                  onAuthRequired={handleCallbackAuthRequired}
+                  defaultSuccess={callbackJustSent}
+                />
               </div>
 
               <div className="space-y-3">
@@ -875,6 +1044,7 @@ export function ListingDetail() {
                         {listing.contact_name}
                         <span className="mx-2 text-gray-400">•</span>
                         <PhoneNumberReveal
+                          key={`reveal-desktop-${phoneRevealKey}`}
                           phoneNumber={listing.contact_phone}
                           listingId={listing.id}
                           onReveal={handleCallClick}
@@ -888,7 +1058,12 @@ export function ListingDetail() {
               </div>
 
               <div className="mb-6">
-                <ListingContactForm listingId={listing.id} />
+                <ListingContactForm
+                  listingId={listing.id}
+                  isAuthenticated={!!user}
+                  onAuthRequired={handleCallbackAuthRequired}
+                  defaultSuccess={callbackJustSent}
+                />
               </div>
 
               <div className="space-y-3">
@@ -1319,6 +1494,25 @@ export function ListingDetail() {
           onClose={() => setZoomModalOpen(false)}
         />
       )}
+
+      <Modal
+        isOpen={authModalOpen}
+        onClose={handleAuthModalClose}
+        title={
+          authModalAction === "reveal_phone"
+            ? "Sign in to reveal phone number"
+            : "Sign in to send callback request"
+        }
+      >
+        <div className="space-y-4">
+          <p className="text-gray-600">
+            {authModalAction === "reveal_phone"
+              ? "Please sign in or create an account to see the contact phone number. Your action will continue automatically."
+              : "Please sign in or create an account to send your callback request. Your message will be sent automatically once you're signed in."}
+          </p>
+          <AuthForm onAuthSuccess={handleAuthSuccessFromModal} />
+        </div>
+      </Modal>
     </div>
   );
 }
