@@ -1,21 +1,37 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Phone } from 'lucide-react';
+import { sendListingContactSms } from '../../services/listingContact';
+
+export interface ListingContactFormData {
+  userName: string;
+  userPhone: string;
+  consentToFollowup: boolean;
+}
 
 interface ListingContactFormProps {
   listingId: string;
   onSuccess?: () => void;
+  isAuthenticated?: boolean;
+  onAuthRequired?: (formData: ListingContactFormData) => void;
+  defaultSuccess?: boolean;
 }
 
-export function ListingContactForm({ listingId, onSuccess }: ListingContactFormProps) {
-  const [formData, setFormData] = useState({
+export function ListingContactForm({
+  listingId,
+  onSuccess,
+  isAuthenticated = true,
+  onAuthRequired,
+  defaultSuccess = false,
+}: ListingContactFormProps) {
+  const [formData, setFormData] = useState<ListingContactFormData>({
     userName: '',
     userPhone: '',
     consentToFollowup: true,
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState(false);
+  const [success, setSuccess] = useState(defaultSuccess);
   const [validationErrors, setValidationErrors] = useState({
     userName: '',
     userPhone: '',
@@ -76,19 +92,19 @@ export function ListingContactForm({ listingId, onSuccess }: ListingContactFormP
     }
   };
 
-  const getSessionId = (): string => {
-    let sessionId = sessionStorage.getItem('analytics_session_id');
-    if (!sessionId) {
-      sessionId = `${Date.now()}-${Math.random().toString(36).substring(7)}`;
-      sessionStorage.setItem('analytics_session_id', sessionId);
-    }
-    return sessionId;
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!validateForm()) {
+      return;
+    }
+
+    if (!isAuthenticated && onAuthRequired) {
+      onAuthRequired({
+        userName: formData.userName.trim(),
+        userPhone: formData.userPhone,
+        consentToFollowup: formData.consentToFollowup,
+      });
       return;
     }
 
@@ -97,29 +113,12 @@ export function ListingContactForm({ listingId, onSuccess }: ListingContactFormP
     setSuccess(false);
 
     try {
-      const functionUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-listing-contact-sms`;
-
-      const response = await fetch(functionUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-        },
-        body: JSON.stringify({
-          listingId,
-          userName: formData.userName.trim(),
-          userPhone: formData.userPhone,
-          consentToFollowup: formData.consentToFollowup,
-          sessionId: getSessionId(),
-          userAgent: navigator.userAgent,
-        }),
+      await sendListingContactSms({
+        listingId,
+        userName: formData.userName,
+        userPhone: formData.userPhone,
+        consentToFollowup: formData.consentToFollowup,
       });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to send contact request');
-      }
 
       setSuccess(true);
       setFormData({ userName: '', userPhone: '', consentToFollowup: true });

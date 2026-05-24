@@ -6,7 +6,8 @@ import { trackPhoneDial } from '@/lib/analytics';
 interface PhoneNumberRevealProps {
   phoneNumber: string;
   listingId: string;
-  onReveal: () => void;
+  // Return `false` to abort the reveal (e.g., to gate behind login).
+  onReveal: () => boolean | void;
   isMobile?: boolean;
 }
 
@@ -44,6 +45,12 @@ function setPhoneRevealed(listingId: string): void {
   }
 }
 
+// Used by ListingDetail to force-reveal after a post-auth restore. Remount
+// the component via key prop to re-read this flag.
+export function setPhoneRevealedSession(listingId: string): void {
+  setPhoneRevealed(listingId);
+}
+
 export function PhoneNumberReveal({
   phoneNumber,
   listingId,
@@ -54,7 +61,8 @@ export function PhoneNumberReveal({
 
   const handleReveal = () => {
     if (!isRevealed) {
-      onReveal();
+      const result = onReveal();
+      if (result === false) return;
       setIsRevealed(true);
       setPhoneRevealed(listingId);
     }

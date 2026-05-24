@@ -13,8 +13,10 @@ import {
   type PendingAuthState,
 } from "@/lib/pendingAuth";
 
+export type AuthSuccessMethod = "email_signin" | "email_signup";
+
 interface AuthFormProps {
-  onAuthSuccess?: () => void;
+  onAuthSuccess?: (info?: { method: AuthSuccessMethod }) => void;
 }
 
 export function AuthForm({ onAuthSuccess }: AuthFormProps = {}) {
@@ -150,7 +152,7 @@ export function AuthForm({ onAuthSuccess }: AuthFormProps = {}) {
       // Post-auth flow (favorite replay + redirect) is handled centrally by
       // the useEffect above. In modal mode we hand off to the caller.
       if (onAuthSuccess) {
-        onAuthSuccess();
+        onAuthSuccess({ method: isSignUp ? "email_signup" : "email_signin" });
       }
     } catch (err) {
       Sentry.captureException(err, {
