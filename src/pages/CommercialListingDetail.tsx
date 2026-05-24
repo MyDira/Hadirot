@@ -11,9 +11,31 @@ import { ShareButton } from '../components/shared/ShareButton';
 import { ImageZoomModal } from '../components/listing/ImageZoomModal';
 import { ListingLocationMap } from '../components/listing/ListingLocationMapLazy';
 import { ContactProfileBubble } from '../components/common/ContactProfileBubble';
-import { PhoneNumberReveal } from '../components/common/PhoneNumberReveal';
+import {
+  PhoneNumberReveal,
+  setPhoneRevealedSession,
+} from '../components/common/PhoneNumberReveal';
 import { ConfirmDialog } from '../components/shared/ConfirmDialog';
-import { CommercialContactForm } from '../components/listing/CommercialContactForm';
+import {
+  CommercialContactForm,
+  type CommercialContactFormData,
+} from '../components/listing/CommercialContactForm';
+import { Modal } from '../components/shared/Modal';
+import { AuthForm, type AuthSuccessMethod } from '../components/auth/AuthForm';
+import { savePendingAuth } from '../lib/pendingAuth';
+import {
+  savePendingListingAction,
+  peekPendingListingAction,
+  clearPendingListingAction,
+} from '../lib/pendingListingAction';
+import { sendCommercialContactSms } from '../services/listingContact';
+import {
+  trackLoginGateShown,
+  trackLoginGateDismissed,
+  trackLoginGateAuthSuccess,
+  trackLoginGateActionCompleted,
+  type LoginGateAction,
+} from '../lib/analytics';
 
 const SCROLL_THRESHOLDS = [25, 50, 75, 100] as const;
 
@@ -458,8 +480,15 @@ export function CommercialListingDetail() {
   const [zoomModalOpen, setZoomModalOpen] = useState(false);
   const [zoomInitialIndex, setZoomInitialIndex] = useState(0);
 
+  const [authModalOpen, setAuthModalOpen] = useState(false);
+  const [authModalAction, setAuthModalAction] =
+    useState<LoginGateAction | null>(null);
+  const [callbackJustSent, setCallbackJustSent] = useState(false);
+  const [phoneRevealKey, setPhoneRevealKey] = useState(0);
+
   const hasViewedRef = React.useRef(false);
   const trackedListingId = React.useRef<string | null>(null);
+  const pendingActionHandledRef = React.useRef(false);
 
   useEffect(() => {
     if (id && !authLoading) {
@@ -473,6 +502,61 @@ export function CommercialListingDetail() {
       commercialListingsService.incrementCommercialListingView(id).catch(() => {});
     }
   }, [id]);
+
+  // Replays a pending listing action after the user authenticates. Covers
+  // both the in-page email modal path and the Google OAuth round trip.
+  useEffect(() => {
+    if (!user || !id || authLoading) return;
+    if (pendingActionHandledRef.current) return;
+
+    const pending = peekPendingListingAction();
+    if (!pending || pending.listingId !== id) return;
+
+    pendingActionHandledRef.current = true;
+
+    const provider = (user.app_metadata as { provider?: string } | undefined)
+      ?.provider;
+    if (provider === 'google' && !authModalAction) {
+      trackLoginGateAuthSuccess({
+        action:
+          pending.type === 'reveal_phone' ? 'reveal_phone' : 'send_callback',
+        listingId: id,
+        listingType: 'commercial',
+        method: 'google',
+      });
+    }
+
+    (async () => {
+      try {
+        if (pending.type === 'reveal_phone') {
+          setPhoneRevealedSession(id);
+          setPhoneRevealKey((k) => k + 1);
+          gaListing('commercial_listing_contact_click', id, {
+            contact_method: 'phone',
+          });
+        } else if (pending.type === 'send_callback') {
+          await sendCommercialContactSms({
+            commercialListingId: id,
+            userName: pending.userName,
+            userPhone: pending.userPhone,
+            consentToFollowup: pending.consentToFollowup,
+          });
+          setCallbackJustSent(true);
+        }
+
+        trackLoginGateActionCompleted({
+          action:
+            pending.type === 'reveal_phone' ? 'reveal_phone' : 'send_callback',
+          listingId: id,
+          listingType: 'commercial',
+        });
+      } catch (err) {
+        console.error('Failed to replay pending commercial listing action:', err);
+      } finally {
+        clearPendingListingAction();
+      }
+    })();
+  }, [user, id, authLoading, authModalAction]);
 
   useEffect(() => {
     if (!listing?.id) return;
@@ -632,6 +716,74 @@ export function CommercialListingDetail() {
     return 'Owner';
   };
 
+  const openAuthGate = (action: LoginGateAction) => {
+    if (!listing?.id) return;
+    setAuthModalAction(action);
+    setAuthModalOpen(true);
+    trackLoginGateShown({
+      action,
+      listingId: listing.id,
+      listingType: 'commercial',
+    });
+  };
+
+  const handleCallClick = (): boolean | void => {
+    if (!listing?.id) return;
+    if (!user) {
+      savePendingListingAction({
+        type: 'reveal_phone',
+        listingId: listing.id,
+        listingType: 'commercial',
+      });
+      savePendingAuth({ from: window.location.pathname });
+      openAuthGate('reveal_phone');
+      return false;
+    }
+    gaListing('commercial_listing_contact_click', listing.id, {
+      contact_method: 'phone',
+    });
+  };
+
+  const handleCallbackAuthRequired = (formData: CommercialContactFormData) => {
+    if (!listing?.id) return;
+    savePendingListingAction({
+      type: 'send_callback',
+      listingId: listing.id,
+      listingType: 'commercial',
+      userName: formData.userName,
+      userPhone: formData.userPhone,
+      consentToFollowup: formData.consentToFollowup,
+    });
+    savePendingAuth({ from: window.location.pathname });
+    openAuthGate('send_callback');
+  };
+
+  const handleAuthModalClose = () => {
+    if (!user && authModalAction && listing?.id) {
+      trackLoginGateDismissed({
+        action: authModalAction,
+        listingId: listing.id,
+        listingType: 'commercial',
+      });
+      clearPendingListingAction();
+    }
+    setAuthModalOpen(false);
+    setAuthModalAction(null);
+  };
+
+  const handleAuthSuccessFromModal = (info?: { method: AuthSuccessMethod }) => {
+    if (authModalAction && listing?.id && info?.method) {
+      trackLoginGateAuthSuccess({
+        action: authModalAction,
+        listingId: listing.id,
+        listingType: 'commercial',
+        method: info.method,
+      });
+    }
+    setAuthModalOpen(false);
+    setAuthModalAction(null);
+  };
+
   const ContactCard = (
     <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-6">
       <h3 className="text-xl font-bold text-[#273140] mb-4">Contact Information</h3>
@@ -643,8 +795,10 @@ export function CommercialListingDetail() {
               {listing.contact_name}
               <span className="mx-2 text-gray-400">•</span>
               <PhoneNumberReveal
+                key={`reveal-desktop-${phoneRevealKey}`}
                 phoneNumber={listing.contact_phone}
                 listingId={listing.id}
+                onReveal={handleCallClick}
                 isMobile={false}
               />
             </div>
@@ -653,7 +807,12 @@ export function CommercialListingDetail() {
         </div>
       </div>
       <div className="mb-6">
-        <CommercialContactForm commercialListingId={listing.id} />
+        <CommercialContactForm
+          commercialListingId={listing.id}
+          isAuthenticated={!!user}
+          onAuthRequired={handleCallbackAuthRequired}
+          defaultSuccess={callbackJustSent}
+        />
       </div>
       <div className="flex gap-2">
         <ShareButton
@@ -680,8 +839,10 @@ export function CommercialListingDetail() {
               {listing.contact_name}
               <span className="mx-2 text-gray-400">•</span>
               <PhoneNumberReveal
+                key={`reveal-mobile-${phoneRevealKey}`}
                 phoneNumber={listing.contact_phone}
                 listingId={listing.id}
+                onReveal={handleCallClick}
                 isMobile={true}
               />
             </div>
@@ -690,7 +851,12 @@ export function CommercialListingDetail() {
         </div>
       </div>
       <div className="mb-6">
-        <CommercialContactForm commercialListingId={listing.id} />
+        <CommercialContactForm
+          commercialListingId={listing.id}
+          isAuthenticated={!!user}
+          onAuthRequired={handleCallbackAuthRequired}
+          defaultSuccess={callbackJustSent}
+        />
       </div>
       <div className="flex gap-2">
         <ShareButton
@@ -1149,6 +1315,25 @@ export function CommercialListingDetail() {
           onClose={() => setZoomModalOpen(false)}
         />
       )}
+
+      <Modal
+        isOpen={authModalOpen}
+        onClose={handleAuthModalClose}
+        title={
+          authModalAction === 'reveal_phone'
+            ? 'Sign in to reveal phone number'
+            : 'Sign in to send callback request'
+        }
+      >
+        <div className="space-y-4">
+          <p className="text-gray-600">
+            {authModalAction === 'reveal_phone'
+              ? "Please sign in or create an account to see the contact phone number. Your action will continue automatically."
+              : "Please sign in or create an account to send your callback request. Your message will be sent automatically once you're signed in."}
+          </p>
+          <AuthForm onAuthSuccess={handleAuthSuccessFromModal} />
+        </div>
+      </Modal>
     </div>
   );
 }
