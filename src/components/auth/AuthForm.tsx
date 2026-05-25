@@ -20,11 +20,25 @@ interface AuthFormProps {
   // When true, render without the full-page chrome (gray bg, page heading,
   // inner shadow card). Use this when AuthForm is embedded inside a modal.
   compact?: boolean;
+  // Which view to open in by default. When omitted, falls back to the
+  // existing location.state-based behavior so non-modal call sites are
+  // unchanged. The user can always toggle between modes from inside the
+  // form via the "Don't have an account? Sign up" / "Already have an
+  // account? Sign in" buttons.
+  initialMode?: "signin" | "signup";
 }
 
-export function AuthForm({ onAuthSuccess, compact = false }: AuthFormProps = {}) {
+export function AuthForm({
+  onAuthSuccess,
+  compact = false,
+  initialMode,
+}: AuthFormProps = {}) {
   const location = useLocation();
-  const [isSignUp, setIsSignUp] = useState(location.state?.isSignUp || false);
+  const [isSignUp, setIsSignUp] = useState(
+    initialMode !== undefined
+      ? initialMode === "signup"
+      : location.state?.isSignUp || false,
+  );
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
@@ -367,7 +381,7 @@ export function AuthForm({ onAuthSuccess, compact = false }: AuthFormProps = {})
               </div>
             </form>
           ) : (
-            <form className="space-y-6" onSubmit={handleSubmit}>
+            <form className={compact ? "space-y-3" : "space-y-6"} onSubmit={handleSubmit}>
               {error && (
                 <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-md text-sm">
                   {error}
@@ -602,7 +616,7 @@ export function AuthForm({ onAuthSuccess, compact = false }: AuthFormProps = {})
           )}
 
           {!showForgotPassword && (
-            <div className="mt-6">
+            <div className={compact ? "mt-3" : "mt-6"}>
               {!isSignUp && (
                 <div className="text-center mb-4">
                   <button

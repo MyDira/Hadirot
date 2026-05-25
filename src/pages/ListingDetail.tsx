@@ -1506,16 +1506,20 @@ export function ListingDetail() {
       <Modal
         isOpen={authModalOpen}
         onClose={handleAuthModalClose}
-        title="Sign in to continue"
+        title="Create a free account to continue"
         size="md"
       >
         <div className="space-y-3">
           <p className="text-sm text-gray-500">
             {authModalAction === "reveal_phone"
-              ? "We'll show the phone number as soon as you're signed in."
-              : "We'll send your callback request as soon as you're signed in."}
+              ? "An account is required to view contact info. It's free and takes just a few seconds — we'll show the phone right after."
+              : "An account is required to send a request. It's free and takes just a few seconds — we'll send your message right after."}
           </p>
-          <AuthForm onAuthSuccess={handleAuthSuccessFromModal} compact />
+          <AuthForm
+            onAuthSuccess={handleAuthSuccessFromModal}
+            compact
+            initialMode="signup"
+          />
         </div>
       </Modal>
     </div>
