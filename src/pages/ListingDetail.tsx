@@ -1506,14 +1506,14 @@ export function ListingDetail() {
       <Modal
         isOpen={authModalOpen}
         onClose={handleAuthModalClose}
-        title="Create a free account"
+        title="Create a free account to continue"
         size="md"
       >
         <div className="space-y-3">
           <p className="text-sm text-gray-500">
             {authModalAction === "reveal_phone"
-              ? "Takes a few seconds. We'll show the phone number right after."
-              : "Takes a few seconds. We'll send your request right after."}
+              ? "An account is required to view contact info. It's free and takes just a few seconds — we'll show the phone right after."
+              : "An account is required to send a request. It's free and takes just a few seconds — we'll send your message right after."}
           </p>
           <AuthForm
             onAuthSuccess={handleAuthSuccessFromModal}
