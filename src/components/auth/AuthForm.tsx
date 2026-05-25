@@ -381,7 +381,7 @@ export function AuthForm({
               </div>
             </form>
           ) : (
-            <form className="space-y-6" onSubmit={handleSubmit}>
+            <form className={compact ? "space-y-3" : "space-y-6"} onSubmit={handleSubmit}>
               {error && (
                 <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-md text-sm">
                   {error}
@@ -616,7 +616,7 @@ export function AuthForm({
           )}
 
           {!showForgotPassword && (
-            <div className="mt-6">
+            <div className={compact ? "mt-3" : "mt-6"}>
               {!isSignUp && (
                 <div className="text-center mb-4">
                   <button
