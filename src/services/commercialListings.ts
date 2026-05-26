@@ -371,6 +371,53 @@ export const commercialListingsService = {
     return result as unknown as CommercialListing;
   },
 
+  // Mirrors listingsService.updateSaleStatus for residential. Recomputes the
+  // expiration window so sold commercial listings get the same shorter
+  // lifetime that sold residential listings do.
+  async updateCommercialSaleStatus(
+    listingId: string,
+    newStatus: 'available' | 'pending' | 'in_contract' | 'sold',
+  ): Promise<CommercialListing> {
+    const { data: listing, error: fetchError } = await supabase
+      .from('commercial_listings')
+      .select('*')
+      .eq('id', listingId)
+      .maybeSingle();
+
+    if (fetchError || !listing) {
+      throw new Error('Commercial listing not found');
+    }
+
+    if (listing.listing_type !== 'sale') {
+      throw new Error('Only sale listings can have a sale status');
+    }
+
+    if (!listing.is_active) {
+      throw new Error('Cannot change status on inactive listings');
+    }
+
+    const { saleDays } = await getAdminActiveDays();
+    const newExpiresAt = getExpirationDate('sale', newStatus as any, saleDays);
+
+    const { data: updatedListing, error: updateError } = await supabase
+      .from('commercial_listings')
+      .update({
+        sale_status: newStatus,
+        expires_at: newExpiresAt.toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', listingId)
+      .select()
+      .single();
+
+    if (updateError) {
+      console.error('Error updating commercial sale status:', updateError);
+      throw updateError;
+    }
+
+    return updatedListing as unknown as CommercialListing;
+  },
+
   async deleteCommercialListing(id: string): Promise<void> {
     const { error } = await supabase
       .from('commercial_listings')

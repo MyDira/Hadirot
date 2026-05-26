@@ -37,6 +37,7 @@ import {
   type LoginGateAction,
 } from '../lib/analytics';
 import { commercialLabels, triStateLabel } from '../utils/commercialLabels';
+import { SaleStatusBadge } from '../components/listings/SaleStatusBadge';
 
 const SCROLL_THRESHOLDS = [25, 50, 75, 100] as const;
 
@@ -978,7 +979,10 @@ export function CommercialListingDetail() {
                   Featured
                 </span>
               )}
-              {isSale && (
+              {isSale && listing.sale_status && listing.sale_status !== 'available' && (
+                <SaleStatusBadge status={listing.sale_status as any} size="md" />
+              )}
+              {isSale && listing.sale_status !== 'sold' && (
                 <span className="inline-flex items-center bg-emerald-50 text-emerald-700 text-xs px-2.5 py-1 rounded-full border border-emerald-200 font-medium">
                   For Sale
                 </span>

@@ -355,6 +355,9 @@ export function PostListingWizard() {
         admin_listing_type_display: fd.admin_listing_type_display || null,
         video_url: fd.video_url || null,
         video_thumbnail_url: null,
+        // Mirror residential sale: auto-set 'available' on create.
+        // Sellers change it later via the edit wizard.
+        sale_status: isCommercialSale ? 'available' : null,
         commercial_space_type: fd.commercial_space_type,
         commercial_subtype: fd.commercial_subtype,
         available_sf: fd.available_sf,

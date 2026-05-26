@@ -335,6 +335,7 @@ export default function Dashboard() {
     const listing = listings.find((l) => l.id === listingId);
     if (!listing) return;
 
+    const isCommercial = !!(listing as any).isCommercial;
     const oldStatus = listing.sale_status || 'available';
 
     if (newStatus === 'sold') {
@@ -347,7 +348,9 @@ export default function Dashboard() {
 
     setActionLoading(listingId);
     try {
-      const updatedListing = await listingsService.updateSaleStatus(listingId, newStatus);
+      const updatedListing = isCommercial
+        ? await commercialListingsService.updateCommercialSaleStatus(listingId, newStatus as any)
+        : await listingsService.updateSaleStatus(listingId, newStatus);
 
       try {
         if (user?.email && profile?.full_name) {
@@ -973,7 +976,7 @@ export default function Dashboard() {
                                 return null;
                               })()}
                             </div>
-                            {!isCommercial && isSale && listing.is_active && (
+                            {isSale && listing.is_active && (
                               <div className="mt-1">
                                 <SaleStatusSelector
                                   currentStatus={(listing as Listing).sale_status}
@@ -983,7 +986,7 @@ export default function Dashboard() {
                                 />
                               </div>
                             )}
-                            {!isCommercial && isSale && !listing.is_active && (listing as Listing).sale_status && (
+                            {isSale && !listing.is_active && (listing as Listing).sale_status && (
                               <SaleStatusBadge status={(listing as Listing).sale_status!} size="sm" />
                             )}
                           </div>
