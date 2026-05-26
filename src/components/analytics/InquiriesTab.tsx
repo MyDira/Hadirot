@@ -1,5 +1,5 @@
 import React from 'react';
-import { MessageSquare, Phone, Users, TrendingUp, AlertTriangle, PhoneCall, Mail, Activity } from 'lucide-react';
+import { MessageSquare, Phone, Users, TrendingUp, AlertTriangle, PhoneCall, Mail, Activity, Lock, UserX, CheckCircle2 } from 'lucide-react';
 
 // ========================================
 // TypeScript Interfaces
@@ -88,6 +88,22 @@ interface AbuseSignal {
   listings_contacted: number;
 }
 
+interface LoginGateFunnel {
+  shown_total: number;
+  shown_reveal_phone: number;
+  shown_send_callback: number;
+  dismissed_total: number;
+  dismissed_reveal_phone: number;
+  dismissed_send_callback: number;
+  auth_success_total: number;
+  auth_success_email_signin: number;
+  auth_success_email_signup: number;
+  auth_success_google: number;
+  action_completed_total: number;
+  action_completed_reveal_phone: number;
+  action_completed_send_callback: number;
+}
+
 interface InquiriesTabProps {
   inquiryOverview: InquiryOverview | null;
   conversionFunnel: ConversionFunnel | null;
@@ -99,6 +115,7 @@ interface InquiriesTabProps {
   timingForms: TimingData[];
   qualityMetrics: QualityMetrics | null;
   abuseSignals: AbuseSignal[];
+  loginGateFunnel?: LoginGateFunnel | null;
   onListingClick: (listingId: string) => void;
   loading?: boolean;
 }
@@ -261,6 +278,7 @@ export function InquiriesTab({
   timingForms,
   qualityMetrics,
   abuseSignals,
+  loginGateFunnel,
   onListingClick,
   loading,
 }: InquiriesTabProps) {
@@ -457,6 +475,236 @@ export function InquiriesTab({
           </div>
         </div>
       </div>
+
+      {/* ========================================
+          Section 2b: Login-Gate Funnel
+          Tracks the forced-signup gate on listing details:
+          shown → dismissed (bounce) → auth_success → action_completed.
+          ======================================== */}
+      {loginGateFunnel && loginGateFunnel.shown_total > 0 && (
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <div className="flex items-center justify-between mb-1">
+            <h3 className="text-lg font-semibold text-gray-900">
+              Login-Gate Funnel
+            </h3>
+            <span className="text-xs text-gray-500">
+              Phone reveal & callback gating
+            </span>
+          </div>
+          <p className="text-sm text-gray-500 mb-4">
+            How logged-out visitors move through the sign-in prompt before
+            revealing a phone or sending a callback.
+          </p>
+
+          {(() => {
+            const f = loginGateFunnel;
+            const pct = (n: number, d: number) =>
+              d > 0 ? ((n / d) * 100).toFixed(1) : '0.0';
+            const bounceRate = pct(f.dismissed_total, f.shown_total);
+            const successRate = pct(f.auth_success_total, f.shown_total);
+            const completionRate = pct(f.action_completed_total, f.shown_total);
+            const silentBounce = Math.max(
+              0,
+              f.shown_total - f.dismissed_total - f.action_completed_total,
+            );
+            const silentBounceRate = pct(silentBounce, f.shown_total);
+
+            return (
+              <>
+                {/* Top row: 4 stage cards */}
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                  <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                    <div className="flex items-center mb-2">
+                      <Lock className="w-4 h-4 text-gray-600 mr-2" />
+                      <span className="text-xs font-medium text-gray-600">
+                        Shown
+                      </span>
+                    </div>
+                    <div className="text-3xl font-bold text-gray-900">
+                      {f.shown_total.toLocaleString()}
+                    </div>
+                    <div className="text-xs text-gray-500 mt-1">
+                      {f.shown_reveal_phone} reveal · {f.shown_send_callback} callback
+                    </div>
+                  </div>
+
+                  <div className="bg-red-50 rounded-lg p-4 border border-red-100">
+                    <div className="flex items-center mb-2">
+                      <UserX className="w-4 h-4 text-red-600 mr-2" />
+                      <span className="text-xs font-medium text-gray-600">
+                        Dismissed
+                      </span>
+                    </div>
+                    <div className="text-3xl font-bold text-red-600">
+                      {f.dismissed_total.toLocaleString()}
+                    </div>
+                    <div className="text-xs text-gray-600 mt-1">
+                      {bounceRate}% bounce rate
+                    </div>
+                  </div>
+
+                  <div className="bg-blue-50 rounded-lg p-4 border border-blue-100">
+                    <div className="flex items-center mb-2">
+                      <Users className="w-4 h-4 text-blue-600 mr-2" />
+                      <span className="text-xs font-medium text-gray-600">
+                        Signed In
+                      </span>
+                    </div>
+                    <div className="text-3xl font-bold text-blue-600">
+                      {f.auth_success_total.toLocaleString()}
+                    </div>
+                    <div className="text-xs text-gray-600 mt-1">
+                      {successRate}% of shown
+                    </div>
+                  </div>
+
+                  <div className="bg-green-50 rounded-lg p-4 border border-green-100">
+                    <div className="flex items-center mb-2">
+                      <CheckCircle2 className="w-4 h-4 text-green-600 mr-2" />
+                      <span className="text-xs font-medium text-gray-600">
+                        Completed
+                      </span>
+                    </div>
+                    <div className="text-3xl font-bold text-green-600">
+                      {f.action_completed_total.toLocaleString()}
+                    </div>
+                    <div className="text-xs text-gray-600 mt-1">
+                      {completionRate}% end-to-end conversion
+                    </div>
+                  </div>
+                </div>
+
+                {/* Stage arrows visualization */}
+                <div className="hidden md:flex items-center justify-between mt-3 px-6 text-gray-400 text-xs">
+                  <span className="flex-1 text-center">→ {bounceRate}% drop</span>
+                  <span className="flex-1 text-center">→ {pct(f.auth_success_total - f.action_completed_total, f.shown_total)}% post-signin drop</span>
+                  <span className="flex-1 text-center"></span>
+                </div>
+
+                {/* Method breakdown */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6 pt-6 border-t border-gray-200">
+                  <div>
+                    <h4 className="text-sm font-semibold text-gray-700 mb-3">
+                      Sign-in method
+                    </h4>
+                    <div className="space-y-2">
+                      <HorizontalBar
+                        label="Email sign in"
+                        value={f.auth_success_email_signin}
+                        max={Math.max(f.auth_success_total, 1)}
+                        color="bg-blue-500"
+                      />
+                      <HorizontalBar
+                        label="Email signup"
+                        value={f.auth_success_email_signup}
+                        max={Math.max(f.auth_success_total, 1)}
+                        color="bg-indigo-500"
+                      />
+                      <HorizontalBar
+                        label="Google"
+                        value={f.auth_success_google}
+                        max={Math.max(f.auth_success_total, 1)}
+                        color="bg-amber-500"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <h4 className="text-sm font-semibold text-gray-700 mb-3">
+                      Bounce / silent bounce
+                    </h4>
+                    <div className="space-y-2">
+                      <HorizontalBar
+                        label="Closed modal"
+                        value={f.dismissed_total}
+                        max={Math.max(f.shown_total, 1)}
+                        color="bg-red-500"
+                      />
+                      <HorizontalBar
+                        label="Walked away"
+                        value={silentBounce}
+                        max={Math.max(f.shown_total, 1)}
+                        color="bg-amber-400"
+                      />
+                    </div>
+                    <p className="text-xs text-gray-500 mt-3">
+                      "Walked away" = shown but no dismiss click and no completion
+                      ({silentBounceRate}% of shown). Tab-close bounces land here.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Per-action breakdown */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6 pt-6 border-t border-gray-200">
+                  <div className="bg-orange-50 rounded-lg p-4">
+                    <div className="flex items-center mb-2">
+                      <PhoneCall className="w-4 h-4 text-orange-600 mr-2" />
+                      <span className="text-sm font-medium text-gray-700">
+                        Reveal phone
+                      </span>
+                    </div>
+                    <div className="text-xs text-gray-600 grid grid-cols-3 gap-2">
+                      <div>
+                        <div className="text-lg font-bold text-gray-900">
+                          {f.shown_reveal_phone}
+                        </div>
+                        <div className="text-gray-500">shown</div>
+                      </div>
+                      <div>
+                        <div className="text-lg font-bold text-red-600">
+                          {f.dismissed_reveal_phone}
+                        </div>
+                        <div className="text-gray-500">dismissed</div>
+                      </div>
+                      <div>
+                        <div className="text-lg font-bold text-green-600">
+                          {f.action_completed_reveal_phone}
+                        </div>
+                        <div className="text-gray-500">completed</div>
+                      </div>
+                    </div>
+                    <div className="text-xs text-gray-600 mt-2">
+                      {pct(f.action_completed_reveal_phone, f.shown_reveal_phone)}% conversion
+                    </div>
+                  </div>
+
+                  <div className="bg-teal-50 rounded-lg p-4">
+                    <div className="flex items-center mb-2">
+                      <Mail className="w-4 h-4 text-teal-600 mr-2" />
+                      <span className="text-sm font-medium text-gray-700">
+                        Send callback
+                      </span>
+                    </div>
+                    <div className="text-xs text-gray-600 grid grid-cols-3 gap-2">
+                      <div>
+                        <div className="text-lg font-bold text-gray-900">
+                          {f.shown_send_callback}
+                        </div>
+                        <div className="text-gray-500">shown</div>
+                      </div>
+                      <div>
+                        <div className="text-lg font-bold text-red-600">
+                          {f.dismissed_send_callback}
+                        </div>
+                        <div className="text-gray-500">dismissed</div>
+                      </div>
+                      <div>
+                        <div className="text-lg font-bold text-green-600">
+                          {f.action_completed_send_callback}
+                        </div>
+                        <div className="text-gray-500">completed</div>
+                      </div>
+                    </div>
+                    <div className="text-xs text-gray-600 mt-2">
+                      {pct(f.action_completed_send_callback, f.shown_send_callback)}% conversion
+                    </div>
+                  </div>
+                </div>
+              </>
+            );
+          })()}
+        </div>
+      )}
 
       {/* ========================================
           Section 3: User Behavior Segmentation

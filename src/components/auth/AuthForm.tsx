@@ -6,46 +6,39 @@ import { useAuth } from "@/hooks/useAuth";
 import { requestPasswordReset } from "../../services/email";
 import { listingsService } from "../../services/listings";
 import { supabase } from "@/config/supabase";
+import {
+  savePendingAuth,
+  consumePendingAuth,
+  type PendingAction,
+  type PendingAuthState,
+} from "@/lib/pendingAuth";
 
-const PENDING_AUTH_KEY = "hadirot_pending_auth";
-
-interface PendingAction {
-  type: "favorite";
-  listingId: string;
-  currentlyFavorited: boolean;
-}
-
-interface PendingAuthState {
-  from?: string;
-  pendingAction?: PendingAction;
-}
-
-function savePendingAuth(state: PendingAuthState) {
-  try {
-    sessionStorage.setItem(PENDING_AUTH_KEY, JSON.stringify(state));
-  } catch (err){
-    console.error("Auth Storage Error:", err);
-  }
-}
-
-function consumePendingAuth(): PendingAuthState | null {
-  try {
-    const raw = sessionStorage.getItem(PENDING_AUTH_KEY);
-    if (!raw) return null;
-    sessionStorage.removeItem(PENDING_AUTH_KEY);
-    return JSON.parse(raw) as PendingAuthState;
-  } catch {
-    return null;
-  }
-}
+export type AuthSuccessMethod = "email_signin" | "email_signup";
 
 interface AuthFormProps {
-  onAuthSuccess?: () => void;
+  onAuthSuccess?: (info?: { method: AuthSuccessMethod }) => void;
+  // When true, render without the full-page chrome (gray bg, page heading,
+  // inner shadow card). Use this when AuthForm is embedded inside a modal.
+  compact?: boolean;
+  // Which view to open in by default. When omitted, falls back to the
+  // existing location.state-based behavior so non-modal call sites are
+  // unchanged. The user can always toggle between modes from inside the
+  // form via the "Don't have an account? Sign up" / "Already have an
+  // account? Sign in" buttons.
+  initialMode?: "signin" | "signup";
 }
 
-export function AuthForm({ onAuthSuccess }: AuthFormProps = {}) {
+export function AuthForm({
+  onAuthSuccess,
+  compact = false,
+  initialMode,
+}: AuthFormProps = {}) {
   const location = useLocation();
-  const [isSignUp, setIsSignUp] = useState(location.state?.isSignUp || false);
+  const [isSignUp, setIsSignUp] = useState(
+    initialMode !== undefined
+      ? initialMode === "signup"
+      : location.state?.isSignUp || false,
+  );
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
@@ -176,7 +169,7 @@ export function AuthForm({ onAuthSuccess }: AuthFormProps = {}) {
       // Post-auth flow (favorite replay + redirect) is handled centrally by
       // the useEffect above. In modal mode we hand off to the caller.
       if (onAuthSuccess) {
-        onAuthSuccess();
+        onAuthSuccess({ method: isSignUp ? "email_signup" : "email_signin" });
       }
     } catch (err) {
       Sentry.captureException(err, {
@@ -297,15 +290,33 @@ export function AuthForm({ onAuthSuccess }: AuthFormProps = {}) {
   };
 
   return (
-    <div className="bg-gray-50 flex flex-col justify-center py-8 sm:px-6 lg:px-8">
-      <div className="sm:mx-auto sm:w-full sm:max-w-md">
-        <h2 className="text-center text-3xl font-bold text-gray-900">
-          {isSignUp ? "Create your account" : "Sign in to your account"}
-        </h2>
-      </div>
+    <div
+      className={
+        compact
+          ? "w-full"
+          : "bg-gray-50 flex flex-col justify-center py-8 sm:px-6 lg:px-8"
+      }
+    >
+      {!compact && (
+        <div className="sm:mx-auto sm:w-full sm:max-w-md">
+          <h2 className="text-center text-3xl font-bold text-gray-900">
+            {isSignUp ? "Create your account" : "Sign in to your account"}
+          </h2>
+        </div>
+      )}
 
-      <div className="mt-6 sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10">
+      <div
+        className={
+          compact ? "w-full" : "mt-6 sm:mx-auto sm:w-full sm:max-w-md"
+        }
+      >
+        <div
+          className={
+            compact
+              ? "w-full"
+              : "bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10"
+          }
+        >
           {showForgotPassword ? (
             <form className="space-y-6" onSubmit={handleForgotPassword}>
               {error && (
@@ -370,7 +381,7 @@ export function AuthForm({ onAuthSuccess }: AuthFormProps = {}) {
               </div>
             </form>
           ) : (
-            <form className="space-y-6" onSubmit={handleSubmit}>
+            <form className={compact ? "space-y-3" : "space-y-6"} onSubmit={handleSubmit}>
               {error && (
                 <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-md text-sm">
                   {error}
@@ -605,7 +616,7 @@ export function AuthForm({ onAuthSuccess }: AuthFormProps = {}) {
           )}
 
           {!showForgotPassword && (
-            <div className="mt-6">
+            <div className={compact ? "mt-3" : "mt-6"}>
               {!isSignUp && (
                 <div className="text-center mb-4">
                   <button

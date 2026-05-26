@@ -17,7 +17,11 @@ export type AnalyticsEventName =
   | 'post_success'
   | 'post_abandoned'
   | 'post_error'
-  | 'digest_link_click';
+  | 'digest_link_click'
+  | 'login_gate_shown'
+  | 'login_gate_dismissed'
+  | 'login_gate_auth_success'
+  | 'login_gate_action_completed';
 
 export interface AnalyticsEventPayload {
   session_id: string;
