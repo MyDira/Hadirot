@@ -29,6 +29,26 @@ import { CommercialStepsRouter } from './CommercialStepsRouter';
 import { commercialListingsService } from '../../services/commercialListings';
 import { emailService, renderBrandEmail } from '../../services/email';
 import type { MediaFile } from '../../components/shared/MediaUploader';
+import {
+  trackPostStart,
+  trackPostSubmit,
+  trackPostSuccess,
+  trackWizardStepViewed,
+  trackWizardStepCompleted,
+  type WizardFunnelPath,
+} from '../../lib/analytics';
+
+// WizardPath → analytics path label. Names match how a non-technical
+// admin would describe the four flows in the funnel report.
+function wizardPathToFunnelLabel(path: WizardPath | null): WizardFunnelPath | null {
+  switch (path) {
+    case 'residential_rent': return 'residential_rental';
+    case 'residential_sale': return 'residential_sale';
+    case 'commercial_lease': return 'commercial_rental';
+    case 'commercial_sale':  return 'commercial_sale';
+    default: return null;
+  }
+}
 
 const RENTAL_STEP_LABELS = [
   'Property & Layout',
@@ -268,11 +288,43 @@ export function PostListingWizard() {
     if (isCommercialPath(path)) {
       setCommercialMediaFiles([]);
     }
+    trackPostStart();
     wizard.setSelectedPath(path);
   };
 
+  // Per-step labels are computed once here so analytics can read totalSteps
+  // synchronously inside handlers (instead of relying on the JSX-time value).
+  const stepLabels = isCommercial
+    ? COMMERCIAL_STEP_LABELS
+    : isSalePath
+    ? SALE_STEP_LABELS
+    : RENTAL_STEP_LABELS;
+  const totalStepsForFunnel = stepLabels.length;
+  const funnelPath = wizardPathToFunnelLabel(wizard.selectedPath);
+
+  // Emit wizard_step_viewed only when the user advances to a step they
+  // haven't visited yet on this attempt. Backward navigation is silent
+  // by product spec.
+  useEffect(() => {
+    if (!funnelPath) return;
+    if (wizard.currentStep > wizard.highWaterStep) return; // shouldn't happen
+    if (wizard.currentStep < wizard.highWaterStep) return; // backward — ignore
+    trackWizardStepViewed({
+      path: funnelPath,
+      step: wizard.currentStep,
+      totalSteps: totalStepsForFunnel,
+    });
+  }, [wizard.currentStep, wizard.highWaterStep, funnelPath, totalStepsForFunnel]);
+
   const handleNext = () => {
     if (!requireAuth()) return;
+    if (funnelPath) {
+      trackWizardStepCompleted({
+        path: funnelPath,
+        step: wizard.currentStep,
+        totalSteps: totalStepsForFunnel,
+      });
+    }
     wizard.nextStep();
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -295,6 +347,7 @@ export function PostListingWizard() {
     if (!user) { setShowAuthModal(true); return; }
     setLoading(true);
     setSubmitError(null);
+    trackPostSubmit();
 
     try {
       const fd = wizard.commercialFormData;
@@ -442,6 +495,7 @@ export function PostListingWizard() {
       };
 
       const listing = await commercialListingsService.createCommercialListing(payload as any);
+      trackPostSuccess(listing.id);
 
       // Upload images
       const imageFiles = commercialMediaFiles.filter(m => m.type === 'image' && m.file);
@@ -492,6 +546,7 @@ export function PostListingWizard() {
     if (!user) { setShowAuthModal(true); return; }
     setLoading(true);
     setSubmitError(null);
+    trackPostSubmit();
 
     try {
       // Upload any pending media first
@@ -627,6 +682,8 @@ export function PostListingWizard() {
       if (!listing || !listing.id) {
         throw new Error('Failed to create listing. Please try again.');
       }
+
+      trackPostSuccess(listing.id);
 
       // Finalize images
       if (imageMedia.length > 0) {
@@ -847,12 +904,7 @@ export function PostListingWizard() {
     }
   };
 
-  const stepLabels = isCommercial
-    ? COMMERCIAL_STEP_LABELS
-    : isSalePath
-    ? SALE_STEP_LABELS
-    : RENTAL_STEP_LABELS;
-  const totalSteps = stepLabels.length;
+  const totalSteps = totalStepsForFunnel;
 
   return (
     <WizardUIContext.Provider value={{ currentStep: wizard.currentStep, totalSteps, lastSavedAt: wizard.lastSavedAt }}>

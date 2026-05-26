@@ -104,6 +104,29 @@ interface LoginGateFunnel {
   action_completed_send_callback: number;
 }
 
+interface WizardFunnelRow {
+  path: 'residential_rental' | 'residential_sale' | 'commercial_rental' | 'commercial_sale';
+  step: number;
+  viewed: number;
+  completed: number;
+}
+
+const WIZARD_PATH_LABELS: Record<WizardFunnelRow['path'], string> = {
+  residential_rental: 'Residential Rental',
+  residential_sale: 'Residential Sale',
+  commercial_rental: 'Commercial Rental',
+  commercial_sale: 'Commercial Sale',
+};
+
+// Step labels for each path. Must stay in sync with the wizard's own
+// STEP_LABELS arrays in PostListingWizard.tsx.
+const WIZARD_STEP_LABELS: Record<WizardFunnelRow['path'], string[]> = {
+  residential_rental: ['Property & Layout', 'Price & Terms', 'Photos', 'Location', 'Features', 'Contact & Review'],
+  residential_sale:   ['Basic Info', 'Photos', 'Location', 'Size & Condition', 'Details', 'Contact & Review'],
+  commercial_rental:  ['Type & Pricing', 'Photos', 'Location', 'Space Details', 'Optional Details', 'Contact & Review'],
+  commercial_sale:    ['Type & Pricing', 'Photos', 'Location', 'Space Details', 'Optional Details', 'Contact & Review'],
+};
+
 interface InquiriesTabProps {
   inquiryOverview: InquiryOverview | null;
   conversionFunnel: ConversionFunnel | null;
@@ -116,6 +139,7 @@ interface InquiriesTabProps {
   qualityMetrics: QualityMetrics | null;
   abuseSignals: AbuseSignal[];
   loginGateFunnel?: LoginGateFunnel | null;
+  wizardFunnel?: WizardFunnelRow[] | null;
   onListingClick: (listingId: string) => void;
   loading?: boolean;
 }
@@ -279,6 +303,7 @@ export function InquiriesTab({
   qualityMetrics,
   abuseSignals,
   loginGateFunnel,
+  wizardFunnel,
   onListingClick,
   loading,
 }: InquiriesTabProps) {
@@ -703,6 +728,64 @@ export function InquiriesTab({
               </>
             );
           })()}
+        </div>
+      )}
+
+      {/* ========================================
+          Section 2b: Post-Listing Wizard Funnel
+          ======================================== */}
+      {wizardFunnel && wizardFunnel.length > 0 && (
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <h3 className="text-lg font-semibold text-gray-900 mb-1">Post-Listing Wizard Funnel</h3>
+          <p className="text-sm text-gray-500 mb-4">
+            How far users get into the listing-posting wizard, broken out by flow.
+            "Drop-off" is the share of users who viewed a step but never clicked
+            Continue.
+          </p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {(Object.keys(WIZARD_PATH_LABELS) as WizardFunnelRow['path'][]).map(path => {
+              const rows = (wizardFunnel ?? []).filter(r => r.path === path).sort((a, b) => a.step - b.step);
+              if (rows.length === 0) return null;
+              const stepLabels = WIZARD_STEP_LABELS[path];
+              const starters = rows[0]?.viewed ?? 0;
+              return (
+                <div key={path} className="border border-gray-200 rounded-lg p-4">
+                  <div className="flex items-baseline justify-between mb-3">
+                    <h4 className="text-sm font-semibold text-gray-900">{WIZARD_PATH_LABELS[path]}</h4>
+                    <div className="text-xs text-gray-500">{starters.toLocaleString()} started</div>
+                  </div>
+                  <div className="space-y-2">
+                    {stepLabels.map((label, idx) => {
+                      const row = rows.find(r => r.step === idx);
+                      const viewed = row?.viewed ?? 0;
+                      const completed = row?.completed ?? 0;
+                      const widthPct = starters > 0 ? Math.max(2, (viewed / starters) * 100) : 0;
+                      const completionPct = viewed > 0 ? Math.round((completed / viewed) * 100) : 0;
+                      return (
+                        <div key={idx} className="flex items-center gap-3">
+                          <div className="w-6 text-xs text-gray-500 text-right tabular-nums">{idx + 1}</div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-baseline justify-between gap-2 mb-1">
+                              <div className="text-xs font-medium text-gray-700 truncate">{label}</div>
+                              <div className="text-xs text-gray-500 whitespace-nowrap tabular-nums">
+                                {viewed.toLocaleString()} viewed · {completionPct}% continued
+                              </div>
+                            </div>
+                            <div className="h-2 bg-gray-100 rounded">
+                              <div
+                                className="h-full bg-accent-500 rounded"
+                                style={{ width: `${widthPct}%` }}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
 

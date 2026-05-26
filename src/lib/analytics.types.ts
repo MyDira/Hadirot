@@ -21,7 +21,9 @@ export type AnalyticsEventName =
   | 'login_gate_shown'
   | 'login_gate_dismissed'
   | 'login_gate_auth_success'
-  | 'login_gate_action_completed';
+  | 'login_gate_action_completed'
+  | 'wizard_step_viewed'
+  | 'wizard_step_completed';
 
 export interface AnalyticsEventPayload {
   session_id: string;

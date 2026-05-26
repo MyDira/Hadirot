@@ -72,6 +72,7 @@ export function InternalAnalytics() {
   const [inquiryQualityMetrics, setInquiryQualityMetrics] = useState<any>(null);
   const [inquiryTrend, setInquiryTrend] = useState<any[]>([]);
   const [loginGateFunnel, setLoginGateFunnel] = useState<any>(null);
+  const [wizardFunnel, setWizardFunnel] = useState<any[] | null>(null);
   const [timingPhones, setTimingPhones] = useState<any[]>([]);
   const [timingForms, setTimingForms] = useState<any[]>([]);
   const [abuseSignals, setAbuseSignals] = useState<any[]>([]);
@@ -131,6 +132,7 @@ export function InternalAnalytics() {
         supabase.rpc('analytics_inquiry_quality_metrics', { days_back: dateRange, tz }),
         supabase.rpc('analytics_abuse_signals', { days_back: dateRange, tz, mild_threshold: 6, extreme_threshold: 15 }),
         supabase.rpc('analytics_login_gate_funnel', { days_back: dateRange, tz }),
+        supabase.rpc('analytics_wizard_funnel', { days_back: dateRange, tz }),
       ]);
 
       const firstError = results.find(r => r.error);
@@ -165,6 +167,7 @@ export function InternalAnalytics() {
         inquiryQualityMetricsResult,
         abuseResult,
         loginGateFunnelResult,
+        wizardFunnelResult,
       ] = results;
 
       if (sessionQualityResult.data?.[0]) {
@@ -270,6 +273,8 @@ export function InternalAnalytics() {
       } else {
         setLoginGateFunnel(null);
       }
+
+      setWizardFunnel(wizardFunnelResult.data ?? null);
 
     } catch (err) {
       console.error('Error loading analytics:', err);
@@ -406,6 +411,7 @@ export function InternalAnalytics() {
           qualityMetrics={inquiryQualityMetrics}
           abuseSignals={abuseSignals}
           loginGateFunnel={loginGateFunnel}
+          wizardFunnel={wizardFunnel}
           onListingClick={handleListingClick}
           loading={dataLoading}
         />
