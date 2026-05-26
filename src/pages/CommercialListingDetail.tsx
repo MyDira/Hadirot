@@ -39,6 +39,7 @@ import {
 import { commercialLabels, triStateLabel } from '../utils/commercialLabels';
 import { SaleStatusBadge } from '../components/listings/SaleStatusBadge';
 import { CommercialReportRentedButton } from '../components/listing/CommercialReportRentedButton';
+import { CommercialSimilarListings } from '../components/listings/CommercialSimilarListings';
 
 const SCROLL_THRESHOLDS = [25, 50, 75, 100] as const;
 
@@ -1290,6 +1291,9 @@ export function CommercialListingDetail() {
 
         </div>
       </div>
+
+      {/* Similar Listings */}
+      <CommercialSimilarListings listing={listing} />
 
       {zoomModalOpen && hasRealImages && (
         <ImageZoomModal

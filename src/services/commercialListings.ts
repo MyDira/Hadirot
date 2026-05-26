@@ -468,6 +468,101 @@ export const commercialListingsService = {
     }
   },
 
+  // Returns up to `limit` commercial listings similar to the given one,
+  // skipping the listing itself. Match priority (high to low):
+  //   1. same commercial_space_type + same neighborhood + same listing_type
+  //   2. same commercial_space_type + same listing_type (any neighborhood)
+  //   3. same commercial_space_type (any listing_type)
+  //   4. any active commercial listing
+  // Pagination via `offset` so the carousel can load more.
+  async getSimilarCommercialListings(
+    listing: CommercialListing,
+    limit = 8,
+    offset = 0,
+  ): Promise<CommercialListing[]> {
+    const baseSelect = `
+      *,
+      owner:profiles(id,full_name,role,agency),
+      listing_images:commercial_listing_images(*)
+    `;
+
+    const baseQuery = () =>
+      supabase
+        .from('commercial_listings')
+        .select(baseSelect)
+        .eq('is_active', true)
+        .eq('approved', true)
+        .neq('id', listing.id);
+
+    // Tier 1 — same type + neighborhood + listing_type
+    let { data, error } = await baseQuery()
+      .eq('commercial_space_type', listing.commercial_space_type)
+      .eq('neighborhood', listing.neighborhood ?? '')
+      .eq('listing_type', listing.listing_type)
+      .order('created_at', { ascending: false })
+      .range(offset, offset + limit - 1);
+    if (error) {
+      console.error('Error loading similar commercial listings (tier 1):', error);
+    }
+    if (data && data.length >= limit) {
+      return data as unknown as CommercialListing[];
+    }
+
+    const collected = (data ?? []) as unknown as CommercialListing[];
+    const collectedIds = new Set(collected.map(l => l.id));
+    const remaining = () => limit - collected.length;
+
+    // Tier 2 — same type + listing_type
+    if (remaining() > 0) {
+      const tier2 = await baseQuery()
+        .eq('commercial_space_type', listing.commercial_space_type)
+        .eq('listing_type', listing.listing_type)
+        .order('created_at', { ascending: false })
+        .range(0, remaining() * 2);
+      if (!tier2.error && tier2.data) {
+        for (const row of tier2.data as unknown as CommercialListing[]) {
+          if (collectedIds.has(row.id)) continue;
+          collected.push(row);
+          collectedIds.add(row.id);
+          if (remaining() <= 0) break;
+        }
+      }
+    }
+
+    // Tier 3 — same type only
+    if (remaining() > 0) {
+      const tier3 = await baseQuery()
+        .eq('commercial_space_type', listing.commercial_space_type)
+        .order('created_at', { ascending: false })
+        .range(0, remaining() * 2);
+      if (!tier3.error && tier3.data) {
+        for (const row of tier3.data as unknown as CommercialListing[]) {
+          if (collectedIds.has(row.id)) continue;
+          collected.push(row);
+          collectedIds.add(row.id);
+          if (remaining() <= 0) break;
+        }
+      }
+    }
+
+    // Tier 4 — any active listing
+    if (remaining() > 0) {
+      const tier4 = await baseQuery()
+        .order('created_at', { ascending: false })
+        .range(0, remaining() * 2);
+      if (!tier4.error && tier4.data) {
+        for (const row of tier4.data as unknown as CommercialListing[]) {
+          if (collectedIds.has(row.id)) continue;
+          collected.push(row);
+          collectedIds.add(row.id);
+          if (remaining() <= 0) break;
+        }
+      }
+    }
+
+    return collected.slice(0, limit);
+  },
+
   async getUserCommercialFavoriteIds(userId: string): Promise<string[]> {
     const { data, error } = await supabase
       .from('commercial_favorites')
