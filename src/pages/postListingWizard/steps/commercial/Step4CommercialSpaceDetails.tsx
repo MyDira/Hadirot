@@ -164,6 +164,10 @@ export function Step4CommercialSpaceDetails({ formData, updateFormData, isSale, 
     ? TYPE_SPECIFIC_FIELDS[formData.commercial_space_type as CommercialSpaceType] || []
     : [];
 
+  const showExamRooms =
+    formData.commercial_space_type === 'office' &&
+    (formData.commercial_subtype === 'medical_office' || formData.commercial_subtype === 'medical');
+
   return (
     <StepShell title="Space Details" onBack={onBack} onNext={onNext} tips={TIPS}>
       {/* Type-specific fields */}
@@ -177,6 +181,22 @@ export function Step4CommercialSpaceDetails({ formData, updateFormData, isSale, 
           </p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4">
             {typeFields.map(f => renderTypeSpecificField(f, formData, updateFormData))}
+            {showExamRooms && (
+              <div>
+                <label className="text-sm font-medium text-gray-700 mb-1 flex items-center gap-1.5">
+                  Exam Rooms
+                </label>
+                <input
+                  type="number"
+                  min={0}
+                  value={formData.exam_rooms ?? ''}
+                  onChange={e =>
+                    updateFormData({ exam_rooms: e.target.value ? Number(e.target.value) : null })
+                  }
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-accent-500 focus:border-accent-500 text-sm"
+                />
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -225,6 +245,17 @@ export function Step4CommercialSpaceDetails({ formData, updateFormData, isSale, 
                 </option>
               ))}
             </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              {isSale ? 'Possession / Vacancy Date' : 'Available Date'}
+            </label>
+            <input
+              type="date"
+              value={formData.available_date || ''}
+              onChange={e => updateFormData({ available_date: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-accent-500 focus:border-accent-500 text-sm"
+            />
           </div>
           {!isSale && (
             <div>

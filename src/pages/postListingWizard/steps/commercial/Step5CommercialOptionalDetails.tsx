@@ -225,6 +225,16 @@ function BuildingFields({
           className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-accent-500 focus:border-accent-500 text-sm"
         />
       </div>
+      <div className="sm:col-span-2">
+        <label className="block text-sm font-medium text-gray-700 mb-1">Outdoor Space</label>
+        <input
+          type="text"
+          value={formData.outdoor_space || ''}
+          onChange={e => update({ outdoor_space: e.target.value })}
+          placeholder="e.g. Roof deck, patio, backyard"
+          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-accent-500 focus:border-accent-500 text-sm"
+        />
+      </div>
       <div className="sm:col-span-2 pt-2 border-t border-gray-100 space-y-2">
         <WizardTriStateToggle
           label="Signage Rights"
@@ -373,15 +383,6 @@ function LeaseTermsFields({
             value={formData.security_deposit || ''}
             onChange={e => update({ security_deposit: e.target.value })}
             placeholder="e.g. 3 months rent"
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-accent-500 focus:border-accent-500 text-sm"
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Available Date</label>
-          <input
-            type="date"
-            value={formData.available_date || ''}
-            onChange={e => update({ available_date: e.target.value })}
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-accent-500 focus:border-accent-500 text-sm"
           />
         </div>
