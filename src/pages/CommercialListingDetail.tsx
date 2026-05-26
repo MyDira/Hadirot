@@ -38,6 +38,7 @@ import {
 } from '../lib/analytics';
 import { commercialLabels, triStateLabel } from '../utils/commercialLabels';
 import { SaleStatusBadge } from '../components/listings/SaleStatusBadge';
+import { CommercialReportRentedButton } from '../components/listing/CommercialReportRentedButton';
 
 const SCROLL_THRESHOLDS = [25, 50, 75, 100] as const;
 
@@ -824,12 +825,23 @@ export function CommercialListingDetail() {
         />
       </div>
       <div className="flex gap-2">
-        <ShareButton
-          listingId={listing.id}
-          listingTitle={listing.title ?? undefined}
-          variant="detail"
-          className="w-full justify-center"
-        />
+        {!isSale && (
+          <div className="flex-1">
+            <CommercialReportRentedButton
+              listing={listing}
+              userFullName={user?.user_metadata?.full_name || user?.email}
+              userEmail={user?.email}
+            />
+          </div>
+        )}
+        <div className={!isSale ? 'flex-1' : 'w-full'}>
+          <ShareButton
+            listingId={listing.id}
+            listingTitle={listing.title ?? undefined}
+            variant="detail"
+            className="w-full justify-center"
+          />
+        </div>
       </div>
       <div className="mt-4 pt-4 border-t border-gray-200 text-xs text-gray-500">
         Listed {new Date(listing.created_at).toLocaleDateString()}

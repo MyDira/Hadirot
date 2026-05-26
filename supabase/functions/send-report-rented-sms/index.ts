@@ -5,7 +5,19 @@ interface ReportRequest {
   listingId: string;
   reporterName: string;
   reporterEmail: string;
+  isCommercial?: boolean;
 }
+
+const SPACE_TYPE_SHORT: Record<string, string> = {
+  storefront: "Retail",
+  restaurant: "Restaurant",
+  office: "Office",
+  warehouse: "Warehouse",
+  industrial: "Industrial",
+  mixed_use: "Mixed-Use",
+  community_facility: "Community Facility",
+  basement_commercial: "Basement",
+};
 
 interface TwilioResponse {
   sid: string;
@@ -84,9 +96,15 @@ Deno.serve(async (req) => {
       auth: { autoRefreshToken: false, persistSession: false },
     });
 
+    const isCommercial = requestData.isCommercial === true;
+    const tableName = isCommercial ? "commercial_listings" : "listings";
+    const selectColumns = isCommercial
+      ? "id, user_id, listing_type, full_address, cross_street_a, cross_street_b, neighborhood, price, asking_price, available_sf, commercial_space_type, contact_phone, is_active"
+      : "id, user_id, listing_type, location, neighborhood, price, asking_price, bedrooms, contact_phone, is_active";
+
     const { data: listing, error: listingError } = await supabase
-      .from("listings")
-      .select("id, user_id, listing_type, location, neighborhood, price, asking_price, bedrooms, contact_phone, is_active")
+      .from(tableName)
+      .select(selectColumns)
       .eq("id", requestData.listingId)
       .single();
 
@@ -124,14 +142,27 @@ Deno.serve(async (req) => {
 
     const formattedPhone = formatPhoneForSMS(listing.contact_phone);
 
-    const bedroomText = listing.bedrooms === 0 ? "Studio" : `${listing.bedrooms} bd`;
-    const locationText = listing.neighborhood || listing.location;
     const isSale = listing.listing_type === 'sale';
     const priceValue = isSale ? listing.asking_price : listing.price;
     const priceText = priceValue ? `$${priceValue.toLocaleString()}` : 'Call for price';
     const rentedSoldWord = isSale ? 'sold' : 'rented';
 
-    const smsMessage = `Hadirot Alert: We received a report that your listing - ${bedroomText} at ${locationText} for ${priceText} - has been ${rentedSoldWord}. Is it still available? Reply YES to keep active or NO to deactivate. If you don't respond, we will deactivate in 24 hours.`;
+    let descriptor: string;
+    let locationText: string;
+    if (isCommercial) {
+      const spaceLabel = SPACE_TYPE_SHORT[listing.commercial_space_type as string] ?? 'Commercial space';
+      const sizeText = listing.available_sf ? `${Number(listing.available_sf).toLocaleString()} SF ` : '';
+      descriptor = `${sizeText}${spaceLabel}`;
+      locationText = listing.neighborhood
+        || listing.full_address
+        || [listing.cross_street_a, listing.cross_street_b].filter(Boolean).join(' & ')
+        || 'this location';
+    } else {
+      descriptor = listing.bedrooms === 0 ? 'Studio' : `${listing.bedrooms} bd`;
+      locationText = listing.neighborhood || listing.location;
+    }
+
+    const smsMessage = `Hadirot Alert: We received a report that your listing - ${descriptor} at ${locationText} for ${priceText} - has been ${rentedSoldWord}. Is it still available? Reply YES to keep active or NO to deactivate. If you don't respond, we will deactivate in 24 hours.`;
 
     console.log("Sending report SMS to:", formattedPhone);
 
@@ -196,6 +227,7 @@ Deno.serve(async (req) => {
         expires_at: expiresAt.toISOString(),
         state: 'awaiting_report_response',
         conversation_type: 'report',
+        is_commercial: isCommercial,
         metadata: {
           reporter_name: requestData.reporterName,
           reporter_email: requestData.reporterEmail,
