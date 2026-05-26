@@ -33,9 +33,18 @@ interface PersistedState {
   customNeighborhoodInput: string;
 }
 
-function loadFromStorage(userId: string): PersistedState | null {
+// Anonymous wizard drafts live under a single shared key — there is at most
+// one anonymous user per browser. When that user signs in we migrate the
+// draft into the per-user key.
+const ANON_KEY = 'wizard_draft_anon';
+
+function storageKey(userId: string | null): string {
+  return userId ? `wizard_draft_${userId}` : ANON_KEY;
+}
+
+function loadFromStorage(userId: string | null): PersistedState | null {
   try {
-    const raw = localStorage.getItem(`wizard_draft_${userId}`);
+    const raw = localStorage.getItem(storageKey(userId));
     if (!raw) return null;
     return JSON.parse(raw) as PersistedState;
   } catch {
@@ -43,17 +52,33 @@ function loadFromStorage(userId: string): PersistedState | null {
   }
 }
 
-function saveToStorage(userId: string, state: PersistedState) {
+function saveToStorage(userId: string | null, state: PersistedState) {
   try {
-    localStorage.setItem(`wizard_draft_${userId}`, JSON.stringify(state));
+    localStorage.setItem(storageKey(userId), JSON.stringify(state));
   } catch {
     // storage full or private mode — silently ignore
   }
 }
 
-function clearStorage(userId: string) {
+function clearStorage(userId: string | null) {
   try {
-    localStorage.removeItem(`wizard_draft_${userId}`);
+    localStorage.removeItem(storageKey(userId));
+  } catch {
+    // ignore
+  }
+}
+
+// Move the anon draft to the now-signed-in user's slot. Called once when
+// userId transitions from null → defined.
+function migrateAnonDraft(userId: string) {
+  try {
+    const anon = localStorage.getItem(ANON_KEY);
+    if (!anon) return;
+    // Don't clobber an existing per-user draft (e.g. they had a half-finished
+    // listing from a previous session).
+    if (localStorage.getItem(`wizard_draft_${userId}`)) return;
+    localStorage.setItem(`wizard_draft_${userId}`, anon);
+    localStorage.removeItem(ANON_KEY);
   } catch {
     // ignore
   }
@@ -95,9 +120,14 @@ export function useWizardState(userId: string | null) {
   const [initialized, setInitialized] = useState(false);
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
 
-  // Load persisted state on mount
+  // Load persisted state on mount. Anonymous users get the shared
+  // `wizard_draft_anon` slot; signed-in users get their own. When the same
+  // browser transitions anon → signed-in mid-flow, we migrate the draft so
+  // they don't lose their work.
   useEffect(() => {
-    if (!userId) { setInitialized(true); return; }
+    if (userId) {
+      migrateAnonDraft(userId);
+    }
     const saved = loadFromStorage(userId);
     if (saved) {
       setSelectedPathRaw(saved.selectedPath);
@@ -115,9 +145,10 @@ export function useWizardState(userId: string | null) {
     setInitialized(true);
   }, [userId]);
 
-  // Persist to storage whenever relevant state changes
+  // Persist to storage whenever relevant state changes. Anonymous drafts
+  // are persisted too so a Google-OAuth redirect doesn't lose form data.
   useEffect(() => {
-    if (!initialized || !userId) return;
+    if (!initialized) return;
     saveToStorage(userId, {
       selectedPath,
       currentStep,
@@ -196,7 +227,7 @@ export function useWizardState(userId: string | null) {
   const goToStep = useCallback((n: number) => setCurrentStep(n), []);
 
   const clearDraft = useCallback(() => {
-    if (userId) clearStorage(userId);
+    clearStorage(userId);
     setSelectedPathRaw(null);
     setCurrentStep(0);
     setHighWaterStep(0);

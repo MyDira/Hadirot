@@ -268,19 +268,20 @@ export function PostListingWizard() {
 
   if (!wizard.initialized) return null;
 
-  // Require auth to interact beyond path picker
-  const requireAuth = () => {
-    if (!user) {
-      setShowAuthModal(true);
-      return false;
-    }
-    return true;
-  };
+  // Anonymous users can fill the entire wizard. Auth is only required at
+  // Submit time (see handleSubmit / handleCommercialSubmit), matching the
+  // login-gate UX on the listing-detail pages.
+  //
+  // pendingSubmitKind remembers which submit handler the user clicked
+  // while logged-out, so we can replay it after a successful sign-in
+  // inside the auth modal.
+  const [pendingSubmitKind, setPendingSubmitKind] = useState<'residential' | 'commercial' | null>(null);
 
   const handleSelectPath = (path: Parameters<typeof wizard.setSelectedPath>[0]) => {
-    if (!requireAuth()) return;
-    // Sales path requires permission
-    if (path === 'residential_sale' && !hasSalesAccess) {
+    // Sales path requires permission — but we can only check this for a
+    // signed-in user. Anonymous users get through; permission is rechecked
+    // at submit time after they sign in.
+    if (path === 'residential_sale' && user && !hasSalesAccess) {
       setShowPermissionModal(true);
       return;
     }
@@ -317,7 +318,6 @@ export function PostListingWizard() {
   }, [wizard.currentStep, wizard.highWaterStep, funnelPath, totalStepsForFunnel]);
 
   const handleNext = () => {
-    if (!requireAuth()) return;
     if (funnelPath) {
       trackWizardStepCompleted({
         path: funnelPath,
@@ -344,7 +344,11 @@ export function PostListingWizard() {
   };
 
   const handleCommercialSubmit = async () => {
-    if (!user) { setShowAuthModal(true); return; }
+    if (!user) {
+      setPendingSubmitKind('commercial');
+      setShowAuthModal(true);
+      return;
+    }
     setLoading(true);
     setSubmitError(null);
     trackPostSubmit();
@@ -543,7 +547,17 @@ export function PostListingWizard() {
   };
 
   const handleSubmit = async () => {
-    if (!user) { setShowAuthModal(true); return; }
+    if (!user) {
+      setPendingSubmitKind('residential');
+      setShowAuthModal(true);
+      return;
+    }
+    // Sales path requires permission. If a logged-out user filled out a
+    // sale listing and just signed in, recheck now.
+    if (isSalePath && !hasSalesAccess) {
+      setShowPermissionModal(true);
+      return;
+    }
     setLoading(true);
     setSubmitError(null);
     trackPostSubmit();
@@ -727,12 +741,55 @@ export function PostListingWizard() {
 
   // --- Render ---
 
+  // Shared post-auth handler. If the user clicked Submit while logged out,
+  // we set pendingSubmitKind and opened the modal. After the AuthForm fires
+  // its success callback, we close the modal and replay the right submit.
+  // Email sign-in / sign-up call this synchronously; Google OAuth completes
+  // via redirect — see the user-watcher effect below for that path.
+  const handleAuthSuccess = () => {
+    setShowAuthModal(false);
+    const kind = pendingSubmitKind;
+    setPendingSubmitKind(null);
+    if (kind === 'commercial') {
+      // Defer to next tick so React has flushed the new `user` from context
+      setTimeout(() => { void handleCommercialSubmit(); }, 0);
+    } else if (kind === 'residential') {
+      setTimeout(() => { void handleSubmit(); }, 0);
+    }
+  };
+
+  // Google OAuth path: user becomes truthy after a redirect, by which point
+  // the auth modal is gone and the original click intent is lost from
+  // memory. We persist pendingSubmitKind to a sessionStorage shadow so it
+  // survives the redirect; this effect notices the post-OAuth user and
+  // replays the submit.
+  useEffect(() => {
+    if (!user) return;
+    const stashed = sessionStorage.getItem('wizard:pendingSubmit');
+    if (!stashed) return;
+    sessionStorage.removeItem('wizard:pendingSubmit');
+    if (stashed === 'commercial') {
+      setTimeout(() => { void handleCommercialSubmit(); }, 0);
+    } else if (stashed === 'residential') {
+      setTimeout(() => { void handleSubmit(); }, 0);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
+
+  // Whenever we set pendingSubmitKind for a logged-out user, mirror it to
+  // sessionStorage so the OAuth round-trip can pick it back up.
+  useEffect(() => {
+    if (pendingSubmitKind) {
+      sessionStorage.setItem('wizard:pendingSubmit', pendingSubmitKind);
+    }
+  }, [pendingSubmitKind]);
+
   if (!wizard.selectedPath) {
     return (
       <>
         <PathPicker onSelect={handleSelectPath} />
-        <Modal isOpen={showAuthModal} onClose={() => setShowAuthModal(false)} title="Sign in to continue">
-          <AuthForm onAuthSuccess={() => setShowAuthModal(false)} />
+        <Modal isOpen={showAuthModal} onClose={() => { setShowAuthModal(false); setPendingSubmitKind(null); try { sessionStorage.removeItem('wizard:pendingSubmit'); } catch { /* ignore */ } }} title="Sign in to continue">
+          <AuthForm onAuthSuccess={handleAuthSuccess} />
         </Modal>
         <PermissionRequestModal
           isOpen={showPermissionModal}
@@ -946,8 +1003,8 @@ export function PostListingWizard() {
         </div>
       </div>
 
-      <Modal isOpen={showAuthModal} onClose={() => setShowAuthModal(false)} title="Sign in to continue">
-        <AuthForm onSuccess={() => setShowAuthModal(false)} />
+      <Modal isOpen={showAuthModal} onClose={() => { setShowAuthModal(false); setPendingSubmitKind(null); try { sessionStorage.removeItem('wizard:pendingSubmit'); } catch { /* ignore */ } }} title="Sign in to publish your listing">
+        <AuthForm onAuthSuccess={handleAuthSuccess} />
       </Modal>
     </>
     </WizardUIContext.Provider>
