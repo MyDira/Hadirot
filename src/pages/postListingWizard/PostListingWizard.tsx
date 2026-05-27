@@ -266,8 +266,6 @@ export function PostListingWizard() {
     }
   };
 
-  if (!wizard.initialized) return null;
-
   // Anonymous users can fill the entire wizard. Auth is only required at
   // Submit time (see handleSubmit / handleCommercialSubmit), matching the
   // login-gate UX on the listing-detail pages.
@@ -275,7 +273,11 @@ export function PostListingWizard() {
   // pendingSubmitKind remembers which submit handler the user clicked
   // while logged-out, so we can replay it after a successful sign-in
   // inside the auth modal.
+  // NOTE: must be declared before the wizard.initialized early-return so
+  // the hook order is stable across renders (Rules of Hooks).
   const [pendingSubmitKind, setPendingSubmitKind] = useState<'residential' | 'commercial' | null>(null);
+
+  if (!wizard.initialized) return null;
 
   const handleSelectPath = (path: Parameters<typeof wizard.setSelectedPath>[0]) => {
     // Sales path requires permission — but we can only check this for a
