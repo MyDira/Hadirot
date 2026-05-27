@@ -48,14 +48,14 @@ export function WizardBreadcrumb({ currentStep, highWaterStep, onGoToStep, stepL
               <li key={label} className="flex items-center gap-0.5 flex-shrink-0">
                 <button
                   type="button"
-                  onClick={() => !active && onGoToStep(idx)}
-                  disabled={active}
+                  onClick={() => visited && !active && onGoToStep(idx)}
+                  disabled={active || !visited}
                   className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs transition-colors ${
                     active
                       ? 'bg-gray-100 font-bold text-gray-900 cursor-default'
                       : visited
                       ? 'font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-50 cursor-pointer'
-                      : 'font-medium text-gray-400 hover:text-gray-700 hover:bg-gray-50 cursor-pointer'
+                      : 'font-medium text-gray-300 cursor-not-allowed'
                   }`}
                 >
                   <span
