@@ -404,33 +404,12 @@ export function ListingDetail() {
 
   const handleCallClick = (): boolean | void => {
     if (!listing?.id) return;
-    if (!user) {
-      savePendingListingAction({
-        type: "reveal_phone",
-        listingId: listing.id,
-        listingType: "rental",
-      });
-      savePendingAuth({ from: window.location.pathname });
-      openAuthGate("reveal_phone");
-      return false;
-    }
     gaListing("listing_contact_click", listing.id, { contact_method: "phone" });
     trackPhoneReveal(listing.id);
   };
 
-  const handleCallbackAuthRequired = (formData: ListingContactFormData) => {
-    if (!listing?.id) return;
-    savePendingListingAction({
-      type: "send_callback",
-      listingId: listing.id,
-      listingType: "rental",
-      userName: formData.userName,
-      userPhone: formData.userPhone,
-      consentToFollowup: formData.consentToFollowup,
-    });
-    savePendingAuth({ from: window.location.pathname });
-    openAuthGate("send_callback");
-  };
+  // Phone/callback no longer requires login. Handler kept for type compatibility.
+  const handleCallbackAuthRequired = (_formData: ListingContactFormData) => {};
 
   const handleAuthModalClose = () => {
     if (!user && authModalAction && listing?.id) {
@@ -850,7 +829,7 @@ export function ListingDetail() {
               <div className="mb-6">
                 <ListingContactForm
                   listingId={listing.id}
-                  isAuthenticated={!!user}
+                  isAuthenticated={true}
                   onAuthRequired={handleCallbackAuthRequired}
                   defaultSuccess={callbackJustSent}
                 />
@@ -1068,7 +1047,7 @@ export function ListingDetail() {
               <div className="mb-6">
                 <ListingContactForm
                   listingId={listing.id}
-                  isAuthenticated={!!user}
+                  isAuthenticated={true}
                   onAuthRequired={handleCallbackAuthRequired}
                   defaultSuccess={callbackJustSent}
                 />
