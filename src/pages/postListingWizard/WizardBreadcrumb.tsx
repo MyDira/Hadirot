@@ -41,11 +41,7 @@ export function WizardBreadcrumb({ currentStep, highWaterStep, onGoToStep, stepL
         <ol className="hidden sm:flex items-center gap-0.5 overflow-x-auto">
           {STEP_LABELS.map((label, idx) => {
             const active = idx === currentStep;
-            // A step is visited (and thus clickable) if the user has ever reached it.
-            // highWaterStep is the index of the furthest step reached via Continue.
             const visited = idx <= highWaterStep;
-            // Checkmark = step has been completed (Continue was pressed from it).
-            // Number = not yet completed. Active or not makes no difference.
             const showCheck = idx < highWaterStep;
 
             return (
@@ -53,7 +49,7 @@ export function WizardBreadcrumb({ currentStep, highWaterStep, onGoToStep, stepL
                 <button
                   type="button"
                   onClick={() => visited && !active && onGoToStep(idx)}
-                  disabled={!visited || active}
+                  disabled={active || !visited}
                   className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs transition-colors ${
                     active
                       ? 'bg-gray-100 font-bold text-gray-900 cursor-default'
@@ -66,7 +62,7 @@ export function WizardBreadcrumb({ currentStep, highWaterStep, onGoToStep, stepL
                     className={`flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${
                       visited
                         ? 'bg-accent-500 text-white'
-                        : 'bg-gray-200 text-gray-400'
+                        : 'bg-gray-200 text-gray-500'
                     }`}
                   >
                     {showCheck ? <Check className="w-3 h-3" strokeWidth={3} /> : idx + 1}

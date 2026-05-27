@@ -527,6 +527,59 @@ export function trackLoginGateActionCompleted(
   });
 }
 
+// ── Post-listing wizard funnel ────────────────────────────────────
+// Per-step events linked back to the per-attempt `attempt_id` already
+// minted by getPostingSession(), so the wizard funnel can be joined to
+// post_started/post_submitted/post_success in BI.
+//
+// Drop-off detection is implicit: the last `wizard_step_viewed` for an
+// attempt is where the user stopped.
+//
+// We don't emit on backward navigation (per product spec — we only
+// care about how far forward they got).
+
+export type WizardFunnelPath =
+  | 'residential_rental'
+  | 'residential_sale'
+  | 'commercial_rental'
+  | 'commercial_sale';
+
+interface WizardStepBaseProps {
+  path: WizardFunnelPath;
+  step: number;        // zero-indexed position in the step sequence
+  totalSteps: number;  // length of that path's step sequence
+}
+
+export function trackWizardStepViewed(props: WizardStepBaseProps): void {
+  const { attemptId } = getPostingSession();
+  const flagKey = `${SESSION_FLAG_PREFIX}wiz:viewed:${attemptId}:${props.path}:${props.step}`;
+  if (getFlag(flagKey)) {
+    return; // Already counted this step view for this attempt; ignore.
+  }
+  setFlag(flagKey);
+  track('wizard_step_viewed', {
+    attempt_id: attemptId,
+    path: props.path,
+    step: props.step,
+    total_steps: props.totalSteps,
+  });
+}
+
+export function trackWizardStepCompleted(props: WizardStepBaseProps): void {
+  const { attemptId } = getPostingSession();
+  const flagKey = `${SESSION_FLAG_PREFIX}wiz:done:${attemptId}:${props.path}:${props.step}`;
+  if (getFlag(flagKey)) {
+    return;
+  }
+  setFlag(flagKey);
+  track('wizard_step_completed', {
+    attempt_id: attemptId,
+    path: props.path,
+    step: props.step,
+    total_steps: props.totalSteps,
+  });
+}
+
 function getPostingSession(): { attemptId: string; sessionId: string } {
   const sessionId = ensureSession(Date.now());
   let attemptId = safeSessionGet(POST_ATTEMPT_KEY);

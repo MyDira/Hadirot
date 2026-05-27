@@ -92,6 +92,7 @@ export interface CommercialListingFormData {
   noi: number | null;
   property_taxes_annual: number | null;
   tenancy_type: TenancyType | null;
+  sale_status: 'available' | 'pending' | 'in_contract' | 'sold' | null;
   current_lease_tenant: string;
   current_lease_expiration: string;
   current_lease_rent: number | null;
@@ -198,6 +199,7 @@ export const INITIAL_COMMERCIAL_FORM_DATA: CommercialListingFormData = {
   noi: null,
   property_taxes_annual: null,
   tenancy_type: null,
+  sale_status: null,
   current_lease_tenant: '',
   current_lease_expiration: '',
   current_lease_rent: null,

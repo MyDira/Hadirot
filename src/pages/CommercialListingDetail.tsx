@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { MapPin, Star, Heart, ArrowLeft, Building, Layers, CalendarDays, Wrench, Car, Users, DollarSign, CheckCircle, Eye, BarChart3, CreditCard as Edit, EyeOff, Trash2, XCircle, Maximize2, ArrowUpFromLine, TrendingUp, Package, Zap, Droplets, Wind, Activity } from 'lucide-react';
-import { supabase, CommercialListing, CommercialSpaceType, CommercialSubtype, LeaseType, BuildOutCondition, BuildingClass } from '../config/supabase';
+import { supabase, CommercialListing, CommercialSpaceType, CommercialSubtype, LeaseType } from '../config/supabase';
 import { commercialListingsService } from '../services/commercialListings';
 import { useAuth } from '@/hooks/useAuth';
 import ImageCarousel from '@/components/listing/ImageCarousel';
@@ -36,6 +36,10 @@ import {
   trackLoginGateActionCompleted,
   type LoginGateAction,
 } from '../lib/analytics';
+import { commercialLabels, triStateLabel } from '../utils/commercialLabels';
+import { SaleStatusBadge } from '../components/listings/SaleStatusBadge';
+import { CommercialReportRentedButton } from '../components/listing/CommercialReportRentedButton';
+import { CommercialSimilarListings } from '../components/listings/CommercialSimilarListings';
 
 const SCROLL_THRESHOLDS = [25, 50, 75, 100] as const;
 
@@ -102,21 +106,6 @@ const LEASE_TYPE_LABELS: Record<LeaseType, { abbr: string; full: string; explana
   },
 };
 
-const BUILD_OUT_LABELS: Record<BuildOutCondition, string> = {
-  full_build_out: 'Built Out',
-  turnkey: 'Turnkey',
-  second_generation: '2nd Generation',
-  vanilla_box: 'Vanilla Box',
-  shell: 'Shell',
-  cold_dark_shell: 'Cold Dark Shell',
-};
-
-const BUILDING_CLASS_LABELS: Record<BuildingClass, string> = {
-  a: 'Class A',
-  b: 'Class B',
-  c: 'Class C',
-};
-
 function getImageBadge(spaceType: CommercialSpaceType, subtype: CommercialSubtype | null): string | null {
   if (!subtype) return null;
   const key = `${spaceType}:${subtype}`;
@@ -169,70 +158,80 @@ function buildSpecItems(listing: CommercialListing): SpecRowItem[] {
     }
   };
 
-  const addBool = (icon: React.ReactNode, label: string, value: boolean | null | undefined) => {
-    if (value === true) items.push({ icon, label, value: 'Yes' });
+  // Tri-state: 'Yes' when true, 'No' when false, hide the row entirely
+  // when value is null/undefined. Matches the form's tri-state toggle.
+  const addTriState = (icon: React.ReactNode, label: string, value: boolean | null | undefined) => {
+    const text = triStateLabel(value);
+    if (text) items.push({ icon, label, value: text });
   };
 
-  add(<Building className="w-4 h-4" />, 'Space Type', SPACE_TYPE_LABELS[listing.commercial_space_type]);
+  const pluralize = (n: number, singular: string, plural?: string) =>
+    `${n.toLocaleString()} ${n === 1 ? singular : plural ?? `${singular}s`}`;
+
+  add(<Building className="w-4 h-4" />, 'Space Type', commercialLabels.spaceType(listing.commercial_space_type));
   add(<Maximize2 className="w-4 h-4" />, 'Available SF', listing.available_sf ? `${listing.available_sf.toLocaleString()} SF` : null);
-  add(<ArrowUpFromLine className="w-4 h-4" />, 'Floor Level', listing.floor_level);
-  add(<Activity className="w-4 h-4" />, 'Condition', listing.build_out_condition ? BUILD_OUT_LABELS[listing.build_out_condition] : null);
-  add(<Layers className="w-4 h-4" />, 'Layout', listing.layout_type);
+  add(<ArrowUpFromLine className="w-4 h-4" />, 'Floor Level', commercialLabels.floorLevel(listing.floor_level));
+  add(<Activity className="w-4 h-4" />, 'Condition', commercialLabels.buildOutCondition(listing.build_out_condition));
+  add(<Layers className="w-4 h-4" />, 'Layout', commercialLabels.layoutType(listing.layout_type));
   add(<ArrowUpFromLine className="w-4 h-4" />, 'Ceiling Height', listing.ceiling_height_ft ? `${listing.ceiling_height_ft} ft` : null);
   add(<Maximize2 className="w-4 h-4" />, 'Frontage', listing.frontage_ft ? `${listing.frontage_ft} ft` : null);
   add(<ArrowUpFromLine className="w-4 h-4" />, 'Clear Height', listing.clear_height_ft ? `${listing.clear_height_ft} ft` : null);
-  add(<Building className="w-4 h-4" />, 'Building Class', listing.building_class ? BUILDING_CLASS_LABELS[listing.building_class] : null);
-  add(<Package className="w-4 h-4" />, 'Loading Docks', listing.loading_docks ? `${listing.loading_docks}` : null);
-  add(<Package className="w-4 h-4" />, 'Drive-In Doors', listing.drive_in_doors ? `${listing.drive_in_doors}` : null);
+  add(<Building className="w-4 h-4" />, 'Building Class', commercialLabels.buildingClass(listing.building_class));
+  add(<Package className="w-4 h-4" />, 'Loading Docks', listing.loading_docks ? pluralize(listing.loading_docks, 'dock') : null);
+  add(<Package className="w-4 h-4" />, 'Drive-In Doors', listing.drive_in_doors ? pluralize(listing.drive_in_doors, 'door') : null);
   add(<Zap className="w-4 h-4" />, 'Electrical', listing.electrical_amps ? `${listing.electrical_amps}A${listing.electrical_voltage ? ` / ${listing.electrical_voltage}V` : ''}` : null);
-  add(<Activity className="w-4 h-4" />, 'Sprinkler', listing.sprinkler_type);
+  add(<Activity className="w-4 h-4" />, 'Sprinkler', commercialLabels.sprinklerType(listing.sprinkler_type));
   add(<Activity className="w-4 h-4" />, 'Column Spacing', listing.column_spacing);
   add(<Package className="w-4 h-4" />, 'Floor Load', listing.floor_load_capacity);
   add(<Package className="w-4 h-4" />, 'Truck Court Depth', listing.truck_court_depth);
   add(<Package className="w-4 h-4" />, 'Crane Capacity', listing.crane_capacity);
-  add(<Users className="w-4 h-4" />, 'Private Offices', listing.private_offices ? `${listing.private_offices}` : null);
-  add(<Users className="w-4 h-4" />, 'Conference Rooms', listing.conference_rooms ? `${listing.conference_rooms}` : null);
-  add(<Users className="w-4 h-4" />, 'Exam Rooms', listing.exam_rooms ? `${listing.exam_rooms}` : null);
-  add(<Users className="w-4 h-4" />, 'Seating Capacity', listing.seating_capacity ? `${listing.seating_capacity}` : null);
+  add(<Users className="w-4 h-4" />, 'Private Offices', listing.private_offices ? pluralize(listing.private_offices, 'office') : null);
+  add(<Users className="w-4 h-4" />, 'Conference Rooms', listing.conference_rooms ? pluralize(listing.conference_rooms, 'room') : null);
+  add(<Users className="w-4 h-4" />, 'Exam Rooms', listing.exam_rooms ? pluralize(listing.exam_rooms, 'room') : null);
+  add(<Users className="w-4 h-4" />, 'Seating Capacity', listing.seating_capacity ? pluralize(listing.seating_capacity, 'seat') : null);
   add(<Users className="w-4 h-4" />, 'Capacity Range', listing.capacity_min || listing.capacity_max ? `${listing.capacity_min ?? '?'} – ${listing.capacity_max ?? '?'} people` : null);
-  add(<Users className="w-4 h-4" />, 'Occupancy Limit', listing.occupancy_limit ? `${listing.occupancy_limit}` : null);
+  add(<Users className="w-4 h-4" />, 'Occupancy Limit', listing.occupancy_limit ? `${listing.occupancy_limit.toLocaleString()} people` : null);
   add(<Activity className="w-4 h-4" />, 'Foot Traffic', listing.foot_traffic_vpd ? `${listing.foot_traffic_vpd.toLocaleString()} VPD` : null);
   add(<Activity className="w-4 h-4" />, 'Previous Use', listing.previous_use);
-  add(<Car className="w-4 h-4" />, 'Parking', listing.parking_spaces ? `${listing.parking_spaces} spaces${listing.parking_type ? ` (${listing.parking_type})` : ''}` : listing.parking_type ?? null);
-  add(<Activity className="w-4 h-4" />, 'Parking Ratio', listing.parking_ratio);
-  add(<Building className="w-4 h-4" />, 'Elevators', listing.elevator_count ? `${listing.elevator_count}` : null);
-  add(<Building className="w-4 h-4" />, 'Freight Elevators', listing.freight_elevator_count ? `${listing.freight_elevator_count}` : null);
-  add(<Wind className="w-4 h-4" />, 'HVAC', listing.hvac_type);
+  add(<Car className="w-4 h-4" />, 'Parking', (() => {
+    const typeLabel = commercialLabels.parkingType(listing.parking_type);
+    if (listing.parking_spaces) {
+      return `${pluralize(listing.parking_spaces, 'space')}${typeLabel ? ` (${typeLabel})` : ''}`;
+    }
+    return typeLabel;
+  })());
+  add(<Building className="w-4 h-4" />, 'Elevators', listing.elevator_count ? pluralize(listing.elevator_count, 'elevator') : null);
+  add(<Building className="w-4 h-4" />, 'Freight Elevators', listing.freight_elevator_count ? pluralize(listing.freight_elevator_count, 'freight elevator') : null);
   add(<CalendarDays className="w-4 h-4" />, 'Available Date', listing.available_date);
   add(<Activity className="w-4 h-4" />, 'Outdoor Space', listing.outdoor_space);
   add(<Activity className="w-4 h-4" />, 'Office/Warehouse Ratio', listing.office_warehouse_ratio);
   add(<Activity className="w-4 h-4" />, 'Use Breakdown', listing.use_breakdown);
 
-  addBool(<Zap className="w-4 h-4" />, '3-Phase Power', listing.three_phase_power);
-  addBool(<Droplets className="w-4 h-4" />, 'Kitchen Exhaust', listing.kitchen_exhaust);
-  addBool(<Droplets className="w-4 h-4" />, 'Grease Trap', listing.grease_trap);
-  addBool(<Droplets className="w-4 h-4" />, 'Gas Line', listing.gas_line);
-  addBool(<CheckCircle className="w-4 h-4" />, 'Corner Location', listing.corner_location);
-  addBool(<CheckCircle className="w-4 h-4" />, 'ADA Accessible', listing.ada_accessible);
-  addBool(<CheckCircle className="w-4 h-4" />, 'Separate Entrance', listing.separate_entrance);
-  addBool(<CheckCircle className="w-4 h-4" />, 'Private Entrance', listing.private_entrance);
-  addBool(<CheckCircle className="w-4 h-4" />, 'Signage Rights', listing.signage_rights);
-  addBool(<CheckCircle className="w-4 h-4" />, 'Rail Access', listing.rail_access);
-  addBool(<CheckCircle className="w-4 h-4" />, 'Natural Light', listing.natural_light);
-  addBool(<CheckCircle className="w-4 h-4" />, 'Waiting Room', listing.waiting_room);
-  addBool(<Droplets className="w-4 h-4" />, 'Wet Columns', listing.plumbing_wet_columns);
-  addBool(<CheckCircle className="w-4 h-4" />, 'Ventilation', listing.ventilation);
-  addBool(<CheckCircle className="w-4 h-4" />, 'Moisture Control', listing.moisture_waterproofing);
-  addBool(<CheckCircle className="w-4 h-4" />, 'Liquor License Transferable', listing.liquor_license_transferable);
-  addBool(<CheckCircle className="w-4 h-4" />, 'Sublease', listing.sublease);
+  addTriState(<Zap className="w-4 h-4" />, '3-Phase Power', listing.three_phase_power);
+  addTriState(<Droplets className="w-4 h-4" />, 'Kitchen Exhaust', listing.kitchen_exhaust);
+  addTriState(<Droplets className="w-4 h-4" />, 'Grease Trap', listing.grease_trap);
+  addTriState(<Droplets className="w-4 h-4" />, 'Gas Line', listing.gas_line);
+  addTriState(<CheckCircle className="w-4 h-4" />, 'Corner Location', listing.corner_location);
+  addTriState(<CheckCircle className="w-4 h-4" />, 'ADA Accessible', listing.ada_accessible);
+  addTriState(<CheckCircle className="w-4 h-4" />, 'Separate Entrance', listing.separate_entrance);
+  addTriState(<CheckCircle className="w-4 h-4" />, 'Private Entrance', listing.private_entrance);
+  addTriState(<CheckCircle className="w-4 h-4" />, 'Signage Rights', listing.signage_rights);
+  addTriState(<CheckCircle className="w-4 h-4" />, 'Rail Access', listing.rail_access);
+  addTriState(<CheckCircle className="w-4 h-4" />, 'Natural Light', listing.natural_light);
+  addTriState(<CheckCircle className="w-4 h-4" />, 'Waiting Room', listing.waiting_room);
+  addTriState(<Droplets className="w-4 h-4" />, 'Wet Columns', listing.plumbing_wet_columns);
+  addTriState(<CheckCircle className="w-4 h-4" />, 'Ventilation', listing.ventilation);
+  addTriState(<CheckCircle className="w-4 h-4" />, 'Moisture Control', listing.moisture_waterproofing);
+  addTriState(<CheckCircle className="w-4 h-4" />, 'Liquor License Transferable', listing.liquor_license_transferable);
+  addTriState(<CheckCircle className="w-4 h-4" />, 'Sublease', listing.sublease);
 
   if (listing.listing_type === 'sale') {
-    add(<DollarSign className="w-4 h-4" />, 'Tenancy', listing.tenancy_type?.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) ?? null);
+    add(<DollarSign className="w-4 h-4" />, 'Tenancy', commercialLabels.tenancyType(listing.tenancy_type));
     add(<Users className="w-4 h-4" />, 'Current Tenant', listing.current_lease_tenant);
     add(<CalendarDays className="w-4 h-4" />, 'Lease Expiration', listing.current_lease_expiration);
     add(<DollarSign className="w-4 h-4" />, 'Current Rent', listing.current_lease_rent ? `${formatPrice(listing.current_lease_rent)}/mo` : null);
     add(<DollarSign className="w-4 h-4" />, 'Rental Income', listing.current_rental_income ? `${formatPrice(listing.current_rental_income)}/mo` : null);
-    add(<Building className="w-4 h-4" />, 'Unit Count', listing.unit_count ? `${listing.unit_count}` : null);
+    add(<Building className="w-4 h-4" />, 'Unit Count', listing.unit_count ? pluralize(listing.unit_count, 'unit') : null);
   }
 
   return items;
@@ -414,7 +413,7 @@ function CommercialAdminBanner({
                 </>
               )}
               <button
-                onClick={() => navigate(`/post-commercial?edit=${listing.id}`)}
+                onClick={() => navigate(`/commercial/edit/${listing.id}`)}
                 className="inline-flex items-center px-3 py-1.5 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 transition-colors"
               >
                 <Edit className="w-4 h-4 mr-1.5" />
@@ -796,7 +795,7 @@ export function CommercialListingDetail() {
     void replayPendingListingAction();
   };
 
-  const ContactCard = (
+  const renderContactCard = (variant: 'desktop' | 'mobile') => (
     <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-6">
       <h3 className="text-xl font-bold text-[#273140] mb-4">Contact Information</h3>
       <div className="space-y-4 mb-6">
@@ -807,11 +806,11 @@ export function CommercialListingDetail() {
               {listing.contact_name}
               <span className="mx-2 text-gray-400">•</span>
               <PhoneNumberReveal
-                key={`reveal-desktop-${phoneRevealKey}`}
+                key={`reveal-${variant}-${phoneRevealKey}`}
                 phoneNumber={listing.contact_phone}
                 listingId={listing.id}
                 onReveal={handleCallClick}
-                isMobile={false}
+                isMobile={variant === 'mobile'}
               />
             </div>
             <div className="text-sm text-gray-500">{getRoleLabel()}</div>
@@ -827,12 +826,23 @@ export function CommercialListingDetail() {
         />
       </div>
       <div className="flex gap-2">
-        <ShareButton
-          listingId={listing.id}
-          listingTitle={listing.title ?? undefined}
-          variant="detail"
-          className="w-full justify-center"
-        />
+        {!isSale && (
+          <div className="flex-1">
+            <CommercialReportRentedButton
+              listing={listing}
+              userFullName={user?.user_metadata?.full_name || user?.email}
+              userEmail={user?.email}
+            />
+          </div>
+        )}
+        <div className={!isSale ? 'flex-1' : 'w-full'}>
+          <ShareButton
+            listingId={listing.id}
+            listingTitle={listing.title ?? undefined}
+            variant="detail"
+            className="w-full justify-center"
+          />
+        </div>
       </div>
       <div className="mt-4 pt-4 border-t border-gray-200 text-xs text-gray-500">
         Listed {new Date(listing.created_at).toLocaleDateString()}
@@ -840,49 +850,8 @@ export function CommercialListingDetail() {
     </div>
   );
 
-  const ContactCardMobile = (
-    <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-6">
-      <h3 className="text-xl font-bold text-[#273140] mb-4">Contact Information</h3>
-      <div className="space-y-4 mb-6">
-        <div className="flex items-center">
-          <ContactProfileBubble name={listing.contact_name} className="mr-3" />
-          <div>
-            <div className="font-semibold">
-              {listing.contact_name}
-              <span className="mx-2 text-gray-400">•</span>
-              <PhoneNumberReveal
-                key={`reveal-mobile-${phoneRevealKey}`}
-                phoneNumber={listing.contact_phone}
-                listingId={listing.id}
-                onReveal={handleCallClick}
-                isMobile={true}
-              />
-            </div>
-            <div className="text-sm text-gray-500">{getRoleLabel()}</div>
-          </div>
-        </div>
-      </div>
-      <div className="mb-6">
-        <CommercialContactForm
-          commercialListingId={listing.id}
-          isAuthenticated={!!user}
-          onAuthRequired={handleCallbackAuthRequired}
-          defaultSuccess={callbackJustSent}
-        />
-      </div>
-      <div className="flex gap-2">
-        <ShareButton
-          listingId={listing.id}
-          listingTitle={listing.title ?? undefined}
-          variant="detail"
-          className="w-full justify-center"
-        />
-      </div>
-      <div className="mt-4 pt-4 border-t border-gray-200 text-xs text-gray-500">
-        Listed {new Date(listing.created_at).toLocaleDateString()}
-      </div>
-    </div>
-  );
+  const ContactCard = renderContactCard('desktop');
+  const ContactCardMobile = renderContactCard('mobile');
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -1023,7 +992,10 @@ export function CommercialListingDetail() {
                   Featured
                 </span>
               )}
-              {isSale && (
+              {isSale && listing.sale_status && listing.sale_status !== 'available' && (
+                <SaleStatusBadge status={listing.sale_status as any} size="md" />
+              )}
+              {isSale && listing.sale_status !== 'sold' && (
                 <span className="inline-flex items-center bg-emerald-50 text-emerald-700 text-xs px-2.5 py-1 rounded-full border border-emerald-200 font-medium">
                   For Sale
                 </span>
@@ -1249,7 +1221,7 @@ export function CommercialListingDetail() {
                     <Building className="w-4 h-4 text-gray-400 flex-shrink-0 mt-0.5" />
                     <div>
                       <div className="text-xs text-gray-500">Construction</div>
-                      <div className="text-sm font-medium">{listing.construction_type}</div>
+                      <div className="text-sm font-medium">{commercialLabels.constructionType(listing.construction_type)}</div>
                     </div>
                   </div>
                 )}
@@ -1258,7 +1230,7 @@ export function CommercialListingDetail() {
                     <Wind className="w-4 h-4 text-gray-400 flex-shrink-0 mt-0.5" />
                     <div>
                       <div className="text-xs text-gray-500">HVAC</div>
-                      <div className="text-sm font-medium">{listing.hvac_type}</div>
+                      <div className="text-sm font-medium">{commercialLabels.hvacType(listing.hvac_type)}</div>
                     </div>
                   </div>
                 )}
@@ -1319,6 +1291,9 @@ export function CommercialListingDetail() {
 
         </div>
       </div>
+
+      {/* Similar Listings */}
+      <CommercialSimilarListings listing={listing} />
 
       {zoomModalOpen && hasRealImages && (
         <ImageZoomModal
