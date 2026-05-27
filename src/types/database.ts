@@ -39,6 +39,36 @@ export type Database = {
   }
   public: {
     Tables: {
+      admin_audit_log: {
+        Row: {
+          action: string
+          actor_id: string
+          created_at: string
+          details: Json | null
+          id: string
+          ip_hash: string | null
+          target_id: string | null
+        }
+        Insert: {
+          action: string
+          actor_id: string
+          created_at?: string
+          details?: Json | null
+          id?: string
+          ip_hash?: string | null
+          target_id?: string | null
+        }
+        Update: {
+          action?: string
+          actor_id?: string
+          created_at?: string
+          details?: Json | null
+          id?: string
+          ip_hash?: string | null
+          target_id?: string | null
+        }
+        Relationships: []
+      }
       admin_settings: {
         Row: {
           featured_duration_days: number | null
@@ -742,7 +772,22 @@ export type Database = {
           year_renovated?: number | null
           zoning_code?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "commercial_listings_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "commercial_listings_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "public_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       concierge_submissions: {
         Row: {
@@ -2420,8 +2465,10 @@ export type Database = {
       modal_popups: {
         Row: {
           additional_text_lines: Json | null
-          button_text: string
-          button_url: string
+          attachment_filename: string | null
+          attachment_path: string | null
+          button_text: string | null
+          button_url: string | null
           created_at: string | null
           custom_interval_hours: number | null
           delay_seconds: number | null
@@ -2437,8 +2484,10 @@ export type Database = {
         }
         Insert: {
           additional_text_lines?: Json | null
-          button_text: string
-          button_url: string
+          attachment_filename?: string | null
+          attachment_path?: string | null
+          button_text?: string | null
+          button_url?: string | null
           created_at?: string | null
           custom_interval_hours?: number | null
           delay_seconds?: number | null
@@ -2454,8 +2503,10 @@ export type Database = {
         }
         Update: {
           additional_text_lines?: Json | null
-          button_text?: string
-          button_url?: string
+          attachment_filename?: string | null
+          attachment_path?: string | null
+          button_text?: string | null
+          button_url?: string | null
           created_at?: string | null
           custom_interval_hours?: number | null
           delay_seconds?: number | null
@@ -3399,6 +3450,24 @@ export type Database = {
           views: number
         }[]
       }
+      analytics_login_gate_funnel: {
+        Args: { days_back?: number; tz?: string }
+        Returns: {
+          action_completed_reveal_phone: number
+          action_completed_send_callback: number
+          action_completed_total: number
+          auth_success_email_signin: number
+          auth_success_email_signup: number
+          auth_success_google: number
+          auth_success_total: number
+          dismissed_reveal_phone: number
+          dismissed_send_callback: number
+          dismissed_total: number
+          shown_reveal_phone: number
+          shown_send_callback: number
+          shown_total: number
+        }[]
+      }
       analytics_page_impressions: {
         Args: { days_back?: number; limit_count?: number; tz?: string }
         Returns: {
@@ -3528,6 +3597,15 @@ export type Database = {
           metric_name: string
           status: string
           variance_percent: number
+        }[]
+      }
+      analytics_wizard_funnel: {
+        Args: { days_back?: number; tz?: string }
+        Returns: {
+          completed: number
+          path: string
+          step: number
+          viewed: number
         }[]
       }
       analytics_zero_inquiry_listings: {
@@ -3680,6 +3758,10 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      get_distinct_agency_names: {
+        Args: { search_text: string }
+        Returns: string[]
+      }
       get_featured_listings_count: { Args: never; Returns: number }
       get_featured_listings_count_by_user: {
         Args: { user_id: string }
@@ -3705,6 +3787,14 @@ export type Database = {
         }[]
       }
       get_sales_feature_enabled: { Args: never; Returns: boolean }
+      get_user_listing_counts: {
+        Args: never
+        Returns: {
+          featured_count: number
+          listing_count: number
+          user_id: string
+        }[]
+      }
       get_user_permissions: {
         Args: { p_user_id: string }
         Returns: {
