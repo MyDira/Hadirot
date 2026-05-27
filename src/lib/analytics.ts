@@ -39,6 +39,11 @@ let cachedAnonId: string | null = null;
 let currentSessionId: string | null = null;
 let lastActivityMs = 0;
 let currentUserId: string | null = null;
+// Admin-aware suppression. null = unknown (queue but do not flush yet),
+// true = suppress (drop everything, admin user), false = allow (flush normally).
+// Holding events while unknown prevents leaking the initial page_view /
+// session_start of an admin before their profile has loaded.
+let suppressEvents: boolean | null = null;
 const eventQueue: PendingEvent[] = [];
 const sessionFlags = new Set<string>();
 
@@ -177,6 +182,10 @@ function enqueueEvent(
   props: Record<string, unknown> = {},
   occurredAt?: string,
 ): void {
+  if (suppressEvents === true) {
+    return;
+  }
+
   const payload: PendingEvent = {
     session_id: sessionId,
     anon_id: getAnonId(),
@@ -205,6 +214,12 @@ function enqueueEvent(
 }
 
 async function flushEvents(options: { useKeepalive?: boolean } = {}): Promise<void> {
+  // Wait until we know whether this user is an admin. If admin, we'll drop
+  // the queue; if not, we'll flush. Either way, do not send before resolution.
+  if (suppressEvents !== false) {
+    return;
+  }
+
   if (!eventQueue.length) {
     return;
   }
@@ -385,6 +400,30 @@ export function setUserId(userId?: string | null): void {
   currentUserId = userId ?? null;
 }
 
+/**
+ * Gate analytics on admin status. Pass `true` to suppress all tracking for
+ * the current user (admin), `false` to allow it (non-admin), or `null` to
+ * mark status as unknown — events still queue but won't be sent until
+ * resolved. Call once auth + profile have loaded, and again on changes
+ * (e.g., admin signs out).
+ */
+export function setSuppressAnalytics(suppress: boolean | null): void {
+  const previous = suppressEvents;
+  suppressEvents = suppress;
+
+  if (suppress === true) {
+    eventQueue.splice(0, eventQueue.length);
+    if (ANALYTICS_DEBUG) {
+      console.log('[analytics] admin detected — suppressing all events');
+    }
+    return;
+  }
+
+  if (suppress === false && previous !== false) {
+    void flushEvents();
+  }
+}
+
 export function track(eventName: AnalyticsEventName, props: Record<string, unknown> = {}): void {
   const sessionId = ensureSession(Date.now());
   enqueueEvent(sessionId, eventName, props);
@@ -524,6 +563,59 @@ export function trackLoginGateActionCompleted(
     listing_id: props.listingId,
     listing_type: props.listingType,
     method: props.method,
+  });
+}
+
+// ── Post-listing wizard funnel ────────────────────────────────────
+// Per-step events linked back to the per-attempt `attempt_id` already
+// minted by getPostingSession(), so the wizard funnel can be joined to
+// post_started/post_submitted/post_success in BI.
+//
+// Drop-off detection is implicit: the last `wizard_step_viewed` for an
+// attempt is where the user stopped.
+//
+// We don't emit on backward navigation (per product spec — we only
+// care about how far forward they got).
+
+export type WizardFunnelPath =
+  | 'residential_rental'
+  | 'residential_sale'
+  | 'commercial_rental'
+  | 'commercial_sale';
+
+interface WizardStepBaseProps {
+  path: WizardFunnelPath;
+  step: number;        // zero-indexed position in the step sequence
+  totalSteps: number;  // length of that path's step sequence
+}
+
+export function trackWizardStepViewed(props: WizardStepBaseProps): void {
+  const { attemptId } = getPostingSession();
+  const flagKey = `${SESSION_FLAG_PREFIX}wiz:viewed:${attemptId}:${props.path}:${props.step}`;
+  if (getFlag(flagKey)) {
+    return; // Already counted this step view for this attempt; ignore.
+  }
+  setFlag(flagKey);
+  track('wizard_step_viewed', {
+    attempt_id: attemptId,
+    path: props.path,
+    step: props.step,
+    total_steps: props.totalSteps,
+  });
+}
+
+export function trackWizardStepCompleted(props: WizardStepBaseProps): void {
+  const { attemptId } = getPostingSession();
+  const flagKey = `${SESSION_FLAG_PREFIX}wiz:done:${attemptId}:${props.path}:${props.step}`;
+  if (getFlag(flagKey)) {
+    return;
+  }
+  setFlag(flagKey);
+  track('wizard_step_completed', {
+    attempt_id: attemptId,
+    path: props.path,
+    step: props.step,
+    total_steps: props.totalSteps,
   });
 }
 
