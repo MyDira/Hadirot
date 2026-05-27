@@ -260,7 +260,7 @@ export const commercialListingsService = {
   ) {
     const { data, error } = await supabase
       .from('commercial_listings')
-      .select('id,latitude,longitude,price,asking_price,listing_type,commercial_space_type,neighborhood')
+      .select('id,latitude,longitude,price,asking_price,listing_type,commercial_space_type,neighborhood,is_featured,featured_expires_at')
       .eq('is_active', true)
       .eq('approved', true)
       .not('latitude', 'is', null)
@@ -285,6 +285,8 @@ export const commercialListingsService = {
       listing_type: row.listing_type,
       commercial_space_type: row.commercial_space_type,
       neighborhood: row.neighborhood,
+      is_featured: row.is_featured,
+      featured_expires_at: row.featured_expires_at,
     }));
   },
 

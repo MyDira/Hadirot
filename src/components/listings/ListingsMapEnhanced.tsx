@@ -22,6 +22,11 @@ import { trackMapPinClick } from "@/lib/analytics";
 const BROOKLYN_CENTER: [number, number] = [-73.9442, 40.6782];
 const DEFAULT_ZOOM = 12;
 
+// Pin color palette — single source of truth for all marker rendering
+const PIN_RESIDENTIAL = '#1E4A74'; // brand-700: dark navy
+const PIN_COMMERCIAL = '#0891B2';  // commercial-600: cyan
+const PIN_FEATURED_BORDER = '#7CB342'; // accent-500: green outline for featured
+
 interface MapBounds {
   north: number;
   south: number;
@@ -148,26 +153,35 @@ export function ListingsMapEnhanced({
         : "N/A";
 
     const innerStateClass = isHovered || isSelected ? "marker-active" : "";
-    const colorClasses = isHovered || isSelected
-      ? "bg-brand-600 text-white"
-      : "bg-white text-brand-800 border border-gray-300";
     const shadowClass = isHovered || isSelected ? "shadow-lg" : "shadow-sm hover:shadow-lg";
-    const boostedStyle = isBoosted
-      ? 'border: 2px solid #7CB342; box-shadow: 0 0 6px rgba(124,179,66,0.4);'
-      : '';
+
+    // Featured = green outline + white fill (always, regardless of hover).
+    // Normal hover = white fill with colored border. Normal default = colored fill.
+    let pillStyle: string;
+    let triangleColor: string;
+    if (isBoosted) {
+      pillStyle = `background: white; color: ${PIN_RESIDENTIAL}; border: 2px solid ${PIN_FEATURED_BORDER};`;
+      triangleColor = PIN_FEATURED_BORDER;
+    } else if (isHovered || isSelected) {
+      pillStyle = `background: white; color: ${PIN_RESIDENTIAL}; border: 1.5px solid ${PIN_RESIDENTIAL};`;
+      triangleColor = 'white';
+    } else {
+      pillStyle = `background: ${PIN_RESIDENTIAL}; color: white; border: none;`;
+      triangleColor = PIN_RESIDENTIAL;
+    }
 
     el.innerHTML = `
       <div class="marker-inner ${innerStateClass}">
-        <div class="relative cursor-pointer ${colorClasses} ${shadowClass} px-2 py-0.5 rounded-full text-xs font-semibold whitespace-nowrap" style="font-family: var(--num-font); ${boostedStyle}">
+        <div class="relative cursor-pointer ${shadowClass} px-2 py-0.5 rounded-full text-xs font-semibold whitespace-nowrap" style="font-family: var(--num-font); ${pillStyle}">
           ${priceText}
         </div>
-        <div class="absolute left-1/2 -translate-x-1/2 -bottom-1 w-0 h-0 border-l-4 border-r-4 border-t-4 ${isHovered || isSelected ? 'border-t-brand-600' : 'border-t-white'} border-l-transparent border-r-transparent"></div>
+        <div class="absolute left-1/2 -translate-x-1/2 -bottom-1 w-0 h-0 border-l-4 border-r-4 border-t-4 border-l-transparent border-r-transparent" style="border-top-color: ${triangleColor};"></div>
       </div>
     `;
 
     if (isBoosted) {
       el.dataset.isBoosted = 'true';
-      el.style.zIndex = '10';
+      el.style.zIndex = '20';
     }
 
     return el;
@@ -188,26 +202,33 @@ export function ListingsMapEnhanced({
       : "N/A";
 
     const innerStateClass = isHovered || isSelected ? "marker-active" : "";
-    const colorClasses = isHovered || isSelected
-      ? "bg-brand-600 text-white"
-      : "bg-white text-brand-800 border border-gray-300";
     const shadowClass = isHovered || isSelected ? "shadow-lg" : "shadow-sm hover:shadow-lg";
-    const boostedStyle = isBoosted
-      ? 'border: 2px solid #7CB342; box-shadow: 0 0 6px rgba(124,179,66,0.4);'
-      : '';
+
+    let pillStyle: string;
+    let triangleColor: string;
+    if (isBoosted) {
+      pillStyle = `background: white; color: ${PIN_RESIDENTIAL}; border: 2px solid ${PIN_FEATURED_BORDER};`;
+      triangleColor = PIN_FEATURED_BORDER;
+    } else if (isHovered || isSelected) {
+      pillStyle = `background: white; color: ${PIN_RESIDENTIAL}; border: 1.5px solid ${PIN_RESIDENTIAL};`;
+      triangleColor = 'white';
+    } else {
+      pillStyle = `background: ${PIN_RESIDENTIAL}; color: white; border: none;`;
+      triangleColor = PIN_RESIDENTIAL;
+    }
 
     el.innerHTML = `
       <div class="marker-inner ${innerStateClass}">
-        <div class="relative cursor-pointer ${colorClasses} ${shadowClass} px-2 py-0.5 rounded-full text-xs font-semibold whitespace-nowrap" style="font-family: var(--num-font); ${boostedStyle}">
+        <div class="relative cursor-pointer ${shadowClass} px-2 py-0.5 rounded-full text-xs font-semibold whitespace-nowrap" style="font-family: var(--num-font); ${pillStyle}">
           ${priceText}
         </div>
-        <div class="absolute left-1/2 -translate-x-1/2 -bottom-1 w-0 h-0 border-l-4 border-r-4 border-t-4 ${isHovered || isSelected ? 'border-t-brand-600' : 'border-t-white'} border-l-transparent border-r-transparent"></div>
+        <div class="absolute left-1/2 -translate-x-1/2 -bottom-1 w-0 h-0 border-l-4 border-r-4 border-t-4 border-l-transparent border-r-transparent" style="border-top-color: ${triangleColor};"></div>
       </div>
     `;
 
     if (isBoosted) {
       el.dataset.isBoosted = 'true';
-      el.style.zIndex = '10';
+      el.style.zIndex = '20';
     }
 
     return el;
@@ -232,21 +253,39 @@ export function ListingsMapEnhanced({
     el.className = `price-marker${isVisible ? '' : ' hidden'}`;
     el.dataset.isCommercial = 'true';
 
+    const isBoosted = pin.is_featured && pin.featured_expires_at &&
+      new Date(pin.featured_expires_at) > new Date();
+
     const priceText = formatCommercialPinPrice(pin);
     const innerStateClass = isHovered || isSelected ? "marker-active" : "";
     const shadowClass = isHovered || isSelected ? "shadow-lg" : "shadow-sm hover:shadow-lg";
-    const activeStyle = isHovered || isSelected
-      ? 'background: #0891B2; color: white;'
-      : 'background: white; color: #0891B2; border: 1.5px solid #0891B2;';
+
+    let pillStyle: string;
+    let triangleColor: string;
+    if (isBoosted) {
+      pillStyle = `background: white; color: ${PIN_COMMERCIAL}; border: 2px solid ${PIN_FEATURED_BORDER};`;
+      triangleColor = PIN_FEATURED_BORDER;
+    } else if (isHovered || isSelected) {
+      pillStyle = `background: white; color: ${PIN_COMMERCIAL}; border: 1.5px solid ${PIN_COMMERCIAL};`;
+      triangleColor = 'white';
+    } else {
+      pillStyle = `background: ${PIN_COMMERCIAL}; color: white; border: none;`;
+      triangleColor = PIN_COMMERCIAL;
+    }
 
     el.innerHTML = `
       <div class="marker-inner ${innerStateClass}">
-        <div class="relative cursor-pointer ${shadowClass} px-2 py-0.5 rounded-full text-xs font-semibold whitespace-nowrap" style="font-family: var(--num-font); ${activeStyle}">
+        <div class="relative cursor-pointer ${shadowClass} px-2 py-0.5 rounded-full text-xs font-semibold whitespace-nowrap" style="font-family: var(--num-font); ${pillStyle}">
           ${priceText}
         </div>
-        <div class="absolute left-1/2 -translate-x-1/2 -bottom-1 w-0 h-0 border-l-4 border-r-4 border-t-4 border-l-transparent border-r-transparent" style="${isHovered || isSelected ? 'border-top-color: #0891B2;' : 'border-top-color: #0891B2;'}"></div>
+        <div class="absolute left-1/2 -translate-x-1/2 -bottom-1 w-0 h-0 border-l-4 border-r-4 border-t-4 border-l-transparent border-r-transparent" style="border-top-color: ${triangleColor};"></div>
       </div>
     `;
+
+    if (isBoosted) {
+      el.dataset.isBoosted = 'true';
+      el.style.zIndex = '20';
+    }
 
     return el;
   }, []);
@@ -948,7 +987,8 @@ export function ListingsMapEnhanced({
           existingItem.element.dataset.isHovered = String(isHovered);
           existingItem.element.dataset.isSelected = String(isSelected);
 
-          existingItem.element.style.zIndex = (isHovered || isSelected) ? '100' : '1';
+          const isBoosted = existingItem.element.dataset.isBoosted === 'true';
+          existingItem.element.style.zIndex = (isHovered || isSelected) ? '100' : (isBoosted ? '20' : '1');
 
           const markerInner = existingItem.element.querySelector('.marker-inner');
           const priceDiv = existingItem.element.querySelector('.marker-inner > div:first-child');
@@ -963,22 +1003,21 @@ export function ListingsMapEnhanced({
           }
 
           if (priceDiv) {
-            const colorClasses = isHovered || isSelected
-              ? "bg-brand-600 text-white"
-              : "bg-white text-brand-800 border border-gray-300";
             const shadowClass = isHovered || isSelected ? "shadow-lg" : "shadow-sm hover:shadow-lg";
-
-            (priceDiv as HTMLElement).className = `relative cursor-pointer ${colorClasses} ${shadowClass} px-2 py-0.5 rounded-full text-xs font-semibold whitespace-nowrap`;
-
-            if (existingItem.element.dataset.isBoosted === 'true') {
-              (priceDiv as HTMLElement).style.border = '2px solid #7CB342';
-              (priceDiv as HTMLElement).style.boxShadow = '0 0 6px rgba(124,179,66,0.4)';
+            const pEl = priceDiv as HTMLElement;
+            pEl.className = `relative cursor-pointer ${shadowClass} px-2 py-0.5 rounded-full text-xs font-semibold whitespace-nowrap`;
+            if (isBoosted) {
+              pEl.style.cssText = `font-family: var(--num-font); background: white; color: ${PIN_RESIDENTIAL}; border: 2px solid ${PIN_FEATURED_BORDER};`;
+            } else if (isHovered || isSelected) {
+              pEl.style.cssText = `font-family: var(--num-font); background: white; color: ${PIN_RESIDENTIAL}; border: 1.5px solid ${PIN_RESIDENTIAL};`;
+            } else {
+              pEl.style.cssText = `font-family: var(--num-font); background: ${PIN_RESIDENTIAL}; color: white; border: none;`;
             }
           }
 
           if (triangle) {
-            const triangleColor = isHovered || isSelected ? 'border-t-brand-600' : 'border-t-white';
-            triangle.className = `absolute left-1/2 -translate-x-1/2 -bottom-1 w-0 h-0 border-l-4 border-r-4 border-t-4 ${triangleColor} border-l-transparent border-r-transparent`;
+            const tColor = isBoosted ? PIN_FEATURED_BORDER : (isHovered || isSelected ? 'white' : PIN_RESIDENTIAL);
+            (triangle as HTMLElement).style.borderTopColor = tColor;
           }
         }
       } else {
@@ -1064,7 +1103,8 @@ export function ListingsMapEnhanced({
           existingItem.element.dataset.isHovered = String(isHovered);
           existingItem.element.dataset.isSelected = String(isSelected);
 
-          existingItem.element.style.zIndex = (isHovered || isSelected) ? '100' : '1';
+          const isBoosted = existingItem.element.dataset.isBoosted === 'true';
+          existingItem.element.style.zIndex = (isHovered || isSelected) ? '100' : (isBoosted ? '20' : '1');
 
           const markerInner = existingItem.element.querySelector('.marker-inner');
           const priceDiv = existingItem.element.querySelector('.marker-inner > div:first-child');
@@ -1079,22 +1119,21 @@ export function ListingsMapEnhanced({
           }
 
           if (priceDiv) {
-            const colorClasses = isHovered || isSelected
-              ? "bg-brand-600 text-white"
-              : "bg-white text-brand-800 border border-gray-300";
             const shadowClass = isHovered || isSelected ? "shadow-lg" : "shadow-sm hover:shadow-lg";
-
-            (priceDiv as HTMLElement).className = `relative cursor-pointer ${colorClasses} ${shadowClass} px-2 py-0.5 rounded-full text-xs font-semibold whitespace-nowrap`;
-
-            if (existingItem.element.dataset.isBoosted === 'true') {
-              (priceDiv as HTMLElement).style.border = '2px solid #7CB342';
-              (priceDiv as HTMLElement).style.boxShadow = '0 0 6px rgba(124,179,66,0.4)';
+            const pEl = priceDiv as HTMLElement;
+            pEl.className = `relative cursor-pointer ${shadowClass} px-2 py-0.5 rounded-full text-xs font-semibold whitespace-nowrap`;
+            if (isBoosted) {
+              pEl.style.cssText = `font-family: var(--num-font); background: white; color: ${PIN_RESIDENTIAL}; border: 2px solid ${PIN_FEATURED_BORDER};`;
+            } else if (isHovered || isSelected) {
+              pEl.style.cssText = `font-family: var(--num-font); background: white; color: ${PIN_RESIDENTIAL}; border: 1.5px solid ${PIN_RESIDENTIAL};`;
+            } else {
+              pEl.style.cssText = `font-family: var(--num-font); background: ${PIN_RESIDENTIAL}; color: white; border: none;`;
             }
           }
 
           if (triangle) {
-            const triangleColor = isHovered || isSelected ? 'border-t-brand-600' : 'border-t-white';
-            triangle.className = `absolute left-1/2 -translate-x-1/2 -bottom-1 w-0 h-0 border-l-4 border-r-4 border-t-4 ${triangleColor} border-l-transparent border-r-transparent`;
+            const tColor = isBoosted ? PIN_FEATURED_BORDER : (isHovered || isSelected ? 'white' : PIN_RESIDENTIAL);
+            (triangle as HTMLElement).style.borderTopColor = tColor;
           }
         }
       } else {
@@ -1185,7 +1224,8 @@ export function ListingsMapEnhanced({
         if (currentlyHovered !== isHovered || currentlySelected !== isSelected) {
           existingItem.element.dataset.isHovered = String(isHovered);
           existingItem.element.dataset.isSelected = String(isSelected);
-          existingItem.element.style.zIndex = (isHovered || isSelected) ? '100' : '1';
+          const isBoosted = existingItem.element.dataset.isBoosted === 'true';
+          existingItem.element.style.zIndex = (isHovered || isSelected) ? '100' : (isBoosted ? '20' : '1');
 
           const markerInner = existingItem.element.querySelector('.marker-inner');
           const priceDiv = existingItem.element.querySelector('.marker-inner > div:first-child') as HTMLElement | null;
@@ -1198,18 +1238,17 @@ export function ListingsMapEnhanced({
           if (priceDiv) {
             const shadowClass = isHovered || isSelected ? 'shadow-lg' : 'shadow-sm hover:shadow-lg';
             priceDiv.className = `relative cursor-pointer ${shadowClass} px-2 py-0.5 rounded-full text-xs font-semibold whitespace-nowrap`;
-            if (isHovered || isSelected) {
-              priceDiv.style.background = '#0891B2';
-              priceDiv.style.color = 'white';
-              priceDiv.style.border = 'none';
+            if (isBoosted) {
+              priceDiv.style.cssText = `font-family: var(--num-font); background: white; color: ${PIN_COMMERCIAL}; border: 2px solid ${PIN_FEATURED_BORDER};`;
+            } else if (isHovered || isSelected) {
+              priceDiv.style.cssText = `font-family: var(--num-font); background: white; color: ${PIN_COMMERCIAL}; border: 1.5px solid ${PIN_COMMERCIAL};`;
             } else {
-              priceDiv.style.background = 'white';
-              priceDiv.style.color = '#0891B2';
-              priceDiv.style.border = '1.5px solid #0891B2';
+              priceDiv.style.cssText = `font-family: var(--num-font); background: ${PIN_COMMERCIAL}; color: white; border: none;`;
             }
           }
           if (triangle) {
-            triangle.style.borderTopColor = '#0891B2';
+            const tColor = isBoosted ? PIN_FEATURED_BORDER : (isHovered || isSelected ? 'white' : PIN_COMMERCIAL);
+            triangle.style.borderTopColor = tColor;
           }
         }
       } else {
