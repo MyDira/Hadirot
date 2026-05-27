@@ -31,14 +31,14 @@ const CARDS: PathCard[] = [
     icon: <Store className="w-9 h-9" />,
     title: 'Commercial Rental',
     description: 'Office, retail & industrial spaces',
-    active: true,
+    active: false,
   },
   {
     path: 'commercial_sale',
     icon: <Store className="w-9 h-9" />,
     title: 'Commercial Sale',
     description: 'Investment & owner-occupied properties',
-    active: true,
+    active: false,
   },
   {
     path: 'concierge',

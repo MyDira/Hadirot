@@ -82,8 +82,8 @@ const COMMERCIAL_STEP_LABELS = [
 const LISTING_TYPE_OPTIONS: { path: WizardPath; label: string; sub: string; comingSoon?: boolean }[] = [
   { path: 'residential_rent', label: 'Residential Rental', sub: 'Apartment, room, house for rent' },
   { path: 'residential_sale', label: 'Residential Sale',   sub: 'House, condo, co-op for sale'   },
-  { path: 'commercial_lease', label: 'Commercial Rental',  sub: 'Office, retail, industrial'     },
-  { path: 'commercial_sale',  label: 'Commercial Sale',    sub: 'Office, retail, industrial'     },
+  { path: 'commercial_lease', label: 'Commercial Rental',  sub: 'Office, retail, industrial', comingSoon: true },
+  { path: 'commercial_sale',  label: 'Commercial Sale',    sub: 'Office, retail, industrial', comingSoon: true },
 ];
 
 function ChangeListingTypeButton({
