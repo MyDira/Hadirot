@@ -267,16 +267,68 @@ export function PostListingWizard() {
   };
 
   // Anonymous users can fill the entire wizard. Auth is only required at
-  // Submit time (see handleSubmit / handleCommercialSubmit), matching the
-  // login-gate UX on the listing-detail pages.
-  //
-  // pendingSubmitKind remembers which submit handler the user clicked
-  // while logged-out, so we can replay it after a successful sign-in
-  // inside the auth modal.
-  // NOTE: must be declared before the wizard.initialized early-return so
-  // the hook order is stable across renders (Rules of Hooks).
+  // Submit time. pendingSubmitKind remembers which submit handler the user
+  // clicked while logged-out so we can replay it after sign-in.
+  // ALL hooks below must stay above the wizard.initialized guard — Rules of Hooks.
   const [pendingSubmitKind, setPendingSubmitKind] = useState<'residential' | 'commercial' | null>(null);
 
+  // Refs to the submit handlers — the OAuth-replay effect must live above the
+  // guard but needs to call handlers defined below it. The ref is updated
+  // synchronously during each render so by the time any effect fires the
+  // current handlers are always present.
+  const submitHandlersRef = useRef<{
+    handleSubmit: (() => Promise<void>) | null;
+    handleCommercialSubmit: (() => Promise<void>) | null;
+  }>({ handleSubmit: null, handleCommercialSubmit: null });
+
+  // Per-step labels — computed here (above the guard) so the
+  // wizard-step-viewed effect can reference them.
+  const stepLabels = isCommercial
+    ? COMMERCIAL_STEP_LABELS
+    : isSalePath
+    ? SALE_STEP_LABELS
+    : RENTAL_STEP_LABELS;
+  const totalStepsForFunnel = stepLabels.length;
+  const funnelPath = wizardPathToFunnelLabel(wizard.selectedPath);
+
+  // Emit wizard_step_viewed only when the user advances to a new step.
+  // Backward navigation is silent by product spec.
+  useEffect(() => {
+    if (!funnelPath) return;
+    if (wizard.currentStep > wizard.highWaterStep) return; // shouldn't happen
+    if (wizard.currentStep < wizard.highWaterStep) return; // backward — ignore
+    trackWizardStepViewed({
+      path: funnelPath,
+      step: wizard.currentStep,
+      totalSteps: totalStepsForFunnel,
+    });
+  }, [wizard.currentStep, wizard.highWaterStep, funnelPath, totalStepsForFunnel]);
+
+  // Google OAuth path: user becomes truthy after a redirect, by which point
+  // the auth modal is gone. We persist pendingSubmitKind to sessionStorage so
+  // it survives the redirect; this effect replays the submit via submitHandlersRef.
+  useEffect(() => {
+    if (!user) return;
+    const stashed = sessionStorage.getItem('wizard:pendingSubmit');
+    if (!stashed) return;
+    sessionStorage.removeItem('wizard:pendingSubmit');
+    if (stashed === 'commercial') {
+      setTimeout(() => { void submitHandlersRef.current.handleCommercialSubmit?.(); }, 0);
+    } else if (stashed === 'residential') {
+      setTimeout(() => { void submitHandlersRef.current.handleSubmit?.(); }, 0);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
+
+  // Mirror pendingSubmitKind to sessionStorage so an OAuth round-trip can
+  // pick it back up.
+  useEffect(() => {
+    if (pendingSubmitKind) {
+      sessionStorage.setItem('wizard:pendingSubmit', pendingSubmitKind);
+    }
+  }, [pendingSubmitKind]);
+
+  // Early return — must come after ALL hook calls above.
   if (!wizard.initialized) return null;
 
   const handleSelectPath = (path: Parameters<typeof wizard.setSelectedPath>[0]) => {
@@ -294,30 +346,6 @@ export function PostListingWizard() {
     trackPostStart();
     wizard.setSelectedPath(path);
   };
-
-  // Per-step labels are computed once here so analytics can read totalSteps
-  // synchronously inside handlers (instead of relying on the JSX-time value).
-  const stepLabels = isCommercial
-    ? COMMERCIAL_STEP_LABELS
-    : isSalePath
-    ? SALE_STEP_LABELS
-    : RENTAL_STEP_LABELS;
-  const totalStepsForFunnel = stepLabels.length;
-  const funnelPath = wizardPathToFunnelLabel(wizard.selectedPath);
-
-  // Emit wizard_step_viewed only when the user advances to a step they
-  // haven't visited yet on this attempt. Backward navigation is silent
-  // by product spec.
-  useEffect(() => {
-    if (!funnelPath) return;
-    if (wizard.currentStep > wizard.highWaterStep) return; // shouldn't happen
-    if (wizard.currentStep < wizard.highWaterStep) return; // backward — ignore
-    trackWizardStepViewed({
-      path: funnelPath,
-      step: wizard.currentStep,
-      totalSteps: totalStepsForFunnel,
-    });
-  }, [wizard.currentStep, wizard.highWaterStep, funnelPath, totalStepsForFunnel]);
 
   const handleNext = () => {
     if (funnelPath) {
@@ -741,50 +769,25 @@ export function PostListingWizard() {
     }
   };
 
+  // Keep submit handler refs in sync so the OAuth-replay effect (above the
+  // wizard.initialized guard) can always call the current handler.
+  submitHandlersRef.current.handleSubmit = handleSubmit;
+  submitHandlersRef.current.handleCommercialSubmit = handleCommercialSubmit;
+
   // --- Render ---
 
-  // Shared post-auth handler. If the user clicked Submit while logged out,
-  // we set pendingSubmitKind and opened the modal. After the AuthForm fires
-  // its success callback, we close the modal and replay the right submit.
-  // Email sign-in / sign-up call this synchronously; Google OAuth completes
-  // via redirect — see the user-watcher effect below for that path.
+  // Shared post-auth handler for email/password sign-in path.
+  // Google OAuth uses the useEffect above the guard instead.
   const handleAuthSuccess = () => {
     setShowAuthModal(false);
     const kind = pendingSubmitKind;
     setPendingSubmitKind(null);
     if (kind === 'commercial') {
-      // Defer to next tick so React has flushed the new `user` from context
       setTimeout(() => { void handleCommercialSubmit(); }, 0);
     } else if (kind === 'residential') {
       setTimeout(() => { void handleSubmit(); }, 0);
     }
   };
-
-  // Google OAuth path: user becomes truthy after a redirect, by which point
-  // the auth modal is gone and the original click intent is lost from
-  // memory. We persist pendingSubmitKind to a sessionStorage shadow so it
-  // survives the redirect; this effect notices the post-OAuth user and
-  // replays the submit.
-  useEffect(() => {
-    if (!user) return;
-    const stashed = sessionStorage.getItem('wizard:pendingSubmit');
-    if (!stashed) return;
-    sessionStorage.removeItem('wizard:pendingSubmit');
-    if (stashed === 'commercial') {
-      setTimeout(() => { void handleCommercialSubmit(); }, 0);
-    } else if (stashed === 'residential') {
-      setTimeout(() => { void handleSubmit(); }, 0);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user]);
-
-  // Whenever we set pendingSubmitKind for a logged-out user, mirror it to
-  // sessionStorage so the OAuth round-trip can pick it back up.
-  useEffect(() => {
-    if (pendingSubmitKind) {
-      sessionStorage.setItem('wizard:pendingSubmit', pendingSubmitKind);
-    }
-  }, [pendingSubmitKind]);
 
   if (!wizard.selectedPath) {
     return (
