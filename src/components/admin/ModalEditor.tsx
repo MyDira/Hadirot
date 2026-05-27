@@ -1,11 +1,12 @@
-import React from 'react';
-import { Save, X, Plus, Trash2, ChevronLeft } from 'lucide-react';
-import { CreateModalInput, ModalPopup } from '../../services/modals';
+import React, { useState } from 'react';
+import { Save, X, Plus, Trash2, ChevronLeft, Upload, Paperclip, Loader2 } from 'lucide-react';
+import { CreateModalInput, ModalPopup, modalsService, getModalAttachmentUrl } from '../../services/modals';
 import { ModalPreview } from './ModalPreview';
 
 interface ModalEditorProps {
   modalForm: CreateModalInput;
   isEditing: boolean;
+  editingModalId: string | null;
   onSave: () => void;
   onCancel: () => void;
   onChange: (updates: Partial<CreateModalInput>) => void;
@@ -29,7 +30,49 @@ const FREQUENCY_OPTIONS = [
   { value: 'custom_interval', label: 'Custom interval' },
 ];
 
-export function ModalEditor({ modalForm, isEditing, onSave, onCancel, onChange }: ModalEditorProps) {
+export function ModalEditor({ modalForm, isEditing, editingModalId, onSave, onCancel, onChange }: ModalEditorProps) {
+  const [uploadingAttachment, setUploadingAttachment] = useState(false);
+  const [attachmentError, setAttachmentError] = useState<string | null>(null);
+  const fileInputRef = React.useRef<HTMLInputElement | null>(null);
+
+  const hasAttachment = !!modalForm.attachment_path;
+
+  const handleAttachmentSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file || !editingModalId) return;
+
+    setUploadingAttachment(true);
+    setAttachmentError(null);
+    try {
+      if (modalForm.attachment_path) {
+        await modalsService.deleteModalAttachment(modalForm.attachment_path);
+      }
+      const { path, filename } = await modalsService.uploadModalAttachment(editingModalId, file);
+      onChange({ attachment_path: path, attachment_filename: filename });
+    } catch (err: any) {
+      console.error('Modal attachment upload failed:', err);
+      setAttachmentError(err?.message || 'Upload failed');
+    } finally {
+      setUploadingAttachment(false);
+    }
+  };
+
+  const handleRemoveAttachment = async () => {
+    if (!modalForm.attachment_path) return;
+    setUploadingAttachment(true);
+    setAttachmentError(null);
+    try {
+      await modalsService.deleteModalAttachment(modalForm.attachment_path);
+      onChange({ attachment_path: null, attachment_filename: null });
+    } catch (err: any) {
+      console.error('Modal attachment delete failed:', err);
+      setAttachmentError(err?.message || 'Delete failed');
+    } finally {
+      setUploadingAttachment(false);
+    }
+  };
+
   const handleAddTextLine = () => {
     onChange({
       additional_text_lines: [...(modalForm.additional_text_lines || []), '']
@@ -63,8 +106,10 @@ export function ModalEditor({ modalForm, isEditing, onSave, onCancel, onChange }
     heading: modalForm.heading,
     subheading: modalForm.subheading,
     additional_text_lines: modalForm.additional_text_lines || [],
-    button_text: modalForm.button_text,
-    button_url: modalForm.button_url,
+    button_text: modalForm.button_text || null,
+    button_url: modalForm.button_url || null,
+    attachment_path: modalForm.attachment_path || null,
+    attachment_filename: modalForm.attachment_filename || null,
     is_active: modalForm.is_active || false,
     trigger_pages: modalForm.trigger_pages || [],
     display_frequency: modalForm.display_frequency || 'once_per_session',
@@ -194,38 +239,132 @@ export function ModalEditor({ modalForm, isEditing, onSave, onCancel, onChange }
                 </div>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Button Text <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={modalForm.button_text}
-                  onChange={(e) => onChange({ button_text: e.target.value })}
-                  placeholder="Join Now!"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-accent-500 focus:border-transparent"
-                />
+              <div className="border-t border-gray-100 pt-4 space-y-4">
+                <div>
+                  <h4 className="text-sm font-semibold text-gray-900">Action button</h4>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Optional. Leave both fields blank and skip the attachment to post a modal with no button.
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Button Text
+                  </label>
+                  <input
+                    type="text"
+                    value={modalForm.button_text || ''}
+                    onChange={(e) => onChange({ button_text: e.target.value })}
+                    placeholder={hasAttachment ? 'Download now' : 'Join Now!'}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-accent-500 focus:border-transparent"
+                  />
+                  {hasAttachment && (
+                    <p className="mt-1 text-xs text-gray-500">
+                      Defaults to "Download now" if left blank. The button will download the attached file.
+                    </p>
+                  )}
+                </div>
+
+                {!hasAttachment && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Button URL
+                    </label>
+                    <input
+                      type="text"
+                      value={modalForm.button_url || ''}
+                      onChange={(e) => onChange({ button_url: e.target.value })}
+                      onBlur={(e) => {
+                        let url = e.target.value.trim();
+                        if (url && !url.match(/^[a-zA-Z]+:\/\//)) {
+                          onChange({ button_url: 'https://' + url });
+                        }
+                      }}
+                      placeholder="https://chat.whatsapp.com/... or amazon.com"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-accent-500 focus:border-transparent"
+                    />
+                    <p className="mt-1 text-xs text-gray-500">
+                      Opens in a new tab. https:// will be added automatically if missing. Leave blank if using an attachment instead.
+                    </p>
+                  </div>
+                )}
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Button URL <span className="text-red-500">*</span>
-                </label>
+              <div className="border-t border-gray-100 pt-4 space-y-3">
+                <div>
+                  <h4 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
+                    <Paperclip className="w-4 h-4" />
+                    Download attachment
+                  </h4>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Optional. Upload any file (document, image, etc.) and the modal button will download it.
+                  </p>
+                </div>
+
+                {!isEditing && (
+                  <div className="text-sm text-gray-600 bg-gray-50 border border-gray-200 rounded-md p-3">
+                    Save this modal first, then re-open it to upload an attachment.
+                  </div>
+                )}
+
+                {isEditing && hasAttachment && (
+                  <div className="flex items-center gap-3 bg-gray-50 border border-gray-200 rounded-md p-3">
+                    <Paperclip className="w-4 h-4 text-gray-500 flex-shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <a
+                        href={getModalAttachmentUrl(modalForm.attachment_path) || '#'}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sm text-blue-600 hover:underline truncate block"
+                      >
+                        {modalForm.attachment_filename || 'attachment'}
+                      </a>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={uploadingAttachment}
+                      className="text-xs text-gray-600 hover:text-gray-900 px-2 py-1 rounded hover:bg-gray-100 disabled:opacity-50"
+                    >
+                      Replace
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleRemoveAttachment}
+                      disabled={uploadingAttachment}
+                      className="text-xs text-red-600 hover:text-red-700 px-2 py-1 rounded hover:bg-red-50 disabled:opacity-50"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                )}
+
+                {isEditing && !hasAttachment && (
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={uploadingAttachment}
+                    className="flex items-center gap-2 px-3 py-2 text-sm border border-dashed border-gray-300 rounded-md text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+                  >
+                    {uploadingAttachment ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Upload className="w-4 h-4" />
+                    )}
+                    {uploadingAttachment ? 'Uploading…' : 'Upload file'}
+                  </button>
+                )}
+
+                {attachmentError && (
+                  <p className="text-xs text-red-600">{attachmentError}</p>
+                )}
+
                 <input
-                  type="text"
-                  value={modalForm.button_url}
-                  onChange={(e) => onChange({ button_url: e.target.value })}
-                  onBlur={(e) => {
-                    let url = e.target.value.trim();
-                    // Auto-add https:// if no protocol is specified and URL is not empty
-                    if (url && !url.match(/^[a-zA-Z]+:\/\//)) {
-                      onChange({ button_url: 'https://' + url });
-                    }
-                  }}
-                  placeholder="https://chat.whatsapp.com/... or amazon.com"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-accent-500 focus:border-transparent"
+                  ref={fileInputRef}
+                  type="file"
+                  className="hidden"
+                  onChange={handleAttachmentSelect}
                 />
-                <p className="mt-1 text-xs text-gray-500">Opens in a new tab. https:// will be added automatically if missing.</p>
               </div>
 
               <div className="flex items-center gap-2">

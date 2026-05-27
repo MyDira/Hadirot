@@ -1,6 +1,6 @@
 import React from 'react';
 import { X } from 'lucide-react';
-import type { ModalPopup } from '../../services/modals';
+import { getModalAttachmentUrl, type ModalPopup } from '../../services/modals';
 
 interface CustomModalProps {
   modal: ModalPopup;
@@ -12,14 +12,34 @@ interface CustomModalProps {
 export function CustomModal({ modal, isOpen, onClose, onButtonClick }: CustomModalProps) {
   if (!isOpen) return null;
 
+  const attachmentUrl = getModalAttachmentUrl(modal.attachment_path);
+  const hasAttachment = !!attachmentUrl;
+  const hasUrlButton = !hasAttachment && !!modal.button_url;
+  const showButton = hasAttachment || hasUrlButton;
+  const buttonLabel = modal.button_text || (hasAttachment ? 'Download now' : '');
+
   const handleButtonClick = () => {
     onButtonClick();
-    // Ensure URL has protocol - if missing, add https://
-    let url = modal.button_url;
+
+    if (hasAttachment && attachmentUrl) {
+      const link = document.createElement('a');
+      link.href = attachmentUrl;
+      link.download = modal.attachment_filename || '';
+      link.rel = 'noopener noreferrer';
+      link.target = '_blank';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      return;
+    }
+
+    let url = modal.button_url || '';
     if (url && !url.match(/^[a-zA-Z]+:\/\//)) {
       url = 'https://' + url;
     }
-    window.open(url, '_blank', 'noopener,noreferrer');
+    if (url) {
+      window.open(url, '_blank', 'noopener,noreferrer');
+    }
   };
 
   const handleBackdropClick = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -78,14 +98,16 @@ export function CustomModal({ modal, isOpen, onClose, onButtonClick }: CustomMod
             </div>
           )}
 
-          <div className="pt-4">
-            <button
-              onClick={handleButtonClick}
-              className="w-full bg-accent-500 text-white px-6 py-3 rounded-md font-medium hover:bg-accent-600 transition-colors focus:outline-none focus:ring-2 focus:ring-accent-500 focus:ring-offset-2"
-            >
-              {modal.button_text}
-            </button>
-          </div>
+          {showButton && (
+            <div className="pt-4">
+              <button
+                onClick={handleButtonClick}
+                className="w-full bg-accent-500 text-white px-6 py-3 rounded-md font-medium hover:bg-accent-600 transition-colors focus:outline-none focus:ring-2 focus:ring-accent-500 focus:ring-offset-2"
+              >
+                {buttonLabel}
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </div>

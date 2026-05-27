@@ -6,8 +6,10 @@ export interface ModalPopup {
   heading: string;
   subheading?: string;
   additional_text_lines: string[];
-  button_text: string;
-  button_url: string;
+  button_text: string | null;
+  button_url: string | null;
+  attachment_path: string | null;
+  attachment_filename: string | null;
   is_active: boolean;
   trigger_pages: string[];
   display_frequency: 'once_per_session' | 'once_per_day' | 'once_per_lifetime' | 'until_clicked' | 'custom_interval';
@@ -16,6 +18,14 @@ export interface ModalPopup {
   priority: number;
   created_at: string;
   updated_at: string;
+}
+
+const MODAL_ATTACHMENTS_BUCKET = 'modal-attachments';
+
+export function getModalAttachmentUrl(path: string | null | undefined): string | null {
+  if (!path) return null;
+  const { data } = supabase.storage.from(MODAL_ATTACHMENTS_BUCKET).getPublicUrl(path);
+  return data.publicUrl;
 }
 
 export interface ModalUserInteraction {
@@ -34,8 +44,10 @@ export interface CreateModalInput {
   heading: string;
   subheading?: string;
   additional_text_lines?: string[];
-  button_text: string;
-  button_url: string;
+  button_text?: string | null;
+  button_url?: string | null;
+  attachment_path?: string | null;
+  attachment_filename?: string | null;
   is_active?: boolean;
   trigger_pages?: string[];
   display_frequency?: ModalPopup['display_frequency'];
@@ -99,8 +111,10 @@ export const modalsService = {
         heading: input.heading,
         subheading: input.subheading || null,
         additional_text_lines: input.additional_text_lines || [],
-        button_text: input.button_text,
-        button_url: input.button_url,
+        button_text: input.button_text || null,
+        button_url: input.button_url || null,
+        attachment_path: input.attachment_path || null,
+        attachment_filename: input.attachment_filename || null,
         is_active: input.is_active ?? false,
         trigger_pages: input.trigger_pages || [],
         display_frequency: input.display_frequency || 'once_per_session',
@@ -126,8 +140,10 @@ export const modalsService = {
     if (input.heading !== undefined) updateData.heading = input.heading;
     if (input.subheading !== undefined) updateData.subheading = input.subheading || null;
     if (input.additional_text_lines !== undefined) updateData.additional_text_lines = input.additional_text_lines;
-    if (input.button_text !== undefined) updateData.button_text = input.button_text;
-    if (input.button_url !== undefined) updateData.button_url = input.button_url;
+    if (input.button_text !== undefined) updateData.button_text = input.button_text || null;
+    if (input.button_url !== undefined) updateData.button_url = input.button_url || null;
+    if (input.attachment_path !== undefined) updateData.attachment_path = input.attachment_path || null;
+    if (input.attachment_filename !== undefined) updateData.attachment_filename = input.attachment_filename || null;
     if (input.is_active !== undefined) updateData.is_active = input.is_active;
     if (input.trigger_pages !== undefined) updateData.trigger_pages = input.trigger_pages;
     if (input.display_frequency !== undefined) updateData.display_frequency = input.display_frequency;
@@ -151,6 +167,21 @@ export const modalsService = {
   },
 
   async deleteModal(id: string): Promise<void> {
+    const { data: existing } = await supabase
+      .from('modal_popups')
+      .select('attachment_path')
+      .eq('id', id)
+      .maybeSingle();
+
+    if (existing?.attachment_path) {
+      const { error: storageError } = await supabase.storage
+        .from(MODAL_ATTACHMENTS_BUCKET)
+        .remove([existing.attachment_path]);
+      if (storageError) {
+        console.error('Error removing modal attachment file:', storageError);
+      }
+    }
+
     const { error } = await supabase
       .from('modal_popups')
       .delete()
@@ -158,6 +189,37 @@ export const modalsService = {
 
     if (error) {
       console.error('Error deleting modal:', error);
+      throw error;
+    }
+  },
+
+  async uploadModalAttachment(modalId: string, file: File): Promise<{ path: string; filename: string }> {
+    const ext = file.name.includes('.') ? file.name.split('.').pop() : 'bin';
+    const path = `${modalId}/${Date.now()}.${ext}`;
+
+    const { error } = await supabase.storage
+      .from(MODAL_ATTACHMENTS_BUCKET)
+      .upload(path, file, {
+        cacheControl: '3600',
+        upsert: false,
+        contentType: file.type || undefined,
+      });
+
+    if (error) {
+      console.error('Error uploading modal attachment:', error);
+      throw error;
+    }
+
+    return { path, filename: file.name };
+  },
+
+  async deleteModalAttachment(path: string): Promise<void> {
+    const { error } = await supabase.storage
+      .from(MODAL_ATTACHMENTS_BUCKET)
+      .remove([path]);
+
+    if (error) {
+      console.error('Error deleting modal attachment:', error);
       throw error;
     }
   },

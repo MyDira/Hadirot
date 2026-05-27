@@ -54,6 +54,8 @@ export function ContentManagement() {
     additional_text_lines: [],
     button_text: '',
     button_url: '',
+    attachment_path: null,
+    attachment_filename: null,
     is_active: false,
     trigger_pages: [],
     display_frequency: 'once_per_session',
@@ -269,17 +271,20 @@ export function ContentManagement() {
       setSelectedModal(newModal);
       setEditingModalId(newModal.id);
       setModalForm({
-        name: '',
-        heading: '',
-        subheading: '',
-        additional_text_lines: [],
-        button_text: '',
-        button_url: '',
-        is_active: false,
-        trigger_pages: [],
-        display_frequency: 'once_per_session',
-        delay_seconds: 0,
-        priority: 0,
+        name: newModal.name,
+        heading: newModal.heading,
+        subheading: newModal.subheading || '',
+        additional_text_lines: newModal.additional_text_lines || [],
+        button_text: newModal.button_text || '',
+        button_url: newModal.button_url || '',
+        attachment_path: newModal.attachment_path,
+        attachment_filename: newModal.attachment_filename,
+        is_active: newModal.is_active,
+        trigger_pages: newModal.trigger_pages || [],
+        display_frequency: newModal.display_frequency,
+        custom_interval_hours: newModal.custom_interval_hours,
+        delay_seconds: newModal.delay_seconds,
+        priority: newModal.priority,
       });
       loadData();
     } catch (error) {
@@ -296,8 +301,10 @@ export function ContentManagement() {
       heading: modal.heading,
       subheading: modal.subheading || '',
       additional_text_lines: modal.additional_text_lines || [],
-      button_text: modal.button_text,
-      button_url: modal.button_url,
+      button_text: modal.button_text || '',
+      button_url: modal.button_url || '',
+      attachment_path: modal.attachment_path,
+      attachment_filename: modal.attachment_filename,
       is_active: modal.is_active,
       trigger_pages: modal.trigger_pages || [],
       display_frequency: modal.display_frequency,
@@ -332,6 +339,8 @@ export function ContentManagement() {
       additional_text_lines: [],
       button_text: '',
       button_url: '',
+      attachment_path: null,
+      attachment_filename: null,
       is_active: false,
       trigger_pages: [],
       display_frequency: 'once_per_session',
@@ -823,6 +832,7 @@ export function ContentManagement() {
                       <ModalEditor
                         modalForm={modalForm}
                         isEditing={!!editingModalId}
+                        editingModalId={editingModalId}
                         onSave={editingModalId ? handleSaveModal : handleCreateModal}
                         onCancel={handleCancelModalEdit}
                         onChange={(updates) => setModalForm(prev => ({ ...prev, ...updates }))}
@@ -842,6 +852,8 @@ export function ContentManagement() {
                             additional_text_lines: [],
                             button_text: '',
                             button_url: '',
+                            attachment_path: null,
+                            attachment_filename: null,
                             is_active: false,
                             trigger_pages: [],
                             display_frequency: 'once_per_session',

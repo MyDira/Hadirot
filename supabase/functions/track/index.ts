@@ -285,7 +285,53 @@ Deno.serve(async (req) => {
       }
     }
 
-    const { error } = await supabaseAdmin.from('analytics_events').insert(normalizedEvents);
+    // Defense-in-depth admin gate: drop any event whose user_id belongs to
+    // an admin profile. Catches events from stale clients or any that escape
+    // the client-side suppression in src/lib/analytics.ts.
+    const candidateUserIds = Array.from(
+      new Set(
+        normalizedEvents
+          .map((e) => e.user_id)
+          .filter((id): id is string => typeof id === 'string' && UUID_RE.test(id)),
+      ),
+    );
+
+    const adminUserIds = new Set<string>();
+    if (candidateUserIds.length > 0) {
+      const { data: adminRows, error: adminLookupError } = await supabaseAdmin
+        .from('profiles')
+        .select('id')
+        .in('id', candidateUserIds)
+        .eq('is_admin', true);
+
+      if (adminLookupError) {
+        console.error('Admin lookup failed; proceeding without admin filter', adminLookupError);
+      } else {
+        for (const row of adminRows ?? []) {
+          if (row?.id) adminUserIds.add(row.id);
+        }
+      }
+    }
+
+    const filteredEvents = adminUserIds.size
+      ? normalizedEvents.filter((e) => !e.user_id || !adminUserIds.has(e.user_id))
+      : normalizedEvents;
+
+    if (adminUserIds.size) {
+      for (const sessionId of Array.from(sessionTouches.keys())) {
+        const touch = sessionTouches.get(sessionId);
+        if (touch?.user && adminUserIds.has(touch.user)) {
+          sessionTouches.delete(sessionId);
+          sessionEnds.delete(sessionId);
+        }
+      }
+    }
+
+    if (!filteredEvents.length) {
+      return jsonResponse(200, { success: true, inserted: 0 });
+    }
+
+    const { error } = await supabaseAdmin.from('analytics_events').insert(filteredEvents);
 
     if (error) {
       console.error('Failed to insert analytics events', error);
@@ -320,7 +366,7 @@ Deno.serve(async (req) => {
       }),
     );
 
-    return jsonResponse(200, { success: true, inserted: normalizedEvents.length });
+    return jsonResponse(200, { success: true, inserted: filteredEvents.length });
   } catch (error) {
     console.error('Track handler failure', error);
     return jsonResponse(500, { error: 'Unhandled analytics error' });

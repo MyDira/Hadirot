@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Search, Plus, Eye, EyeOff, Edit2, Trash2, Power, Save, X, BarChart3 } from 'lucide-react';
+import { Search, Plus, Eye, EyeOff, Edit2, Trash2, Power, Save, X, BarChart3, Paperclip } from 'lucide-react';
 import { ModalPopup, CreateModalInput } from '../../services/modals';
 import { ModalPreview } from './ModalPreview';
 
@@ -111,7 +111,14 @@ export function ModalManagement({ modals, modalStats, onToggleActive, onDelete, 
                   <tr key={modal.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4">
                       <div>
-                        <div className="font-medium text-gray-900">{modal.name}</div>
+                        <div className="font-medium text-gray-900 flex items-center gap-2">
+                          {modal.name}
+                          {modal.attachment_path && (
+                            <span title={modal.attachment_filename || 'Attachment'} className="text-gray-400">
+                              <Paperclip className="w-3.5 h-3.5" />
+                            </span>
+                          )}
+                        </div>
                         <div className="text-sm text-gray-500">{modal.heading}</div>
                       </div>
                     </td>

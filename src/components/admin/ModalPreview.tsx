@@ -74,16 +74,18 @@ export function ModalPreview({ modal }: ModalPreviewProps) {
               </div>
             )}
 
-            <div className="pt-4">
-              <button
-                disabled
-                className={`w-full bg-accent-500 text-white rounded-md font-medium transition-colors cursor-not-allowed ${
-                  viewMode === 'mobile' ? 'px-4 py-2 text-sm' : 'px-6 py-3 text-base'
-                }`}
-              >
-                {modal.button_text || 'Click Here'}
-              </button>
-            </div>
+            {(modal.attachment_path || modal.button_text) && (
+              <div className="pt-4">
+                <button
+                  disabled
+                  className={`w-full bg-accent-500 text-white rounded-md font-medium transition-colors cursor-not-allowed ${
+                    viewMode === 'mobile' ? 'px-4 py-2 text-sm' : 'px-6 py-3 text-base'
+                  }`}
+                >
+                  {modal.button_text || (modal.attachment_path ? 'Download now' : 'Click Here')}
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </div>
