@@ -24,6 +24,7 @@ const InternalAnalytics = lazy(() => import('./pages/InternalAnalytics').then(m 
 const ContentManagement = lazy(() => import('./pages/ContentManagement').then(m => ({ default: m.ContentManagement })));
 const DigestManager = lazy(() => import('./pages/DigestManager').then(m => ({ default: m.DigestManager })));
 const DigestGlobalSettings = lazy(() => import('./pages/DigestGlobalSettings').then(m => ({ default: m.DigestGlobalSettings })));
+const AdminSubscriptions = lazy(() => import('./pages/AdminSubscriptions').then(m => ({ default: m.AdminSubscriptions })));
 const PostListing = lazy(() => import('./pages/PostListing').then(m => ({ default: m.PostListing })));
 const PostListingWizard = lazy(() => import('./pages/postListingWizard/PostListingWizard').then(m => ({ default: m.PostListingWizard })));
 const EditListingWizard = lazy(() => import('./pages/postListingWizard/EditListingWizard').then(m => ({ default: m.EditListingWizard })));
@@ -119,6 +120,7 @@ function App() {
                   <Route path="/admin/digest" element={<DigestManager />} />
                   <Route path="/admin/digest-manager" element={<Navigate to="/admin/digest" replace />} />
                   <Route path="/admin/digest-settings" element={<DigestGlobalSettings />} />
+                  <Route path="/admin/subscriptions" element={<AdminSubscriptions />} />
                   <Route path="/admin/static-pages" element={<Navigate to="/admin/content-management?tab=static-pages" replace />} />
                   <Route path="/admin/featured-settings" element={<Navigate to="/admin/content-management?tab=featured" replace />} />
                   <Route path="/account" element={<Account />} />
