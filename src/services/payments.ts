@@ -5,6 +5,21 @@
 // See supabase/migrations/2026052715*.sql for schema. The Supabase client is
 // cast where it references tables not yet in src/types/database.ts (run
 // `npm run db:types` to regenerate).
+//
+// ─────────────────────────────────────────────────────────────────────────────
+// Stripe price IDs and config:
+//   This client doesn't hold Stripe price IDs directly. The edge functions
+//   (create-individual-listing-checkout, create-listing-subscription-checkout)
+//   read price IDs from Supabase Edge Function secrets:
+//     STRIPE_AGENT_PRICE_ID
+//     STRIPE_VIP_PRICE_ID
+//     STRIPE_ADDON_CONCIERGE_PRICE_ID
+//   Individual one-off payments use ad-hoc price_data (no price ID needed) —
+//   the amount is computed from INDIVIDUAL_LISTING_PACKAGES in
+//   src/types/monetization.ts (mirrored in
+//   supabase/functions/_shared/stripe-prices.ts).
+//   See .env.example for the full list of edge-function secrets to configure.
+// ─────────────────────────────────────────────────────────────────────────────
 
 import { supabase } from '../config/supabase';
 import type { SupabaseClient } from '@supabase/supabase-js';
