@@ -407,45 +407,378 @@ async function handleSubscriptionUpdate(subscription: Stripe.Subscription) {
   const supabaseAdmin = getSupabaseAdmin();
   const stripeSubId = subscription.id;
 
-  const { data: record } = await supabaseAdmin
+  const periodEnd = subscription.current_period_end
+    ? new Date(subscription.current_period_end * 1000).toISOString()
+    : null;
+
+  // Status mapping shared by both subscription tables.
+  function computeUpdate(): Record<string, unknown> {
+    const update: Record<string, unknown> = { current_period_end: periodEnd };
+    if (subscription.cancel_at_period_end === true) {
+      update.status = 'cancelled';
+      update.cancelled_at = new Date().toISOString();
+    } else if (subscription.cancel_at_period_end === false && subscription.status === 'active') {
+      update.status = 'active';
+      update.cancelled_at = null;
+    } else {
+      const statusMap: Record<string, string> = {
+        active: 'active',
+        past_due: 'past_due',
+        canceled: 'cancelled',
+        unpaid: 'past_due',
+      };
+      update.status = statusMap[subscription.status] || 'active';
+      if (subscription.status === 'canceled') {
+        update.cancelled_at = new Date().toISOString();
+      }
+    }
+    return update;
+  }
+
+  // ---- concierge_subscriptions (existing) ----
+  const { data: conciergeRow } = await supabaseAdmin
     .from('concierge_subscriptions')
     .select('id')
     .eq('stripe_subscription_id', stripeSubId)
     .maybeSingle();
 
-  if (!record) return;
+  if (conciergeRow) {
+    const update = computeUpdate();
+    await supabaseAdmin
+      .from('concierge_subscriptions')
+      .update(update)
+      .eq('id', conciergeRow.id);
+    console.log(`Concierge subscription ${conciergeRow.id} status -> ${update.status}`);
+  }
 
-  const periodEnd = subscription.current_period_end
-    ? new Date(subscription.current_period_end * 1000).toISOString()
-    : null;
+  // ---- listing_subscriptions (new) ----
+  const { data: listingSubRow } = await supabaseAdmin
+    .from('listing_subscriptions')
+    .select('id, user_id, status')
+    .eq('stripe_subscription_id', stripeSubId)
+    .maybeSingle();
 
-  const update: Record<string, unknown> = { current_period_end: periodEnd };
+  if (listingSubRow) {
+    const update = computeUpdate();
+    const prevStatus = listingSubRow.status as string;
+    const newStatus = update.status as string;
 
-  if (subscription.cancel_at_period_end === true) {
-    update.status = 'cancelled';
-    update.cancelled_at = new Date().toISOString();
-  } else if (subscription.cancel_at_period_end === false && subscription.status === 'active') {
-    update.status = 'active';
-    update.cancelled_at = null;
-  } else {
-    const statusMap: Record<string, string> = {
-      active: 'active',
-      past_due: 'past_due',
-      canceled: 'cancelled',
-      unpaid: 'past_due',
-    };
-    update.status = statusMap[subscription.status] || 'active';
-    if (subscription.status === 'canceled') {
-      update.cancelled_at = new Date().toISOString();
+    await supabaseAdmin
+      .from('listing_subscriptions')
+      .update(update)
+      .eq('id', listingSubRow.id);
+
+    console.log(`Listing subscription ${listingSubRow.id} status -> ${newStatus}`);
+
+    // Cascade-cancel any addon_concierge row linked to this parent.
+    if (newStatus === 'cancelled' || newStatus === 'expired' || newStatus === 'past_due') {
+      await supabaseAdmin
+        .from('concierge_subscriptions')
+        .update({
+          status: newStatus,
+          cancelled_at: newStatus === 'cancelled' ? new Date().toISOString() : null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('listing_subscription_id', listingSubRow.id)
+        .eq('tier', 'addon_concierge');
     }
+
+    // If transitioning AWAY from an active state, cascade-deactivate the user's listings.
+    const wasActive = prevStatus === 'active' || prevStatus === 'admin_active';
+    const stillActive = newStatus === 'active' || newStatus === 'admin_active';
+    if (wasActive && !stillActive) {
+      try {
+        await fetch(
+          `${Deno.env.get('SUPABASE_URL')!}/functions/v1/cascade-deactivate-subscription`,
+          {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              user_id: listingSubRow.user_id,
+              listing_subscription_id: listingSubRow.id,
+            }),
+          },
+        );
+      } catch (err) {
+        console.error('Cascade-deactivate call failed:', err);
+        // Safety net: the auto_inactivate cron's "subscription gone" condition
+        // will catch it within 24h.
+      }
+    }
+  }
+}
+
+// ============================================================
+// Individual listing payment (residential rental, one-off Stripe Checkout)
+// ============================================================
+async function handleIndividualListingCheckout(session: Stripe.Checkout.Session) {
+  const supabaseAdmin = getSupabaseAdmin();
+  const meta = session.metadata || {};
+  const { listing_id, user_id, days, is_initial_purchase } = meta;
+
+  if (!listing_id || !user_id || !days) {
+    console.error('Missing metadata in individual_listing checkout:', session.id);
+    return;
+  }
+
+  const daysGranted = parseInt(days, 10);
+  if (!Number.isFinite(daysGranted) || daysGranted <= 0) {
+    console.error('Invalid days in individual_listing checkout:', days);
+    return;
+  }
+
+  // Idempotency: skip if a payment row already exists for this session.
+  const { data: existingPayment } = await supabaseAdmin
+    .from('paid_listing_payments')
+    .select('id')
+    .eq('stripe_checkout_session_id', session.id)
+    .maybeSingle();
+  if (existingPayment) {
+    console.log(`Idempotency: paid_listing_payment already exists for session ${session.id}`);
+    return;
+  }
+
+  // Look up listing state (must exist).
+  const { data: listing } = await supabaseAdmin
+    .from('listings')
+    .select('id, payment_kind, trial_started_at, paid_until, is_active, listing_type')
+    .eq('id', listing_id)
+    .maybeSingle();
+  if (!listing) {
+    console.error(`Listing ${listing_id} not found for session ${session.id}`);
+    return;
+  }
+  if (listing.listing_type !== 'rental') {
+    console.error(`Listing ${listing_id} is not a rental; refusing to apply individual payment`);
+    return;
+  }
+
+  // Prior-payments count → first-time pricing rule + bonus eligibility.
+  const { count: priorCount } = await supabaseAdmin
+    .from('paid_listing_payments')
+    .select('id', { count: 'exact', head: true })
+    .eq('listing_id', listing_id);
+  const hasPriorPayments = (priorCount ?? 0) > 0;
+
+  const isInitialPurchase = is_initial_purchase === 'true';
+  const grantBonus =
+    isInitialPurchase &&
+    !hasPriorPayments &&
+    listing.payment_kind === 'individual_trial';
+  const bonusDays = grantBonus ? 30 : 0;
+
+  // Compute new paid_until.
+  const now = new Date();
+  let newPaidUntil: Date;
+
+  if (grantBonus && listing.trial_started_at) {
+    // At-posting payment with bonus: 14 trial + days + 30 bonus, measured from trial start.
+    newPaidUntil = new Date(listing.trial_started_at);
+    newPaidUntil.setUTCDate(newPaidUntil.getUTCDate() + 14 + daysGranted + bonusDays);
+  } else if (listing.payment_kind === 'individual_trial' && listing.trial_started_at) {
+    // Mid-trial conversion (no bonus): retain remaining trial time + add days.
+    const trialEnd = new Date(listing.trial_started_at);
+    trialEnd.setUTCDate(trialEnd.getUTCDate() + 14);
+    const base = trialEnd > now ? trialEnd : now;
+    newPaidUntil = new Date(base);
+    newPaidUntil.setUTCDate(newPaidUntil.getUTCDate() + daysGranted);
+  } else if (listing.paid_until && new Date(listing.paid_until) > now) {
+    // Stacking on existing paid balance.
+    newPaidUntil = new Date(listing.paid_until);
+    newPaidUntil.setUTCDate(newPaidUntil.getUTCDate() + daysGranted);
+  } else {
+    // Fresh purchase (post-trial or reactivation).
+    newPaidUntil = new Date(now);
+    newPaidUntil.setUTCDate(newPaidUntil.getUTCDate() + daysGranted);
+  }
+
+  // Compute new expires_at = LEAST(now + 30, paid_until).
+  const thirtyAhead = new Date(now);
+  thirtyAhead.setUTCDate(thirtyAhead.getUTCDate() + 30);
+  const newExpiresAt = newPaidUntil < thirtyAhead ? newPaidUntil : thirtyAhead;
+
+  // Record the payment (ledger).
+  await supabaseAdmin.from('paid_listing_payments').insert({
+    listing_id,
+    user_id,
+    amount_cents: session.amount_total || 0,
+    days_granted: daysGranted,
+    bonus_days: bonusDays,
+    source: 'stripe',
+    is_initial_purchase: isInitialPurchase,
+    stripe_checkout_session_id: session.id,
+    stripe_payment_intent_id: session.payment_intent as string,
+  });
+
+  // Apply to the listing. If listing is inactive, also reactivate it; the trigger
+  // will manage paused_paid_days restore (but since we set paid_until explicitly,
+  // the trigger's clamp/restore for paid_until is idempotent).
+  const update: Record<string, unknown> = {
+    payment_kind: 'individual_paid',
+    paid_until: newPaidUntil.toISOString(),
+    expires_at: newExpiresAt.toISOString(),
+    paused_paid_days: 0,
+    updated_at: now.toISOString(),
+  };
+  if (!listing.is_active) {
+    update.is_active = true;
   }
 
   await supabaseAdmin
-    .from('concierge_subscriptions')
+    .from('listings')
     .update(update)
-    .eq('id', record.id);
+    .eq('id', listing_id);
 
-  console.log(`Concierge subscription ${record.id} status updated to ${update.status}`);
+  console.log(
+    `Individual listing payment applied: listing=${listing_id}, days=${daysGranted}, bonus=${bonusDays}, paid_until=${newPaidUntil.toISOString()}`,
+  );
+}
+
+// ============================================================
+// Listing subscription checkout (Agent / VIP, recurring)
+// ============================================================
+async function handleListingSubscriptionCheckout(session: Stripe.Checkout.Session) {
+  const supabaseAdmin = getSupabaseAdmin();
+  const meta = session.metadata || {};
+  const { user_id, plan, include_concierge_addon } = meta;
+
+  if (!user_id || (plan !== 'agent' && plan !== 'vip')) {
+    console.error('Invalid metadata in listing_subscription checkout:', session.id);
+    return;
+  }
+
+  const stripeSubId = session.subscription as string;
+  if (!stripeSubId) {
+    console.error('Missing subscription id in listing_subscription checkout:', session.id);
+    return;
+  }
+
+  // Idempotency.
+  const { data: existing } = await supabaseAdmin
+    .from('listing_subscriptions')
+    .select('id')
+    .eq('stripe_subscription_id', stripeSubId)
+    .maybeSingle();
+  if (existing) {
+    console.log(`Idempotency: listing_subscription already exists for ${stripeSubId}`);
+    return;
+  }
+
+  // Pull the Stripe subscription to extract current_period_end + billing day.
+  let currentPeriodEnd: string | null = null;
+  let billingDayOfMonth: number | null = null;
+  try {
+    const sub = await stripe.subscriptions.retrieve(stripeSubId);
+    currentPeriodEnd = sub.current_period_end
+      ? new Date(sub.current_period_end * 1000).toISOString()
+      : null;
+    if (sub.current_period_start) {
+      const startDate = new Date(sub.current_period_start * 1000);
+      const day = startDate.getUTCDate();
+      // Clamp to 1-28 to avoid month-end rollover edge cases.
+      billingDayOfMonth = Math.min(28, Math.max(1, day));
+    }
+  } catch (err) {
+    console.error('Failed to retrieve Stripe subscription:', err);
+  }
+
+  const listingCap = plan === 'agent' ? 7 : null;
+
+  const { data: newSub, error: insertErr } = await supabaseAdmin
+    .from('listing_subscriptions')
+    .insert({
+      user_id,
+      plan,
+      status: 'active',
+      listing_cap: listingCap,
+      stripe_subscription_id: stripeSubId,
+      stripe_customer_id: session.customer as string,
+      current_period_end: currentPeriodEnd,
+      billing_day_of_month: billingDayOfMonth,
+      is_admin_granted: false,
+    })
+    .select('id')
+    .single();
+
+  if (insertErr || !newSub) {
+    console.error('Failed to insert listing_subscriptions row:', insertErr);
+    return;
+  }
+
+  // Concierge add-on (optional).
+  if (include_concierge_addon === 'true') {
+    await supabaseAdmin
+      .from('concierge_subscriptions')
+      .insert({
+        user_id,
+        tier: 'addon_concierge',
+        status: 'active',
+        stripe_subscription_id: stripeSubId, // shared with parent
+        stripe_customer_id: session.customer as string,
+        listing_subscription_id: newSub.id,
+      });
+  }
+
+  // Cover the user's existing residential rental listings under this subscription,
+  // up to the cap. Pick newest first.
+  const { data: candidates } = await supabaseAdmin
+    .from('listings')
+    .select('id')
+    .eq('user_id', user_id)
+    .eq('listing_type', 'rental')
+    .eq('is_active', true)
+    .in('payment_kind', ['individual_trial', 'individual_paid', 'legacy_free'])
+    .order('created_at', { ascending: false });
+
+  const toCover = listingCap === null ? (candidates || []) : (candidates || []).slice(0, listingCap);
+
+  if (toCover.length > 0) {
+    await supabaseAdmin
+      .from('listings')
+      .update({
+        payment_kind: 'subscription',
+        updated_at: new Date().toISOString(),
+      })
+      .in('id', toCover.map((l: { id: string }) => l.id));
+  }
+
+  console.log(
+    `Listing subscription created: id=${newSub.id}, plan=${plan}, addon=${include_concierge_addon}, covered=${toCover.length} listings`,
+  );
+}
+
+// ============================================================
+// Refund logging (audit only — no automatic day-reversal)
+// ============================================================
+async function handleChargeRefunded(charge: Stripe.Charge) {
+  if (!charge.payment_intent) return;
+  const supabaseAdmin = getSupabaseAdmin();
+
+  const { data: payment } = await supabaseAdmin
+    .from('paid_listing_payments')
+    .select('id, listing_id, user_id')
+    .eq('stripe_payment_intent_id', charge.payment_intent as string)
+    .maybeSingle();
+
+  if (!payment) {
+    // Not an individual-listing payment we track; ignore.
+    return;
+  }
+
+  await supabaseAdmin.from('paid_listing_refunds').insert({
+    payment_id: payment.id,
+    listing_id: payment.listing_id,
+    user_id: payment.user_id,
+    amount_cents: charge.amount_refunded ?? 0,
+    stripe_charge_id: charge.id,
+    stripe_refund_id: (charge.refunds?.data?.[0]?.id) || null,
+    reason: charge.refunds?.data?.[0]?.reason || null,
+  });
+
+  console.log(`Logged refund for payment ${payment.id}: ${charge.amount_refunded} cents (no auto day-reversal)`);
 }
 
 Deno.serve(async (req) => {
@@ -479,6 +812,10 @@ Deno.serve(async (req) => {
 
       if (metadata.type === 'concierge') {
         await handleConciergeCheckout(session);
+      } else if (metadata.type === 'individual_listing') {
+        await handleIndividualListingCheckout(session);
+      } else if (metadata.type === 'listing_subscription') {
+        await handleListingSubscriptionCheckout(session);
       } else {
         await handleFeaturedCheckout(session);
       }
@@ -487,6 +824,11 @@ Deno.serve(async (req) => {
     if (event.type === 'customer.subscription.updated' || event.type === 'customer.subscription.deleted') {
       const subscription = event.data.object as Stripe.Subscription;
       await handleSubscriptionUpdate(subscription);
+    }
+
+    if (event.type === 'charge.refunded') {
+      const charge = event.data.object as Stripe.Charge;
+      await handleChargeRefunded(charge);
     }
 
     return new Response(JSON.stringify({ received: true }), { status: 200 });

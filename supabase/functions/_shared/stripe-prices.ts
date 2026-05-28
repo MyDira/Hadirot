@@ -14,5 +14,34 @@ export const BOOST_PRICES = {
   "30day": { priceId: "price_1SzMz3JvRPzH20A9pA8pBPwj", amount: 7500, days: 30 },
 } as const;
 
+// Residential-rental monetization (Phase B).
+// Subscription plans require Stripe price IDs (recurring monthly).
+// Individual listing payments use ad-hoc price_data (variable day packages).
+//
+// PLACEHOLDER VALUES — replace with real Stripe price IDs from the dashboard
+// before deploying. The user will populate these.
+export const LISTING_SUBSCRIPTION_PRICES = {
+  agent:           Deno.env.get("STRIPE_AGENT_PRICE_ID")           || "price_REPLACE_AGENT_50",
+  vip:             Deno.env.get("STRIPE_VIP_PRICE_ID")             || "price_REPLACE_VIP_100",
+  addon_concierge: Deno.env.get("STRIPE_ADDON_CONCIERGE_PRICE_ID") || "price_REPLACE_ADDON_50",
+} as const;
+
+// Per-day-package pricing for individual residential-rental payments.
+// Pricing model:
+//   - First paid month on a listing: $25
+//   - Subsequent paid months: $15
+// Multi-month packages are computed as first-month + N additional months at $15 each.
+export const INDIVIDUAL_LISTING_PACKAGES = [
+  { days: 30,  first_time_cents: 2500,  renewal_cents: 1500  },
+  { days: 60,  first_time_cents: 4000,  renewal_cents: 3000  },
+  { days: 90,  first_time_cents: 5500,  renewal_cents: 4500  },
+  { days: 120, first_time_cents: 7000,  renewal_cents: 6000  },
+  { days: 180, first_time_cents: 10000, renewal_cents: 9000  },
+  { days: 270, first_time_cents: 14500, renewal_cents: 13500 },
+  { days: 360, first_time_cents: 19000, renewal_cents: 18000 },
+] as const;
+
+export type IndividualListingDays = (typeof INDIVIDUAL_LISTING_PACKAGES)[number]["days"];
+export type ListingSubscriptionPlan = keyof typeof LISTING_SUBSCRIPTION_PRICES;
 export type ConciergeTier = keyof typeof CONCIERGE_PRICES;
 export type BoostPlan = keyof typeof BOOST_PRICES;
