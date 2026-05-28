@@ -550,10 +550,20 @@ export function EditListingWizard() {
       }
     }
 
+    // Phase I: compute 10-day field lock for residential rentals.
+    // Non-admins editing a rental >10d after creation see the locked inputs.
+    const isFieldLocked = (() => {
+      if (!originalListing || profile?.is_admin) return false;
+      if (originalListing.listing_type !== 'rental') return false;
+      if (!originalListing.created_at) return false;
+      const cutoff = new Date(originalListing.created_at).getTime() + 10 * 24 * 60 * 60 * 1000;
+      return Date.now() >= cutoff;
+    })();
+
     // Rental path
     switch (wizard.currentStep) {
       case 0:
-        return <Step1PropertyTypeAndLayout {...stepProps} />;
+        return <Step1PropertyTypeAndLayout {...stepProps} isLocked={isFieldLocked} />;
       case 1:
         return <Step2PriceAndTerms {...stepProps} />;
       case 2:
@@ -582,6 +592,7 @@ export function EditListingWizard() {
             setCustomNeighborhoodInput={wizard.setCustomNeighborhoodInput}
             isLocationConfirmed={wizard.isLocationConfirmed}
             setIsLocationConfirmed={wizard.setIsLocationConfirmed}
+            isLocked={isFieldLocked}
           />
         );
       case 4:
@@ -598,6 +609,7 @@ export function EditListingWizard() {
             onSubmit={handleSubmit}
             profile={profile ?? null}
             submitLabel="Save Changes"
+            isLocked={isFieldLocked}
           />
         );
       default:

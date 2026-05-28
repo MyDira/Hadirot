@@ -29,7 +29,30 @@ import { CommercialStepsRouter } from './CommercialStepsRouter';
 import { commercialListingsService } from '../../services/commercialListings';
 import { emailService, renderBrandEmail } from '../../services/email';
 import { paymentsService } from '../../services/payments';
-import type { WizardPaymentChoice } from './components/PaymentChoice';
+import {
+  type WizardPaymentChoice,
+  WIZARD_PAYMENT_CHOICE_STORAGE_KEY,
+  isValidWizardPaymentChoice,
+} from './components/PaymentChoice';
+
+function readStoredPaymentChoice(): WizardPaymentChoice | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const v = window.sessionStorage.getItem(WIZARD_PAYMENT_CHOICE_STORAGE_KEY);
+    return isValidWizardPaymentChoice(v) ? v : null;
+  } catch {
+    return null;
+  }
+}
+
+function clearStoredPaymentChoice(): void {
+  if (typeof window === 'undefined') return;
+  try {
+    window.sessionStorage.removeItem(WIZARD_PAYMENT_CHOICE_STORAGE_KEY);
+  } catch {
+    /* noop */
+  }
+}
 import type { MediaFile } from '../../components/shared/MediaUploader';
 import {
   trackPostStart,
@@ -579,6 +602,14 @@ export function PostListingWizard() {
   };
 
   const handleSubmit = async (paymentChoice?: WizardPaymentChoice | null) => {
+    // OAuth-replay safety net: if called from the auth-replay effect (no arg),
+    // recover the user's selection from sessionStorage so they don't lose the
+    // pay-at-posting bonus path after signing in.
+    if (paymentChoice === undefined || paymentChoice === null) {
+      const stored = readStoredPaymentChoice();
+      if (stored) paymentChoice = stored;
+    }
+
     if (!user) {
       setPendingSubmitKind('residential');
       setShowAuthModal(true);
@@ -777,6 +808,7 @@ export function PostListingWizard() {
             days: 30,
             isInitialPurchase: paymentChoice === 'pay_at_posting',
           });
+          clearStoredPaymentChoice();
           window.location.href = checkout.url;
           return;
         } catch (checkoutErr) {
@@ -784,11 +816,13 @@ export function PostListingWizard() {
           setSubmitError(
             'Your listing was created, but we couldn\'t open the payment page. You can pay from your dashboard.',
           );
+          clearStoredPaymentChoice();
           navigate(`/dashboard?new_listing=true&listing_id=${listing.id}&payment_pending=true`);
           return;
         }
       }
 
+      clearStoredPaymentChoice();
       navigate(`/dashboard?new_listing=true&listing_id=${listing.id}`);
 
       // Branded confirmation email — matches legacy residential pattern.

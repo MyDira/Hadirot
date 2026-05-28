@@ -15,6 +15,7 @@ import { ConciergeManagement } from '@/components/admin/ConciergeManagement';
 import { PipelineManagement } from '@/components/admin/PipelineManagement';
 import { AdminListingMapModal } from '@/components/admin/AdminListingMapModal';
 import { Briefcase, GitBranch, Map, Crown } from 'lucide-react';
+import { GrantDaysModal } from '../components/admin/GrantDaysModal';
 
 const ADMIN_TAB_KEYS = [
   'overview',
@@ -76,6 +77,9 @@ export function AdminPanel() {
   const rawTabParam = params.get('tab');
   const initialTab: AdminTabKey = isValidAdminTab(rawTabParam) ? rawTabParam : 'overview';
   const [activeTab, setActiveTab] = useState<AdminTabKey>(initialTab);
+  // Admin "grant paid days" modal target (Phase I — accessible from the main listings table).
+  const [grantDaysListingId, setGrantDaysListingId] = useState<string | null>(null);
+  const [grantDaysListingLabel, setGrantDaysListingLabel] = useState<string | null>(null);
   const [stats, setStats] = useState<AdminStats>({
     totalUsers: 0,
     totalListings: 0,
@@ -1756,6 +1760,18 @@ export function AdminPanel() {
                               >
                                 <Power className="w-5 h-5" />
                               </button>
+                              {listing.listing_type === 'rental' && (
+                                <button
+                                  onClick={() => {
+                                    setGrantDaysListingId(listing.id);
+                                    setGrantDaysListingLabel(`${listing.title} · ${listing.neighborhood || listing.location || ''}`);
+                                  }}
+                                  className="text-violet-600 hover:text-violet-800 transition-colors"
+                                  title="Grant paid days (admin)"
+                                >
+                                  <Clock className="w-5 h-5" />
+                                </button>
+                              )}
                               <button
                                 onClick={() => deleteListing(listing.id, listing.title)}
                                 className="text-red-600 hover:text-red-800 transition-colors"
@@ -2094,6 +2110,21 @@ export function AdminPanel() {
       <AdminListingMapModal
         listing={mapModalListing}
         onClose={() => setMapModalListing(null)}
+      />
+
+      {/* Admin Grant Days modal (Phase I) */}
+      <GrantDaysModal
+        open={!!grantDaysListingId}
+        onClose={() => {
+          setGrantDaysListingId(null);
+          setGrantDaysListingLabel(null);
+        }}
+        onGranted={() => {
+          void loadAdminData();
+        }}
+        listingId={grantDaysListingId}
+        listingLabel={grantDaysListingLabel}
+        adminId={user?.id ?? ''}
       />
     </div>
   );

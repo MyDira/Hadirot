@@ -6,7 +6,12 @@ import type { MediaFile } from '../../../../components/shared/MediaUploader';
 import type { Profile } from '../../../../config/supabase';
 import { StepTips } from '../../StepTips';
 import { useMonetizationGate } from '../../../../hooks/useMonetizationGate';
-import { PaymentChoice, type WizardPaymentChoice } from '../../components/PaymentChoice';
+import {
+  PaymentChoice,
+  type WizardPaymentChoice,
+  WIZARD_PAYMENT_CHOICE_STORAGE_KEY,
+  isValidWizardPaymentChoice,
+} from '../../components/PaymentChoice';
 
 const TIPS = {
   heading: 'Contact & Review',
@@ -49,6 +54,8 @@ interface Step6Props {
   onSubmit: (paymentChoice?: WizardPaymentChoice | null) => void;
   profile: Profile | null;
   submitLabel?: string;
+  /** When true (residential rental, edit context, >10d old), contact_phone is locked. */
+  isLocked?: boolean;
 }
 
 export function Step6ContactAndReview({
@@ -63,6 +70,7 @@ export function Step6ContactAndReview({
   onSubmit,
   profile,
   submitLabel = 'Post Listing',
+  isLocked = false,
 }: Step6Props) {
   const navigate = useNavigate();
 
@@ -85,7 +93,31 @@ export function Step6ContactAndReview({
 
   // Locally-tracked payment choice. Auto-defaulted by branch (admin/subscription
   // are forced; trial_eligible defaults to free_trial; must_pay forces must_pay).
-  const [paymentChoice, setPaymentChoice] = useState<WizardPaymentChoice | null>(null);
+  // Initial value: read from sessionStorage so a sign-in-redirect doesn't lose
+  // the user's selection.
+  const [paymentChoice, setPaymentChoice] = useState<WizardPaymentChoice | null>(() => {
+    if (typeof window === 'undefined') return null;
+    try {
+      const stored = window.sessionStorage.getItem(WIZARD_PAYMENT_CHOICE_STORAGE_KEY);
+      return isValidWizardPaymentChoice(stored) ? stored : null;
+    } catch {
+      return null;
+    }
+  });
+
+  // Persist paymentChoice across sign-in.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      if (paymentChoice) {
+        window.sessionStorage.setItem(WIZARD_PAYMENT_CHOICE_STORAGE_KEY, paymentChoice);
+      } else {
+        window.sessionStorage.removeItem(WIZARD_PAYMENT_CHOICE_STORAGE_KEY);
+      }
+    } catch {
+      // sessionStorage may be unavailable (private mode); fall through silently.
+    }
+  }, [paymentChoice]);
 
   useEffect(() => {
     if (gate.mode === 'subscription') {
@@ -207,13 +239,21 @@ export function Step6ContactAndReview({
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Phone Number <span className="text-red-500">*</span>
+                {isLocked && (
+                  <span className="ml-2 inline-flex items-center gap-1 text-xs font-normal text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded">
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                    Locked
+                  </span>
+                )}
               </label>
               <input
                 type="tel"
                 value={formData.contact_phone}
                 onChange={e => updateFormData({ contact_phone: e.target.value })}
                 placeholder="e.g. 718-555-1234"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-accent-500 focus:border-accent-500"
+                disabled={isLocked}
+                className={`w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-accent-500 focus:border-accent-500 ${isLocked ? 'bg-gray-50 cursor-not-allowed opacity-70' : ''}`}
+                title={isLocked ? 'Contact phone is locked 10 days after posting. Contact support if you need a change.' : undefined}
               />
             </div>
           </div>

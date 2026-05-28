@@ -27,6 +27,7 @@ import {
 import { useAuth } from '@/hooks/useAuth';
 import { subscriptionsService } from '../services/subscriptions';
 import { paymentsService } from '../services/payments';
+import { GrantDaysModal } from '../components/admin/GrantDaysModal';
 import {
   formatCents,
   type ListingSubscription,
@@ -363,99 +364,8 @@ function AddSubscriberModal({ open, onClose, onCreated, adminId }: AddSubscriber
   );
 }
 
-// =====================================================================
-// Grant days inline modal (paid listings tab)
-// =====================================================================
-
-interface GrantDaysModalProps {
-  open: boolean;
-  onClose: () => void;
-  onGranted: () => void;
-  listingId: string | null;
-  adminId: string;
-}
-
-function GrantDaysModal({ open, onClose, onGranted, listingId, adminId }: GrantDaysModalProps) {
-  const [days, setDays] = useState(30);
-  const [notes, setNotes] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!open) {
-      setDays(30);
-      setNotes('');
-      setErr(null);
-      setBusy(false);
-    }
-  }, [open]);
-
-  if (!open || !listingId) return null;
-
-  const handleGrant = async () => {
-    setBusy(true);
-    setErr(null);
-    try {
-      await paymentsService.adminGrantDays({ listingId, days, adminId, notes: notes.trim() || undefined });
-      onGranted();
-      onClose();
-    } catch (e) {
-      setErr((e as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 p-4">
-      <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl p-6">
-        <h3 className="text-base font-semibold text-gray-900 mb-1">Grant paid days</h3>
-        <p className="text-sm text-gray-500 mb-5">
-          Adds days to this listing's paid balance. Recorded as an admin grant (no Stripe).
-        </p>
-        {err && (
-          <div className="mb-4 text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg p-3">
-            {err}
-          </div>
-        )}
-        <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Days</label>
-        <input
-          type="number"
-          min={1}
-          max={365}
-          value={days}
-          onChange={(e) => setDays(Math.max(1, Math.min(365, parseInt(e.target.value || '30', 10))))}
-          className="w-32 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-accent-500 focus:border-accent-500"
-        />
-        <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mt-4 mb-2">Notes (optional)</label>
-        <textarea
-          value={notes}
-          onChange={(e) => setNotes(e.target.value)}
-          rows={2}
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-accent-500 focus:border-accent-500"
-        />
-        <div className="mt-5 flex items-center justify-end gap-2">
-          <button type="button" onClick={onClose} className="px-4 py-2 text-sm text-gray-600 hover:text-gray-900">
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={handleGrant}
-            disabled={busy}
-            className="px-4 py-2 bg-accent-500 hover:bg-accent-600 text-white rounded-lg text-sm font-semibold disabled:opacity-50 inline-flex items-center gap-2"
-          >
-            {busy ? (
-              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-            ) : (
-              <Check className="w-4 h-4" />
-            )}
-            Grant
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
+// The GrantDaysModal previously inlined here moved to
+// src/components/admin/GrantDaysModal.tsx so AdminPanel can reuse it.
 
 // =====================================================================
 // Main page

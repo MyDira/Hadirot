@@ -41,6 +41,8 @@ interface Step4Props {
   setCustomNeighborhoodInput: (v: string) => void;
   isLocationConfirmed: boolean;
   setIsLocationConfirmed: (v: boolean) => void;
+  /** When true (residential rental, edit context, >10d old), all location inputs are locked. */
+  isLocked?: boolean;
 }
 
 export function Step4Location({
@@ -58,6 +60,7 @@ export function Step4Location({
   setCustomNeighborhoodInput,
   isLocationConfirmed,
   setIsLocationConfirmed,
+  isLocked = false,
 }: Step4Props) {
   const [addressMode, setAddressMode] = useState<AddressMode>('cross_streets');
   const [fullAddressResult, setFullAddressResult] = useState<GooglePlaceResult | null>(null);
@@ -161,6 +164,19 @@ export function Step4Location({
     <div className="flex gap-8 items-start">
       <div className="flex-1 min-w-0 space-y-5">
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          {isLocked && (
+            <div className="mb-4 bg-amber-50 border border-amber-200 rounded-lg p-3 flex items-start gap-2">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-amber-700 flex-shrink-0 mt-0.5">
+                <rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+              </svg>
+              <div className="text-xs text-amber-900">
+                <span className="font-semibold">Location is locked.</span> Cross-streets,
+                address, and neighborhood can't be changed because this listing is more
+                than 10 days old. Contact support if you need a correction.
+              </div>
+            </div>
+          )}
+          <div className={isLocked ? 'pointer-events-none opacity-60 select-none' : ''} aria-disabled={isLocked || undefined}>
           <div className="flex items-center justify-between mb-5">
             <div>
               <h2 className="text-xl font-semibold text-gray-900">Location</h2>
@@ -338,6 +354,7 @@ export function Step4Location({
               />
             )}
           </div>
+          </div>{/* /isLocked wrapper */}
         </div>
 
         {/* Navigation */}

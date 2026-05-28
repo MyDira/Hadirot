@@ -17,6 +17,23 @@ import type { ListingSubscription } from '../../../types/monetization';
 
 export type WizardPaymentChoice = 'free_trial' | 'pay_at_posting' | 'must_pay' | 'subscription_covered' | 'admin';
 
+// Persistence across sign-in (OAuth or modal). When a logged-out user fills
+// the wizard, hits submit, and signs in, the resulting OAuth redirect (or
+// modal-close + auth-replay effect) ends up calling handleSubmit with no
+// args — losing the choice they just made. We stash it in sessionStorage so
+// the submit replay can recover it.
+export const WIZARD_PAYMENT_CHOICE_STORAGE_KEY = 'hadirot_wizard_payment_choice_v1';
+
+export function isValidWizardPaymentChoice(v: unknown): v is WizardPaymentChoice {
+  return (
+    v === 'free_trial' ||
+    v === 'pay_at_posting' ||
+    v === 'must_pay' ||
+    v === 'subscription_covered' ||
+    v === 'admin'
+  );
+}
+
 interface PaymentChoiceProps {
   mode: MonetizationGateMode;
   subscription: ListingSubscription | null;
