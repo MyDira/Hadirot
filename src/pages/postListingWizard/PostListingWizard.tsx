@@ -28,6 +28,8 @@ import { Step7SaleContactAndReview } from './steps/sale/Step7SaleContactAndRevie
 import { CommercialStepsRouter } from './CommercialStepsRouter';
 import { commercialListingsService } from '../../services/commercialListings';
 import { emailService, renderBrandEmail } from '../../services/email';
+import { paymentsService } from '../../services/payments';
+import type { WizardPaymentChoice } from './components/PaymentChoice';
 import type { MediaFile } from '../../components/shared/MediaUploader';
 import {
   trackPostStart,
@@ -277,7 +279,7 @@ export function PostListingWizard() {
   // synchronously during each render so by the time any effect fires the
   // current handlers are always present.
   const submitHandlersRef = useRef<{
-    handleSubmit: (() => Promise<void>) | null;
+    handleSubmit: ((paymentChoice?: WizardPaymentChoice | null) => Promise<void>) | null;
     handleCommercialSubmit: (() => Promise<void>) | null;
   }>({ handleSubmit: null, handleCommercialSubmit: null });
 
@@ -576,7 +578,7 @@ export function PostListingWizard() {
     }
   };
 
-  const handleSubmit = async () => {
+  const handleSubmit = async (paymentChoice?: WizardPaymentChoice | null) => {
     if (!user) {
       setPendingSubmitKind('residential');
       setShowAuthModal(true);
@@ -719,6 +721,25 @@ export function PostListingWizard() {
         city: undefined,
         state: undefined,
         zip_code: undefined,
+        // -----------------------------------------------------------------
+        // Monetization fields — residential rentals only.
+        // payment_kind drives the new payment-permission gate (see
+        // auto_inactivate_old_listings RPC + set_listing_deactivated_timestamp trigger).
+        //   subscription_covered → 'subscription'
+        //   must_pay             → null (webhook flips to 'individual_paid' on payment success)
+        //   anything else        → 'individual_trial' with trial_started_at=NOW
+        // Sale listings: leave these fields as null/undefined.
+        // -----------------------------------------------------------------
+        ...(isSalePath
+          ? {}
+          : paymentChoice === 'subscription_covered'
+            ? { payment_kind: 'subscription' }
+            : paymentChoice === 'must_pay'
+              ? { payment_kind: null }
+              : {
+                  payment_kind: 'individual_trial',
+                  trial_started_at: new Date().toISOString(),
+                }),
       } as any;
 
       const listing = await listingsService.createListing(payload);
@@ -741,6 +762,33 @@ export function PostListingWizard() {
       }
 
       wizard.clearDraft();
+
+      // If the user chose a pay path on the wizard, hand off to Stripe Checkout
+      // instead of dropping them on the dashboard. On checkout completion the
+      // webhook flips payment_kind to 'individual_paid' and (for pay-at-posting)
+      // grants the 30 bonus days.
+      const requiresStripeCheckout =
+        !isSalePath && (paymentChoice === 'pay_at_posting' || paymentChoice === 'must_pay');
+
+      if (requiresStripeCheckout) {
+        try {
+          const checkout = await paymentsService.createCheckoutSession({
+            listingId: listing.id,
+            days: 30,
+            isInitialPurchase: paymentChoice === 'pay_at_posting',
+          });
+          window.location.href = checkout.url;
+          return;
+        } catch (checkoutErr) {
+          console.error('Failed to create Stripe checkout, falling back to dashboard:', checkoutErr);
+          setSubmitError(
+            'Your listing was created, but we couldn\'t open the payment page. You can pay from your dashboard.',
+          );
+          navigate(`/dashboard?new_listing=true&listing_id=${listing.id}&payment_pending=true`);
+          return;
+        }
+      }
+
       navigate(`/dashboard?new_listing=true&listing_id=${listing.id}`);
 
       // Branded confirmation email — matches legacy residential pattern.

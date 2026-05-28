@@ -1,9 +1,12 @@
-import React, { useEffect } from 'react';
-import { ArrowLeft, Send, CheckCircle, Image, AlertCircle } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { ArrowLeft, Send, CheckCircle, Image, AlertCircle, CreditCard } from 'lucide-react';
 import type { ListingFormData } from '../../../postListing/types';
 import type { MediaFile } from '../../../../components/shared/MediaUploader';
 import type { Profile } from '../../../../config/supabase';
 import { StepTips } from '../../StepTips';
+import { useMonetizationGate } from '../../../../hooks/useMonetizationGate';
+import { PaymentChoice, type WizardPaymentChoice } from '../../components/PaymentChoice';
 
 const TIPS = {
   heading: 'Contact & Review',
@@ -43,7 +46,7 @@ interface Step6Props {
   loading: boolean;
   uploadingMedia: boolean;
   submitError: string | null;
-  onSubmit: () => void;
+  onSubmit: (paymentChoice?: WizardPaymentChoice | null) => void;
   profile: Profile | null;
   submitLabel?: string;
 }
@@ -61,6 +64,8 @@ export function Step6ContactAndReview({
   profile,
   submitLabel = 'Post Listing',
 }: Step6Props) {
+  const navigate = useNavigate();
+
   // Pre-fill contact info from profile on first load
   useEffect(() => {
     if (profile?.full_name && !formData.contact_name) {
@@ -71,7 +76,43 @@ export function Step6ContactAndReview({
     }
   }, [profile]);
 
-  const canSubmit = !!formData.contact_name.trim() && !!formData.contact_phone.trim() && formData.terms_agreed;
+  // Monetization branch based on phone + subscription state.
+  const gate = useMonetizationGate({
+    contactPhone: formData.contact_phone,
+    isAdmin: profile?.is_admin === true,
+    enabled: true,
+  });
+
+  // Locally-tracked payment choice. Auto-defaulted by branch (admin/subscription
+  // are forced; trial_eligible defaults to free_trial; must_pay forces must_pay).
+  const [paymentChoice, setPaymentChoice] = useState<WizardPaymentChoice | null>(null);
+
+  useEffect(() => {
+    if (gate.mode === 'subscription') {
+      setPaymentChoice('subscription_covered');
+    } else if (gate.mode === 'admin') {
+      setPaymentChoice('admin');
+    } else if (gate.mode === 'must_pay') {
+      setPaymentChoice('must_pay');
+    } else if (gate.mode === 'trial_eligible' && paymentChoice == null) {
+      setPaymentChoice('free_trial');
+    } else if (gate.mode === 'subscription_at_cap') {
+      setPaymentChoice(null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gate.mode]);
+
+  // Computed submit button label/disable state.
+  const baseCanSubmit = !!formData.contact_name.trim() && !!formData.contact_phone.trim() && formData.terms_agreed;
+  const isBlocked = gate.mode === 'subscription_at_cap' || gate.mode === 'loading';
+  const canSubmit = baseCanSubmit && !isBlocked && (paymentChoice !== null || gate.mode === 'admin');
+
+  const dynamicSubmitLabel = (() => {
+    if (paymentChoice === 'pay_at_posting') return 'Pay $25 & post';
+    if (paymentChoice === 'must_pay') return 'Pay $25 & post';
+    return submitLabel;
+  })();
+  const isPayPath = paymentChoice === 'pay_at_posting' || paymentChoice === 'must_pay';
 
   const bedroomLabel =
     formData.bedrooms === 0
@@ -260,6 +301,17 @@ export function Step6ContactAndReview({
           </div>
         </div>
 
+        {/* Payment Choice (residential rentals only — wizard is currently residential-only Phase 1) */}
+        <PaymentChoice
+          mode={gate.mode}
+          subscription={gate.subscription}
+          subscriptionListingsUsed={gate.subscriptionListingsUsed}
+          errorMessage={gate.errorMessage}
+          choice={paymentChoice}
+          onChoiceChange={setPaymentChoice}
+          onWantsToSubscribe={() => navigate('/dashboard?subscribe=open')}
+        />
+
         {/* SMS Consent + Submit */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
           <label className="flex items-start gap-3 cursor-pointer select-none">
@@ -300,7 +352,7 @@ export function Step6ContactAndReview({
             </button>
             <button
               type="button"
-              onClick={onSubmit}
+              onClick={() => onSubmit(paymentChoice)}
               disabled={!canSubmit || loading || uploadingMedia}
               className="flex items-center gap-2 bg-accent-500 text-white px-8 py-3 rounded-lg text-sm font-semibold hover:bg-accent-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
@@ -310,8 +362,8 @@ export function Step6ContactAndReview({
                 'Uploading…'
               ) : (
                 <>
-                  <Send className="w-4 h-4" />
-                  {submitLabel}
+                  {isPayPath ? <CreditCard className="w-4 h-4" /> : <Send className="w-4 h-4" />}
+                  {dynamicSubmitLabel}
                 </>
               )}
             </button>
