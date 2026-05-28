@@ -117,6 +117,23 @@ Deno.serve(async (req) => {
       auth: { autoRefreshToken: false, persistSession: false },
     });
 
+    // Phase J: skip everything if the master switch is off.
+    const { data: settingsRow } = await supabaseAdmin
+      .from("admin_settings")
+      .select("monetization_enabled")
+      .limit(1)
+      .maybeSingle();
+    if (!settingsRow || settingsRow.monetization_enabled !== true) {
+      return new Response(JSON.stringify({
+        success: true,
+        skipped: true,
+        reason: 'monetization_disabled',
+      }), {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     const twilioUrl = `https://api.twilio.com/2010-04-01/Accounts/${twilioAccountSid}/Messages.json`;
     const twilioAuth = btoa(`${twilioAccountSid}:${twilioAuthToken}`);
 

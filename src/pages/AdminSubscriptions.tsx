@@ -27,6 +27,7 @@ import {
 import { useAuth } from '@/hooks/useAuth';
 import { subscriptionsService } from '../services/subscriptions';
 import { paymentsService } from '../services/payments';
+import { monetizationStatusService, type MonetizationStatus } from '../services/monetizationStatus';
 import { GrantDaysModal } from '../components/admin/GrantDaysModal';
 import {
   formatCents,
@@ -384,6 +385,10 @@ export function AdminSubscriptions() {
   const [grantListingId, setGrantListingId] = useState<string | null>(null);
   const [editingDayId, setEditingDayId] = useState<string | null>(null);
   const [editingDayValue, setEditingDayValue] = useState<number>(1);
+  // Phase J: master switch.
+  const [monetization, setMonetization] = useState<MonetizationStatus>({ enabled: false, enabledAt: null });
+  const [activating, setActivating] = useState(false);
+  const [activationResult, setActivationResult] = useState<string | null>(null);
 
   // Admin guard
   useEffect(() => {
@@ -405,16 +410,61 @@ export function AdminSubscriptions() {
     setLoading(true);
     setErr(null);
     try {
-      const [subs, paid] = await Promise.all([
+      const [subs, paid, status] = await Promise.all([
         subscriptionsService.listAll(),
         paymentsService.adminListPaidListings(),
+        monetizationStatusService.get(),
       ]);
       setSubscribers(subs);
       setPaidListings(paid as PaidListingRow[]);
+      setMonetization(status);
     } catch (e) {
       setErr((e as Error).message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleActivate = async () => {
+    const confirmed = window.confirm(
+      'Activate monetization now?\n\n' +
+      'This flips the master switch ON and immediately:\n' +
+      '  • Starts the 14-day free trial timer on every active residential rental.\n' +
+      '  • Tags inactive rentals as legacy_free (no payment required).\n' +
+      '  • Turns on the wizard payment cards, dashboard pills, and SMS reminders.\n\n' +
+      'You can disable monetization again later, but the timestamps will stay.\n\n' +
+      'Continue?',
+    );
+    if (!confirmed) return;
+    setActivating(true);
+    setErr(null);
+    try {
+      const res = await monetizationStatusService.activate();
+      setActivationResult(
+        `Monetization activated. ${res.trialedCount} active rentals entered the 14-day trial; ${res.legacyCount} inactive rentals tagged legacy_free.`,
+      );
+      await loadData();
+    } catch (e) {
+      setErr((e as Error).message);
+    } finally {
+      setActivating(false);
+    }
+  };
+
+  const handleDeactivate = async () => {
+    if (!window.confirm('Turn monetization OFF? Existing payment tags stay on listings, but the wizard, dashboard, and cron stop enforcing payment rules until reactivated.')) {
+      return;
+    }
+    setActivating(true);
+    setErr(null);
+    try {
+      await monetizationStatusService.deactivate();
+      setActivationResult('Monetization deactivated. Existing payment tags preserved; re-enabling skips re-tagging.');
+      await loadData();
+    } catch (e) {
+      setErr((e as Error).message);
+    } finally {
+      setActivating(false);
     }
   };
 
@@ -496,6 +546,64 @@ export function AdminSubscriptions() {
             >
               <Plus className="w-4 h-4" />
               Add subscriber
+            </button>
+          )}
+        </div>
+
+        {/* Phase J: master-switch banner */}
+        <div
+          className={`mb-4 rounded-xl border p-4 flex items-start gap-3 ${
+            monetization.enabled
+              ? 'bg-emerald-50 border-emerald-200'
+              : 'bg-amber-50 border-amber-300'
+          }`}
+        >
+          <div className={`w-10 h-10 rounded-lg border flex items-center justify-center flex-shrink-0 ${
+            monetization.enabled
+              ? 'bg-white border-emerald-200 text-emerald-700'
+              : 'bg-white border-amber-300 text-amber-700'
+          }`}>
+            {monetization.enabled ? <Check className="w-5 h-5" /> : <AlertTriangle className="w-5 h-5" />}
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className={`font-semibold ${monetization.enabled ? 'text-emerald-900' : 'text-amber-900'}`}>
+              {monetization.enabled
+                ? `Monetization is ACTIVE${monetization.enabledAt ? ` (since ${fmtDate(monetization.enabledAt)})` : ''}`
+                : 'Monetization is OFF — the system is deployed but not yet collecting payments'}
+            </div>
+            <p className={`text-sm mt-0.5 leading-relaxed ${monetization.enabled ? 'text-emerald-800' : 'text-amber-800'}`}>
+              {monetization.enabled
+                ? 'Trial timers, payment gates, dashboard pills, and SMS reminders are live for residential rentals.'
+                : 'Listings post the legacy way. The cron only enforces the existing freshness rule. Click "Activate" when you\'re ready to switch the whole system on — every currently-active residential rental will get a fresh 14-day trial.'}
+            </p>
+            {activationResult && (
+              <p className="mt-2 text-xs text-gray-700 bg-white border border-gray-200 rounded px-2 py-1">
+                {activationResult}
+              </p>
+            )}
+          </div>
+          {monetization.enabled ? (
+            <button
+              type="button"
+              onClick={handleDeactivate}
+              disabled={activating}
+              className="text-sm font-medium text-gray-600 hover:text-gray-900 disabled:opacity-50 flex-shrink-0"
+            >
+              Deactivate
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={handleActivate}
+              disabled={activating}
+              className="bg-amber-600 hover:bg-amber-700 text-white px-4 py-2 rounded-lg text-sm font-semibold disabled:opacity-50 flex-shrink-0 inline-flex items-center gap-2"
+            >
+              {activating ? (
+                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <Check className="w-4 h-4" />
+              )}
+              Activate monetization
             </button>
           )}
         </div>

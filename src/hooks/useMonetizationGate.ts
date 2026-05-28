@@ -12,10 +12,12 @@
 import { useEffect, useState } from 'react';
 import { subscriptionsService } from '../services/subscriptions';
 import { paymentsService } from '../services/payments';
+import { monetizationStatusService } from '../services/monetizationStatus';
 import type { ListingSubscription } from '../types/monetization';
 
 export type MonetizationGateMode =
   | 'loading'
+  | 'disabled'       // monetization master switch is off — wizard posts the legacy way
   | 'subscription'
   | 'subscription_at_cap'
   | 'trial_eligible'
@@ -54,18 +56,47 @@ export function useMonetizationGate(opts: {
   useEffect(() => {
     if (!opts.enabled) return;
 
-    if (opts.isAdmin) {
-      setState({
-        mode: 'admin',
-        subscription: null,
-        subscriptionListingsUsed: 0,
-        errorMessage: null,
-      });
-      return;
-    }
-
     let cancelled = false;
     (async () => {
+      try {
+        // Phase J: master switch — if monetization is off, short-circuit to 'disabled'.
+        const status = await monetizationStatusService.get();
+        if (cancelled) return;
+        if (!status.enabled) {
+          setState({
+            mode: 'disabled',
+            subscription: null,
+            subscriptionListingsUsed: 0,
+            errorMessage: null,
+          });
+          return;
+        }
+      } catch (err) {
+        // If the flag can't be read (e.g., column missing because migrations
+        // haven't been applied), fall through to the legacy behavior — better
+        // than blocking the wizard.
+        console.warn('Failed to read monetization status; assuming disabled:', err);
+        if (cancelled) return;
+        setState({
+          mode: 'disabled',
+          subscription: null,
+          subscriptionListingsUsed: 0,
+          errorMessage: null,
+        });
+        return;
+      }
+
+      if (opts.isAdmin) {
+        if (cancelled) return;
+        setState({
+          mode: 'admin',
+          subscription: null,
+          subscriptionListingsUsed: 0,
+          errorMessage: null,
+        });
+        return;
+      }
+
       try {
         const coverage = await subscriptionsService.canPostUnderSubscription();
         if (cancelled) return;
@@ -106,6 +137,7 @@ export function useMonetizationGate(opts: {
   // covered by a subscription.
   useEffect(() => {
     if (!opts.enabled || opts.isAdmin) return;
+    if (state.mode === 'disabled') return; // master switch off
     if (state.subscription) return; // already covered
 
     const normalized = phoneToE164(opts.contactPhone);
@@ -113,7 +145,7 @@ export function useMonetizationGate(opts: {
       // Too short — optimistic until they finish typing.
       setState((prev) => ({
         ...prev,
-        mode: prev.subscription ? prev.mode : 'trial_eligible',
+        mode: prev.subscription ? prev.mode : prev.mode === 'disabled' ? 'disabled' : 'trial_eligible',
         errorMessage: null,
       }));
       return;
@@ -144,7 +176,7 @@ export function useMonetizationGate(opts: {
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [opts.contactPhone, opts.enabled, opts.isAdmin, state.subscription]);
+  }, [opts.contactPhone, opts.enabled, opts.isAdmin, state.subscription, state.mode]);
 
   return state;
 }

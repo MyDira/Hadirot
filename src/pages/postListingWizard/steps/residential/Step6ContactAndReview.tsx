@@ -120,7 +120,10 @@ export function Step6ContactAndReview({
   }, [paymentChoice]);
 
   useEffect(() => {
-    if (gate.mode === 'subscription') {
+    if (gate.mode === 'disabled') {
+      // Master switch off — clear any stored choice so the listing posts the legacy way.
+      setPaymentChoice(null);
+    } else if (gate.mode === 'subscription') {
       setPaymentChoice('subscription_covered');
     } else if (gate.mode === 'admin') {
       setPaymentChoice('admin');
@@ -137,7 +140,11 @@ export function Step6ContactAndReview({
   // Computed submit button label/disable state.
   const baseCanSubmit = !!formData.contact_name.trim() && !!formData.contact_phone.trim() && formData.terms_agreed;
   const isBlocked = gate.mode === 'subscription_at_cap' || gate.mode === 'loading';
-  const canSubmit = baseCanSubmit && !isBlocked && (paymentChoice !== null || gate.mode === 'admin');
+  // When monetization is disabled (master switch off), submit is unblocked regardless of paymentChoice.
+  const canSubmit =
+    baseCanSubmit &&
+    !isBlocked &&
+    (paymentChoice !== null || gate.mode === 'admin' || gate.mode === 'disabled');
 
   const dynamicSubmitLabel = (() => {
     if (paymentChoice === 'pay_at_posting') return 'Pay $25 & post';

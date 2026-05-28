@@ -60,6 +60,11 @@ export function PaymentChoice({
     return null;
   }
 
+  if (mode === 'disabled') {
+    // Master switch is off — wizard behaves pre-monetization.
+    return null;
+  }
+
   if (mode === 'loading') {
     return (
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">

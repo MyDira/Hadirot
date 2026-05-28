@@ -760,8 +760,12 @@ export function PostListingWizard() {
         //   must_pay             → null (webhook flips to 'individual_paid' on payment success)
         //   anything else        → 'individual_trial' with trial_started_at=NOW
         // Sale listings: leave these fields as null/undefined.
+        // When paymentChoice is null/undefined (e.g., monetization master
+        // switch is off — see useMonetizationGate / enable_monetization()),
+        // we leave payment_kind=NULL and skip trial_started_at, so the
+        // listing posts exactly as pre-monetization.
         // -----------------------------------------------------------------
-        ...(isSalePath
+        ...(isSalePath || !paymentChoice
           ? {}
           : paymentChoice === 'subscription_covered'
             ? { payment_kind: 'subscription' }

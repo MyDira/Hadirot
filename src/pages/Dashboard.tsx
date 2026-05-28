@@ -20,6 +20,7 @@ import { stripeService, FeaturedPurchase } from "../services/stripe";
 import { conciergeService } from "../services/concierge";
 import type { ConciergeSubscription } from "../config/supabase";
 import { subscriptionsService } from "../services/subscriptions";
+import { monetizationStatusService } from "../services/monetizationStatus";
 import type { ListingSubscription, PaymentKind } from "../types/monetization";
 import { PaidListingStatusCard } from "../components/dashboard/PaidListingStatusCard";
 import { MonetizationModal, type MonetizationModalListingOption } from "../components/dashboard/MonetizationModal";
@@ -58,12 +59,19 @@ export default function Dashboard() {
   const [monetizationModalOpen, setMonetizationModalOpen] = useState(false);
   const [monetizationModalPreselect, setMonetizationModalPreselect] = useState<string | null>(null);
   const [monetizationModalInitialTab, setMonetizationModalInitialTab] = useState<'pay' | 'subscribe'>('pay');
+  // Phase J: master switch. When false, dashboard hides monetization UI.
+  const [monetizationEnabled, setMonetizationEnabled] = useState<boolean>(false);
 
-  // Load the user's listing subscription once (it's small) so the per-listing pill
-  // can reflect subscription coverage without per-row queries.
+  // Read the master switch + the user's listing subscription once on mount.
   useEffect(() => {
     let cancelled = false;
     (async () => {
+      try {
+        const status = await monetizationStatusService.get();
+        if (!cancelled) setMonetizationEnabled(status.enabled);
+      } catch (err) {
+        console.warn('Failed to load monetization status (assuming off):', err);
+      }
       try {
         const sub = await subscriptionsService.getMyActiveSubscription();
         if (!cancelled) setListingSubscription(sub);
@@ -77,7 +85,9 @@ export default function Dashboard() {
   }, [user?.id]);
 
   // Auto-open the monetization modal when wizard or another flow appends ?subscribe=open / ?action=pay.
+  // Gated by master switch (Phase J) — don't open if monetization isn't enabled yet.
   useEffect(() => {
+    if (!monetizationEnabled) return;
     const subOpen = searchParams.get('subscribe');
     const action = searchParams.get('action');
     const listingParam = searchParams.get('listing');
@@ -97,7 +107,7 @@ export default function Dashboard() {
       setSearchParams(next, { replace: true });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams]);
+  }, [searchParams, monetizationEnabled]);
 
   // Helper: build a MonetizationListingFields view from a Listing row.
   // Tolerates the case where new columns haven't propagated to the fetched
@@ -680,8 +690,8 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* Subscription trial banner (Phase H) */}
-      {listingSubscription?.status === 'trial' && (() => {
+      {/* Subscription trial banner (Phase H) — hidden when master switch off (Phase J). */}
+      {monetizationEnabled && listingSubscription?.status === 'trial' && (() => {
         const trialEnd = new Date(new Date(listingSubscription.created_at).getTime() + 14 * 24 * 60 * 60 * 1000);
         const daysLeft = Math.ceil((trialEnd.getTime() - Date.now()) / 86400000);
         const planName = listingSubscription.plan === 'vip' ? 'VIP' : 'Agent';
@@ -1096,8 +1106,8 @@ export default function Dashboard() {
                                 return null;
                               })()}
                             </div>
-                            {/* Residential-rental payment status pill (Phase D) */}
-                            {!isCommercial && !isSale && (
+                            {/* Residential-rental payment status pill (Phase D) — hidden when master switch off. */}
+                            {!isCommercial && !isSale && monetizationEnabled && (
                               <div className="mt-0.5">
                                 <PaidListingStatusCard
                                   listing={toMonetizationFields(listing)}
