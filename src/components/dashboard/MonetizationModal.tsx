@@ -23,6 +23,7 @@ import {
   Sparkles,
   ArrowRight,
   AlertTriangle,
+  Gift,
 } from 'lucide-react';
 import { paymentsService } from '../../services/payments';
 import { subscriptionsService } from '../../services/subscriptions';
@@ -30,6 +31,7 @@ import {
   INDIVIDUAL_LISTING_PACKAGES,
   LISTING_SUBSCRIPTION_PLANS,
   CONCIERGE_ADDON_PRICE_CENTS,
+  TRIAL_SUBSCRIPTION_LENGTH_DAYS,
   formatCents,
 } from '../../types/monetization';
 
@@ -135,6 +137,19 @@ export function MonetizationModal({
         includeConciergeAddon: includeAddon,
       });
       window.location.href = checkout.url;
+    } catch (e) {
+      setErr((e as Error).message);
+      setBusy(false);
+    }
+  };
+
+  const handleStartTrial = async () => {
+    setBusy(true);
+    setErr(null);
+    try {
+      await subscriptionsService.startFreeTrial({ plan: selectedPlan });
+      // Reload the dashboard to reflect the new trial subscription.
+      window.location.href = '/dashboard?trial_started=true';
     } catch (e) {
       setErr((e as Error).message);
       setBusy(false);
@@ -300,6 +315,26 @@ export function MonetizationModal({
 
           {tab === 'subscribe' && (
             <div className="space-y-5">
+              {/* Free-trial banner — sits above the plan picker so it's the
+                  first thing landlords see. Single CTA uses the plan picked
+                  in the radio cards below. */}
+              <div className="bg-gradient-to-br from-emerald-50 to-emerald-100/40 border-2 border-emerald-200 rounded-xl p-4">
+                <div className="flex items-start gap-3">
+                  <div className="w-10 h-10 rounded-lg bg-white border border-emerald-200 flex items-center justify-center text-emerald-700 flex-shrink-0">
+                    <Gift className="w-5 h-5" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="font-semibold text-emerald-900">
+                      Try {TRIAL_SUBSCRIPTION_LENGTH_DAYS} days free — no card needed
+                    </div>
+                    <p className="text-sm text-emerald-800 mt-0.5 leading-relaxed">
+                      Post unlimited listings under your plan for {TRIAL_SUBSCRIPTION_LENGTH_DAYS} days.
+                      We'll reach out before it ends. Pick your plan below, then start the trial.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
               {/* Plan picker */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {LISTING_SUBSCRIPTION_PLANS.map((p) => {
@@ -366,25 +401,42 @@ export function MonetizationModal({
                 <div className="text-xl font-bold text-gray-900">{formatCents(subscribeMonthlyCents)}</div>
               </div>
 
-              <button
-                type="button"
-                onClick={handleSubscribe}
-                disabled={busy}
-                className="w-full bg-accent-500 hover:bg-accent-600 text-white py-3 rounded-lg text-sm font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-              >
-                {busy ? (
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                ) : (
-                  <>
-                    <ArrowRight className="w-4 h-4" />
-                    Continue to checkout
-                  </>
-                )}
-              </button>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={handleStartTrial}
+                  disabled={busy}
+                  className="bg-white border-2 border-emerald-300 hover:border-emerald-400 text-emerald-800 py-3 rounded-lg text-sm font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  {busy ? (
+                    <div className="w-4 h-4 border-2 border-emerald-700 border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <>
+                      <Gift className="w-4 h-4" />
+                      Start {TRIAL_SUBSCRIPTION_LENGTH_DAYS}-day free trial
+                    </>
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSubscribe}
+                  disabled={busy}
+                  className="bg-accent-500 hover:bg-accent-600 text-white py-3 rounded-lg text-sm font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  {busy ? (
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <>
+                      <ArrowRight className="w-4 h-4" />
+                      Continue to checkout
+                    </>
+                  )}
+                </button>
+              </div>
 
               <div className="text-xs text-gray-500 text-center leading-relaxed">
-                <Check className="inline w-3 h-3 mr-1" /> Cancel anytime via the customer portal.
-                Subscription renews on the day of month you started.
+                <Check className="inline w-3 h-3 mr-1" /> Trials never charge automatically.
+                Paid subscriptions can be cancelled anytime via the customer portal.
               </div>
             </div>
           )}

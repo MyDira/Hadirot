@@ -65,6 +65,7 @@ function StatusPill({ status }: { status: ListingSubscription['status'] }) {
   const map: Record<string, { label: string; cls: string }> = {
     active: { label: 'Active', cls: 'bg-emerald-50 text-emerald-800 border-emerald-200' },
     admin_active: { label: 'Admin active', cls: 'bg-indigo-50 text-indigo-800 border-indigo-200' },
+    trial: { label: 'Trial', cls: 'bg-teal-50 text-teal-800 border-teal-200' },
     past_due: { label: 'Past due', cls: 'bg-amber-50 text-amber-800 border-amber-200' },
     cancelled: { label: 'Cancelled', cls: 'bg-gray-100 text-gray-700 border-gray-200' },
     expired: { label: 'Expired', cls: 'bg-gray-100 text-gray-700 border-gray-200' },
@@ -76,6 +77,13 @@ function StatusPill({ status }: { status: ListingSubscription['status'] }) {
       {m.label}
     </span>
   );
+}
+
+/** Trial countdown text — shown in the "Next renewal" column for trial rows. */
+function trialEndsIn(createdAt: string): { date: Date; daysLeft: number } {
+  const trialEnd = new Date(new Date(createdAt).getTime() + 14 * 24 * 60 * 60 * 1000);
+  const daysLeft = Math.ceil((trialEnd.getTime() - Date.now()) / 86400000);
+  return { date: trialEnd, daysLeft };
 }
 
 function PlanBadge({ plan }: { plan: ListingSubscriptionPlan }) {
@@ -534,12 +542,17 @@ export function AdminSubscriptions() {
 
   const sortedSubscribers = useMemo(() => {
     return [...subscribers].sort((a, b) => {
-      // Active first, then by next renewal.
-      const aActive = ['active', 'admin_active', 'past_due'].includes(a.status);
-      const bActive = ['active', 'admin_active', 'past_due'].includes(b.status);
+      // Active first (including trial), then by next renewal / trial end.
+      const aActive = ['active', 'admin_active', 'past_due', 'trial'].includes(a.status);
+      const bActive = ['active', 'admin_active', 'past_due', 'trial'].includes(b.status);
       if (aActive !== bActive) return aActive ? -1 : 1;
-      const aEnd = a.current_period_end ? new Date(a.current_period_end).getTime() : Infinity;
-      const bEnd = b.current_period_end ? new Date(b.current_period_end).getTime() : Infinity;
+      // For trial rows the effective renewal date is trial end (created_at + 14d).
+      const aEnd = a.status === 'trial'
+        ? trialEndsIn(a.created_at).date.getTime()
+        : a.current_period_end ? new Date(a.current_period_end).getTime() : Infinity;
+      const bEnd = b.status === 'trial'
+        ? trialEndsIn(b.created_at).date.getTime()
+        : b.current_period_end ? new Date(b.current_period_end).getTime() : Infinity;
       return aEnd - bEnd;
     });
   }, [subscribers]);
@@ -634,9 +647,17 @@ export function AdminSubscriptions() {
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-100">
                   {sortedSubscribers.map((s) => {
-                    const daysToRenewal = daysFromNow(s.current_period_end);
-                    const isUrgent = daysToRenewal !== null && daysToRenewal <= 3 && ['active', 'admin_active', 'past_due'].includes(s.status);
+                    const isTrial = s.status === 'trial';
+                    const trialInfo = isTrial ? trialEndsIn(s.created_at) : null;
+                    const daysToRenewal = isTrial
+                      ? trialInfo!.daysLeft
+                      : daysFromNow(s.current_period_end);
+                    const isUrgent =
+                      daysToRenewal !== null &&
+                      daysToRenewal <= 3 &&
+                      ['active', 'admin_active', 'past_due', 'trial'].includes(s.status);
                     const isEditing = editingDayId === s.id;
+                    const billingSource = isTrial ? 'Trial (no card)' : s.is_admin_granted ? 'Admin' : 'Stripe';
                     return (
                       <tr key={s.id} className={isUrgent ? 'bg-amber-50/30' : ''}>
                         <td className="px-4 py-3">
@@ -645,13 +666,14 @@ export function AdminSubscriptions() {
                         </td>
                         <td className="px-4 py-3"><PlanBadge plan={s.plan} /></td>
                         <td className="px-4 py-3"><StatusPill status={s.status} /></td>
-                        <td className="px-4 py-3 text-xs text-gray-600">
-                          {s.is_admin_granted ? 'Admin' : 'Stripe'}
-                        </td>
+                        <td className="px-4 py-3 text-xs text-gray-600">{billingSource}</td>
                         <td className="px-4 py-3">
-                          <div className="text-sm text-gray-900">{fmtDate(s.current_period_end)}</div>
-                          {daysToRenewal !== null && ['active', 'admin_active', 'past_due'].includes(s.status) && (
+                          <div className="text-sm text-gray-900">
+                            {isTrial ? fmtDate(trialInfo!.date.toISOString()) : fmtDate(s.current_period_end)}
+                          </div>
+                          {daysToRenewal !== null && ['active', 'admin_active', 'past_due', 'trial'].includes(s.status) && (
                             <div className={`text-xs ${isUrgent ? 'text-amber-700 font-medium' : 'text-gray-500'}`}>
+                              {isTrial && 'Trial ends '}
                               {daysToRenewal <= 0 ? 'today or earlier' : `in ${daysToRenewal}d`}
                             </div>
                           )}

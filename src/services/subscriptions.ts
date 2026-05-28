@@ -20,18 +20,65 @@ export const subscriptionsService = {
   // User-facing
   // -----------------------------------------------------------
 
-  /** Return the caller's currently-active listing subscription, if any. */
+  /** Return the caller's currently-active listing subscription, if any.
+   * Includes trial subscriptions — they cover listings the same as paid ones
+   * until the 14-day window elapses. */
   async getMyActiveSubscription(): Promise<ListingSubscription | null> {
     const { data, error } = await sb
       .from('listing_subscriptions')
       .select('*')
-      .in('status', ['active', 'admin_active', 'past_due'])
+      .in('status', ['active', 'admin_active', 'past_due', 'trial'])
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle();
 
     if (error) throw error;
     return (data as ListingSubscription | null) ?? null;
+  },
+
+  /**
+   * Start a 14-day frontend-only free trial of Agent or VIP. No Stripe
+   * involved — the row's `created_at` is the trial start. The cron
+   * auto-expires trial rows after 14 days, which cascades through the
+   * "subscription gone" check to deactivate the user's listings.
+   *
+   * Blocked if the user already has any active or trial subscription
+   * (enforced by the unique partial index in the migration).
+   */
+  async startFreeTrial(params: {
+    plan: ListingSubscriptionPlan;
+  }): Promise<ListingSubscription> {
+    // Get current user.
+    const { data: userData, error: userErr } = await supabase.auth.getUser();
+    if (userErr || !userData.user) throw new Error('Not signed in');
+    const userId = userData.user.id;
+
+    // Check for an existing active/trial subscription.
+    const existing = await this.getMyActiveSubscription();
+    if (existing) {
+      throw new Error(
+        existing.status === 'trial'
+          ? 'You already have an active trial. Wait for it to end or cancel it before starting a new one.'
+          : 'You already have an active subscription. Cancel it first to start a trial.',
+      );
+    }
+
+    const listingCap = params.plan === 'agent' ? 7 : null;
+
+    const { data, error } = await sb
+      .from('listing_subscriptions')
+      .insert({
+        user_id: userId,
+        plan: params.plan,
+        status: 'trial',
+        listing_cap: listingCap,
+        is_admin_granted: false,
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data as ListingSubscription;
   },
 
   /** Returns whether caller has the concierge add-on attached to an active sub. */

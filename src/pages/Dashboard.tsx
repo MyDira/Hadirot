@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { CreditCard as Edit, Eye, MousePointerClick, MessageSquare, Star, Trash2, Zap, RefreshCw, Plus, EyeOff, AlertTriangle, Clock, Home, DollarSign, Info, CheckCircle, XCircle, Briefcase, X, Building2 } from "lucide-react";
+import { CreditCard as Edit, Eye, MousePointerClick, MessageSquare, Star, Trash2, Zap, RefreshCw, Plus, EyeOff, AlertTriangle, Clock, Home, DollarSign, Info, CheckCircle, XCircle, Briefcase, X, Building2, Gift, ArrowUpRight } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { Listing, SaleStatus, CommercialListing, supabase } from "../config/supabase";
 import {
@@ -679,6 +679,44 @@ export default function Dashboard() {
           </button>
         </div>
       )}
+
+      {/* Subscription trial banner (Phase H) */}
+      {listingSubscription?.status === 'trial' && (() => {
+        const trialEnd = new Date(new Date(listingSubscription.created_at).getTime() + 14 * 24 * 60 * 60 * 1000);
+        const daysLeft = Math.ceil((trialEnd.getTime() - Date.now()) / 86400000);
+        const planName = listingSubscription.plan === 'vip' ? 'VIP' : 'Agent';
+        const urgent = daysLeft <= 3;
+        return (
+          <div className={`mb-6 rounded-lg p-4 flex items-start gap-3 border ${
+            urgent
+              ? 'bg-amber-50 border-amber-200'
+              : 'bg-emerald-50 border-emerald-200'
+          }`}>
+            <Gift className={`w-5 h-5 flex-shrink-0 mt-0.5 ${urgent ? 'text-amber-700' : 'text-emerald-700'}`} />
+            <div className="flex-1 min-w-0">
+              <div className={`font-semibold ${urgent ? 'text-amber-900' : 'text-emerald-900'}`}>
+                {planName} free trial · {daysLeft > 0 ? `${daysLeft} day${daysLeft === 1 ? '' : 's'} left` : 'Ends today'}
+              </div>
+              <div className={`text-sm mt-0.5 ${urgent ? 'text-amber-800' : 'text-emerald-800'}`}>
+                {urgent
+                  ? 'Your trial ends soon. Upgrade now to keep your listings live without interruption.'
+                  : "We'll reach out before your trial ends. You can also upgrade anytime."}
+              </div>
+            </div>
+            <button
+              onClick={() => {
+                setMonetizationModalInitialTab('subscribe');
+                setMonetizationModalOpen(true);
+              }}
+              className={`text-sm font-semibold inline-flex items-center gap-1 ${
+                urgent ? 'text-amber-900 hover:text-amber-700' : 'text-emerald-900 hover:text-emerald-700'
+              }`}
+            >
+              Upgrade <ArrowUpRight className="w-4 h-4" />
+            </button>
+          </div>
+        );
+      })()}
 
       {newListingBanner && (
         <div className="mb-6 rounded-lg p-4 flex items-center justify-between bg-green-50 border border-green-200">

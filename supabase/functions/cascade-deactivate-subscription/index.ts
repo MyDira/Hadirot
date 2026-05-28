@@ -39,13 +39,13 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
 
-    // Confirm the user has no OTHER active subscription. If they do, we don't
-    // cascade (they're still covered).
+    // Confirm the user has no OTHER active subscription (paid, admin-granted,
+    // or in-trial). If they do, we don't cascade (they're still covered).
     const { data: stillCovered } = await supabaseAdmin
       .from("listing_subscriptions")
       .select("id")
       .eq("user_id", user_id)
-      .in("status", ["active", "admin_active"])
+      .in("status", ["active", "admin_active", "trial"])
       .neq("id", listing_subscription_id || "00000000-0000-0000-0000-000000000000")
       .limit(1)
       .maybeSingle();

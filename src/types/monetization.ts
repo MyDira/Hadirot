@@ -20,7 +20,17 @@ export type ListingSubscriptionStatus =
   | 'past_due'
   | 'cancelled'
   | 'expired'
-  | 'admin_active';
+  | 'admin_active'
+  | 'trial';
+
+/** Status values that represent currently-covered listings (subscription is "on"). */
+export const COVERED_SUBSCRIPTION_STATUSES: readonly ListingSubscriptionStatus[] = [
+  'active',
+  'admin_active',
+  'trial',
+];
+
+export const TRIAL_SUBSCRIPTION_LENGTH_DAYS = 14;
 
 export interface ListingSubscription {
   id: string;
