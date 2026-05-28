@@ -19,6 +19,11 @@ import { FeatureListingModal } from "../components/listings/FeatureListingModal"
 import { stripeService, FeaturedPurchase } from "../services/stripe";
 import { conciergeService } from "../services/concierge";
 import type { ConciergeSubscription } from "../config/supabase";
+import { subscriptionsService } from "../services/subscriptions";
+import type { ListingSubscription, PaymentKind } from "../types/monetization";
+import { PaidListingStatusCard } from "../components/dashboard/PaidListingStatusCard";
+import { MonetizationModal, type MonetizationModalListingOption } from "../components/dashboard/MonetizationModal";
+import type { MonetizationListingFields } from "../services/payments";
 
 type DashboardTab = 'rentals' | 'sales';
 
@@ -48,6 +53,83 @@ export default function Dashboard() {
   const [showSuccessBanner, setShowSuccessBanner] = useState(false);
   const [pendingFeatureListingId, setPendingFeatureListingId] = useState<string | null>(null);
   const [conciergeSub, setConciergeSub] = useState<ConciergeSubscription | null>(null);
+  // Residential-rental monetization state (Phase D).
+  const [listingSubscription, setListingSubscription] = useState<ListingSubscription | null>(null);
+  const [monetizationModalOpen, setMonetizationModalOpen] = useState(false);
+  const [monetizationModalPreselect, setMonetizationModalPreselect] = useState<string | null>(null);
+  const [monetizationModalInitialTab, setMonetizationModalInitialTab] = useState<'pay' | 'subscribe'>('pay');
+
+  // Load the user's listing subscription once (it's small) so the per-listing pill
+  // can reflect subscription coverage without per-row queries.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const sub = await subscriptionsService.getMyActiveSubscription();
+        if (!cancelled) setListingSubscription(sub);
+      } catch (err) {
+        console.warn('Failed to load listing subscription:', err);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id]);
+
+  // Auto-open the monetization modal when wizard or another flow appends ?subscribe=open / ?action=pay.
+  useEffect(() => {
+    const subOpen = searchParams.get('subscribe');
+    const action = searchParams.get('action');
+    const listingParam = searchParams.get('listing');
+    if (subOpen === 'open') {
+      setMonetizationModalInitialTab('subscribe');
+      setMonetizationModalPreselect(listingParam);
+      setMonetizationModalOpen(true);
+      const next = new URLSearchParams(searchParams);
+      next.delete('subscribe');
+      setSearchParams(next, { replace: true });
+    } else if (action === 'pay' || action === 'reactivate') {
+      setMonetizationModalInitialTab('pay');
+      setMonetizationModalPreselect(listingParam);
+      setMonetizationModalOpen(true);
+      const next = new URLSearchParams(searchParams);
+      next.delete('action');
+      setSearchParams(next, { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
+
+  // Helper: build a MonetizationListingFields view from a Listing row.
+  // Tolerates the case where new columns haven't propagated to the fetched
+  // shape yet (returns nullish defaults).
+  const toMonetizationFields = (l: any): MonetizationListingFields => ({
+    id: l.id,
+    user_id: l.user_id,
+    listing_type: l.listing_type ?? 'rental',
+    is_active: l.is_active ?? false,
+    payment_kind: (l.payment_kind ?? null) as PaymentKind | null,
+    trial_started_at: l.trial_started_at ?? null,
+    paid_until: l.paid_until ?? null,
+    paused_paid_days: l.paused_paid_days ?? 0,
+    expires_at: l.expires_at ?? null,
+    deactivated_at: l.deactivated_at ?? null,
+    created_at: l.created_at ?? null,
+  });
+
+  // Listings the modal's "pay per listing" tab should offer. Residential rentals
+  // owned by the current user, sorted newest first.
+  const monetizationModalListings: MonetizationModalListingOption[] = useMemo(() => {
+    return listings
+      .filter((l) => l.listing_type !== 'sale')
+      .map((l) => {
+        const bedrooms = (l as Listing).bedrooms;
+        const price = (l as Listing).price;
+        const where = (l as Listing).neighborhood || (l as Listing).location || 'Listing';
+        const bedText = bedrooms === 0 ? 'Studio' : `${bedrooms} BR`;
+        const priceText = price ? `$${price.toLocaleString()}/mo` : 'Call for price';
+        return { id: l.id, label: `${bedText} · ${where} · ${priceText}` };
+      });
+  }, [listings]);
 
   const rentalListings = useMemo(
     () => [
@@ -976,6 +1058,25 @@ export default function Dashboard() {
                                 return null;
                               })()}
                             </div>
+                            {/* Residential-rental payment status pill (Phase D) */}
+                            {!isCommercial && !isSale && (
+                              <div className="mt-0.5">
+                                <PaidListingStatusCard
+                                  listing={toMonetizationFields(listing)}
+                                  subscription={listingSubscription}
+                                  isAdmin={profile?.is_admin === true}
+                                  onAfterRenew={() => {
+                                    // Refresh listings to reflect new expires_at.
+                                    void loadUserListings();
+                                  }}
+                                  onOpenPayModal={(listingId) => {
+                                    setMonetizationModalInitialTab('pay');
+                                    setMonetizationModalPreselect(listingId);
+                                    setMonetizationModalOpen(true);
+                                  }}
+                                />
+                              </div>
+                            )}
                             {isSale && listing.is_active && (
                               <div className="mt-1">
                                 <SaleStatusSelector
@@ -1165,6 +1266,18 @@ export default function Dashboard() {
           showSuccessBanner={showSuccessBanner}
         />
       )}
+
+      {/* Residential-rental monetization modal (Phase D) */}
+      <MonetizationModal
+        open={monetizationModalOpen}
+        onClose={() => {
+          setMonetizationModalOpen(false);
+          setMonetizationModalPreselect(null);
+        }}
+        listings={monetizationModalListings}
+        preselectedListingId={monetizationModalPreselect}
+        initialTab={monetizationModalInitialTab}
+      />
     </div>
   );
 }
