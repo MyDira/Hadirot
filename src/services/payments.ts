@@ -211,6 +211,25 @@ export const paymentsService = {
 
     // Branch 1: not active
     if (!listing.is_active) {
+      if (paymentKind === 'pending_payment') {
+        // Created via the wizard "must pay" branch; Stripe checkout never
+        // completed. Prompt the owner to finish paying rather than showing it
+        // as a dead/reactivatable listing.
+        label = 'payment_required';
+        nextActionLabel = 'Complete payment to post';
+        nextActionUrl = `/dashboard?listing=${listing.id}&action=pay`;
+        return {
+          paymentKind,
+          label,
+          trialDaysRemaining,
+          paidDaysRemaining,
+          freshnessDaysRemaining,
+          hasSubscriptionCoverage: false,
+          isLocked,
+          nextActionUrl,
+          nextActionLabel,
+        };
+      }
       if (paymentKind === 'legacy_free') {
         label = 'deactivated_reactivatable';
       } else if (listing.deactivated_at) {
@@ -294,6 +313,14 @@ export const paymentsService = {
       }
       case 'legacy_free': {
         label = 'legacy_free';
+        break;
+      }
+      case 'pending_payment': {
+        // Active (e.g. webhook set is_active before the kind flipped) but still
+        // awaiting payment confirmation — keep prompting for payment.
+        label = 'payment_required';
+        nextActionLabel = 'Complete payment to post';
+        nextActionUrl = `/dashboard?listing=${listing.id}&action=pay`;
         break;
       }
       default: {

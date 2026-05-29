@@ -11,7 +11,12 @@ export type PaymentKind =
   | 'individual_paid'
   | 'subscription'
   | 'admin_granted'
-  | 'legacy_free';
+  | 'legacy_free'
+  // Listing created via the wizard's "must pay" branch but the Stripe checkout
+  // has not completed yet. Webhook flips this to 'individual_paid' on success.
+  // Distinct from NULL so abandoned checkouts can't be mistaken for legacy
+  // (free) listings at admin-approval time.
+  | 'pending_payment';
 
 export type ListingSubscriptionPlan = 'agent' | 'vip';
 export type ListingSubscriptionStatus =
@@ -146,6 +151,7 @@ export type PaymentStateLabel =
   | 'subscription_active'
   | 'admin_granted'
   | 'legacy_free'
+  | 'payment_required'
   | 'deactivated_reactivatable'
   | 'deactivated_permanent'
   | 'unknown';

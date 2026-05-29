@@ -18,12 +18,16 @@ export const BOOST_PRICES = {
 // Subscription plans require Stripe price IDs (recurring monthly).
 // Individual listing payments use ad-hoc price_data (variable day packages).
 //
-// PLACEHOLDER VALUES — replace with real Stripe price IDs from the dashboard
-// before deploying. The user will populate these.
+// Mapping note (Stripe product name → our plan key):
+//   "Agent Plan — Starter"   ($50/mo, 7-listing cap) → agent
+//   "Agent Plan — Unlimited" ($100/mo, unlimited)    → vip
+//   "Concierge Listing Service" ($50/mo)             → addon_concierge
+// Env vars override (use them to point at test- vs live-mode prices); the
+// literals below are the live defaults.
 export const LISTING_SUBSCRIPTION_PRICES = {
-  agent:           Deno.env.get("STRIPE_AGENT_PRICE_ID")           || "price_REPLACE_AGENT_50",
-  vip:             Deno.env.get("STRIPE_VIP_PRICE_ID")             || "price_REPLACE_VIP_100",
-  addon_concierge: Deno.env.get("STRIPE_ADDON_CONCIERGE_PRICE_ID") || "price_REPLACE_ADDON_50",
+  agent:           Deno.env.get("STRIPE_AGENT_PRICE_ID")           || "price_1Tc8PYJvRPzH20A9UURtXKeg",
+  vip:             Deno.env.get("STRIPE_VIP_PRICE_ID")             || "price_1Tc8PxJvRPzH20A9OyuLWHHD",
+  addon_concierge: Deno.env.get("STRIPE_ADDON_CONCIERGE_PRICE_ID") || "price_1Tc8QSJvRPzH20A9qA8Gp1PF",
 } as const;
 
 // Per-day-package pricing for individual residential-rental payments.

@@ -757,7 +757,11 @@ export function PostListingWizard() {
         // payment_kind drives the new payment-permission gate (see
         // auto_inactivate_old_listings RPC + set_listing_deactivated_timestamp trigger).
         //   subscription_covered → 'subscription'
-        //   must_pay             → null (webhook flips to 'individual_paid' on payment success)
+        //   must_pay             → 'pending_payment' (webhook flips to 'individual_paid'
+        //                          on payment success). A distinct kind — NOT null — so an
+        //                          abandoned checkout can never be mistaken for a free/legacy
+        //                          listing at admin-approval time; the cron also deactivates
+        //                          any approved listing still left in 'pending_payment'.
         //   anything else        → 'individual_trial' with trial_started_at=NOW
         // Sale listings: leave these fields as null/undefined.
         // When paymentChoice is null/undefined (e.g., monetization master
@@ -770,7 +774,7 @@ export function PostListingWizard() {
           : paymentChoice === 'subscription_covered'
             ? { payment_kind: 'subscription' }
             : paymentChoice === 'must_pay'
-              ? { payment_kind: null }
+              ? { payment_kind: 'pending_payment' }
               : {
                   payment_kind: 'individual_trial',
                   trial_started_at: new Date().toISOString(),
