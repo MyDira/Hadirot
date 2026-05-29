@@ -423,6 +423,7 @@ async function handleSubscriptionUpdate(subscription: Stripe.Subscription) {
     } else {
       const statusMap: Record<string, string> = {
         active: 'active',
+        trialing: 'trial',
         past_due: 'past_due',
         canceled: 'cancelled',
         unpaid: 'past_due',
@@ -667,23 +668,42 @@ async function handleListingSubscriptionCheckout(session: Stripe.Checkout.Sessio
     return;
   }
 
-  // Pull the Stripe subscription to extract current_period_end + billing day.
+  // Pull the Stripe subscription to extract current_period_end, billing day,
+  // and crucially the live status (trialing vs active) so we record the right
+  // shape from the start.
   let currentPeriodEnd: string | null = null;
   let billingDayOfMonth: number | null = null;
+  let stripeStatus: string = 'active';
   try {
     const sub = await stripe.subscriptions.retrieve(stripeSubId);
+    stripeStatus = sub.status; // 'trialing' | 'active' | 'past_due' | ...
     currentPeriodEnd = sub.current_period_end
       ? new Date(sub.current_period_end * 1000).toISOString()
       : null;
-    if (sub.current_period_start) {
-      const startDate = new Date(sub.current_period_start * 1000);
-      const day = startDate.getUTCDate();
+    // For trials, the billing day is when the trial ends (= when the first
+    // invoice will charge), which is also current_period_end. Use it consistently.
+    const billingAnchor = sub.status === 'trialing' && sub.trial_end
+      ? new Date(sub.trial_end * 1000)
+      : sub.current_period_start
+        ? new Date(sub.current_period_start * 1000)
+        : null;
+    if (billingAnchor) {
+      const day = billingAnchor.getUTCDate();
       // Clamp to 1-28 to avoid month-end rollover edge cases.
       billingDayOfMonth = Math.min(28, Math.max(1, day));
     }
   } catch (err) {
     console.error('Failed to retrieve Stripe subscription:', err);
   }
+
+  // Map Stripe status → our enum. Match handleSubscriptionUpdate's mapping
+  // so a status arriving via webhook on the same row produces the same value.
+  const ourStatus =
+    stripeStatus === 'trialing' ? 'trial'
+    : stripeStatus === 'past_due' ? 'past_due'
+    : stripeStatus === 'canceled' ? 'cancelled'
+    : stripeStatus === 'unpaid' ? 'past_due'
+    : 'active';
 
   const listingCap = plan === 'agent' ? 7 : null;
 
@@ -692,7 +712,7 @@ async function handleListingSubscriptionCheckout(session: Stripe.Checkout.Sessio
     .insert({
       user_id,
       plan,
-      status: 'active',
+      status: ourStatus,
       listing_cap: listingCap,
       stripe_subscription_id: stripeSubId,
       stripe_customer_id: session.customer as string,

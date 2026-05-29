@@ -48,9 +48,12 @@ Deno.serve(async (req) => {
       });
     }
 
-    const { plan, include_concierge_addon } = await req.json() as {
+    const { plan, include_concierge_addon, with_trial } = await req.json() as {
       plan?: "agent" | "vip";
       include_concierge_addon?: boolean;
+      /** When true, attach Stripe's 14-day trial_period_days. User's card is collected
+       *  but not charged until the trial ends. */
+      with_trial?: boolean;
     };
 
     if (plan !== "agent" && plan !== "vip") {
@@ -118,6 +121,8 @@ Deno.serve(async (req) => {
 
     const origin = req.headers.get("origin") || "https://hadirot.com";
 
+    const isTrial = with_trial === true;
+
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",
       customer: stripeCustomerId,
@@ -127,6 +132,7 @@ Deno.serve(async (req) => {
         user_id: user.id,
         plan,
         include_concierge_addon: include_concierge_addon ? "true" : "false",
+        with_trial: isTrial ? "true" : "false",
       },
       subscription_data: {
         metadata: {
@@ -134,14 +140,24 @@ Deno.serve(async (req) => {
           user_id: user.id,
           plan,
           include_concierge_addon: include_concierge_addon ? "true" : "false",
+          with_trial: isTrial ? "true" : "false",
         },
+        // 14-day Stripe-managed trial. Card is collected at checkout, no charge
+        // during trial, auto-charges on day 14 (or fails → past_due).
+        ...(isTrial ? { trial_period_days: 14 } : {}),
       },
+      // Force card capture during trial — gives us the commitment we want.
+      payment_method_collection: "always",
       allow_promotion_codes: true,
-      success_url: `${origin}/dashboard?subscription=success`,
+      success_url: `${origin}/dashboard?subscription=${isTrial ? "trial_started" : "success"}`,
       cancel_url: `${origin}/dashboard?subscription=cancelled`,
     });
 
-    return new Response(JSON.stringify({ url: session.url, session_id: session.id }), {
+    return new Response(JSON.stringify({
+      url: session.url,
+      session_id: session.id,
+      with_trial: isTrial,
+    }), {
       status: 200,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

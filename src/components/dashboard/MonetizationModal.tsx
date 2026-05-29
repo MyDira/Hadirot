@@ -147,9 +147,10 @@ export function MonetizationModal({
     setBusy(true);
     setErr(null);
     try {
-      await subscriptionsService.startFreeTrial({ plan: selectedPlan });
-      // Reload the dashboard to reflect the new trial subscription.
-      window.location.href = '/dashboard?trial_started=true';
+      // Phase K: trial runs through Stripe — user enters card, no charge for
+      // 14 days, then Stripe auto-charges. Redirect to Stripe Checkout.
+      const checkout = await subscriptionsService.startFreeTrial({ plan: selectedPlan });
+      window.location.href = checkout.url;
     } catch (e) {
       setErr((e as Error).message);
       setBusy(false);
@@ -325,11 +326,12 @@ export function MonetizationModal({
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="font-semibold text-emerald-900">
-                      Try {TRIAL_SUBSCRIPTION_LENGTH_DAYS} days free — no card needed
+                      Try {TRIAL_SUBSCRIPTION_LENGTH_DAYS} days free
                     </div>
                     <p className="text-sm text-emerald-800 mt-0.5 leading-relaxed">
-                      Post unlimited listings under your plan for {TRIAL_SUBSCRIPTION_LENGTH_DAYS} days.
-                      We'll reach out before it ends. Pick your plan below, then start the trial.
+                      Post listings under your plan for {TRIAL_SUBSCRIPTION_LENGTH_DAYS} days.
+                      Card required, but you won't be charged for {TRIAL_SUBSCRIPTION_LENGTH_DAYS} days.
+                      Cancel anytime in the billing portal — no charge if you cancel before day {TRIAL_SUBSCRIPTION_LENGTH_DAYS}.
                     </p>
                   </div>
                 </div>
@@ -406,14 +408,17 @@ export function MonetizationModal({
                   type="button"
                   onClick={handleStartTrial}
                   disabled={busy}
-                  className="bg-white border-2 border-emerald-300 hover:border-emerald-400 text-emerald-800 py-3 rounded-lg text-sm font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  className="bg-white border-2 border-emerald-300 hover:border-emerald-400 text-emerald-800 py-3 rounded-lg text-sm font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex flex-col items-center justify-center gap-0.5"
                 >
                   {busy ? (
                     <div className="w-4 h-4 border-2 border-emerald-700 border-t-transparent rounded-full animate-spin" />
                   ) : (
                     <>
-                      <Gift className="w-4 h-4" />
-                      Start {TRIAL_SUBSCRIPTION_LENGTH_DAYS}-day free trial
+                      <span className="inline-flex items-center gap-2">
+                        <Gift className="w-4 h-4" />
+                        Start {TRIAL_SUBSCRIPTION_LENGTH_DAYS}-day free trial
+                      </span>
+                      <span className="text-[10px] font-normal text-emerald-700/80">Card required · charged on day {TRIAL_SUBSCRIPTION_LENGTH_DAYS}</span>
                     </>
                   )}
                 </button>
@@ -435,8 +440,9 @@ export function MonetizationModal({
               </div>
 
               <div className="text-xs text-gray-500 text-center leading-relaxed">
-                <Check className="inline w-3 h-3 mr-1" /> Trials never charge automatically.
-                Paid subscriptions can be cancelled anytime via the customer portal.
+                <Check className="inline w-3 h-3 mr-1" /> Trials require a card on file.
+                Stripe auto-charges on day {TRIAL_SUBSCRIPTION_LENGTH_DAYS} unless cancelled.
+                Cancel anytime via the customer portal.
               </div>
             </div>
           )}

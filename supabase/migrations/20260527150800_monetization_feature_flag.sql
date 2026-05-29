@@ -173,12 +173,16 @@ BEGIN
   v_sale_days := COALESCE(v_sale_days, 30);
 
   -- Trial-subscription auto-expiry only when monetization is on.
+  -- Phase K: Stripe now manages trial→active transitions for Stripe-backed
+  -- trials. We only expire trial rows that have NO stripe_subscription_id
+  -- (admin-granted no-card trials, if any are ever created via SQL).
   IF v_monetization_on THEN
     UPDATE listing_subscriptions
     SET status = 'expired',
         cancelled_at = NOW(),
         updated_at = NOW()
     WHERE status = 'trial'
+      AND stripe_subscription_id IS NULL
       AND created_at < NOW() - INTERVAL '14 days';
   END IF;
 

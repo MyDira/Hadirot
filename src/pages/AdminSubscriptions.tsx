@@ -81,9 +81,13 @@ function StatusPill({ status }: { status: ListingSubscription['status'] }) {
   );
 }
 
-/** Trial countdown text — shown in the "Next renewal" column for trial rows. */
-function trialEndsIn(createdAt: string): { date: Date; daysLeft: number } {
-  const trialEnd = new Date(new Date(createdAt).getTime() + 14 * 24 * 60 * 60 * 1000);
+/** Trial countdown text — shown in the "Next renewal" column for trial rows.
+ *  Prefers current_period_end (set by Stripe webhook to the trial-end /
+ *  first-charge date); falls back to created_at + 14d if not present. */
+function trialEndsIn(row: { created_at: string; current_period_end: string | null }): { date: Date; daysLeft: number } {
+  const trialEnd = row.current_period_end
+    ? new Date(row.current_period_end)
+    : new Date(new Date(row.created_at).getTime() + 14 * 24 * 60 * 60 * 1000);
   const daysLeft = Math.ceil((trialEnd.getTime() - Date.now()) / 86400000);
   return { date: trialEnd, daysLeft };
 }
@@ -508,10 +512,10 @@ export function AdminSubscriptions() {
       if (aActive !== bActive) return aActive ? -1 : 1;
       // For trial rows the effective renewal date is trial end (created_at + 14d).
       const aEnd = a.status === 'trial'
-        ? trialEndsIn(a.created_at).date.getTime()
+        ? trialEndsIn(a).date.getTime()
         : a.current_period_end ? new Date(a.current_period_end).getTime() : Infinity;
       const bEnd = b.status === 'trial'
-        ? trialEndsIn(b.created_at).date.getTime()
+        ? trialEndsIn(b).date.getTime()
         : b.current_period_end ? new Date(b.current_period_end).getTime() : Infinity;
       return aEnd - bEnd;
     });
@@ -666,7 +670,7 @@ export function AdminSubscriptions() {
                 <tbody className="bg-white divide-y divide-gray-100">
                   {sortedSubscribers.map((s) => {
                     const isTrial = s.status === 'trial';
-                    const trialInfo = isTrial ? trialEndsIn(s.created_at) : null;
+                    const trialInfo = isTrial ? trialEndsIn(s) : null;
                     const daysToRenewal = isTrial
                       ? trialInfo!.daysLeft
                       : daysFromNow(s.current_period_end);
@@ -675,7 +679,12 @@ export function AdminSubscriptions() {
                       daysToRenewal <= 3 &&
                       ['active', 'admin_active', 'past_due', 'trial'].includes(s.status);
                     const isEditing = editingDayId === s.id;
-                    const billingSource = isTrial ? 'Trial (no card)' : s.is_admin_granted ? 'Admin' : 'Stripe';
+                    // Phase K: trials go through Stripe with a card on file.
+                    const billingSource = s.is_admin_granted
+                      ? 'Admin'
+                      : isTrial
+                        ? 'Stripe trial'
+                        : 'Stripe';
                     return (
                       <tr key={s.id} className={isUrgent ? 'bg-amber-50/30' : ''}>
                         <td className="px-4 py-3">

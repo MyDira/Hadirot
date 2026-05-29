@@ -37,48 +37,30 @@ export const subscriptionsService = {
   },
 
   /**
-   * Start a 14-day frontend-only free trial of Agent or VIP. No Stripe
-   * involved — the row's `created_at` is the trial start. The cron
-   * auto-expires trial rows after 14 days, which cascades through the
-   * "subscription gone" check to deactivate the user's listings.
+   * Start a 14-day Stripe-managed free trial of Agent or VIP.
    *
-   * Blocked if the user already has any active or trial subscription
-   * (enforced by the unique partial index in the migration).
+   * Phase K change: the trial now runs through Stripe Checkout. The user is
+   * required to enter a card; Stripe charges nothing for 14 days then
+   * auto-charges on day 14 (or marks the subscription past_due if the card
+   * fails). This is the "commitment" version of the trial — easier to convert,
+   * more revenue.
+   *
+   * Returns a Stripe Checkout URL; caller should redirect the browser to it.
+   * The listing_subscriptions row is created when the Stripe webhook fires
+   * checkout.session.completed (status='trial').
+   *
+   * Blocked at checkout-create time if the user already has an active or
+   * trial subscription.
    */
   async startFreeTrial(params: {
     plan: ListingSubscriptionPlan;
-  }): Promise<ListingSubscription> {
-    // Get current user.
-    const { data: userData, error: userErr } = await supabase.auth.getUser();
-    if (userErr || !userData.user) throw new Error('Not signed in');
-    const userId = userData.user.id;
-
-    // Check for an existing active/trial subscription.
-    const existing = await this.getMyActiveSubscription();
-    if (existing) {
-      throw new Error(
-        existing.status === 'trial'
-          ? 'You already have an active trial. Wait for it to end or cancel it before starting a new one.'
-          : 'You already have an active subscription. Cancel it first to start a trial.',
-      );
-    }
-
-    const listingCap = params.plan === 'agent' ? 7 : null;
-
-    const { data, error } = await sb
-      .from('listing_subscriptions')
-      .insert({
-        user_id: userId,
-        plan: params.plan,
-        status: 'trial',
-        listing_cap: listingCap,
-        is_admin_granted: false,
-      })
-      .select()
-      .single();
-
-    if (error) throw error;
-    return data as ListingSubscription;
+  }): Promise<{ url: string; session_id: string }> {
+    const result = await this.createCheckoutSession({
+      plan: params.plan,
+      includeConciergeAddon: false,
+      withTrial: true,
+    });
+    return { url: result.url, session_id: result.session_id };
   },
 
   /** Returns whether caller has the concierge add-on attached to an active sub. */
@@ -123,24 +105,29 @@ export const subscriptionsService = {
     return { canPost, sub, used, cap: sub.listing_cap };
   },
 
-  /** Start a Stripe Checkout session for Agent or VIP (optionally + concierge). */
+  /** Start a Stripe Checkout session for Agent or VIP (optionally + concierge,
+   *  optionally with the 14-day trial — see startFreeTrial). */
   async createCheckoutSession(params: {
     plan: ListingSubscriptionPlan;
     includeConciergeAddon?: boolean;
-  }): Promise<{ url: string; session_id: string }> {
+    /** When true, attach Stripe's 14-day trial. Card is collected but not charged
+     *  until day 14. */
+    withTrial?: boolean;
+  }): Promise<{ url: string; session_id: string; with_trial?: boolean }> {
     const { data, error } = await supabase.functions.invoke(
       'create-listing-subscription-checkout',
       {
         body: {
           plan: params.plan,
           include_concierge_addon: !!params.includeConciergeAddon,
+          with_trial: !!params.withTrial,
         },
       },
     );
 
     if (error) throw error;
     if (data?.error) throw new Error(data.error);
-    return data as { url: string; session_id: string };
+    return data as { url: string; session_id: string; with_trial?: boolean };
   },
 
   // -----------------------------------------------------------

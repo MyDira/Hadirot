@@ -709,8 +709,8 @@ export default function Dashboard() {
               </div>
               <div className={`text-sm mt-0.5 ${urgent ? 'text-amber-800' : 'text-emerald-800'}`}>
                 {urgent
-                  ? 'Your trial ends soon. Upgrade now to keep your listings live without interruption.'
-                  : "We'll reach out before your trial ends. You can also upgrade anytime."}
+                  ? `Your card will be charged on day ${daysLeft <= 0 ? 14 : 14} of your trial. Cancel in the billing portal to avoid the charge.`
+                  : `Card on file. No charge until day 14, then your subscription begins automatically. Cancel anytime to avoid the charge.`}
               </div>
             </div>
             <button
