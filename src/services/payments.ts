@@ -46,6 +46,10 @@ export interface MonetizationListingFields {
   user_id: string;
   listing_type: string;
   is_active: boolean | null;
+  /** Admin approval gate. A brand-new listing is `approved = false` and
+   *  `is_active = false` until an admin approves it — that's "pending approval",
+   *  NOT a dead/deactivated listing. */
+  approved?: boolean | null;
   payment_kind: PaymentKind | null;
   trial_started_at: string | null;
   paid_until: string | null;
@@ -209,8 +213,15 @@ export const paymentsService = {
       freshnessDaysRemaining = daysBetween(listing.expires_at, now);
     }
 
-    // Branch 1: not active
-    if (!listing.is_active) {
+    // A listing that an admin hasn't approved yet is "pending approval", NOT a
+    // dead/deactivated listing — even though is_active is false. We only treat
+    // it as pending-approval when it was never user-deactivated; once it has a
+    // deactivated_at it follows the normal reactivate/permanent path below.
+    const isPendingApproval =
+      listing.approved === false && !listing.deactivated_at && paymentKind !== 'pending_payment';
+
+    // Branch 1: not active (and not merely awaiting approval)
+    if (!listing.is_active && !isPendingApproval) {
       if (paymentKind === 'pending_payment') {
         // Created via the wizard "must pay" branch; Stripe checkout never
         // completed. Prompt the owner to finish paying rather than showing it
@@ -256,6 +267,11 @@ export const paymentsService = {
         nextActionLabel,
       };
     }
+
+    // Pending approval: fall through to the payment-kind derivation below so the
+    // pill reflects the listing's REAL payment readiness (e.g. "Paid · 30d left",
+    // "Free trial") next to the separate yellow "Pending Approval" badge —
+    // instead of the misleading "Permanently inactive".
 
     // Branch 2: active — by payment_kind
     switch (paymentKind) {

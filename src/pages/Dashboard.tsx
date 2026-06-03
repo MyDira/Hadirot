@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { CreditCard as Edit, Eye, MousePointerClick, MessageSquare, Star, Trash2, Zap, RefreshCw, Plus, EyeOff, AlertTriangle, Clock, Home, DollarSign, Info, CheckCircle, XCircle, Briefcase, X, Building2, Gift, ArrowUpRight } from "lucide-react";
+import { CreditCard as Edit, Eye, MousePointerClick, MessageSquare, Star, Trash2, Zap, RefreshCw, Plus, EyeOff, AlertTriangle, Clock, Home, DollarSign, Info, CheckCircle, XCircle, Briefcase, X, Building2, Gift, ArrowUpRight, MoreVertical, Pencil } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { Listing, SaleStatus, CommercialListing, supabase } from "../config/supabase";
 import {
@@ -24,6 +24,8 @@ import { monetizationStatusService } from "../services/monetizationStatus";
 import type { ListingSubscription, PaymentKind } from "../types/monetization";
 import { PaidListingStatusCard } from "../components/dashboard/PaidListingStatusCard";
 import { MonetizationModal, type MonetizationModalListingOption } from "../components/dashboard/MonetizationModal";
+import { QuickPayDaysModal } from "../components/dashboard/QuickPayDaysModal";
+import { paymentsService } from "../services/payments";
 import type { MonetizationListingFields } from "../services/payments";
 
 type DashboardTab = 'rentals' | 'sales';
@@ -59,6 +61,10 @@ export default function Dashboard() {
   const [monetizationModalOpen, setMonetizationModalOpen] = useState(false);
   const [monetizationModalPreselect, setMonetizationModalPreselect] = useState<string | null>(null);
   const [monetizationModalInitialTab, setMonetizationModalInitialTab] = useState<'pay' | 'subscribe'>('pay');
+  // Small per-listing "add days" modal (opened from a row's green Pay/Renew action).
+  const [quickPayListing, setQuickPayListing] = useState<{ id: string; label: string } | null>(null);
+  // Which rental card's "⋯" overflow menu is open (card id), or null.
+  const [openCardMenu, setOpenCardMenu] = useState<string | null>(null);
   // Phase J: master switch. When false, dashboard hides monetization UI.
   const [monetizationEnabled, setMonetizationEnabled] = useState<boolean>(false);
 
@@ -117,6 +123,7 @@ export default function Dashboard() {
     user_id: l.user_id,
     listing_type: l.listing_type ?? 'rental',
     is_active: l.is_active ?? false,
+    approved: l.approved ?? null,
     payment_kind: (l.payment_kind ?? null) as PaymentKind | null,
     trial_started_at: l.trial_started_at ?? null,
     paid_until: l.paid_until ?? null,
@@ -125,6 +132,66 @@ export default function Dashboard() {
     deactivated_at: l.deactivated_at ?? null,
     created_at: l.created_at ?? null,
   });
+
+  // Human-readable one-line label for a listing (used by the quick-pay modal).
+  const buildListingLabel = (l: any): string => {
+    const bedrooms = (l as Listing).bedrooms;
+    const price = (l as Listing).price;
+    const where = (l as Listing).neighborhood || (l as Listing).location || 'Listing';
+    const bedText = bedrooms === 0 ? 'Studio' : `${bedrooms} BR`;
+    const priceText = price ? `$${price.toLocaleString()}/mo` : 'Call for price';
+    return `${bedText} · ${where} · ${priceText}`;
+  };
+
+  // Open the small per-listing "add days" modal for a known listing id.
+  const openQuickPay = (listingId: string) => {
+    const l = listings.find((x) => x.id === listingId);
+    setQuickPayListing({ id: listingId, label: l ? buildListingLabel(l) : 'This listing' });
+  };
+
+  // One friendly, reassuring status line for a rental card. Avoids scary money
+  // language ("Permanently inactive", "Pay") in favor of plain, calm copy.
+  const getRentalStatusLine = (
+    listing: any,
+    payState: ReturnType<typeof paymentsService.derivePaymentState> | null,
+    daysUntilExpiration: number | null,
+  ): { dot: string; text: string; tone: 'good' | 'warn' | 'muted' } => {
+    if (!listing.approved) {
+      return { dot: 'bg-amber-400', text: "In review — we'll publish it soon", tone: 'warn' };
+    }
+    if (!listing.is_active) {
+      return { dot: 'bg-gray-400', text: 'Paused — not visible to renters', tone: 'muted' };
+    }
+    if (payState) {
+      switch (payState.label) {
+        case 'paid_expired':
+          return { dot: 'bg-amber-400', text: 'Time’s up — add days to keep it live', tone: 'warn' };
+        case 'paid_renewal_due':
+          return { dot: 'bg-amber-400', text: 'Renewal coming up soon', tone: 'warn' };
+        case 'trial_ending':
+          return { dot: 'bg-amber-400', text: `Free trial ending${payState.trialDaysRemaining != null ? ` · ${payState.trialDaysRemaining}d left` : ''}`, tone: 'warn' };
+        case 'trial_active':
+          return { dot: 'bg-emerald-500', text: `Live · free trial${payState.trialDaysRemaining != null ? ` · ${payState.trialDaysRemaining}d left` : ''}`, tone: 'good' };
+        case 'paid_active':
+          return { dot: 'bg-emerald-500', text: `Live${payState.paidDaysRemaining != null ? ` · ${payState.paidDaysRemaining} days left` : ''}`, tone: 'good' };
+        case 'subscription_active':
+          return { dot: 'bg-emerald-500', text: 'Live · covered by your plan', tone: 'good' };
+        case 'admin_granted':
+          return { dot: 'bg-emerald-500', text: 'Live · complimentary', tone: 'good' };
+        case 'payment_required':
+          return { dot: 'bg-amber-400', text: 'Finish payment to publish', tone: 'warn' };
+        case 'legacy_free':
+          return { dot: 'bg-emerald-500', text: 'Live', tone: 'good' };
+      }
+    }
+    if (daysUntilExpiration != null) {
+      if (daysUntilExpiration <= 0) {
+        return { dot: 'bg-amber-400', text: 'Expired — extend to keep it live', tone: 'warn' };
+      }
+      return { dot: 'bg-emerald-500', text: `Live · ${daysUntilExpiration} day${daysUntilExpiration === 1 ? '' : 's'} left`, tone: 'good' };
+    }
+    return { dot: 'bg-emerald-500', text: 'Live', tone: 'good' };
+  };
 
   // Listings the modal's "pay per listing" tab should offer. Residential rentals
   // owned by the current user, sorted newest first.
@@ -915,382 +982,546 @@ export default function Dashboard() {
               </div>
             )}
           </div>
-        ) : (
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-            <div className="relative">
-              <div className="overflow-x-auto table-scroll-visible">
-                <table className="w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" style={{ minWidth: '200px', maxWidth: '300px', width: '25%' }}>
-                      Property
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap" style={{ width: '120px' }}>
-                      Price
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap" style={{ width: '110px' }}>
-                      Impressions
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap" style={{ width: '120px' }}>
-                      Direct Views
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap" style={{ width: '100px' }}>
-                      Inquiries
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap" style={{ width: '140px' }}>
-                      Status
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap" style={{ width: '100px' }}>
-                      Expires
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap" style={{ width: '140px' }}>
-                      Created
-                    </th>
-                    <th className="sticky right-0 bg-gray-50 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap shadow-[-4px_0_6px_rgba(0,0,0,0.05)] z-10" style={{ width: '200px' }}>
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {filteredListings.map((listing) => {
-                    const isCommercial = !!(listing as any).isCommercial;
-                    const featuredImage =
-                      listing.listing_images?.find((img) => img.is_featured) ||
-                      listing.listing_images?.[0];
-                    const isSale = listing.listing_type === 'sale';
-                    const daysUntilExpiration = getDaysUntilExpiration(listing.expires_at);
-                    const extensionCheck = isCommercial ? { canExtend: false, reason: '' } : canExtendListing(listing as Listing);
-                    const rowStripe = isCommercial ? '3px solid #0891B2' : '3px solid #1E4A74';
+        ) : activeTab === 'rentals' ? (
+          /* ---------------------------------------------------------------
+             Rentals tab — modern card list (replaces the old wide table).
+             Each card surfaces one friendly status line and one contextual
+             primary action, with View / Edit and a "⋯" overflow for the rest.
+          ---------------------------------------------------------------- */
+          <div className="space-y-3">
+            {filteredListings.map((listing) => {
+              const isCommercial = !!(listing as any).isCommercial;
+              const featuredImage =
+                listing.listing_images?.find((img) => img.is_featured) ||
+                listing.listing_images?.[0];
+              const daysUntilExpiration = getDaysUntilExpiration(listing.expires_at);
 
-                    const getCommercialPriceText = () => {
-                      const cl = listing as CommercialListing;
-                      if (cl.call_for_price) return 'Contact for Price';
-                      if (isSale) return cl.asking_price != null ? formatPrice(cl.asking_price) : 'Contact for Price';
-                      return cl.price != null ? `${formatPrice(cl.price)}/mo` : 'Contact for Price';
-                    };
+              const payState = (!isCommercial && monetizationEnabled)
+                ? paymentsService.derivePaymentState(toMonetizationFields(listing), {
+                    hasActiveSubscription: listingSubscription !== null,
+                    isAdmin: profile?.is_admin === true,
+                  })
+                : null;
+              const showPayAction = !!payState
+                && !!payState.nextActionUrl
+                && payState.nextActionUrl.includes('action=pay');
 
-                    return (
-                      <tr key={listing.id} className="hover:bg-gray-50" style={{ borderLeft: rowStripe }}>
-                        <td className="px-6 py-4" style={{ maxWidth: '300px' }}>
-                          <div className="flex items-center min-w-0">
-                            {featuredImage ? (
-                              <img
-                                src={featuredImage.image_url}
-                                alt={listing.title ?? ''}
-                                className="w-12 h-12 object-cover rounded-lg mr-4 flex-shrink-0"
-                              />
-                            ) : isCommercial ? (
-                              <div className="w-12 h-12 rounded-lg mr-4 flex-shrink-0 bg-cyan-50 border border-cyan-200 flex items-center justify-center">
-                                <Building2 className="w-5 h-5 text-cyan-600" />
-                              </div>
-                            ) : null}
-                            <div className="min-w-0 flex-1">
-                              <div className="flex items-center gap-1.5 flex-wrap">
-                                <Link
-                                  to={isCommercial ? `/commercial-listing/${listing.id}` : `/listing/${listing.id}`}
-                                  className="font-medium text-gray-900 hover:text-[#4E4B43] transition-colors truncate"
-                                  title={listing.title ?? ''}
-                                >
-                                  {listing.title}
-                                </Link>
-                                {isCommercial && (
-                                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#0891B2] text-white whitespace-nowrap flex-shrink-0">
-                                    {isSale ? 'COMM · SALE' : 'COMM · LEASE'}
-                                  </span>
-                                )}
-                              </div>
-                              {!isCommercial && (
-                                <div className="text-sm text-gray-500 truncate">
-                                  {(listing as Listing).bedrooms} bed, {(listing as Listing).bathrooms} bath
-                                </div>
-                              )}
-                            </div>
+              const status = getRentalStatusLine(listing, payState, daysUntilExpiration);
+
+              const priceText = isCommercial
+                ? ((listing as CommercialListing).call_for_price
+                    ? 'Contact for price'
+                    : (listing as CommercialListing).price != null
+                      ? `${formatPrice((listing as CommercialListing).price!)}/mo`
+                      : 'Contact for price')
+                : listing.call_for_price
+                  ? 'Call for price'
+                  : `${formatPrice(listing.price)}/mo`;
+
+              const bedBath = !isCommercial
+                ? `${(listing as Listing).bedrooms} bed · ${(listing as Listing).bathrooms} bath`
+                : null;
+
+              const featuredStatus = !isCommercial ? getListingFeaturedStatus(listing as Listing) : null;
+              const canGetFeatured = !isCommercial
+                && listing.is_active
+                && listing.approved
+                && !isListingCurrentlyFeatured(listing as Listing);
+
+              const expiringSoon = listing.is_active
+                && daysUntilExpiration != null
+                && daysUntilExpiration <= 7;
+
+              // Pick the single most useful primary action.
+              type Primary = { label: string; onClick: () => void; cls: string } | null;
+              let primary: Primary = null;
+              if (showPayAction) {
+                primary = {
+                  label: payState?.label === 'paid_expired' ? 'Relist — add days' : 'Keep it active',
+                  onClick: () => openQuickPay(listing.id),
+                  cls: 'bg-emerald-600 hover:bg-emerald-700 text-white',
+                };
+              } else if (!listing.is_active && listing.approved) {
+                primary = {
+                  label: 'Republish',
+                  onClick: () => isCommercial ? handleRenewCommercialListing(listing.id) : handleRenewListing(listing.id),
+                  cls: 'bg-brand-600 hover:bg-brand-700 text-white',
+                };
+              } else if (expiringSoon) {
+                primary = {
+                  label: 'Extend listing',
+                  onClick: () => isCommercial ? handleRenewCommercialListing(listing.id) : handleRenewListing(listing.id),
+                  cls: 'bg-brand-600 hover:bg-brand-700 text-white',
+                };
+              } else if (canGetFeatured) {
+                primary = {
+                  label: 'Get Featured',
+                  onClick: () => { setFeatureModalListing(listing as Listing); setShowSuccessBanner(false); },
+                  cls: 'bg-accent-500 hover:bg-accent-600 text-white',
+                };
+              }
+              const featuredIsPrimary = primary?.label === 'Get Featured';
+              const stripe = isCommercial ? '#0891B2' : '#1E4A74';
+
+              return (
+                <div
+                  key={listing.id}
+                  className="relative bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow overflow-hidden"
+                  style={{ borderLeft: `4px solid ${stripe}` }}
+                >
+                  <div className="p-3.5 sm:p-4">
+                    <div className="flex gap-3.5">
+                      {/* Thumbnail */}
+                      <Link
+                        to={isCommercial ? `/commercial-listing/${listing.id}` : `/listing/${listing.id}`}
+                        className="flex-shrink-0"
+                      >
+                        {featuredImage ? (
+                          <img
+                            src={featuredImage.image_url}
+                            alt={listing.title ?? ''}
+                            className="w-16 h-16 sm:w-[72px] sm:h-[72px] object-cover rounded-lg"
+                          />
+                        ) : (
+                          <div className="w-16 h-16 sm:w-[72px] sm:h-[72px] rounded-lg bg-gray-100 border border-gray-200 flex items-center justify-center">
+                            {isCommercial ? <Building2 className="w-6 h-6 text-cyan-600" /> : <Home className="w-6 h-6 text-gray-400" />}
                           </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {isCommercial
-                            ? getCommercialPriceText()
-                            : listing.call_for_price
-                              ? 'Call for Price'
-                              : isSale
-                                ? formatPrice((listing as Listing).asking_price ?? listing.price)
-                                : `${formatPrice(listing.price)}/month`}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          <div className="flex items-center gap-1.5">
-                            <Eye className="h-4 w-4 opacity-70" aria-hidden />
-                            <span>
-                              {loading
-                                ? "—"
-                                : (listing.impressions ?? 0).toLocaleString()}
-                            </span>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          <div className="flex items-center gap-1.5">
-                            <MousePointerClick className="h-4 w-4 opacity-70" aria-hidden />
-                            <span>
-                              {loading
-                                ? "—"
-                                : (listing.direct_views ?? 0).toLocaleString()}
-                            </span>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {isCommercial ? (
-                            <span className="text-gray-400">—</span>
-                          ) : (
-                            <button
-                              type="button"
-                              onClick={() => handleOpenInquiries(listing.id, listing.title)}
-                              className="flex items-center gap-1.5 hover:text-accent-600 transition-colors cursor-pointer"
-                              title="View inquiries"
-                            >
-                              <MessageSquare className="h-4 w-4 opacity-70" aria-hidden />
-                              <span className="hover:underline">
-                                {inquiryCounts[listing.id] ?? 0}
-                              </span>
-                            </button>
-                          )}
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="flex flex-col gap-1.5">
-                            <div className="flex flex-wrap items-center gap-1.5">
-                              <span
-                                className={`px-2 py-1 text-xs rounded-full whitespace-nowrap ${
-                                  listing.is_active
-                                    ? "bg-green-100 text-green-800"
-                                    : "bg-red-100 text-red-800"
-                                }`}
+                        )}
+                      </Link>
+
+                      {/* Main */}
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-start gap-2">
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <Link
+                                to={isCommercial ? `/commercial-listing/${listing.id}` : `/listing/${listing.id}`}
+                                className="font-semibold text-gray-900 hover:text-brand-700 transition-colors truncate"
+                                title={listing.title ?? ''}
                               >
-                                {listing.is_active ? "Active" : "Inactive"}
-                              </span>
-                              {!isCommercial && listing.is_active && listing.approved && !isListingCurrentlyFeatured(listing as Listing) && (
-                                <button
-                                  onClick={() => {
-                                    setFeatureModalListing(listing as Listing);
-                                    setShowSuccessBanner(false);
-                                  }}
-                                  className="text-xs bg-accent-500 hover:bg-accent-600 text-white px-3 py-1 rounded font-medium whitespace-nowrap transition-colors"
-                                  title="Boost to top of search results"
-                                >
-                                  Get Featured
-                                </button>
-                              )}
-                              {!listing.approved && (
-                                <span className="px-2 py-1 text-xs bg-yellow-100 text-yellow-800 rounded-full whitespace-nowrap">
-                                  Pending Approval
+                                {listing.title}
+                              </Link>
+                              {isCommercial && (
+                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-cyan-50 text-cyan-700 border border-cyan-200 whitespace-nowrap flex-shrink-0">
+                                  COMM · LEASE
                                 </span>
                               )}
-                              {!isCommercial && (() => {
-                                const featuredStatus = getListingFeaturedStatus(listing as Listing);
-                                if (featuredStatus === 'active') {
-                                  const daysLeft = listing.featured_expires_at
-                                    ? Math.max(0, Math.ceil((new Date(listing.featured_expires_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
-                                    : 0;
-                                  return (
-                                    <span className="px-2 py-1 text-xs bg-accent-50 text-accent-700 border border-accent-200 rounded-full flex items-center whitespace-nowrap">
-                                      <Zap className="w-3 h-3 mr-1" />
-                                      Featured {daysLeft > 0 ? `· ${daysLeft}d left` : '· Expiring'}
-                                    </span>
-                                  );
-                                }
-                                if (featuredStatus === 'pending_approval') {
-                                  return (
-                                    <span className="px-2 py-1 text-xs bg-amber-50 text-amber-700 border border-amber-200 rounded-full flex items-center whitespace-nowrap">
-                                      <Clock className="w-3 h-3 mr-1" />
-                                      Featured · Starts on approval
-                                    </span>
-                                  );
-                                }
-                                return null;
-                              })()}
+                              {featuredStatus === 'active' && (
+                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-accent-50 text-accent-700 border border-accent-200 whitespace-nowrap flex-shrink-0">
+                                  <Zap className="w-3 h-3 mr-0.5" /> Featured
+                                </span>
+                              )}
+                              {featuredStatus === 'pending_approval' && (
+                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200 whitespace-nowrap flex-shrink-0">
+                                  <Clock className="w-3 h-3 mr-0.5" /> Featured soon
+                                </span>
+                              )}
                             </div>
-                            {/* Residential-rental payment status pill (Phase D) — hidden when master switch off. */}
-                            {!isCommercial && !isSale && monetizationEnabled && (
-                              <div className="mt-0.5">
-                                <PaidListingStatusCard
-                                  listing={toMonetizationFields(listing)}
-                                  subscription={listingSubscription}
-                                  isAdmin={profile?.is_admin === true}
-                                  onAfterRenew={() => {
-                                    // Refresh listings to reflect new expires_at.
-                                    void loadUserListings();
-                                  }}
-                                  onOpenPayModal={(listingId) => {
-                                    setMonetizationModalInitialTab('pay');
-                                    setMonetizationModalPreselect(listingId);
-                                    setMonetizationModalOpen(true);
-                                  }}
-                                />
-                              </div>
+                            <div className="text-sm text-gray-500 truncate mt-0.5">
+                              {bedBath ? `${bedBath} · ` : ''}<span className="text-gray-700 font-medium">{priceText}</span>
+                            </div>
+                          </div>
+
+                          {/* Overflow menu */}
+                          <div className="relative flex-shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => setOpenCardMenu(openCardMenu === listing.id ? null : listing.id)}
+                              className="p-1.5 -mr-1 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                              aria-label="More actions"
+                            >
+                              <MoreVertical className="w-5 h-5" />
+                            </button>
+                            {openCardMenu === listing.id && (
+                              <>
+                                <div className="fixed inset-0 z-10" onClick={() => setOpenCardMenu(null)} />
+                                <div className="absolute right-0 top-9 z-20 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 text-sm">
+                                  {canGetFeatured && !featuredIsPrimary && (
+                                    <button
+                                      type="button"
+                                      onClick={() => { setOpenCardMenu(null); setFeatureModalListing(listing as Listing); setShowSuccessBanner(false); }}
+                                      className="w-full flex items-center gap-2 px-3 py-2 text-gray-700 hover:bg-gray-50"
+                                    >
+                                      <Zap className="w-4 h-4 text-accent-500" /> Get Featured
+                                    </button>
+                                  )}
+                                  {listing.is_active ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => { setOpenCardMenu(null); if (isCommercial) handleUnpublishCommercialListing(listing.id); else handleUnpublishListing(listing.id); }}
+                                      disabled={actionLoading === listing.id || !listing.approved}
+                                      className="w-full flex items-center gap-2 px-3 py-2 text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                                    >
+                                      <EyeOff className="w-4 h-4 text-gray-500" /> Pause listing
+                                    </button>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      onClick={() => { setOpenCardMenu(null); if (isCommercial) handleRenewCommercialListing(listing.id); else handleRenewListing(listing.id); }}
+                                      disabled={actionLoading === listing.id || !listing.approved}
+                                      className="w-full flex items-center gap-2 px-3 py-2 text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                                    >
+                                      <RefreshCw className="w-4 h-4 text-gray-500" /> Republish
+                                    </button>
+                                  )}
+                                  <button
+                                    type="button"
+                                    onClick={() => { setOpenCardMenu(null); if (isCommercial) handleDeleteCommercialListing(listing.id); else handleDeleteListing(listing.id); }}
+                                    disabled={actionLoading === listing.id}
+                                    className="w-full flex items-center gap-2 px-3 py-2 text-red-600 hover:bg-red-50 disabled:opacity-40"
+                                  >
+                                    <Trash2 className="w-4 h-4" /> Delete
+                                  </button>
+                                </div>
+                              </>
                             )}
-                            {isSale && listing.is_active && (
-                              <div className="mt-1">
-                                <SaleStatusSelector
-                                  currentStatus={(listing as Listing).sale_status}
-                                  listingId={listing.id}
-                                  onStatusChange={handleSaleStatusChange}
-                                  disabled={actionLoading === listing.id}
-                                />
-                              </div>
+                          </div>
+                        </div>
+
+                        {/* Friendly status line */}
+                        <div className="flex items-center gap-1.5 mt-2">
+                          <span className={`w-2 h-2 rounded-full ${status.dot}`} />
+                          <span className={`text-xs font-medium ${
+                            status.tone === 'good' ? 'text-emerald-700'
+                              : status.tone === 'warn' ? 'text-amber-700'
+                              : 'text-gray-500'
+                          }`}>
+                            {status.text}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Stats + actions row */}
+                    <div className="flex items-center justify-between gap-3 mt-3 pt-3 border-t border-gray-100">
+                      <div className="flex items-center gap-3 sm:gap-4 text-xs text-gray-500 min-w-0">
+                        <span className="flex items-center gap-1" title="Impressions">
+                          <Eye className="w-3.5 h-3.5 opacity-70" />
+                          {(listing.impressions ?? 0).toLocaleString()}
+                        </span>
+                        <span className="flex items-center gap-1" title="Direct views">
+                          <MousePointerClick className="w-3.5 h-3.5 opacity-70" />
+                          {(listing.direct_views ?? 0).toLocaleString()}
+                        </span>
+                        {!isCommercial && (
+                          <button
+                            type="button"
+                            onClick={() => handleOpenInquiries(listing.id, listing.title)}
+                            className="flex items-center gap-1 hover:text-accent-600 transition-colors"
+                            title="View inquiries"
+                          >
+                            <MessageSquare className="w-3.5 h-3.5 opacity-70" />
+                            <span className="hover:underline">{inquiryCounts[listing.id] ?? 0}</span>
+                          </button>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-1.5 flex-shrink-0">
+                        {primary && (
+                          <button
+                            type="button"
+                            onClick={primary.onClick}
+                            disabled={actionLoading === listing.id}
+                            className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed ${primary.cls}`}
+                          >
+                            {primary.label}
+                          </button>
+                        )}
+                        <Link
+                          to={isCommercial ? `/commercial-listing/${listing.id}` : `/listing/${listing.id}`}
+                          className="px-2.5 py-1.5 text-xs font-medium text-gray-600 hover:text-brand-700 hover:bg-gray-50 rounded-lg transition-colors"
+                          title="View listing"
+                        >
+                          View
+                        </Link>
+                        <Link
+                          to={isCommercial ? `/commercial/edit/${listing.id}` : `/edit/${listing.id}`}
+                          className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-gray-600 hover:text-blue-600 hover:bg-gray-50 rounded-lg transition-colors"
+                          title="Edit listing"
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                          Edit
+                        </Link>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          /* ---------------------------------------------------------------
+             Sales tab — same modern card list as rentals, with sale-specific
+             info (asking price, sale status, extend).
+          ---------------------------------------------------------------- */
+          <div className="space-y-3">
+            {filteredListings.map((listing) => {
+              const isCommercial = !!(listing as any).isCommercial;
+              const featuredImage =
+                listing.listing_images?.find((img) => img.is_featured) ||
+                listing.listing_images?.[0];
+              const daysUntilExpiration = getDaysUntilExpiration(listing.expires_at);
+              const extensionCheck = isCommercial ? { canExtend: false, reason: '' } : canExtendListing(listing as Listing);
+
+              const priceText = isCommercial
+                ? ((listing as CommercialListing).call_for_price
+                    ? 'Contact for price'
+                    : (listing as CommercialListing).asking_price != null
+                      ? formatPrice((listing as CommercialListing).asking_price!)
+                      : 'Contact for price')
+                : listing.call_for_price
+                  ? 'Call for price'
+                  : formatPrice((listing as Listing).asking_price ?? listing.price);
+
+              const bedBath = !isCommercial
+                ? `${(listing as Listing).bedrooms} bed · ${(listing as Listing).bathrooms} bath`
+                : null;
+
+              const featuredStatus = !isCommercial ? getListingFeaturedStatus(listing as Listing) : null;
+              const canGetFeatured = !isCommercial
+                && listing.is_active
+                && listing.approved
+                && !isListingCurrentlyFeatured(listing as Listing);
+
+              // Pick the single most useful primary action for a sale listing.
+              type Primary = { label: string; onClick: () => void; cls: string; disabled?: boolean; title?: string } | null;
+              let primary: Primary = null;
+              if (!listing.is_active && listing.approved) {
+                primary = {
+                  label: 'Republish',
+                  onClick: () => isCommercial ? handleRenewCommercialListing(listing.id) : handleRenewListing(listing.id),
+                  cls: 'bg-brand-600 hover:bg-brand-700 text-white',
+                };
+              } else if (!isCommercial && listing.is_active && extensionCheck.canExtend) {
+                primary = {
+                  label: 'Extend listing',
+                  onClick: () => handleExtendSalesListing(listing.id),
+                  cls: 'bg-emerald-600 hover:bg-emerald-700 text-white',
+                  title: `Extend ${(listing as Listing).sale_status === 'in_contract' ? '42' : '30'} days`,
+                };
+              } else if (canGetFeatured) {
+                primary = {
+                  label: 'Get Featured',
+                  onClick: () => { setFeatureModalListing(listing as Listing); setShowSuccessBanner(false); },
+                  cls: 'bg-accent-500 hover:bg-accent-600 text-white',
+                };
+              }
+              const featuredIsPrimary = primary?.label === 'Get Featured';
+              const stripe = isCommercial ? '#0891B2' : '#1E4A74';
+
+              return (
+                <div
+                  key={listing.id}
+                  className="relative bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow overflow-hidden"
+                  style={{ borderLeft: `4px solid ${stripe}` }}
+                >
+                  <div className="p-3.5 sm:p-4">
+                    <div className="flex gap-3.5">
+                      {/* Thumbnail */}
+                      <Link
+                        to={isCommercial ? `/commercial-listing/${listing.id}` : `/listing/${listing.id}`}
+                        className="flex-shrink-0"
+                      >
+                        {featuredImage ? (
+                          <img
+                            src={featuredImage.image_url}
+                            alt={listing.title ?? ''}
+                            className="w-16 h-16 sm:w-[72px] sm:h-[72px] object-cover rounded-lg"
+                          />
+                        ) : (
+                          <div className="w-16 h-16 sm:w-[72px] sm:h-[72px] rounded-lg bg-gray-100 border border-gray-200 flex items-center justify-center">
+                            {isCommercial ? <Building2 className="w-6 h-6 text-cyan-600" /> : <Home className="w-6 h-6 text-gray-400" />}
+                          </div>
+                        )}
+                      </Link>
+
+                      {/* Main */}
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-start gap-2">
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <Link
+                                to={isCommercial ? `/commercial-listing/${listing.id}` : `/listing/${listing.id}`}
+                                className="font-semibold text-gray-900 hover:text-brand-700 transition-colors truncate"
+                                title={listing.title ?? ''}
+                              >
+                                {listing.title}
+                              </Link>
+                              {isCommercial && (
+                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-cyan-50 text-cyan-700 border border-cyan-200 whitespace-nowrap flex-shrink-0">
+                                  COMM · SALE
+                                </span>
+                              )}
+                              {featuredStatus === 'active' && (
+                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-accent-50 text-accent-700 border border-accent-200 whitespace-nowrap flex-shrink-0">
+                                  <Zap className="w-3 h-3 mr-0.5" /> Featured
+                                </span>
+                              )}
+                              {featuredStatus === 'pending_approval' && (
+                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200 whitespace-nowrap flex-shrink-0">
+                                  <Clock className="w-3 h-3 mr-0.5" /> Featured soon
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-sm text-gray-500 truncate mt-0.5">
+                              {bedBath ? `${bedBath} · ` : ''}<span className="text-gray-700 font-medium">{priceText}</span>
+                            </div>
+                          </div>
+
+                          {/* Overflow menu */}
+                          <div className="relative flex-shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => setOpenCardMenu(openCardMenu === listing.id ? null : listing.id)}
+                              className="p-1.5 -mr-1 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                              aria-label="More actions"
+                            >
+                              <MoreVertical className="w-5 h-5" />
+                            </button>
+                            {openCardMenu === listing.id && (
+                              <>
+                                <div className="fixed inset-0 z-10" onClick={() => setOpenCardMenu(null)} />
+                                <div className="absolute right-0 top-9 z-20 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 text-sm">
+                                  {canGetFeatured && !featuredIsPrimary && (
+                                    <button
+                                      type="button"
+                                      onClick={() => { setOpenCardMenu(null); setFeatureModalListing(listing as Listing); setShowSuccessBanner(false); }}
+                                      className="w-full flex items-center gap-2 px-3 py-2 text-gray-700 hover:bg-gray-50"
+                                    >
+                                      <Zap className="w-4 h-4 text-accent-500" /> Get Featured
+                                    </button>
+                                  )}
+                                  {listing.is_active ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => { setOpenCardMenu(null); if (isCommercial) handleUnpublishCommercialListing(listing.id); else handleUnpublishListing(listing.id); }}
+                                      disabled={actionLoading === listing.id || !listing.approved}
+                                      className="w-full flex items-center gap-2 px-3 py-2 text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                                    >
+                                      <EyeOff className="w-4 h-4 text-gray-500" /> Pause listing
+                                    </button>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      onClick={() => { setOpenCardMenu(null); if (isCommercial) handleRenewCommercialListing(listing.id); else handleRenewListing(listing.id); }}
+                                      disabled={actionLoading === listing.id || !listing.approved}
+                                      className="w-full flex items-center gap-2 px-3 py-2 text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                                    >
+                                      <RefreshCw className="w-4 h-4 text-gray-500" /> Republish
+                                    </button>
+                                  )}
+                                  <button
+                                    type="button"
+                                    onClick={() => { setOpenCardMenu(null); if (isCommercial) handleDeleteCommercialListing(listing.id); else handleDeleteListing(listing.id); }}
+                                    disabled={actionLoading === listing.id}
+                                    className="w-full flex items-center gap-2 px-3 py-2 text-red-600 hover:bg-red-50 disabled:opacity-40"
+                                  >
+                                    <Trash2 className="w-4 h-4" /> Delete
+                                  </button>
+                                </div>
+                              </>
                             )}
-                            {isSale && !listing.is_active && (listing as Listing).sale_status && (
+                          </div>
+                        </div>
+
+                        {/* Status area — sale status selector / badge */}
+                        {!listing.approved ? (
+                          <div className="flex items-center gap-1.5 mt-2">
+                            <span className="w-2 h-2 rounded-full bg-amber-400" />
+                            <span className="text-xs font-medium text-amber-700">In review — we'll publish it soon</span>
+                          </div>
+                        ) : listing.is_active ? (
+                          <div className="flex items-center gap-2 mt-2 flex-wrap">
+                            {!isCommercial ? (
+                              <SaleStatusSelector
+                                currentStatus={(listing as Listing).sale_status}
+                                listingId={listing.id}
+                                onStatusChange={handleSaleStatusChange}
+                                disabled={actionLoading === listing.id}
+                              />
+                            ) : (
+                              <span className="flex items-center gap-1.5">
+                                <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                                <span className="text-xs font-medium text-emerald-700">Live</span>
+                              </span>
+                            )}
+                            {daysUntilExpiration != null && (
+                              <span className="text-xs text-gray-400">
+                                {daysUntilExpiration <= 0 ? 'Expired' : `${daysUntilExpiration} day${daysUntilExpiration === 1 ? '' : 's'} left`}
+                              </span>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2 mt-2">
+                            <span className="flex items-center gap-1.5">
+                              <span className="w-2 h-2 rounded-full bg-gray-400" />
+                              <span className="text-xs font-medium text-gray-500">Paused</span>
+                            </span>
+                            {!isCommercial && (listing as Listing).sale_status && (
                               <SaleStatusBadge status={(listing as Listing).sale_status!} size="sm" />
                             )}
                           </div>
-                        </td>
-                        <td className="px-6 py-4 text-sm">
-                          {listing.is_active && daysUntilExpiration !== null ? (
-                            <div className="flex flex-col gap-2">
-                              <div className={`flex items-center gap-1 ${
-                                daysUntilExpiration <= 3
-                                  ? 'text-red-600 font-medium'
-                                  : daysUntilExpiration <= 7
-                                    ? 'text-amber-600'
-                                    : 'text-gray-600'
-                              }`}>
-                                <Clock className="w-3.5 h-3.5" />
-                                {daysUntilExpiration <= 0
-                                  ? 'Expired'
-                                  : `${daysUntilExpiration}d`}
-                              </div>
-                              {!isSale && daysUntilExpiration <= 7 && (
-                                <button
-                                  type="button"
-                                  onClick={() => isCommercial ? handleRenewCommercialListing(listing.id) : handleRenewListing(listing.id)}
-                                  disabled={actionLoading === listing.id}
-                                  className="px-2.5 py-1.5 text-xs font-medium text-white bg-brand-600 hover:bg-brand-700 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
-                                  title="Renew for 14 days"
-                                >
-                                  Renew
-                                </button>
-                              )}
-                              {!isCommercial && isSale && (
-                                <button
-                                  type="button"
-                                  onClick={() => handleExtendSalesListing(listing.id)}
-                                  disabled={
-                                    actionLoading === listing.id ||
-                                    !extensionCheck.canExtend
-                                  }
-                                  className={`px-2.5 py-1.5 text-xs font-medium text-white rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap ${
-                                    extensionCheck.canExtend
-                                      ? 'bg-emerald-600 hover:bg-emerald-700'
-                                      : 'bg-gray-300 cursor-not-allowed'
-                                  }`}
-                                  title={extensionCheck.canExtend
-                                    ? `Extend ${(listing as Listing).sale_status === 'in_contract' ? '42' : '30'} days`
-                                    : extensionCheck.reason || 'Cannot extend'}
-                                >
-                                  Extend
-                                </button>
-                              )}
-                            </div>
-                          ) : (
-                            <span className="text-gray-400">-</span>
-                          )}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          <div>
-                            <div className="whitespace-nowrap">
-                              Posted:{" "}
-                              {new Date(
-                                listing.created_at,
-                              ).toLocaleDateString()}
-                            </div>
-                            {listing.last_published_at && (
-                              <div className="text-xs text-gray-400 whitespace-nowrap">
-                                Last Published:{" "}
-                                {new Date(
-                                  listing.last_published_at,
-                                ).toLocaleDateString()}
-                              </div>
-                            )}
-                          </div>
-                        </td>
-                        <td className="sticky right-0 bg-white px-6 py-4 text-sm font-medium shadow-[-4px_0_6px_rgba(0,0,0,0.05)] z-[5]">
-                          <div className="flex items-center gap-2.5">
-                            <Link
-                              to={isCommercial ? `/commercial-listing/${listing.id}` : `/listing/${listing.id}`}
-                              title="View Listing"
-                              className="flex flex-col items-center gap-1 p-1.5 text-gray-500 hover:text-[#273140] transition-colors"
-                            >
-                              <Eye className="w-4.5 h-4.5" />
-                              <span className="text-[10px] leading-tight text-gray-600">View</span>
-                            </Link>
+                        )}
+                      </div>
+                    </div>
 
-                            <Link
-                              to={isCommercial ? `/commercial/edit/${listing.id}` : `/edit/${listing.id}`}
-                              className="flex flex-col items-center gap-1 p-1.5 text-gray-500 hover:text-blue-600 transition-colors"
-                              title="Edit Listing"
-                            >
-                              <Edit className="w-4.5 h-4.5" />
-                              <span className="text-[10px] leading-tight text-gray-600">Edit</span>
-                            </Link>
+                    {/* Stats + actions row */}
+                    <div className="flex items-center justify-between gap-3 mt-3 pt-3 border-t border-gray-100">
+                      <div className="flex items-center gap-3 sm:gap-4 text-xs text-gray-500 min-w-0">
+                        <span className="flex items-center gap-1" title="Impressions">
+                          <Eye className="w-3.5 h-3.5 opacity-70" />
+                          {(listing.impressions ?? 0).toLocaleString()}
+                        </span>
+                        <span className="flex items-center gap-1" title="Direct views">
+                          <MousePointerClick className="w-3.5 h-3.5 opacity-70" />
+                          {(listing.direct_views ?? 0).toLocaleString()}
+                        </span>
+                        {!isCommercial && (
+                          <button
+                            type="button"
+                            onClick={() => handleOpenInquiries(listing.id, listing.title)}
+                            className="flex items-center gap-1 hover:text-accent-600 transition-colors"
+                            title="View inquiries"
+                          >
+                            <MessageSquare className="w-3.5 h-3.5 opacity-70" />
+                            <span className="hover:underline">{inquiryCounts[listing.id] ?? 0}</span>
+                          </button>
+                        )}
+                      </div>
 
-                            {listing.is_active ? (
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  isCommercial
-                                    ? handleUnpublishCommercialListing(listing.id)
-                                    : handleUnpublishListing(listing.id)
-                                }
-                                disabled={
-                                  actionLoading === listing.id ||
-                                  !listing.approved
-                                }
-                                className="flex flex-col items-center gap-1 p-1.5 text-gray-500 hover:text-orange-600 transition-colors"
-                                title="Unpublish Listing"
-                              >
-                                <EyeOff className="w-4.5 h-4.5" />
-                                <span className="text-[10px] leading-tight text-gray-600">Deactivate</span>
-                              </button>
-                            ) : (
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  isCommercial
-                                    ? handleRenewCommercialListing(listing.id)
-                                    : handleRenewListing(listing.id)
-                                }
-                                disabled={
-                                  actionLoading === listing.id ||
-                                  !listing.approved
-                                }
-                                className="flex flex-col items-center gap-1 p-1.5 text-gray-500 hover:text-blue-600 transition-colors"
-                                title="Republish Listing"
-                              >
-                                <RefreshCw className="w-4.5 h-4.5" />
-                                <span className="text-[10px] leading-tight text-gray-600">Reactivate</span>
-                              </button>
-                            )}
-
-                            <button
-                              type="button"
-                              onClick={() =>
-                                isCommercial
-                                  ? handleDeleteCommercialListing(listing.id)
-                                  : handleDeleteListing(listing.id)
-                              }
-                              disabled={actionLoading === listing.id}
-                              className="flex flex-col items-center gap-1 p-1.5 text-gray-500 hover:text-red-600 transition-colors"
-                              title="Delete Listing"
-                            >
-                              <Trash2 className="w-4.5 h-4.5" />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-            {/* Gradient overlay on right edge to indicate more content */}
-            <div className="absolute top-0 right-0 h-full w-12 bg-gradient-to-l from-white to-transparent pointer-events-none" />
-          </div>
+                      <div className="flex items-center gap-1.5 flex-shrink-0">
+                        {primary && (
+                          <button
+                            type="button"
+                            onClick={primary.onClick}
+                            disabled={actionLoading === listing.id}
+                            title={primary.title}
+                            className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed ${primary.cls}`}
+                          >
+                            {primary.label}
+                          </button>
+                        )}
+                        <Link
+                          to={isCommercial ? `/commercial-listing/${listing.id}` : `/listing/${listing.id}`}
+                          className="px-2.5 py-1.5 text-xs font-medium text-gray-600 hover:text-brand-700 hover:bg-gray-50 rounded-lg transition-colors"
+                          title="View listing"
+                        >
+                          View
+                        </Link>
+                        <Link
+                          to={isCommercial ? `/commercial/edit/${listing.id}` : `/edit/${listing.id}`}
+                          className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-gray-600 hover:text-blue-600 hover:bg-gray-50 rounded-lg transition-colors"
+                          title="Edit listing"
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                          Edit
+                        </Link>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         )}
       </div>
@@ -1325,6 +1556,22 @@ export default function Dashboard() {
         listings={monetizationModalListings}
         preselectedListingId={monetizationModalPreselect}
         initialTab={monetizationModalInitialTab}
+        activeSubscription={listingSubscription}
+        onUpgraded={async () => {
+          try {
+            const sub = await subscriptionsService.getMyActiveSubscription();
+            setListingSubscription(sub);
+          } catch (err) {
+            console.warn('Failed to refresh subscription after upgrade:', err);
+          }
+        }}
+      />
+
+      {/* Small per-listing "add days" modal — opened from a row's green Pay/Renew action. */}
+      <QuickPayDaysModal
+        open={quickPayListing !== null}
+        onClose={() => setQuickPayListing(null)}
+        listing={quickPayListing}
       />
     </div>
   );
