@@ -11,6 +11,7 @@ import type {
   ListingSubscription,
   ListingSubscriptionPlan,
 } from '../types/monetization';
+import { paymentsService, type MonetizationListingFields } from './payments';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const sb = supabase as unknown as SupabaseClient<any, 'public', any>;
@@ -78,17 +79,70 @@ export const subscriptionsService = {
     return !!data;
   },
 
-  /** Count of the caller's active rental listings already counted under a subscription. */
+  /**
+   * Count of the caller's OWN rental listings that draw on their subscription's
+   * listing cap.
+   *
+   * A listing occupies a subscription slot when it is *live or pending admin
+   * approval* — both count, so a poster can't keep submitting new listings past
+   * the cap while earlier ones sit "in review". Deactivated / expired /
+   * awaiting-payment listings do NOT occupy a slot.
+   *
+   * EXCEPTION (product rule): a listing the user paid for individually — or one
+   * on its own per-listing free trial — does NOT count against the subscription
+   * cap *until those purchased/trial days are fully used up*. Once an individual
+   * listing's days run out it falls back to drawing on the subscription, so it
+   * begins counting again.
+   *
+   * Scoped to the caller via an explicit user_id filter (listings are publicly
+   * readable, so RLS alone would count platform-wide).
+   */
   async countMySubscriptionCoveredListings(): Promise<number> {
-    const { count, error } = await sb
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return 0;
+
+    const { data, error } = await sb
       .from('listings')
-      .select('id', { count: 'exact', head: true })
-      .eq('listing_type', 'rental')
-      .eq('is_active', true)
-      .eq('payment_kind', 'subscription');
+      .select(
+        'id, user_id, listing_type, is_active, approved, payment_kind, trial_started_at, paid_until, paused_paid_days, expires_at, deactivated_at, created_at',
+      )
+      .eq('user_id', user.id)
+      .eq('listing_type', 'rental');
 
     if (error) throw error;
-    return count ?? 0;
+
+    const rows = (data || []) as MonetizationListingFields[];
+
+    return rows.filter((row) => {
+      const ps = paymentsService.derivePaymentState(row, {
+        hasActiveSubscription: true,
+        isAdmin: false,
+      });
+
+      // Not live and not pending approval (dead, reactivatable, or awaiting an
+      // unfinished payment) → doesn't occupy a slot.
+      if (
+        ps.label === 'deactivated_permanent' ||
+        ps.label === 'deactivated_reactivatable' ||
+        ps.label === 'payment_required'
+      ) {
+        return false;
+      }
+
+      // Independently covered by an active individual purchase / per-listing
+      // trial → excluded until those days are fully counted.
+      if (ps.paymentKind === 'individual_paid' && (ps.paidDaysRemaining ?? 0) > 0) {
+        return false;
+      }
+      if (ps.paymentKind === 'individual_trial' && (ps.trialDaysRemaining ?? 0) > 0) {
+        return false;
+      }
+
+      // Everything else that is live-or-pending draws on the subscription cap.
+      return true;
+    }).length;
   },
 
   /**

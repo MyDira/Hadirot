@@ -160,6 +160,28 @@ export const paymentsService = {
     return (data || []) as PaidListingPayment[];
   },
 
+  /** All of the caller's individual-listing payments (newest first), with a
+   *  lightweight listing join for display in the Billing tab. Scoped to the
+   *  signed-in user via an explicit user_id filter. */
+  async getMyPayments(): Promise<
+    Array<PaidListingPayment & { listings?: { title: string | null; neighborhood: string | null } | null }>
+  > {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return [];
+
+    const { data, error } = await sb
+      .from('paid_listing_payments')
+      .select('*, listings(title, neighborhood)')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+    return (data || []) as Array<
+      PaidListingPayment & { listings?: { title: string | null; neighborhood: string | null } | null }
+    >;
+  },
+
   /** Number of prior payments on this listing — drives first-time-vs-renewal pricing. */
   async getPriorPaymentCount(listingId: string): Promise<number> {
     const { count, error } = await sb

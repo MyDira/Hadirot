@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { CreditCard as Edit, Eye, MousePointerClick, MessageSquare, Star, Trash2, Zap, RefreshCw, Plus, EyeOff, AlertTriangle, Clock, Home, DollarSign, Info, CheckCircle, XCircle, Briefcase, X, Building2, Gift, ArrowUpRight, MoreVertical, Pencil } from "lucide-react";
+import { CreditCard as Edit, Eye, MousePointerClick, MessageSquare, Star, Trash2, Zap, RefreshCw, Plus, EyeOff, AlertTriangle, Clock, Home, DollarSign, Info, CheckCircle, XCircle, Briefcase, X, Building2, Gift, ArrowUpRight, MoreVertical, Pencil, Crown, ShieldCheck } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { Listing, SaleStatus, CommercialListing, supabase } from "../config/supabase";
 import {
@@ -794,6 +794,71 @@ export default function Dashboard() {
           </div>
         );
       })()}
+
+      {/* Active subscription banner — current plan + upgrade/manage. Shown for
+          paid/comp subscribers (the trial state has its own banner above). */}
+      {monetizationEnabled &&
+        listingSubscription &&
+        (listingSubscription.status === 'active' ||
+          listingSubscription.status === 'admin_active' ||
+          listingSubscription.status === 'past_due') &&
+        (() => {
+          const isVip = listingSubscription.plan === 'vip';
+          const planName = isVip ? 'VIP' : 'Agent';
+          const comp = listingSubscription.status === 'admin_active';
+          const pastDue = listingSubscription.status === 'past_due';
+          const capText =
+            listingSubscription.listing_cap === null
+              ? 'Unlimited active listings'
+              : `Up to ${listingSubscription.listing_cap} active listings`;
+          const renewal = listingSubscription.current_period_end
+            ? new Date(listingSubscription.current_period_end).toLocaleDateString('en-US', {
+                month: 'short',
+                day: 'numeric',
+                year: 'numeric',
+              })
+            : null;
+          return (
+            <div className="mb-6 rounded-lg p-4 flex items-start gap-3 border bg-brand-50 border-brand-100">
+              <div className="w-9 h-9 rounded-lg bg-white border border-brand-100 flex items-center justify-center text-brand-700 flex-shrink-0">
+                {isVip ? <Crown className="w-5 h-5" /> : <ShieldCheck className="w-5 h-5" />}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="font-semibold text-brand-800">
+                  {planName} plan{comp ? ' · complimentary' : ''}
+                  {pastDue && (
+                    <span className="ml-2 text-xs font-medium text-amber-700 bg-amber-100 border border-amber-200 rounded px-1.5 py-0.5">
+                      Payment past due
+                    </span>
+                  )}
+                </div>
+                <div className="text-sm text-gray-600 mt-0.5">
+                  {capText}
+                  {renewal ? ` · renews ${renewal}` : ''}
+                </div>
+              </div>
+              <div className="flex items-center gap-4 flex-shrink-0">
+                {!isVip && (
+                  <button
+                    onClick={() => {
+                      setMonetizationModalInitialTab('subscribe');
+                      setMonetizationModalOpen(true);
+                    }}
+                    className="text-sm font-semibold inline-flex items-center gap-1 text-emerald-700 hover:text-emerald-800"
+                  >
+                    Upgrade to VIP <ArrowUpRight className="w-4 h-4" />
+                  </button>
+                )}
+                <button
+                  onClick={() => setSearchParams({ tab: 'billing' })}
+                  className="text-sm font-medium text-gray-500 hover:text-gray-700"
+                >
+                  Manage
+                </button>
+              </div>
+            </div>
+          );
+        })()}
 
       {newListingBanner && (
         <div className="mb-6 rounded-lg p-4 flex items-center justify-between bg-green-50 border border-green-200">
