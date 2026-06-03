@@ -113,6 +113,9 @@ export const subscriptionsService = {
     /** When true, attach Stripe's 14-day trial. Card is collected but not charged
      *  until day 14. */
     withTrial?: boolean;
+    /** Admin-only: subscribe on behalf of this user. The Stripe customer /
+     *  subscription attach to the target, not the admin caller. */
+    targetUserId?: string;
   }): Promise<{ url: string; session_id: string; with_trial?: boolean }> {
     const { data, error } = await supabase.functions.invoke(
       'create-listing-subscription-checkout',
@@ -121,6 +124,7 @@ export const subscriptionsService = {
           plan: params.plan,
           include_concierge_addon: !!params.includeConciergeAddon,
           with_trial: !!params.withTrial,
+          ...(params.targetUserId ? { target_user_id: params.targetUserId } : {}),
         },
       },
     );
@@ -128,6 +132,53 @@ export const subscriptionsService = {
     if (error) throw error;
     if (data?.error) throw new Error(data.error);
     return data as { url: string; session_id: string; with_trial?: boolean };
+  },
+
+  /**
+   * Admin: open a real Stripe Checkout on behalf of a user (admin keys the
+   * caller's card over the phone). The Stripe customer / subscription attach
+   * to the target user, and the webhook creates that user's
+   * listing_subscriptions row exactly as a self-serve checkout would.
+   *
+   * Returns a Stripe Checkout URL; the admin UI should open it in a new tab.
+   */
+  async adminCreateSubscriptionCheckout(params: {
+    targetUserId: string;
+    plan: ListingSubscriptionPlan;
+    includeConciergeAddon?: boolean;
+  }): Promise<{ url: string; session_id: string }> {
+    const result = await this.createCheckoutSession({
+      plan: params.plan,
+      includeConciergeAddon: params.includeConciergeAddon,
+      targetUserId: params.targetUserId,
+    });
+    return { url: result.url, session_id: result.session_id };
+  },
+
+  /**
+   * Upgrade an existing Agent subscription to VIP, paying only the prorated
+   * difference (~$50/mo) — NOT a fresh $100 checkout.
+   *
+   * Stripe-backed subscriptions are modified in place with proration (the card
+   * on file is charged the delta immediately). Admin-granted/manual
+   * subscriptions just flip plan/cap. No redirect — resolves in place.
+   *
+   * Throws if the caller has no active subscription or is already on VIP.
+   */
+  async upgradeToVip(): Promise<{ upgraded: boolean; prorated: boolean; manual: boolean }> {
+    const { data, error } = await supabase.functions.invoke(
+      'upgrade-listing-subscription',
+      { body: { plan: 'vip' } },
+    );
+    if (error) {
+      // Surface the edge function's JSON error body when present.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const ctx = (error as any)?.context;
+      const msg = ctx?.error || (error as Error).message;
+      throw new Error(msg);
+    }
+    if (data?.error) throw new Error(data.error);
+    return data as { upgraded: boolean; prorated: boolean; manual: boolean };
   },
 
   // -----------------------------------------------------------
@@ -143,7 +194,7 @@ export const subscriptionsService = {
   > {
     const { data, error } = await sb
       .from('listing_subscriptions')
-      .select('*, user:profiles(id, full_name, email, phone)')
+      .select('*, user:profiles!listing_subscriptions_user_id_fkey(id, full_name, email, phone)')
       .order('current_period_end', { ascending: true, nullsFirst: false });
 
     if (error) throw error;
@@ -181,16 +232,25 @@ export const subscriptionsService = {
     billingDayOfMonth: number;
     adminId: string;
     notes?: string;
+    /** Optional arbitrary start date (YYYY-MM-DD or ISO). When provided, the
+     *  subscription is treated as active from this date and current_period_end
+     *  is the next billing-day occurrence strictly after it. Defaults to now. */
+    startDate?: string;
   }): Promise<ListingSubscription> {
     if (params.billingDayOfMonth < 1 || params.billingDayOfMonth > 28) {
       throw new Error('billingDayOfMonth must be 1..28');
     }
 
-    // Compute next period_end as the next occurrence of billing_day_of_month
-    // strictly after today, in UTC.
+    // The "anchor" is the chosen start date (defaults to now). current_period_end
+    // is the next occurrence of billing_day_of_month strictly after the anchor.
     const now = new Date();
-    const candidate = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), params.billingDayOfMonth, 0, 0, 0));
-    if (candidate <= now) {
+    const anchor = params.startDate ? new Date(params.startDate) : now;
+    if (Number.isNaN(anchor.getTime())) {
+      throw new Error('Invalid startDate');
+    }
+
+    const candidate = new Date(Date.UTC(anchor.getUTCFullYear(), anchor.getUTCMonth(), params.billingDayOfMonth, 0, 0, 0));
+    if (candidate <= anchor) {
       // Roll to next month.
       candidate.setUTCMonth(candidate.getUTCMonth() + 1);
     }
@@ -208,7 +268,7 @@ export const subscriptionsService = {
         current_period_end: candidate.toISOString(),
         is_admin_granted: true,
         granted_by_admin_id: params.adminId,
-        admin_active_from: now.toISOString(),
+        admin_active_from: anchor.toISOString(),
         admin_notes: params.notes ?? null,
       })
       .select()

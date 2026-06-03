@@ -48,12 +48,15 @@ Deno.serve(async (req) => {
       });
     }
 
-    const { plan, include_concierge_addon, with_trial } = await req.json() as {
+    const { plan, include_concierge_addon, with_trial, target_user_id } = await req.json() as {
       plan?: "agent" | "vip";
       include_concierge_addon?: boolean;
       /** When true, attach Stripe's 14-day trial_period_days. User's card is collected
        *  but not charged until the trial ends. */
       with_trial?: boolean;
+      /** Admin-only: subscribe on behalf of this user (admin keys the caller's card).
+       *  The Stripe customer / subscription attach to the target, not the admin. */
+      target_user_id?: string;
     };
 
     if (plan !== "agent" && plan !== "vip") {
@@ -68,48 +71,79 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
 
-    // Block if user already has an active listing subscription.
+    // Resolve the subscription OWNER. For admin-on-behalf the owner is
+    // target_user_id; otherwise it's the caller.
+    let ownerId = user.id;
+    let onBehalf = false;
+    if (target_user_id && target_user_id !== user.id) {
+      const { data: callerAdmin } = await supabaseAdmin
+        .from("profiles")
+        .select("is_admin")
+        .eq("id", user.id)
+        .maybeSingle();
+      if (callerAdmin?.is_admin !== true) {
+        return new Response(JSON.stringify({ error: "Forbidden: admin only" }), {
+          status: 403,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      ownerId = target_user_id;
+      onBehalf = true;
+    }
+
+    // Block if the OWNER already has an active listing subscription — EXCEPT a
+    // complimentary admin-granted (comp) one with no Stripe object. Those users
+    // are allowed to convert to a real paid plan through checkout; the
+    // stripe-webhook supersedes (cancels) the comp row when this checkout
+    // completes, so they don't end up with two active rows.
     const { data: existingSub } = await supabaseAdmin
       .from("listing_subscriptions")
-      .select("id, plan, status")
-      .eq("user_id", user.id)
+      .select("id, plan, status, stripe_subscription_id")
+      .eq("user_id", ownerId)
       .in("status", ["active", "admin_active", "past_due", "pending"])
       .limit(1)
       .maybeSingle();
 
-    if (existingSub) {
+    const isCompConversion = !!existingSub && !existingSub.stripe_subscription_id;
+
+    if (existingSub && !isCompConversion) {
       return new Response(JSON.stringify({
-        error: `You already have a ${existingSub.plan} subscription (${existingSub.status}). Cancel it via the customer portal before subscribing to a new plan.`,
+        error: onBehalf
+          ? `This user already has a ${existingSub.plan} subscription (${existingSub.status}). Cancel it before subscribing to a new plan.`
+          : `You already have a ${existingSub.plan} subscription (${existingSub.status}). Cancel it via the customer portal before subscribing to a new plan.`,
       }), {
         status: 409,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    const { data: callerProfile } = await supabaseAdmin
+    const { data: ownerProfile } = await supabaseAdmin
       .from("profiles")
       .select("full_name, email, stripe_customer_id")
-      .eq("id", user.id)
+      .eq("id", ownerId)
       .maybeSingle();
 
-    // Ensure a Stripe customer.
-    let stripeCustomerId = callerProfile?.stripe_customer_id || "";
+    const ownerEmail = ownerProfile?.email || (onBehalf ? undefined : user.email) || undefined;
+
+    // Ensure a Stripe customer for the OWNER.
+    let stripeCustomerId = ownerProfile?.stripe_customer_id || "";
     if (!stripeCustomerId) {
-      const existing = await stripe.customers.list({ email: user.email!, limit: 1 });
-      if (existing.data.length > 0) {
-        stripeCustomerId = existing.data[0].id;
-      } else {
+      if (ownerEmail) {
+        const existing = await stripe.customers.list({ email: ownerEmail, limit: 1 });
+        if (existing.data.length > 0) stripeCustomerId = existing.data[0].id;
+      }
+      if (!stripeCustomerId) {
         const created = await stripe.customers.create({
-          email: user.email!,
-          name: callerProfile?.full_name || undefined,
-          metadata: { supabase_user_id: user.id },
+          email: ownerEmail,
+          name: ownerProfile?.full_name || undefined,
+          metadata: { supabase_user_id: ownerId },
         });
         stripeCustomerId = created.id;
       }
       await supabaseAdmin
         .from("profiles")
         .update({ stripe_customer_id: stripeCustomerId })
-        .eq("id", user.id);
+        .eq("id", ownerId);
     }
 
     const lineItems: Array<{ price: string; quantity: number }> = [
@@ -129,18 +163,20 @@ Deno.serve(async (req) => {
       line_items: lineItems,
       metadata: {
         type: "listing_subscription",
-        user_id: user.id,
+        user_id: ownerId,
         plan,
         include_concierge_addon: include_concierge_addon ? "true" : "false",
         with_trial: isTrial ? "true" : "false",
+        ...(onBehalf ? { charged_by_admin_id: user.id } : {}),
       },
       subscription_data: {
         metadata: {
           type: "listing_subscription",
-          user_id: user.id,
+          user_id: ownerId,
           plan,
           include_concierge_addon: include_concierge_addon ? "true" : "false",
           with_trial: isTrial ? "true" : "false",
+          ...(onBehalf ? { charged_by_admin_id: user.id } : {}),
         },
         // 14-day Stripe-managed trial. Card is collected at checkout, no charge
         // during trial, auto-charges on day 14 (or fails → past_due).

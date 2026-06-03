@@ -1,5 +1,6 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import Stripe from 'https://esm.sh/stripe@14?target=denonext';
+import { LISTING_SUBSCRIPTION_PRICES } from '../_shared/stripe-prices.ts';
 
 const ZEPTO_API_URL = "https://api.zeptomail.com/v1.1/email";
 
@@ -464,12 +465,28 @@ async function handleSubscriptionUpdate(subscription: Stripe.Subscription) {
     const prevStatus = listingSubRow.status as string;
     const newStatus = update.status as string;
 
+    // Detect a plan change (e.g. agent -> vip upgrade via proration) by
+    // matching the subscription's active price ids against our plan prices.
+    // Keeps plan + listing_cap in sync no matter how the change was triggered
+    // (our upgrade endpoint, the Stripe customer portal, or a manual edit).
+    const priceIds = subscription.items?.data?.map((it) => it.price?.id) ?? [];
+    if (priceIds.includes(LISTING_SUBSCRIPTION_PRICES.vip)) {
+      update.plan = 'vip';
+      update.listing_cap = null;
+    } else if (priceIds.includes(LISTING_SUBSCRIPTION_PRICES.agent)) {
+      update.plan = 'agent';
+      update.listing_cap = 7;
+    }
+
     await supabaseAdmin
       .from('listing_subscriptions')
       .update(update)
       .eq('id', listingSubRow.id);
 
-    console.log(`Listing subscription ${listingSubRow.id} status -> ${newStatus}`);
+    console.log(
+      `Listing subscription ${listingSubRow.id} status -> ${newStatus}` +
+      (update.plan ? `, plan -> ${update.plan}` : ''),
+    );
 
     // Cascade-cancel any addon_concierge row linked to this parent.
     if (newStatus === 'cancelled' || newStatus === 'expired' || newStatus === 'past_due') {
@@ -706,6 +723,31 @@ async function handleListingSubscriptionCheckout(session: Stripe.Checkout.Sessio
     : 'active';
 
   const listingCap = plan === 'agent' ? 7 : null;
+
+  // Supersede any existing complimentary / admin-granted (no-Stripe) subscription
+  // for this user. When a comped Agent user converts to paid VIP via checkout,
+  // they would otherwise end up with two active rows. Cancel the comp row so the
+  // new paid subscription is the single source of truth. We only touch rows
+  // WITHOUT a Stripe subscription id (true comps), never another Stripe sub.
+  const { data: superseded, error: supersedeErr } = await supabaseAdmin
+    .from('listing_subscriptions')
+    .update({
+      status: 'cancelled',
+      cancelled_at: new Date().toISOString(),
+      admin_notes: 'Superseded by paid Stripe subscription on conversion.',
+      updated_at: new Date().toISOString(),
+    })
+    .eq('user_id', user_id)
+    .is('stripe_subscription_id', null)
+    .in('status', ['admin_active', 'trial', 'active', 'past_due'])
+    .select('id');
+  if (supersedeErr) {
+    console.error('Failed to supersede comp subscription(s):', supersedeErr);
+  } else if (superseded && superseded.length > 0) {
+    console.log(
+      `Superseded ${superseded.length} comp subscription(s) for user ${user_id} on paid conversion.`,
+    );
+  }
 
   const { data: newSub, error: insertErr } = await supabaseAdmin
     .from('listing_subscriptions')

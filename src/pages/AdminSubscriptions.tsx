@@ -115,27 +115,38 @@ interface AddSubscriberModalProps {
   adminId: string;
 }
 
+/** "manual" = mark subscribed in the DB with no Stripe charge (admin grant).
+ *  "stripe" = open a real Stripe Checkout scoped to the target user (admin keys
+ *  the caller's card over the phone); the webhook creates the subscription. */
+type AddMode = 'manual' | 'stripe';
+
 function AddSubscriberModal({ open, onClose, onCreated, adminId }: AddSubscriberModalProps) {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<Array<{ id: string; full_name: string; email: string }>>([]);
   const [searching, setSearching] = useState(false);
   const [selectedUser, setSelectedUser] = useState<{ id: string; full_name: string; email: string } | null>(null);
+  const [mode, setMode] = useState<AddMode>('manual');
   const [plan, setPlan] = useState<ListingSubscriptionPlan>('agent');
   const [day, setDay] = useState<number>(new Date().getUTCDate() > 28 ? 1 : new Date().getUTCDate());
+  const [startDate, setStartDate] = useState<string>('');
   const [notes, setNotes] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [checkoutUrl, setCheckoutUrl] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open) {
       setQuery('');
       setResults([]);
       setSelectedUser(null);
+      setMode('manual');
       setPlan('agent');
       setDay(new Date().getUTCDate() > 28 ? 1 : new Date().getUTCDate());
+      setStartDate('');
       setNotes('');
       setErr(null);
       setBusy(false);
+      setCheckoutUrl(null);
     }
   }, [open]);
 
@@ -173,15 +184,28 @@ function AddSubscriberModal({ open, onClose, onCreated, adminId }: AddSubscriber
     setBusy(true);
     setErr(null);
     try {
-      await subscriptionsService.adminCreate({
-        userId: selectedUser.id,
-        plan,
-        billingDayOfMonth: day,
-        adminId,
-        notes: notes.trim() || undefined,
-      });
-      onCreated();
-      onClose();
+      if (mode === 'stripe') {
+        // Open the real Stripe Checkout scoped to the target user; admin keys the
+        // caller's card. The webhook creates the listing_subscriptions row.
+        const res = await subscriptionsService.adminCreateSubscriptionCheckout({
+          targetUserId: selectedUser.id,
+          plan,
+        });
+        setCheckoutUrl(res.url);
+        window.open(res.url, '_blank', 'noopener');
+        // Don't close — show the fallback link + Done button.
+      } else {
+        await subscriptionsService.adminCreate({
+          userId: selectedUser.id,
+          plan,
+          billingDayOfMonth: day,
+          adminId,
+          notes: notes.trim() || undefined,
+          startDate: startDate || undefined,
+        });
+        onCreated();
+        onClose();
+      }
     } catch (e) {
       setErr((e as Error).message);
     } finally {
@@ -196,7 +220,9 @@ function AddSubscriberModal({ open, onClose, onCreated, adminId }: AddSubscriber
           <div>
             <h2 className="text-lg font-semibold text-gray-900">Add subscriber</h2>
             <p className="text-sm text-gray-500 mt-0.5">
-              Mark an account as subscribed without going through Stripe.
+              {mode === 'stripe'
+                ? "Open a real Stripe Checkout scoped to this user — key the caller's card."
+                : 'Mark an account as subscribed without going through Stripe.'}
             </p>
           </div>
           <button type="button" onClick={onClose} className="p-1 -m-1 text-gray-400 hover:text-gray-600">
@@ -211,6 +237,50 @@ function AddSubscriberModal({ open, onClose, onCreated, adminId }: AddSubscriber
               {err}
             </div>
           )}
+
+          {checkoutUrl ? (
+            <div className="space-y-3">
+              <div className="text-sm text-green-700 bg-green-50 border border-green-200 rounded-lg p-3">
+                Stripe Checkout opened in a new tab for{' '}
+                <span className="font-medium">{selectedUser?.email}</span>. Key the card the
+                caller gave you. If a pop-up blocker stopped it, use the link below. The
+                subscription appears here once payment completes.
+              </div>
+              <a
+                href={checkoutUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 text-sm font-semibold text-accent-600 hover:text-accent-700"
+              >
+                <Search className="w-4 h-4" />
+                Open Stripe Checkout
+              </a>
+            </div>
+          ) : (
+          <>
+          {/* Mode toggle */}
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => setMode('manual')}
+              className={`p-3 rounded-lg border-2 text-left transition-colors ${
+                mode === 'manual' ? 'border-accent-500 bg-accent-50/40' : 'border-gray-200 hover:border-gray-300'
+              }`}
+            >
+              <div className="text-sm font-semibold text-gray-900">Manual grant</div>
+              <div className="text-xs text-gray-500 mt-0.5">No charge. Marks the account as subscribed.</div>
+            </button>
+            <button
+              type="button"
+              onClick={() => setMode('stripe')}
+              className={`p-3 rounded-lg border-2 text-left transition-colors ${
+                mode === 'stripe' ? 'border-accent-500 bg-accent-50/40' : 'border-gray-200 hover:border-gray-300'
+              }`}
+            >
+              <div className="text-sm font-semibold text-gray-900">Stripe checkout</div>
+              <div className="text-xs text-gray-500 mt-0.5">Charge the caller's card via real Stripe.</div>
+            </button>
+          </div>
 
           {/* Step 1 — search account */}
           <div>
@@ -306,63 +376,102 @@ function AddSubscriberModal({ open, onClose, onCreated, adminId }: AddSubscriber
             </div>
           </div>
 
-          {/* Step 3 — day of month */}
-          <div>
-            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
-              3. Day of month for renewal
-            </label>
-            <div className="flex items-center gap-3">
-              <Calendar className="w-4 h-4 text-gray-400" />
-              <input
-                type="number"
-                min={1}
-                max={28}
-                value={day}
-                onChange={(e) => setDay(Math.max(1, Math.min(28, parseInt(e.target.value || '1', 10))))}
-                className="w-24 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-accent-500 focus:border-accent-500"
-              />
-              <span className="text-xs text-gray-500">1–28. Subscription rolls forward by one month each cycle.</span>
-            </div>
-          </div>
+          {/* Manual-only: billing day, start date, notes. In Stripe mode the
+              billing cycle and charges are managed by Stripe itself. */}
+          {mode === 'manual' && (
+            <>
+              {/* Step 3 — day of month */}
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+                  3. Day of month for renewal
+                </label>
+                <div className="flex items-center gap-3">
+                  <Calendar className="w-4 h-4 text-gray-400" />
+                  <input
+                    type="number"
+                    min={1}
+                    max={28}
+                    value={day}
+                    onChange={(e) => setDay(Math.max(1, Math.min(28, parseInt(e.target.value || '1', 10))))}
+                    className="w-24 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-accent-500 focus:border-accent-500"
+                  />
+                  <span className="text-xs text-gray-500">1–28. Subscription rolls forward by one month each cycle.</span>
+                </div>
+              </div>
 
-          {/* Notes */}
-          <div>
-            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
-              Notes (optional)
-            </label>
-            <textarea
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              rows={2}
-              placeholder="Why is this admin grant being made?"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-accent-500 focus:border-accent-500"
-            />
-          </div>
+              {/* Step 4 — optional start date */}
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+                  4. Start date (optional)
+                </label>
+                <div className="flex items-center gap-3">
+                  <Calendar className="w-4 h-4 text-gray-400" />
+                  <input
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                    className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-accent-500 focus:border-accent-500"
+                  />
+                  <span className="text-xs text-gray-500">
+                    Defaults to today. First renewal is the next billing day after this date.
+                  </span>
+                </div>
+              </div>
+
+              {/* Notes */}
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+                  Notes (optional)
+                </label>
+                <textarea
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  rows={2}
+                  placeholder="Why is this admin grant being made?"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-accent-500 focus:border-accent-500"
+                />
+              </div>
+            </>
+          )}
+          </>
+          )}
         </div>
 
         <div className="px-6 py-4 border-t border-gray-200 flex items-center justify-end gap-2">
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-4 py-2 text-sm text-gray-600 hover:text-gray-900"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={handleSubmit}
-            disabled={busy || !selectedUser}
-            className="px-4 py-2 bg-accent-500 hover:bg-accent-600 text-white rounded-lg text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2"
-          >
-            {busy ? (
-              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-            ) : (
-              <>
-                <Check className="w-4 h-4" />
-                Create subscription
-              </>
-            )}
-          </button>
+          {checkoutUrl ? (
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 bg-accent-500 hover:bg-accent-600 text-white rounded-lg text-sm font-semibold"
+            >
+              Done
+            </button>
+          ) : (
+            <>
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-4 py-2 text-sm text-gray-600 hover:text-gray-900"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSubmit}
+                disabled={busy || !selectedUser}
+                className="px-4 py-2 bg-accent-500 hover:bg-accent-600 text-white rounded-lg text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2"
+              >
+                {busy ? (
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <>
+                    <Check className="w-4 h-4" />
+                    {mode === 'stripe' ? 'Open Stripe Checkout' : 'Create subscription'}
+                  </>
+                )}
+              </button>
+            </>
+          )}
         </div>
       </div>
     </div>

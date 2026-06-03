@@ -34,6 +34,7 @@ import {
   TRIAL_SUBSCRIPTION_LENGTH_DAYS,
   formatCents,
 } from '../../types/monetization';
+import type { ListingSubscription } from '../../types/monetization';
 
 export type MonetizationModalListingOption = {
   id: string;
@@ -49,7 +50,13 @@ export interface MonetizationModalProps {
   preselectedListingId?: string | null;
   /** Initial tab — typically 'subscribe' for the wizard-handoff, 'pay' otherwise. */
   initialTab?: 'pay' | 'subscribe';
+  /** The caller's active listing subscription, if any. Drives the Agent→VIP upgrade UI. */
+  activeSubscription?: ListingSubscription | null;
+  /** Called after a successful in-place upgrade so the parent can refresh. */
+  onUpgraded?: () => void;
 }
+
+const UPGRADE_ACTIVE_STATUSES = ['active', 'admin_active', 'past_due', 'trial'];
 
 export function MonetizationModal({
   open,
@@ -57,6 +64,8 @@ export function MonetizationModal({
   listings,
   preselectedListingId,
   initialTab,
+  activeSubscription,
+  onUpgraded,
 }: MonetizationModalProps) {
   const [tab, setTab] = useState<'pay' | 'subscribe'>(initialTab ?? 'pay');
   const [selectedListingId, setSelectedListingId] = useState<string | null>(
@@ -68,6 +77,7 @@ export function MonetizationModal({
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [priorPaymentCount, setPriorPaymentCount] = useState<number | null>(null);
+  const [upgradeDone, setUpgradeDone] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -76,6 +86,7 @@ export function MonetizationModal({
     setSelectedDays(30);
     setErr(null);
     setBusy(false);
+    setUpgradeDone(false);
   }, [open, initialTab, preselectedListingId, listings]);
 
   // Look up prior payment count for the selected listing — drives first-time vs renewal pricing.
@@ -143,6 +154,42 @@ export function MonetizationModal({
     }
   };
 
+  const handleUpgradeToVip = async () => {
+    setBusy(true);
+    setErr(null);
+    try {
+      const res = await subscriptionsService.upgradeToVip();
+      setUpgradeDone(true);
+      onUpgraded?.();
+      // Stripe-backed subs charged the prorated delta in place; we stay in the
+      // modal and show confirmation.
+      void res;
+    } catch (e) {
+      setErr((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // Comped (admin_active) Agent user upgrading to VIP: there is no card on file
+  // and no Stripe subscription to prorate, so we convert them into a real
+  // paying VIP subscriber via Stripe Checkout (full $100/mo, no trial). The
+  // webhook supersedes their admin-granted row when the checkout completes.
+  const handleConvertCompedToVip = async () => {
+    setBusy(true);
+    setErr(null);
+    try {
+      const checkout = await subscriptionsService.createCheckoutSession({
+        plan: 'vip',
+        withTrial: false,
+      });
+      window.location.href = checkout.url;
+    } catch (e) {
+      setErr((e as Error).message);
+      setBusy(false);
+    }
+  };
+
   const handleStartTrial = async () => {
     setBusy(true);
     setErr(null);
@@ -160,6 +207,15 @@ export function MonetizationModal({
   const subscribeMonthlyCents =
     (LISTING_SUBSCRIPTION_PLANS.find((p) => p.plan === selectedPlan)?.priceCents ?? 0) +
     (includeAddon ? CONCIERGE_ADDON_PRICE_CENTS : 0);
+
+  // Agent→VIP in-place upgrade (pay only the prorated difference, no new checkout).
+  const canUpgradeToVip =
+    !!activeSubscription &&
+    activeSubscription.plan === 'agent' &&
+    UPGRADE_ACTIVE_STATUSES.includes(activeSubscription.status);
+  const agentCents = LISTING_SUBSCRIPTION_PLANS.find((p) => p.plan === 'agent')?.priceCents ?? 5000;
+  const vipCents = LISTING_SUBSCRIPTION_PLANS.find((p) => p.plan === 'vip')?.priceCents ?? 10000;
+  const upgradeDeltaCents = vipCents - agentCents;
 
   return (
     <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/40 p-4 sm:p-6">
@@ -314,7 +370,98 @@ export function MonetizationModal({
             </div>
           )}
 
-          {tab === 'subscribe' && (
+          {tab === 'subscribe' && (canUpgradeToVip || upgradeDone) && (
+            <div className="space-y-5">
+              {upgradeDone ? (
+                <div className="bg-gradient-to-br from-emerald-50 to-emerald-100/40 border-2 border-emerald-200 rounded-xl p-5 text-center">
+                  <div className="w-12 h-12 rounded-full bg-white border border-emerald-200 flex items-center justify-center text-emerald-600 mx-auto mb-3">
+                    <Crown className="w-6 h-6" />
+                  </div>
+                  <div className="text-lg font-semibold text-emerald-900">You're on VIP now</div>
+                  <p className="text-sm text-emerald-800 mt-1 leading-relaxed">
+                    Your plan was upgraded and your listing cap is now unlimited.
+                    We charged only the prorated difference for the rest of this billing cycle.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={onClose}
+                    className="mt-4 bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-lg text-sm font-semibold transition-colors"
+                  >
+                    Done
+                  </button>
+                </div>
+              ) : (
+                <div className="bg-gradient-to-br from-emerald-50 to-emerald-100/40 border-2 border-emerald-200 rounded-xl p-5">
+                  <div className="flex items-start gap-3">
+                    <div className="w-10 h-10 rounded-lg bg-white border border-emerald-200 flex items-center justify-center text-emerald-600 flex-shrink-0">
+                      <Crown className="w-5 h-5" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="font-semibold text-emerald-900">Upgrade to VIP</div>
+                      <p className="text-sm text-emerald-800 mt-0.5 leading-relaxed">
+                        You're on the Agent plan ({formatCents(agentCents)}/mo, 7-listing cap).
+                        Upgrade to VIP for unlimited active listings — no cap.
+                      </p>
+                      <ul className="mt-3 space-y-1.5 text-sm text-emerald-900">
+                        <li className="flex items-center gap-2">
+                          <Check className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                          Unlimited active listings (no 7-listing cap)
+                        </li>
+                        <li className="flex items-center gap-2">
+                          <Check className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                          Cancel anytime
+                        </li>
+                      </ul>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 bg-white border border-emerald-200 rounded-lg p-4">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-gray-600">VIP monthly price</span>
+                      <span className="font-semibold text-gray-900">{formatCents(vipCents)}/mo</span>
+                    </div>
+                    {activeSubscription?.status !== 'admin_active' && (
+                      <div className="flex items-center justify-between text-sm mt-1.5">
+                        <span className="text-gray-600">Increase from Agent</span>
+                        <span className="font-semibold text-emerald-700">
+                          + {formatCents(upgradeDeltaCents)}/mo
+                        </span>
+                      </div>
+                    )}
+                    <p className="text-xs text-gray-500 mt-2 leading-relaxed">
+                      {activeSubscription?.status === 'admin_active'
+                        ? `Your Agent plan is currently complimentary. To move to VIP you'll enter a card and start a paid VIP subscription at ${formatCents(vipCents)}/mo.`
+                        : `You're charged only the prorated difference for the rest of this billing cycle now — not a new ${formatCents(vipCents)}. From your next renewal you pay ${formatCents(vipCents)}/mo.`}
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={
+                      activeSubscription?.status === 'admin_active'
+                        ? handleConvertCompedToVip
+                        : handleUpgradeToVip
+                    }
+                    disabled={busy}
+                    className="w-full mt-4 bg-emerald-600 hover:bg-emerald-700 text-white py-3 rounded-lg text-sm font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  >
+                    {busy ? (
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      <>
+                        <Crown className="w-4 h-4" />
+                        {activeSubscription?.status === 'admin_active'
+                          ? 'Continue to VIP checkout'
+                          : `Upgrade now · + ${formatCents(upgradeDeltaCents)}/mo`}
+                      </>
+                    )}
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {tab === 'subscribe' && !canUpgradeToVip && !upgradeDone && (
             <div className="space-y-5">
               {/* Free-trial banner — sits above the plan picker so it's the
                   first thing landlords see. Single CTA uses the plan picked

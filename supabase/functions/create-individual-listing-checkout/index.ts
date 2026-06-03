@@ -97,7 +97,7 @@ Deno.serve(async (req) => {
 
     const { data: callerProfile } = await supabaseAdmin
       .from("profiles")
-      .select("is_admin, full_name, email, phone, stripe_customer_id")
+      .select("is_admin")
       .eq("id", user.id)
       .maybeSingle();
     const isAdmin = callerProfile?.is_admin === true;
@@ -108,6 +108,17 @@ Deno.serve(async (req) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+
+    // The charge always belongs to the LISTING OWNER — for admin-on-behalf
+    // (an admin keying in the caller's card over the phone) the Stripe
+    // customer / receipt must attach to the owner, not the admin. For
+    // self-serve the owner === caller, so this is a no-op.
+    const onBehalf = isAdmin && listing.user_id !== user.id;
+    const { data: ownerProfile } = await supabaseAdmin
+      .from("profiles")
+      .select("full_name, email, stripe_customer_id")
+      .eq("id", listing.user_id)
+      .maybeSingle();
 
     if (listing.listing_type !== "rental") {
       return new Response(JSON.stringify({ error: "Only residential rentals can be paid individually" }), {
@@ -133,24 +144,26 @@ Deno.serve(async (req) => {
     const isFirstPayment = (priorCount ?? 0) === 0;
     const amountCents = isFirstPayment ? pkg.first_time_cents : pkg.renewal_cents;
 
-    // Ensure a Stripe customer.
-    let stripeCustomerId = callerProfile?.stripe_customer_id || "";
+    // Ensure a Stripe customer for the LISTING OWNER.
+    const ownerEmail = ownerProfile?.email || (onBehalf ? undefined : user.email) || undefined;
+    let stripeCustomerId = ownerProfile?.stripe_customer_id || "";
     if (!stripeCustomerId) {
-      const existing = await stripe.customers.list({ email: user.email!, limit: 1 });
-      if (existing.data.length > 0) {
-        stripeCustomerId = existing.data[0].id;
-      } else {
+      if (ownerEmail) {
+        const existing = await stripe.customers.list({ email: ownerEmail, limit: 1 });
+        if (existing.data.length > 0) stripeCustomerId = existing.data[0].id;
+      }
+      if (!stripeCustomerId) {
         const created = await stripe.customers.create({
-          email: user.email!,
-          name: callerProfile?.full_name || undefined,
-          metadata: { supabase_user_id: user.id },
+          email: ownerEmail,
+          name: ownerProfile?.full_name || undefined,
+          metadata: { supabase_user_id: listing.user_id },
         });
         stripeCustomerId = created.id;
       }
       await supabaseAdmin
         .from("profiles")
         .update({ stripe_customer_id: stripeCustomerId })
-        .eq("id", user.id);
+        .eq("id", listing.user_id);
     }
 
     const origin = req.headers.get("origin") || "https://hadirot.com";
@@ -180,6 +193,7 @@ Deno.serve(async (req) => {
         days: String(days),
         is_initial_purchase: is_initial_purchase ? "true" : "false",
         is_first_payment: isFirstPayment ? "true" : "false",
+        ...(onBehalf ? { charged_by_admin_id: user.id } : {}),
       },
       allow_promotion_codes: true,
       success_url: `${origin}/dashboard?listing=${listing_id}&payment=success`,
