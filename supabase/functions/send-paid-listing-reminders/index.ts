@@ -16,8 +16,13 @@
 
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders } from "../_shared/cors.ts";
+import { signListingPayToken } from "../_shared/sms-link-token.ts";
 
 const SOURCE_KEY = "paid_listing_reminder";
+
+// Tokenized "pay from your phone" links expire after 14 days — long enough that
+// a reminder link stays valid through the deactivation grace period.
+const PAY_LINK_TTL_SECONDS = 14 * 24 * 60 * 60;
 
 interface ListingRow {
   id: string;
@@ -75,6 +80,23 @@ function isoEndOfUtcDay(offsetDays: number): string {
   return d.toISOString();
 }
 
+// Build a one-tap "pay from your phone" link that lands straight on Stripe.
+// The token is signed with the service-role key and verified by the public
+// pay-listing-link edge function (no login required on the phone).
+async function buildPayLink(
+  supabaseUrl: string,
+  signingSecret: string,
+  listingId: string,
+  days: number,
+  action: 'pay' | 'reactivate',
+): Promise<string> {
+  const token = await signListingPayToken(
+    { l: listingId, d: days, a: action, e: Math.floor(Date.now() / 1000) + PAY_LINK_TTL_SECONDS },
+    signingSecret,
+  );
+  return `${supabaseUrl}/functions/v1/pay-listing-link?token=${encodeURIComponent(token)}`;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -86,7 +108,6 @@ Deno.serve(async (req) => {
     const twilioPhoneNumber = Deno.env.get("TWILIO_PHONE_NUMBER");
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-    const publicBaseUrl = Deno.env.get("PUBLIC_SITE_URL") || "https://hadirot.com";
 
     if (!twilioAccountSid || !twilioAuthToken || !twilioPhoneNumber) {
       return new Response(JSON.stringify({ error: "Twilio not configured" }), {
@@ -167,7 +188,7 @@ Deno.serve(async (req) => {
 
       for (const l of (trialListings || []) as ListingRow[]) {
         const id = formatListingIdentifier(l);
-        const url = `${publicBaseUrl}/dashboard?listing=${l.id}&action=pay`;
+        const url = await buildPayLink(supabaseUrl, supabaseServiceKey, l.id, 30, 'pay');
         const message = offset === 0
           ? `Hadirot Alert: Your free trial for the listing at ${id} ends today. Pay $25 to keep it live: ${url}`
           : `Hadirot Alert: Your free trial for the listing at ${id} ends in 3 days. Pay $25 to keep it live: ${url}`;
@@ -194,7 +215,7 @@ Deno.serve(async (req) => {
 
       for (const l of (paidListings || []) as ListingRow[]) {
         const id = formatListingIdentifier(l);
-        const url = `${publicBaseUrl}/dashboard?listing=${l.id}&action=pay`;
+        const url = await buildPayLink(supabaseUrl, supabaseServiceKey, l.id, 30, 'pay');
 
         // Renewal pricing: $15 if listing has prior payments, else $25.
         const { count: priorCount } = await supabaseAdmin
@@ -237,7 +258,7 @@ Deno.serve(async (req) => {
 
       for (const l of (deactivatedListings || []) as ListingRow[]) {
         const id = formatListingIdentifier(l);
-        const url = `${publicBaseUrl}/dashboard?listing=${l.id}&action=reactivate`;
+        const url = await buildPayLink(supabaseUrl, supabaseServiceKey, l.id, 30, 'reactivate');
 
         // Renewal pricing for reactivation: same rule.
         const { count: priorCount } = await supabaseAdmin

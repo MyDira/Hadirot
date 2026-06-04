@@ -44,9 +44,16 @@ SELECT cron.schedule(
 );
 
 -- Set timezone to America/New_York so 10:00 means 10 AM ET (not UTC).
-UPDATE cron.job
-SET timezone = 'America/New_York'
-WHERE jobname = 'send-paid-listing-reminders';
+-- Guarded: cron.job.timezone is a Supabase-hosted-only column (absent in
+-- upstream pg_cron). Runs unchanged on live; skipped on a from-scratch local DB.
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.columns
+             WHERE table_schema = 'cron' AND table_name = 'job' AND column_name = 'timezone') THEN
+    UPDATE cron.job SET timezone = 'America/New_York'
+    WHERE jobname = 'send-paid-listing-reminders';
+  END IF;
+END $$;
 
 -- ---------------------------------------------------------------
 -- One-time setup notes (NOT run by this migration):

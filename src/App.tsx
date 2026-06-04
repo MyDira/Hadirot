@@ -45,6 +45,7 @@ const BoostListingPage = lazy(() => import('./pages/BoostListingPage').then(m =>
 const BoostSuccessPage = lazy(() => import('./pages/BoostSuccessPage').then(m => ({ default: m.BoostSuccessPage })));
 const Concierge = lazy(() => import('./pages/Concierge').then(m => ({ default: m.Concierge })));
 const ConciergeSuccess = lazy(() => import('./pages/ConciergeSuccess').then(m => ({ default: m.ConciergeSuccess })));
+const ListingPaymentSuccess = lazy(() => import('./pages/ListingPaymentSuccess').then(m => ({ default: m.ListingPaymentSuccess })));
 
 function ScrollToTop() {
   const location = useLocation();
@@ -124,6 +125,8 @@ function App() {
                   <Route path="/admin/static-pages" element={<Navigate to="/admin/content-management?tab=static-pages" replace />} />
                   <Route path="/admin/featured-settings" element={<Navigate to="/admin/content-management?tab=featured" replace />} />
                   <Route path="/account" element={<Account />} />
+                  <Route path="/listing-payment-success" element={<ListingPaymentSuccess />} />
+                  <Route path="/listing-payment-cancelled" element={<ListingPaymentSuccess cancelled />} />
                   <Route path="/dashboard" element={<DashboardRedirect />} />
                   <Route path="/dashboard/agency-settings" element={<AgencySettings />} />
                   <Route path="/account-settings" element={<Navigate to="/account?tab=settings" replace />} />

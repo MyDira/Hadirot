@@ -2,6 +2,17 @@ import { createClient } from 'npm:@supabase/supabase-js@2';
 import { corsHeaders } from '../_shared/cors.ts';
 import { sendViaZepto, renderBrandEmail } from '../_shared/zepto.ts';
 
+// Escape user-controlled strings (e.g. listing title) before interpolating into
+// email HTML. Prevents broken markup / link injection in notification emails.
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
@@ -123,14 +134,115 @@ Deno.serve(async (req) => {
 
       listingData = data;
     } else {
+      // ----------------------------------------------------------------
+      // Re-anchor the monetization clock at APPROVAL time.
+      //
+      // The free-trial and paid clocks must begin when an admin approves the
+      // listing — NOT when it was posted. (The wizard intentionally no longer
+      // stamps trial_started_at at posting.) We read the current payment state
+      // and the payment ledger (paid_listing_payments) and compute the right
+      // trial_started_at / paid_until / expires_at here.
+      //
+      // Spec (individual residential rental):
+      //   • 14-day free trial, starting at approval.
+      //   • If paid at posting: 14 trial + 30 paid + 30 early-payment bonus
+      //     = 74 days total, all measured from approval.
+      //   • must_pay (no trial): paid days only, from approval.
+      //
+      // Non-monetized / sale / subscription / legacy listings keep the simple
+      // { approved, is_active } behavior.
+      // ----------------------------------------------------------------
+      const now = new Date();
+
+      const { data: settings } = await supabaseClient
+        .from('admin_settings')
+        .select('monetization_enabled')
+        .maybeSingle();
+      const monetizationEnabled = settings?.monetization_enabled === true;
+
+      const { data: current } = await supabaseClient
+        .from('listings')
+        .select('payment_kind, trial_started_at, paid_until, listing_type')
+        .eq('id', listingId)
+        .maybeSingle();
+
+      const update: Record<string, unknown> = { approved: true, is_active: true };
+
+      if (
+        monetizationEnabled &&
+        current &&
+        current.listing_type === 'rental' &&
+        (current.payment_kind === 'individual_trial' ||
+          current.payment_kind === 'pending_payment')
+      ) {
+        // Sum any payments already recorded against this listing (pay-at-posting).
+        const { data: payments } = await supabaseClient
+          .from('paid_listing_payments')
+          .select('days_granted, bonus_days')
+          .eq('listing_id', listingId);
+        const ledger = payments || [];
+        const hasPayment = ledger.length > 0;
+        const totalPaidDays = ledger.reduce(
+          (sum: number, p: { days_granted: number | null; bonus_days: number | null }) =>
+            sum + (p.days_granted || 0) + (p.bonus_days || 0),
+          0,
+        );
+
+        const thirtyAhead = new Date(now);
+        thirtyAhead.setUTCDate(thirtyAhead.getUTCDate() + 30);
+
+        // Freshness window resets at approval for every monetized rental.
+        update.last_published_at = now.toISOString();
+
+        if (current.payment_kind === 'individual_trial') {
+          // 14-day free trial begins now.
+          update.trial_started_at = now.toISOString();
+
+          if (hasPayment) {
+            // Paid at posting: 14 trial days + paid days (bonus already in total).
+            update.payment_kind = 'individual_paid';
+            const paidUntil = new Date(now);
+            paidUntil.setUTCDate(paidUntil.getUTCDate() + 14 + totalPaidDays);
+            update.paid_until = paidUntil.toISOString();
+            update.expires_at = (paidUntil < thirtyAhead ? paidUntil : thirtyAhead).toISOString();
+            update.paused_paid_days = 0;
+          } else {
+            // Pure free trial — no payment yet.
+            update.expires_at = thirtyAhead.toISOString();
+          }
+        } else {
+          // pending_payment (must-pay, no free trial). Should always have a
+          // payment by approval time, but guard anyway.
+          if (hasPayment) {
+            update.payment_kind = 'individual_paid';
+            const paidUntil = new Date(now);
+            paidUntil.setUTCDate(paidUntil.getUTCDate() + totalPaidDays);
+            update.paid_until = paidUntil.toISOString();
+            update.expires_at = (paidUntil < thirtyAhead ? paidUntil : thirtyAhead).toISOString();
+            update.paused_paid_days = 0;
+          } else {
+            // Audit M2: a must-pay listing with NO payment must NOT go live for
+            // free. Keep it approved (so it's out of the moderation queue) but
+            // inactive until payment lands. derivePaymentState renders this as
+            // "payment_required"; the webhook flips it active when payment
+            // applies. Without this guard, approving an unpaid must-pay listing
+            // would grant ~30 free freshness days.
+            update.is_active = false;
+          }
+        }
+      }
+
       const { data, error } = await supabaseClient
         .from('listings')
-        .update({ approved: true, is_active: true })
+        .update(update)
         .eq('id', listingId)
         .select('id, title, user_id')
         .single();
 
-      console.log('[EDGE] approve-listing updated listing to approved/active', { listingId });
+      console.log('[EDGE] approve-listing updated listing to approved/active', {
+        listingId,
+        reAnchored: update.payment_kind ?? current?.payment_kind ?? null,
+      });
 
       if (error) {
         console.error('Error approving listing:', error);
@@ -159,13 +271,13 @@ Deno.serve(async (req) => {
     } else {
       try {
         const listingTitle = listingData.title ?? 'Your listing';
-        const siteUrl = Deno.env.get('SITE_URL') ?? 'https://hadirot.com';
+        const siteUrl = Deno.env.get('SITE_URL') ?? Deno.env.get('PUBLIC_SITE_URL') ?? 'https://hadirot.com';
         const listingUrl = `${siteUrl}/listing/${listingData.id}`;
 
         const html = renderBrandEmail({
           title: 'Your Listing Has Been Approved',
           intro: 'Great news!',
-          bodyHtml: `<p>Your listing <strong>${listingTitle}</strong> has been approved and is now live on Hadirot.</p>`,
+          bodyHtml: `<p>Your listing <strong>${escapeHtml(listingTitle)}</strong> has been approved and is now live on Hadirot.</p>`,
           ctaLabel: 'View Live Listing',
           ctaHref: listingUrl,
         });

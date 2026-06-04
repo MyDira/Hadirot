@@ -10,8 +10,6 @@ interface CustomModalProps {
 }
 
 export function CustomModal({ modal, isOpen, onClose, onButtonClick }: CustomModalProps) {
-  if (!isOpen) return null;
-
   const attachmentUrl = getModalAttachmentUrl(modal.attachment_path);
   const hasAttachment = !!attachmentUrl;
   const hasUrlButton = !hasAttachment && !!modal.button_url;
@@ -65,6 +63,8 @@ export function CustomModal({ modal, isOpen, onClose, onButtonClick }: CustomMod
       document.body.style.overflow = 'unset';
     };
   }, [isOpen]);
+
+  if (!isOpen) return null;
 
   return (
     <div

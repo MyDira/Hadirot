@@ -792,12 +792,16 @@ export function PostListingWizard() {
         //                          abandoned checkout can never be mistaken for a free/legacy
         //                          listing at admin-approval time; the cron also deactivates
         //                          any approved listing still left in 'pending_payment'.
-        //   anything else        → 'individual_trial' with trial_started_at=NOW
+        //   anything else        → 'individual_trial' (clock starts at APPROVAL)
         // Sale listings: leave these fields as null/undefined.
         // When paymentChoice is null/undefined (e.g., monetization master
         // switch is off — see useMonetizationGate / enable_monetization()),
-        // we leave payment_kind=NULL and skip trial_started_at, so the
-        // listing posts exactly as pre-monetization.
+        // we leave payment_kind=NULL, so the listing posts exactly as
+        // pre-monetization.
+        // NOTE: trial_started_at is intentionally NOT set here. The free-trial
+        // and paid clocks must begin when an admin APPROVES the listing, not
+        // when it is posted. approve-listing stamps trial_started_at = now and
+        // re-anchors paid_until from the payment ledger at approval time.
         // -----------------------------------------------------------------
         ...(isSalePath || !paymentChoice
           ? {}
@@ -805,10 +809,7 @@ export function PostListingWizard() {
             ? { payment_kind: 'subscription' }
             : paymentChoice === 'must_pay'
               ? { payment_kind: 'pending_payment' }
-              : {
-                  payment_kind: 'individual_trial',
-                  trial_started_at: new Date().toISOString(),
-                }),
+              : { payment_kind: 'individual_trial' }),
       } as any;
 
       const listing = await listingsService.createListing(payload);
@@ -854,8 +855,9 @@ export function PostListingWizard() {
 
       // If the user chose a pay path on the wizard, hand off to Stripe Checkout
       // instead of dropping them on the dashboard. On checkout completion the
-      // webhook flips payment_kind to 'individual_paid' and (for pay-at-posting)
-      // grants the 30 bonus days.
+      // webhook records the payment in the ledger; the clock (incl. the 30
+      // pay-at-posting bonus days) is anchored at ADMIN APPROVAL, not here —
+      // see approve-listing and reconcile_individual_listing_anchors.
       const requiresStripeCheckout =
         !isSalePath && (paymentChoice === 'pay_at_posting' || paymentChoice === 'must_pay');
 

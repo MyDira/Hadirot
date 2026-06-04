@@ -48,6 +48,17 @@ async function sendEmail(to: string | string[], subject: string, html: string) {
   }
 }
 
+// Escape user-controlled strings (e.g. listing title) before interpolating into
+// email HTML. Prevents broken markup / link injection in notification emails.
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 function brandWrap(title: string, bodyHtml: string) {
   return `
     <div style="font-family:Arial,sans-serif;background-color:#F7F9FC;padding:24px;">
@@ -73,6 +84,38 @@ async function getAdminEmails(supabaseAdmin: ReturnType<typeof createClient>): P
     .select('email')
     .eq('is_admin', true);
   return (data || []).map((p: { email: string }) => p.email).filter(Boolean);
+}
+
+// Resolve a user's email. Prefer the profiles row; fall back to the auth record
+// (profiles.email can be null for some accounts).
+async function getUserEmail(
+  supabaseAdmin: ReturnType<typeof createClient>,
+  userId: string,
+): Promise<string | null> {
+  const { data: profile } = await supabaseAdmin
+    .from('profiles')
+    .select('email')
+    .eq('id', userId)
+    .maybeSingle();
+  const profileEmail = (profile as { email?: string } | null)?.email;
+  if (profileEmail) return profileEmail;
+  try {
+    const { data } = await supabaseAdmin.auth.admin.getUserById(userId);
+    return data?.user?.email ?? null;
+  } catch (err) {
+    console.error('Failed to resolve user email:', err);
+    return null;
+  }
+}
+
+// Format a date as a friendly "June 3, 2026" string for emails.
+function formatEmailDate(d: Date): string {
+  return d.toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    timeZone: 'America/New_York',
+  });
 }
 
 async function handleFeaturedCheckout(session: Stripe.Checkout.Session) {
@@ -562,7 +605,7 @@ async function handleIndividualListingCheckout(session: Stripe.Checkout.Session)
   // Look up listing state (must exist).
   const { data: listing } = await supabaseAdmin
     .from('listings')
-    .select('id, payment_kind, trial_started_at, paid_until, is_active, listing_type')
+    .select('id, title, payment_kind, trial_started_at, paid_until, is_active, listing_type, approved')
     .eq('id', listing_id)
     .maybeSingle();
   if (!listing) {
@@ -588,8 +631,54 @@ async function handleIndividualListingCheckout(session: Stripe.Checkout.Session)
     listing.payment_kind === 'individual_trial';
   const bonusDays = grantBonus ? 30 : 0;
 
-  // Compute new paid_until.
   const now = new Date();
+  const listingTitle = (listing as { title?: string }).title || 'your listing';
+  const safeTitle = escapeHtml(listingTitle);
+  const ownerEmail = await getUserEmail(supabaseAdmin, user_id);
+
+  // Record the payment (ledger) — always, regardless of approval state. The
+  // ledger is the source of truth that approve-listing reads when it re-anchors
+  // the clock at approval time.
+  await supabaseAdmin.from('paid_listing_payments').insert({
+    listing_id,
+    user_id,
+    amount_cents: session.amount_total || 0,
+    days_granted: daysGranted,
+    bonus_days: bonusDays,
+    source: 'stripe',
+    is_initial_purchase: isInitialPurchase,
+    stripe_checkout_session_id: session.id,
+    stripe_payment_intent_id: session.payment_intent as string,
+  });
+
+  // Pre-approval payment (paid during posting, before an admin approves).
+  // The clock must start at APPROVAL, not now — so defer all day-math to
+  // approve-listing, which sums this ledger row. Do NOT change payment_kind,
+  // set paid_until, or activate the listing here. Just confirm receipt.
+  if (listing.approved === false) {
+    console.log(
+      `Pre-approval payment recorded for listing ${listing_id}; clock deferred to approval.`,
+    );
+    if (ownerEmail) {
+      const bonusLine = bonusDays > 0
+        ? `<p style="margin:0 0 16px 0;">As an early-payment bonus, you'll receive an extra <strong>30 days</strong> on top of your free trial and paid period — a great value.</p>`
+        : '';
+      await sendEmail(
+        ownerEmail,
+        'Payment received — your listing goes live once approved',
+        brandWrap(
+          'Payment received',
+          `<p style="margin:0 0 16px 0;">Thank you! We've received your payment for <strong>${safeTitle}</strong>.</p>
+           ${bonusLine}
+           <p style="margin:0 0 16px 0;">Your listing is currently being reviewed by our team. As soon as it's approved, it will go live and your free trial and paid period will begin. You'll get a confirmation email at that point.</p>
+           <p style="margin:0;">Thanks for choosing Hadirot.</p>`,
+        ),
+      );
+    }
+    return;
+  }
+
+  // Approved listing (dashboard renewal / reactivation): apply day-math now.
   let newPaidUntil: Date;
 
   if (grantBonus && listing.trial_started_at) {
@@ -618,19 +707,6 @@ async function handleIndividualListingCheckout(session: Stripe.Checkout.Session)
   thirtyAhead.setUTCDate(thirtyAhead.getUTCDate() + 30);
   const newExpiresAt = newPaidUntil < thirtyAhead ? newPaidUntil : thirtyAhead;
 
-  // Record the payment (ledger).
-  await supabaseAdmin.from('paid_listing_payments').insert({
-    listing_id,
-    user_id,
-    amount_cents: session.amount_total || 0,
-    days_granted: daysGranted,
-    bonus_days: bonusDays,
-    source: 'stripe',
-    is_initial_purchase: isInitialPurchase,
-    stripe_checkout_session_id: session.id,
-    stripe_payment_intent_id: session.payment_intent as string,
-  });
-
   // Apply to the listing. If listing is inactive, also reactivate it; the trigger
   // will manage paused_paid_days restore (but since we set paid_until explicitly,
   // the trigger's clamp/restore for paid_until is idempotent).
@@ -649,6 +725,24 @@ async function handleIndividualListingCheckout(session: Stripe.Checkout.Session)
     .from('listings')
     .update(update)
     .eq('id', listing_id);
+
+  // Confirmation email — listing is live and paid.
+  if (ownerEmail) {
+    const amountStr = ((session.amount_total || 0) / 100).toLocaleString('en-US', {
+      style: 'currency',
+      currency: 'usd',
+    });
+    await sendEmail(
+      ownerEmail,
+      'Payment confirmed — your listing is active',
+      brandWrap(
+        'Thank you for your payment',
+        `<p style="margin:0 0 16px 0;">We've received your payment of <strong>${amountStr}</strong> for <strong>${safeTitle}</strong>.</p>
+         <p style="margin:0 0 16px 0;">Your listing is active and paid through <strong>${formatEmailDate(newPaidUntil)}</strong>.</p>
+         <p style="margin:0;">Thanks for choosing Hadirot.</p>`,
+      ),
+    );
+  }
 
   console.log(
     `Individual listing payment applied: listing=${listing_id}, days=${daysGranted}, bonus=${bonusDays}, paid_until=${newPaidUntil.toISOString()}`,
@@ -805,6 +899,48 @@ async function handleListingSubscriptionCheckout(session: Stripe.Checkout.Sessio
         updated_at: new Date().toISOString(),
       })
       .in('id', toCover.map((l: { id: string }) => l.id));
+  }
+
+  // Confirmation email — subscription active (or trial started).
+  const ownerEmail = await getUserEmail(supabaseAdmin, user_id);
+  if (ownerEmail) {
+    const planName = plan === 'agent' ? 'Agent' : 'VIP';
+    const planLimit = plan === 'agent' ? 'up to 7 active listings' : 'unlimited active listings';
+    const periodEndStr = currentPeriodEnd ? formatEmailDate(new Date(currentPeriodEnd)) : null;
+    const coveredLine = toCover.length > 0
+      ? `<p style="margin:0 0 16px 0;">We've automatically applied your subscription to <strong>${toCover.length}</strong> of your existing listing${toCover.length === 1 ? '' : 's'}.</p>`
+      : '';
+    const conciergeLine = include_concierge_addon === 'true'
+      ? `<p style="margin:0 0 16px 0;">Your Concierge add-on is also active.</p>`
+      : '';
+
+    if (ourStatus === 'trial') {
+      await sendEmail(
+        ownerEmail,
+        `Your ${planName} free trial has started`,
+        brandWrap(
+          `Welcome to Hadirot ${planName}`,
+          `<p style="margin:0 0 16px 0;">Your <strong>${planName}</strong> plan free trial is now active, giving you ${planLimit}.</p>
+           ${periodEndStr ? `<p style="margin:0 0 16px 0;">Your trial runs until <strong>${periodEndStr}</strong>, when your first payment will be charged. You can cancel anytime before then from your dashboard.</p>` : ''}
+           ${coveredLine}
+           ${conciergeLine}
+           <p style="margin:0;">Thanks for choosing Hadirot.</p>`,
+        ),
+      );
+    } else {
+      await sendEmail(
+        ownerEmail,
+        `Your ${planName} subscription is active`,
+        brandWrap(
+          `Welcome to Hadirot ${planName}`,
+          `<p style="margin:0 0 16px 0;">Thank you! Your <strong>${planName}</strong> subscription is now active, giving you ${planLimit}.</p>
+           ${periodEndStr ? `<p style="margin:0 0 16px 0;">Your next billing date is <strong>${periodEndStr}</strong>. You can manage or cancel your subscription anytime from your dashboard.</p>` : ''}
+           ${coveredLine}
+           ${conciergeLine}
+           <p style="margin:0;">Thanks for choosing Hadirot.</p>`,
+        ),
+      );
+    }
   }
 
   console.log(
