@@ -16,6 +16,22 @@ import { paymentsService, type MonetizationListingFields } from './payments';
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const sb = supabase as unknown as SupabaseClient<any, 'public', any>;
 
+/** Pull the JSON body off a supabase-js FunctionsHttpError (non-2xx responses).
+ *  Returns null if the error isn't an HTTP error or the body isn't JSON. */
+async function readFunctionErrorBody(
+  error: unknown,
+): Promise<{ error?: string; message?: string } | null> {
+  const ctx = (error as { context?: unknown })?.context;
+  if (ctx && typeof (ctx as Response).json === 'function') {
+    try {
+      return await (ctx as Response).clone().json();
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
 export const subscriptionsService = {
   // -----------------------------------------------------------
   // User-facing
@@ -62,6 +78,21 @@ export const subscriptionsService = {
       withTrial: true,
     });
     return { url: result.url, session_id: result.session_id };
+  },
+
+  /**
+   * Whether the caller is eligible for the 14-day subscription free trial.
+   * Eligible only for genuinely new listers (no active/recent listing of their
+   * own, no contact phone shared with another active account). Returning
+   * listers get false → the UI hides the trial entry point and shows paid only.
+   *
+   * Backed by the SECURITY DEFINER fn is_subscription_trial_eligible(); the
+   * edge function re-checks this server-side, so this is purely for UX.
+   */
+  async isSubscriptionTrialEligible(): Promise<boolean> {
+    const { data, error } = await sb.rpc('is_subscription_trial_eligible');
+    if (error) throw error;
+    return data === true;
   },
 
   /** Returns whether caller has the concierge add-on attached to an active sub. */
@@ -183,7 +214,17 @@ export const subscriptionsService = {
       },
     );
 
-    if (error) throw error;
+    if (error) {
+      // Non-2xx (e.g. 409 trial_ineligible) arrives as a FunctionsHttpError with
+      // the JSON body on error.context. Surface the server's message so the UI
+      // can show a clean explanation instead of a generic failure.
+      const body = await readFunctionErrorBody(error);
+      if (body?.error === 'trial_ineligible') {
+        throw new Error(body.message || 'This account is not eligible for the free trial.');
+      }
+      if (body?.error) throw new Error(body.message || body.error);
+      throw error;
+    }
     if (data?.error) throw new Error(data.error);
     return data as { url: string; session_id: string; with_trial?: boolean };
   },

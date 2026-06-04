@@ -78,6 +78,10 @@ export function MonetizationModal({
   const [err, setErr] = useState<string | null>(null);
   const [priorPaymentCount, setPriorPaymentCount] = useState<number | null>(null);
   const [upgradeDone, setUpgradeDone] = useState(false);
+  // null = still loading; true/false once resolved. The 14-day trial entry
+  // points only render when this is true (genuinely new listers). Returning
+  // listers see paid checkout only. The edge function re-checks server-side.
+  const [trialEligible, setTrialEligible] = useState<boolean | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -88,6 +92,29 @@ export function MonetizationModal({
     setBusy(false);
     setUpgradeDone(false);
   }, [open, initialTab, preselectedListingId, listings]);
+
+  // Resolve subscription-trial eligibility once the modal opens. Only new
+  // listers (no active/recent listing of their own, no contact phone shared
+  // with another active account) may take the 14-day trial.
+  useEffect(() => {
+    if (!open) {
+      setTrialEligible(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const eligible = await subscriptionsService.isSubscriptionTrialEligible();
+        if (!cancelled) setTrialEligible(eligible);
+      } catch {
+        // On error, fail closed: hide the trial (server still enforces).
+        if (!cancelled) setTrialEligible(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [open]);
 
   // Look up prior payment count for the selected listing — drives first-time vs renewal pricing.
   useEffect(() => {
@@ -465,24 +492,27 @@ export function MonetizationModal({
             <div className="space-y-5">
               {/* Free-trial banner — sits above the plan picker so it's the
                   first thing landlords see. Single CTA uses the plan picked
-                  in the radio cards below. */}
-              <div className="bg-gradient-to-br from-emerald-50 to-emerald-100/40 border-2 border-emerald-200 rounded-xl p-4">
-                <div className="flex items-start gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-white border border-emerald-200 flex items-center justify-center text-emerald-700 flex-shrink-0">
-                    <Gift className="w-5 h-5" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="font-semibold text-emerald-900">
-                      Try {TRIAL_SUBSCRIPTION_LENGTH_DAYS} days free
+                  in the radio cards below. Only shown to trial-eligible
+                  (genuinely new) listers. */}
+              {trialEligible === true && (
+                <div className="bg-gradient-to-br from-emerald-50 to-emerald-100/40 border-2 border-emerald-200 rounded-xl p-4">
+                  <div className="flex items-start gap-3">
+                    <div className="w-10 h-10 rounded-lg bg-white border border-emerald-200 flex items-center justify-center text-emerald-700 flex-shrink-0">
+                      <Gift className="w-5 h-5" />
                     </div>
-                    <p className="text-sm text-emerald-800 mt-0.5 leading-relaxed">
-                      Post listings under your plan for {TRIAL_SUBSCRIPTION_LENGTH_DAYS} days.
-                      Card required, but you won't be charged for {TRIAL_SUBSCRIPTION_LENGTH_DAYS} days.
-                      Cancel anytime in the billing portal — no charge if you cancel before day {TRIAL_SUBSCRIPTION_LENGTH_DAYS}.
-                    </p>
+                    <div className="flex-1 min-w-0">
+                      <div className="font-semibold text-emerald-900">
+                        Try {TRIAL_SUBSCRIPTION_LENGTH_DAYS} days free
+                      </div>
+                      <p className="text-sm text-emerald-800 mt-0.5 leading-relaxed">
+                        Post listings under your plan for {TRIAL_SUBSCRIPTION_LENGTH_DAYS} days.
+                        Card required, but you won't be charged for {TRIAL_SUBSCRIPTION_LENGTH_DAYS} days.
+                        Cancel anytime in the billing portal — no charge if you cancel before day {TRIAL_SUBSCRIPTION_LENGTH_DAYS}.
+                      </p>
+                    </div>
                   </div>
                 </div>
-              </div>
+              )}
 
               {/* Plan picker */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -550,25 +580,27 @@ export function MonetizationModal({
                 <div className="text-xl font-bold text-gray-900">{formatCents(subscribeMonthlyCents)}</div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={handleStartTrial}
-                  disabled={busy}
-                  className="bg-white border-2 border-emerald-300 hover:border-emerald-400 text-emerald-800 py-3 rounded-lg text-sm font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex flex-col items-center justify-center gap-0.5"
-                >
-                  {busy ? (
-                    <div className="w-4 h-4 border-2 border-emerald-700 border-t-transparent rounded-full animate-spin" />
-                  ) : (
-                    <>
-                      <span className="inline-flex items-center gap-2">
-                        <Gift className="w-4 h-4" />
-                        Start {TRIAL_SUBSCRIPTION_LENGTH_DAYS}-day free trial
-                      </span>
-                      <span className="text-[10px] font-normal text-emerald-700/80">Card required · charged on day {TRIAL_SUBSCRIPTION_LENGTH_DAYS}</span>
-                    </>
-                  )}
-                </button>
+              <div className={`grid gap-2 ${trialEligible === true ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1'}`}>
+                {trialEligible === true && (
+                  <button
+                    type="button"
+                    onClick={handleStartTrial}
+                    disabled={busy}
+                    className="bg-white border-2 border-emerald-300 hover:border-emerald-400 text-emerald-800 py-3 rounded-lg text-sm font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex flex-col items-center justify-center gap-0.5"
+                  >
+                    {busy ? (
+                      <div className="w-4 h-4 border-2 border-emerald-700 border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      <>
+                        <span className="inline-flex items-center gap-2">
+                          <Gift className="w-4 h-4" />
+                          Start {TRIAL_SUBSCRIPTION_LENGTH_DAYS}-day free trial
+                        </span>
+                        <span className="text-[10px] font-normal text-emerald-700/80">Card required · charged on day {TRIAL_SUBSCRIPTION_LENGTH_DAYS}</span>
+                      </>
+                    )}
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={handleSubscribe}
@@ -586,11 +618,13 @@ export function MonetizationModal({
                 </button>
               </div>
 
-              <div className="text-xs text-gray-500 text-center leading-relaxed">
-                <Check className="inline w-3 h-3 mr-1" /> Trials require a card on file.
-                Stripe auto-charges on day {TRIAL_SUBSCRIPTION_LENGTH_DAYS} unless cancelled.
-                Cancel anytime via the customer portal.
-              </div>
+              {trialEligible === true && (
+                <div className="text-xs text-gray-500 text-center leading-relaxed">
+                  <Check className="inline w-3 h-3 mr-1" /> Trials require a card on file.
+                  Stripe auto-charges on day {TRIAL_SUBSCRIPTION_LENGTH_DAYS} unless cancelled.
+                  Cancel anytime via the customer portal.
+                </div>
+              )}
             </div>
           )}
         </div>

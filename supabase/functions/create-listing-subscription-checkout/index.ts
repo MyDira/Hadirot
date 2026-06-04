@@ -117,6 +117,32 @@ Deno.serve(async (req) => {
       });
     }
 
+    // First-time trial gate. A self-serve user can only get the 14-day trial if
+    // they look like a genuinely new lister (no active/recent listing of their
+    // own and no contact phone shared with another active account). Admins
+    // subscribing on behalf bypass this — they can deliberately grant a trial.
+    const isTrial = with_trial === true;
+    if (isTrial && !onBehalf) {
+      const { data: eligible, error: eligErr } = await supabaseAdmin
+        .rpc("is_subscription_trial_eligible", { p_user_id: ownerId });
+      if (eligErr) {
+        console.error("is_subscription_trial_eligible error:", eligErr);
+        return new Response(JSON.stringify({ error: "Could not verify trial eligibility" }), {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      if (eligible !== true) {
+        return new Response(JSON.stringify({
+          error: "trial_ineligible",
+          message: "This account isn't eligible for the free trial. You can still subscribe at the regular price.",
+        }), {
+          status: 409,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+    }
+
     const { data: ownerProfile } = await supabaseAdmin
       .from("profiles")
       .select("full_name, email, stripe_customer_id")
@@ -154,8 +180,6 @@ Deno.serve(async (req) => {
     }
 
     const origin = req.headers.get("origin") || "https://hadirot.com";
-
-    const isTrial = with_trial === true;
 
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",
