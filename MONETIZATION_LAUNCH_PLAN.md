@@ -93,7 +93,7 @@ frontend host (Netlify/Vercel) auto-deploys `main`. Nothing user-visible changes
 every monetization surface checks `monetization_enabled` (still `false`) and the
 wizard posts exactly as today.
 
-### 1.2 Apply the 13 new migrations to live — IN THIS ORDER
+### 1.2 Apply the 14 new migrations to live — IN THIS ORDER
 Apply via the **Supabase dashboard SQL editor**, one file at a time, top to
 bottom (paste each file's contents and run). Do **not** use `supabase db push`
 unless you already use it routinely — the live project's migration-history table
@@ -110,10 +110,16 @@ may not match the repo and push could misbehave.
 | 7 | `20260527150600_schedule_paid_listing_reminders.sql` | daily 10 AM ET SMS cron |
 | 8 | `20260527150700_add_subscription_free_trial.sql` | `trial` status + cron v2 |
 | 9 | `20260527150800_monetization_feature_flag.sql` | `monetization_enabled` flag + `enable/disable_monetization()` + cron v3 |
-| 10 | `20260604000000_reconcile_individual_listing_anchors.sql` | hourly race-heal cron |
-| 11 | `20260604120000_create_subscription_trial_eligibility_fn.sql` | `is_subscription_trial_eligible` |
-| 12 | `20260609000000_monetization_hardening.sql` | tamper guard, old-form default, cron FINAL, audit fixes |
-| 13 | `20260610000000_stagger_grandfather_trials.sql` | grandfathering v2: singular phones → staggered trials; shared phones → legacy_free |
+| 10 | `20260527150900_pending_payment_and_subscription_cap.sql` | `pending_payment` kind + server-side cap trigger + cron v4 |
+| 11 | `20260604000000_reconcile_individual_listing_anchors.sql` | hourly race-heal cron |
+| 12 | `20260604120000_create_subscription_trial_eligibility_fn.sql` | `is_subscription_trial_eligible` |
+| 13 | `20260609000000_monetization_hardening.sql` | tamper guard, old-form default, cron FINAL, audit fixes |
+| 14 | `20260610000000_stagger_grandfather_trials.sql` | grandfathering v2: singular phones → staggered trials; shared phones → legacy_free |
+
+**Shortcut:** `live_deploy/ALL_MONETIZATION_MIGRATIONS.sql` is all 14 files
+concatenated in this exact order — verified by a full fresh-apply simulation
+against a live-schema copy (June 10 2026, zero errors). Paste that one file
+into the SQL editor instead of 14 round-trips.
 
 Three older migration files were also edited on the branch
 (`20251020000001…`, `20251029000003…`, `20251107000000…`) — those edits only
