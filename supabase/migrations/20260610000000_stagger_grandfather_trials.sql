@@ -1,26 +1,36 @@
 /*
-  # Stagger grandfathered trial expirations over 3 days
+  # Grandfathering v2 — split by phone volume, stagger trials over 3 days
 
-  Product decision (June 10 2026): when monetization activates, every live
-  rental enters its 14-day free trial at once — which would make them ALL
-  expire (and SMS-blast their owners) in the same hour on day 14.
+  Product decisions (June 10 2026):
 
-  This redefines enable_monetization() so active rentals are split into three
-  even cohorts with trial_started_at of NOW(), NOW()+1 day, and NOW()+2 days.
-  Expirations then land on days 14, 15 and 16, and the trial-reminder SMS
-  waves stagger the same way (days 11–16). Nobody's trial is shortened —
-  cohorts 2 and 3 simply get 15/16 days instead of exactly 14.
+  1. SINGULAR listings (no other currently-active rental shares the same
+     contact phone) → 14-day free trial with the SMS payment links, staggered
+     into three even daily cohorts (trial_started_at = now / +1d / +2d) so
+     expirations land on days 14–16 instead of one cliff.
 
-  Everything else matches 20260609000000: pending-approval rentals →
-  'individual_trial' with the clock stamped at approval; previously
-  deactivated rentals → 'legacy_free'. Idempotent (only touches rows with
-  NULL payment_kind).
+  2. HIGH-VOLUME listings (two or more active rentals share a contact phone —
+     almost certainly an agent) → tagged 'legacy_free' and left exactly as
+     they behave today: the freshness window from the admin panel
+     (admin_settings.rental_active_days) keeps governing deactivation, no
+     payment is ever demanded, no trial SMS fires. The admin converts these
+     accounts to subscriptions manually.
+
+  Unchanged from 20260609000000:
+   - Pending-approval rentals → 'individual_trial' (clock stamps at approval).
+   - Previously-deactivated rentals → 'legacy_free'.
+   - Idempotent: only rows with NULL payment_kind are touched.
+
+  The return signature gains high_volume_count, so the old function is
+  dropped first (CREATE OR REPLACE cannot change OUT parameters).
 */
 
-CREATE OR REPLACE FUNCTION public.enable_monetization()
+DROP FUNCTION IF EXISTS public.enable_monetization();
+
+CREATE FUNCTION public.enable_monetization()
 RETURNS TABLE(
   enabled boolean,
   trialed_count integer,
+  high_volume_count integer,
   legacy_count integer,
   enabled_at timestamptz
 )
@@ -31,6 +41,7 @@ AS $function$
 DECLARE
   v_caller_is_admin boolean;
   v_trialed integer := 0;
+  v_high_volume integer := 0;
   v_pending integer := 0;
   v_legacy integer := 0;
   v_now timestamptz := NOW();
@@ -45,26 +56,59 @@ BEGIN
   SET monetization_enabled = true,
       monetization_enabled_at = COALESCE(monetization_enabled_at, v_now);
 
-  -- Active rentals → 14-day trial, staggered into three even cohorts
-  -- (start now / +1 day / +2 days) so the day-14 expiration cliff spreads
-  -- across three days.
-  WITH cohorts AS (
-    SELECT id, ((ROW_NUMBER() OVER (ORDER BY id)) % 3) AS bucket
+  -- ------------------------------------------------------------------
+  -- Active rentals, step 1: SINGULAR phones → staggered 14-day trial.
+  -- A listing is singular when its contact_phone_e164 is NULL or appears
+  -- on no other currently-active untagged rental.
+  -- ------------------------------------------------------------------
+  WITH active_rentals AS (
+    SELECT id, contact_phone_e164
     FROM listings
     WHERE listing_type = 'rental'
       AND is_active = true
       AND payment_kind IS NULL
   ),
+  multi_phones AS (
+    SELECT contact_phone_e164
+    FROM active_rentals
+    WHERE contact_phone_e164 IS NOT NULL
+    GROUP BY contact_phone_e164
+    HAVING COUNT(*) >= 2
+  ),
+  singles AS (
+    SELECT ar.id,
+           ((ROW_NUMBER() OVER (ORDER BY ar.id)) % 3) AS bucket
+    FROM active_rentals ar
+    WHERE ar.contact_phone_e164 IS NULL
+       OR ar.contact_phone_e164 NOT IN (SELECT mp.contact_phone_e164 FROM multi_phones mp)
+  ),
   t AS (
     UPDATE listings l
     SET payment_kind = 'individual_trial',
-        trial_started_at = v_now + (c.bucket * INTERVAL '1 day'),
+        trial_started_at = v_now + (s.bucket * INTERVAL '1 day'),
         updated_at = v_now
-    FROM cohorts c
-    WHERE l.id = c.id
+    FROM singles s
+    WHERE l.id = s.id
     RETURNING 1
   )
   SELECT COUNT(*)::integer INTO v_trialed FROM t;
+
+  -- ------------------------------------------------------------------
+  -- Active rentals, step 2: everything still untagged shares a phone with
+  -- another active rental → high-volume lister, leave behavior as today.
+  -- 'legacy_free' = freshness window only (admin panel days), never
+  -- payment-blocked, no trial SMS.
+  -- ------------------------------------------------------------------
+  WITH hv AS (
+    UPDATE listings
+    SET payment_kind = 'legacy_free',
+        updated_at = v_now
+    WHERE listing_type = 'rental'
+      AND is_active = true
+      AND payment_kind IS NULL
+    RETURNING 1
+  )
+  SELECT COUNT(*)::integer INTO v_high_volume FROM hv;
 
   -- Pending-approval rentals → individual_trial, clock stamped at approval.
   WITH p AS (
@@ -92,9 +136,11 @@ BEGIN
   )
   SELECT COUNT(*)::integer INTO v_legacy FROM l;
 
-  RETURN QUERY SELECT true, v_trialed + v_pending, v_legacy, v_now;
+  RETURN QUERY SELECT true, v_trialed + v_pending, v_high_volume, v_legacy, v_now;
 END;
 $function$;
 
+GRANT EXECUTE ON FUNCTION public.enable_monetization() TO authenticated;
+
 COMMENT ON FUNCTION public.enable_monetization() IS
-  'Admin-only launch switch. Flips monetization_enabled and grandfathers rentals: active → individual_trial staggered over 3 daily cohorts (expirations on days 14-16), pending-approval → individual_trial (clock at approval), deactivated → legacy_free. Idempotent.';
+  'Admin-only launch switch. Flips monetization_enabled and grandfathers rentals: singular-phone actives → individual_trial staggered over 3 daily cohorts; shared-phone (high-volume/agent) actives → legacy_free (freshness-only, as today); pending-approval → individual_trial (clock at approval); deactivated → legacy_free. Idempotent.';

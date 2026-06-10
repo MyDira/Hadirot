@@ -30,15 +30,24 @@ export const monetizationStatusService = {
 
   /**
    * Admin-only. Calls the enable_monetization RPC which atomically flips the
-   * flag AND grandfathers existing residential rentals (active→trial,
-   * inactive→legacy_free). Idempotent.
+   * flag AND grandfathers existing residential rentals:
+   *  - singular-phone actives → 14-day trial, staggered over 3 daily cohorts
+   *  - shared-phone (high-volume/agent) actives → legacy_free (as today)
+   *  - pending-approval → trial (clock at approval); deactivated → legacy_free
+   * Idempotent.
    */
-  async activate(): Promise<{ trialedCount: number; legacyCount: number; enabledAt: string }> {
+  async activate(): Promise<{
+    trialedCount: number;
+    highVolumeCount: number;
+    legacyCount: number;
+    enabledAt: string;
+  }> {
     const { data, error } = await supabase.rpc('enable_monetization');
     if (error) throw error;
     const row = Array.isArray(data) ? data[0] : data;
     return {
       trialedCount: (row?.trialed_count as number) ?? 0,
+      highVolumeCount: (row?.high_volume_count as number) ?? 0,
       legacyCount: (row?.legacy_count as number) ?? 0,
       enabledAt: (row?.enabled_at as string) ?? new Date().toISOString(),
     };

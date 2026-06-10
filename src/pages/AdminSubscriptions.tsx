@@ -542,7 +542,8 @@ export function AdminSubscriptions() {
     const confirmed = window.confirm(
       'Activate monetization now?\n\n' +
       'This flips the master switch ON and immediately:\n' +
-      '  • Starts the 14-day free trial timer on every active residential rental.\n' +
+      '  • Starts the 14-day free trial on every SINGULAR active rental (no other active listing shares its phone), staggered over 3 days.\n' +
+      '  • Leaves high-volume listings (2+ active rentals sharing a phone — agents) exactly as today: freshness window only, no payment required.\n' +
       '  • Tags inactive rentals as legacy_free (no payment required).\n' +
       '  • Turns on the wizard payment cards, dashboard pills, and SMS reminders.\n\n' +
       'You can disable monetization again later, but the timestamps will stay.\n\n' +
@@ -554,7 +555,9 @@ export function AdminSubscriptions() {
     try {
       const res = await monetizationStatusService.activate();
       setActivationResult(
-        `Monetization activated. ${res.trialedCount} active rentals entered the 14-day trial; ${res.legacyCount} inactive rentals tagged legacy_free.`,
+        `Monetization activated. ${res.trialedCount} singular rentals entered the 14-day trial (staggered over 3 days); ` +
+        `${res.highVolumeCount} high-volume (shared-phone) rentals left as-is; ` +
+        `${res.legacyCount} inactive rentals tagged legacy_free.`,
       );
       await loadData();
     } catch (e) {

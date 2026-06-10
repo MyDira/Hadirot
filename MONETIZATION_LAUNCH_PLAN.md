@@ -34,8 +34,18 @@ flip one switch.
    fail in production (loudly, not by mischarging).
 
 ### 0.2 Edge-function secrets (Supabase dashboard → Edge Functions → Secrets)
+**There is ONE `STRIPE_API_KEY` per Supabase project and every Stripe edge
+function shares it** — featured/boost, concierge, AND all the new monetization
+functions read the same secret. The new functions automatically follow
+whatever featured/concierge use today; there is no separate key to wire up.
+Check the live project's secret: if it starts with `sk_live_` you're done; if
+it starts with `sk_test_`, replace it with the live secret key before launch
+(note that would also mean boost/concierge have been charging test cards).
+`STRIPE_WEBHOOK_SECRET` must likewise be the signing secret of the LIVE-mode
+webhook endpoint.
+
 Already set from existing features (verify, don't re-create):
-`STRIPE_API_KEY` (live key), `STRIPE_WEBHOOK_SECRET`, `TWILIO_ACCOUNT_SID`,
+`STRIPE_API_KEY`, `STRIPE_WEBHOOK_SECRET`, `TWILIO_ACCOUNT_SID`,
 `TWILIO_AUTH_TOKEN`, `TWILIO_PHONE_NUMBER`, `ZEPTO_TOKEN`, `ZEPTO_FROM_ADDRESS`,
 `ZEPTO_FROM_NAME`, `PUBLIC_SITE_URL=https://hadirot.com`.
 
@@ -94,7 +104,7 @@ may not match the repo and push could misbehave.
 | 10 | `20260604000000_reconcile_individual_listing_anchors.sql` | hourly race-heal cron |
 | 11 | `20260604120000_create_subscription_trial_eligibility_fn.sql` | `is_subscription_trial_eligible` |
 | 12 | `20260609000000_monetization_hardening.sql` | tamper guard, old-form default, cron FINAL, audit fixes |
-| 13 | `20260610000000_stagger_grandfather_trials.sql` | grandfathered trials staggered into 3 daily cohorts |
+| 13 | `20260610000000_stagger_grandfather_trials.sql` | grandfathering v2: singular phones → staggered trials; shared phones → legacy_free |
 
 Three older migration files were also edited on the branch
 (`20251020000001…`, `20251029000003…`, `20251107000000…`) — those edits only
@@ -148,10 +158,18 @@ You can stay in this state for days — it's fully inert.
 As an admin, open **`/admin/subscriptions` → Activate monetization → confirm.**
 That calls `enable_monetization()`, which atomically:
 - sets `monetization_enabled = true`;
-- tags every **active** rental `individual_trial`, split into **three even
-  cohorts** with trial starts of now / +1 day / +2 days → every existing live
-  listing gets at least its 14-day free trial, and expirations spread across
-  **days 14, 15 and 16** instead of one cliff;
+- **singular** active rentals (no other active rental shares the contact
+  phone — includes listings with no phone) → `individual_trial`, split into
+  **three even cohorts** with trial starts of now / +1 day / +2 days, so
+  expirations spread across **days 14, 15 and 16** and the SMS payment-link
+  waves stagger the same way;
+- **high-volume** active rentals (2+ active rentals sharing a contact phone —
+  almost certainly agents) → `legacy_free`: they keep behaving exactly as
+  today — deactivation only by the freshness window set in the admin panel,
+  no payment demanded, no trial SMS. Convert these accounts to Agent/VIP
+  subscriptions manually from `/admin/subscriptions` at your own pace. (Their
+  phones still block new free trials, so anything NEW they post goes through
+  pay/subscribe.)
 - tags **pending-approval** rentals `individual_trial` (their clock starts at
   approval);
 - tags previously-deactivated rentals `legacy_free` (never payment-blocked if
@@ -181,8 +199,8 @@ WHERE listing_type='rental' GROUP BY payment_kind;
 ### 2.3 What happens automatically after launch
 | When | What |
 |------|------|
-| Days 11–13 after activation | Trial-ending SMS waves (3 days before expiry), one cohort per day — roughly a third of active listings each day instead of one big burst. Fridays/Saturdays are skipped (Shabbat); a reminder whose day lands then is skipped, not delayed. |
-| Days 14–16 | Trial-ends-today SMS per cohort; each night the hourly cron deactivates that day's unconverted cohort. The browse-page shrink spreads over three days instead of one cliff. You can still extend the runway for chosen listings beforehand by granting days from the admin Paid Listings tab. |
+| Days 11–13 after activation | Trial-ending SMS waves (3 days before expiry), one cohort per day — roughly a third of the **singular** listings each day. High-volume (`legacy_free`) listings get no payment SMS at all. Fridays/Saturdays are skipped (Shabbat); a reminder whose day lands then is skipped, not delayed. |
+| Days 14–16 | Trial-ends-today SMS per cohort; each night the hourly cron deactivates that day's unconverted singular cohort. High-volume listings are untouched (freshness window only, as today). You can extend the runway for chosen listings beforehand by granting days from the admin Paid Listings tab. |
 | Days 17–19 | "Your listing has been off for 3 days — reactivate" SMS per cohort, with a one-tap checkout link. |
 | Hourly | `auto_inactivate_old_listings` enforces trials/balances/subscriptions; `reconcile_individual_listing_anchors` heals any approve-vs-webhook race. |
 | Daily 10 AM ET | `send-paid-listing-reminders` (trial-ending, balance-ending, post-deactivation). |
