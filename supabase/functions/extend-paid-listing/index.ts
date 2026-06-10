@@ -116,7 +116,7 @@ Deno.serve(async (req) => {
         .from("listing_subscriptions")
         .select("id, status")
         .eq("user_id", listing.user_id)
-        .in("status", ["active", "admin_active", "trial"])
+        .in("status", ["active", "admin_active", "trial", "past_due"])
         .limit(1)
         .maybeSingle();
       hasSubscription = !!sub;

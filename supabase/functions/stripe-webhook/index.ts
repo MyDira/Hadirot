@@ -504,7 +504,35 @@ async function handleSubscriptionUpdate(subscription: Stripe.Subscription) {
     .maybeSingle();
 
   if (listingSubRow) {
-    const update = computeUpdate();
+    // Listing subscriptions gate the user's listings, so the status mapping is
+    // stricter than the concierge one above:
+    //  • cancel_at_period_end=true does NOT flip the row to 'cancelled' — the
+    //    user paid through the period and keeps coverage until Stripe sends
+    //    customer.subscription.deleted at period end.
+    //  • 'past_due' keeps coverage (Stripe dunning grace); terminal 'unpaid'
+    //    maps to 'expired' (not covered).
+    const update: Record<string, unknown> = { current_period_end: periodEnd };
+    if (
+      subscription.cancel_at_period_end === true &&
+      (subscription.status === 'active' || subscription.status === 'trialing')
+    ) {
+      update.status = subscription.status === 'trialing' ? 'trial' : 'active';
+    } else if (subscription.cancel_at_period_end === false && subscription.status === 'active') {
+      update.status = 'active';
+      update.cancelled_at = null;
+    } else {
+      const statusMap: Record<string, string> = {
+        active: 'active',
+        trialing: 'trial',
+        past_due: 'past_due',
+        canceled: 'cancelled',
+        unpaid: 'expired',
+      };
+      update.status = statusMap[subscription.status] || 'active';
+      if (subscription.status === 'canceled') {
+        update.cancelled_at = new Date().toISOString();
+      }
+    }
     const prevStatus = listingSubRow.status as string;
     const newStatus = update.status as string;
 
@@ -531,8 +559,9 @@ async function handleSubscriptionUpdate(subscription: Stripe.Subscription) {
       (update.plan ? `, plan -> ${update.plan}` : ''),
     );
 
-    // Cascade-cancel any addon_concierge row linked to this parent.
-    if (newStatus === 'cancelled' || newStatus === 'expired' || newStatus === 'past_due') {
+    // Cascade-cancel any addon_concierge row linked to this parent. past_due
+    // is a dunning grace state — the addon follows only on terminal statuses.
+    if (newStatus === 'cancelled' || newStatus === 'expired') {
       await supabaseAdmin
         .from('concierge_subscriptions')
         .update({
@@ -544,9 +573,11 @@ async function handleSubscriptionUpdate(subscription: Stripe.Subscription) {
         .eq('tier', 'addon_concierge');
     }
 
-    // If transitioning AWAY from an active state, cascade-deactivate the user's listings.
-    const wasActive = prevStatus === 'active' || prevStatus === 'admin_active';
-    const stillActive = newStatus === 'active' || newStatus === 'admin_active';
+    // If transitioning AWAY from a covering state, cascade-deactivate the
+    // user's listings. 'trial' and 'past_due' count as covering.
+    const COVERING = ['active', 'admin_active', 'trial', 'past_due'];
+    const wasActive = COVERING.includes(prevStatus);
+    const stillActive = COVERING.includes(newStatus);
     if (wasActive && !stillActive) {
       try {
         await fetch(
@@ -879,14 +910,19 @@ async function handleListingSubscriptionCheckout(session: Stripe.Checkout.Sessio
   }
 
   // Cover the user's existing residential rental listings under this subscription,
-  // up to the cap. Pick newest first.
+  // up to the cap. Pick newest first. Includes:
+  //  • live listings (is_active=true), and
+  //  • pending-approval listings (approved=false) — e.g. the wizard's
+  //    "subscribe & post" flow creates the listing moments before this webhook
+  //    fires, and an unpaid 'pending_payment' listing whose owner subscribes
+  //    instead of paying individually should be covered too.
   const { data: candidates } = await supabaseAdmin
     .from('listings')
     .select('id')
     .eq('user_id', user_id)
     .eq('listing_type', 'rental')
-    .eq('is_active', true)
-    .in('payment_kind', ['individual_trial', 'individual_paid', 'legacy_free'])
+    .in('payment_kind', ['individual_trial', 'individual_paid', 'legacy_free', 'pending_payment'])
+    .or('is_active.eq.true,approved.eq.false')
     .order('created_at', { ascending: false });
 
   const toCover = listingCap === null ? (candidates || []) : (candidates || []).slice(0, listingCap);
