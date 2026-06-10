@@ -15,10 +15,18 @@ flip one switch.
 ## Phase 0 — Prerequisites (do once, any time before launch)
 
 ### 0.1 Stripe live mode
-1. In the **live-mode** Stripe dashboard, create three recurring monthly prices:
-   - **Agent Plan — Starter** $50/mo → copy its `price_…` id
-   - **Agent Plan — Unlimited (VIP)** $100/mo → copy its `price_…` id
-   - **Concierge Listing Service (add-on)** $50/mo → copy its `price_…` id
+1. The owner supplied these launch price ids (June 10 2026):
+   - Agent (7-listing cap, $50/mo): `price_1Tc8PYJvRPzH20A9UURtXKeg`
+   - VIP / unlimited ($100/mo): `price_1Tc8PxJvRPzH20A9OyuLWHHD`
+   - Concierge add-on ($50/mo): `price_1Tc8QSJvRPzH20A9qA8Gp1PF`
+
+   **VERIFY THE MODE before launch:** open the Stripe dashboard, switch the
+   **Test mode toggle OFF**, go to Products, and confirm all three prices are
+   visible there with these exact ids and the right amounts. A price id only
+   works in the mode it was created in. If they only appear with Test mode ON,
+   create three live-mode recurring monthly prices ($50 / $100 / $50) and use
+   those ids in 0.2 instead.
+
    (Individual listing payments — $25/$15 and the multi-month packages — need **no**
    Stripe products; the checkout uses ad-hoc amounts.)
 2. Verify the existing live webhook endpoint
@@ -49,11 +57,12 @@ Already set from existing features (verify, don't re-create):
 `TWILIO_AUTH_TOKEN`, `TWILIO_PHONE_NUMBER`, `ZEPTO_TOKEN`, `ZEPTO_FROM_ADDRESS`,
 `ZEPTO_FROM_NAME`, `PUBLIC_SITE_URL=https://hadirot.com`.
 
-New — **REQUIRED** — set these three with the live price ids from 0.1:
+New — **REQUIRED** — set these three (values from 0.1, after the live-mode
+verification there):
 ```
-STRIPE_AGENT_PRICE_ID=price_…
-STRIPE_VIP_PRICE_ID=price_…
-STRIPE_ADDON_CONCIERGE_PRICE_ID=price_…
+STRIPE_AGENT_PRICE_ID=price_1Tc8PYJvRPzH20A9UURtXKeg
+STRIPE_VIP_PRICE_ID=price_1Tc8PxJvRPzH20A9OyuLWHHD
+STRIPE_ADDON_CONCIERGE_PRICE_ID=price_1Tc8QSJvRPzH20A9qA8Gp1PF
 ```
 
 ### 0.3 Verify the cron plumbing on live
