@@ -25,7 +25,7 @@ import { Step7SaleContactAndReview } from './steps/sale/Step7SaleContactAndRevie
 import type { Listing, SaleStatus } from '../../config/supabase';
 import type { MediaFile } from '../../components/shared/MediaUploader';
 import type { ListingFormData } from '../postListing/types';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Lock } from 'lucide-react';
 
 const RENTAL_STEP_LABELS = [
   'Property & Layout',
@@ -550,10 +550,20 @@ export function EditListingWizard() {
       }
     }
 
+    // Phase I: compute 10-day field lock for residential rentals.
+    // Non-admins editing a rental >10d after creation see the locked inputs.
+    const isFieldLocked = (() => {
+      if (!originalListing || profile?.is_admin) return false;
+      if (originalListing.listing_type !== 'rental') return false;
+      if (!originalListing.created_at) return false;
+      const cutoff = new Date(originalListing.created_at).getTime() + 10 * 24 * 60 * 60 * 1000;
+      return Date.now() >= cutoff;
+    })();
+
     // Rental path
     switch (wizard.currentStep) {
       case 0:
-        return <Step1PropertyTypeAndLayout {...stepProps} />;
+        return <Step1PropertyTypeAndLayout {...stepProps} isLocked={isFieldLocked} />;
       case 1:
         return <Step2PriceAndTerms {...stepProps} />;
       case 2:
@@ -582,6 +592,7 @@ export function EditListingWizard() {
             setCustomNeighborhoodInput={wizard.setCustomNeighborhoodInput}
             isLocationConfirmed={wizard.isLocationConfirmed}
             setIsLocationConfirmed={wizard.setIsLocationConfirmed}
+            isLocked={isFieldLocked}
           />
         );
       case 4:
@@ -598,6 +609,7 @@ export function EditListingWizard() {
             onSubmit={handleSubmit}
             profile={profile ?? null}
             submitLabel="Save Changes"
+            isLocked={isFieldLocked}
           />
         );
       default:
@@ -632,6 +644,32 @@ export function EditListingWizard() {
             </span>
           </div>
         </div>
+
+        {/* Residential-rental field lock banner (10 days after creation) */}
+        {(() => {
+          if (!originalListing || profile?.is_admin) return null;
+          if (originalListing.listing_type !== 'rental') return null;
+          const created = originalListing.created_at ? new Date(originalListing.created_at) : null;
+          if (!created) return null;
+          const tenDaysAfter = new Date(created.getTime() + 10 * 24 * 60 * 60 * 1000);
+          if (Date.now() < tenDaysAfter.getTime()) return null;
+          return (
+            <div className="max-w-5xl mx-auto px-4 pt-2">
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 flex items-start gap-3">
+                <Lock className="w-5 h-5 text-amber-700 flex-shrink-0 mt-0.5" />
+                <div className="text-sm text-amber-900">
+                  <div className="font-semibold mb-0.5">Some fields are locked on this listing</div>
+                  <div>
+                    Bedrooms, neighborhood, cross-streets, address, and contact phone can no
+                    longer be edited — this listing is older than 10 days. If you need to
+                    correct one of these, contact support. Everything else (price, description,
+                    photos, features) is still editable.
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
 
         <div className="max-w-5xl mx-auto px-4 py-4">
           {renderStep()}

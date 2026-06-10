@@ -49,6 +49,18 @@ export function PostListing() {
   const navigate = useNavigate();
   const location = useLocation();
   const userRole = profile?.role;
+
+  // The classic form is an ADMIN tool (linked from the Admin Panel). Regular
+  // users must go through the wizard at /post, which runs the monetization
+  // gate (free trial / pay / subscription). A server-side trigger
+  // (monetization_payment_guard) backstops this, but redirecting keeps
+  // non-admins from ever seeing a form without payment context.
+  useEffect(() => {
+    if (profile && profile.is_admin !== true) {
+      navigate("/post", { replace: true });
+    }
+  }, [profile, navigate]);
+
   const [loading, setLoading] = useState(false);
   const [savingDraft, setSavingDraft] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);

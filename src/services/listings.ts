@@ -481,9 +481,41 @@ export const listingsService = {
     // Get the current listing to check for approval status change
     const { data: currentListing } = await supabase
       .from('listings')
-      .select('approved, title, user_id, is_featured, call_for_price')
+      .select('approved, title, user_id, is_featured, call_for_price, listing_type, created_at')
       .eq('id', id)
       .single();
+
+    // -----------------------------------------------------------------
+    // Residential-rental field lock (10 days after creation).
+    // Prevents non-admin owners from rotating a listing into a different
+    // unit. Drops locked fields from the payload silently — the edit
+    // wizard surfaces a banner explaining the lock. Admins are exempt.
+    // -----------------------------------------------------------------
+    if (
+      currentListing &&
+      (currentListing as { listing_type?: string }).listing_type === 'rental' &&
+      (currentListing as { created_at?: string }).created_at
+    ) {
+      const createdAt = new Date((currentListing as { created_at: string }).created_at);
+      const tenDaysAfter = new Date(createdAt.getTime() + 10 * 24 * 60 * 60 * 1000);
+      if (Date.now() >= tenDaysAfter.getTime()) {
+        // Confirm via RPC (which also checks admin override).
+        const { data: locked } = await supabase.rpc('is_listing_locked', { p_listing_id: id });
+        if (locked === true) {
+          const lockedKeys: Array<keyof Partial<ListingCreateInput>> = [
+            'bedrooms', 'neighborhood', 'location', 'full_address',
+            'latitude', 'longitude', 'contact_phone',
+          ];
+          // contact_phone_e164 is not in ListingCreateInput typing but may slip in via spread.
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const p = payload as any;
+          for (const k of lockedKeys) {
+            if (k in p) delete p[k];
+          }
+          if ('contact_phone_e164' in p) delete p.contact_phone_e164;
+        }
+      }
+    }
 
     // If trying to feature a listing, check permissions and limits
     if (payload.is_featured === true && currentListing && !currentListing.is_featured) {

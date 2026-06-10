@@ -1,9 +1,18 @@
-import React, { useEffect } from 'react';
-import { ArrowLeft, Send, CheckCircle, Image, AlertCircle } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { ArrowLeft, Send, CheckCircle, Image, AlertCircle, CreditCard, UserPlus, ArrowRight } from 'lucide-react';
 import type { ListingFormData } from '../../../postListing/types';
 import type { MediaFile } from '../../../../components/shared/MediaUploader';
 import type { Profile } from '../../../../config/supabase';
 import { StepTips } from '../../StepTips';
+import { useMonetizationGate } from '../../../../hooks/useMonetizationGate';
+import {
+  PaymentChoice,
+  type WizardPaymentChoice,
+  WIZARD_PAYMENT_CHOICE_STORAGE_KEY,
+  isValidWizardPaymentChoice,
+} from '../../components/PaymentChoice';
+import { PostingOptionsModal } from '../../components/PostingOptionsModal';
 
 const TIPS = {
   heading: 'Contact & Review',
@@ -43,9 +52,18 @@ interface Step6Props {
   loading: boolean;
   uploadingMedia: boolean;
   submitError: string | null;
-  onSubmit: () => void;
+  onSubmit: (paymentChoice?: WizardPaymentChoice | null) => void;
   profile: Profile | null;
   submitLabel?: string;
+  /** When true (residential rental, edit context, >10d old), contact_phone is locked. */
+  isLocked?: boolean;
+  /** Whether a user is signed in. Logged-out posters see a "create a free account" CTA
+   *  instead of the posting options. */
+  isAuthenticated?: boolean;
+  /** Opens the auth modal defaulting to the sign-up tab (logged-out CTA). */
+  onRequestAccount?: () => void;
+  /** Post the listing (held) and route to subscription Stripe checkout for the chosen plan. */
+  onSubscribeAndPost?: (plan: 'agent' | 'vip') => void;
 }
 
 export function Step6ContactAndReview({
@@ -60,7 +78,14 @@ export function Step6ContactAndReview({
   onSubmit,
   profile,
   submitLabel = 'Post Listing',
+  isLocked = false,
+  isAuthenticated = true,
+  onRequestAccount,
+  onSubscribeAndPost,
 }: Step6Props) {
+  const navigate = useNavigate();
+  const [optionsModalOpen, setOptionsModalOpen] = useState(false);
+
   // Pre-fill contact info from profile on first load
   useEffect(() => {
     if (profile?.full_name && !formData.contact_name) {
@@ -71,7 +96,99 @@ export function Step6ContactAndReview({
     }
   }, [profile]);
 
-  const canSubmit = !!formData.contact_name.trim() && !!formData.contact_phone.trim() && formData.terms_agreed;
+  // Monetization branch based on phone + subscription state.
+  const gate = useMonetizationGate({
+    contactPhone: formData.contact_phone,
+    isAdmin: profile?.is_admin === true,
+    enabled: true,
+  });
+
+  // Locally-tracked payment choice. Auto-defaulted by branch (admin/subscription
+  // are forced; trial_eligible defaults to free_trial; must_pay forces must_pay).
+  // Initial value: read from sessionStorage so a sign-in-redirect doesn't lose
+  // the user's selection.
+  const [paymentChoice, setPaymentChoice] = useState<WizardPaymentChoice | null>(() => {
+    if (typeof window === 'undefined') return null;
+    try {
+      const stored = window.sessionStorage.getItem(WIZARD_PAYMENT_CHOICE_STORAGE_KEY);
+      return isValidWizardPaymentChoice(stored) ? stored : null;
+    } catch {
+      return null;
+    }
+  });
+
+  // Persist paymentChoice across sign-in.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      if (paymentChoice) {
+        window.sessionStorage.setItem(WIZARD_PAYMENT_CHOICE_STORAGE_KEY, paymentChoice);
+      } else {
+        window.sessionStorage.removeItem(WIZARD_PAYMENT_CHOICE_STORAGE_KEY);
+      }
+    } catch {
+      // sessionStorage may be unavailable (private mode); fall through silently.
+    }
+  }, [paymentChoice]);
+
+  useEffect(() => {
+    if (gate.mode === 'disabled') {
+      // Master switch off — clear any stored choice so the listing posts the legacy way.
+      setPaymentChoice(null);
+    } else if (gate.mode === 'subscription') {
+      setPaymentChoice('subscription_covered');
+    } else if (gate.mode === 'admin') {
+      setPaymentChoice('admin');
+    } else if (gate.mode === 'must_pay') {
+      setPaymentChoice('must_pay');
+    } else if (gate.mode === 'trial_eligible' && paymentChoice == null) {
+      setPaymentChoice('free_trial');
+    } else if (gate.mode === 'subscription_at_cap') {
+      setPaymentChoice(null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gate.mode]);
+
+  // Computed submit button label/disable state.
+  const baseCanSubmit = !!formData.contact_name.trim() && !!formData.contact_phone.trim() && formData.terms_agreed;
+  const isBlocked = gate.mode === 'subscription_at_cap' || gate.mode === 'loading';
+  // When monetization is disabled (master switch off), submit is unblocked regardless of paymentChoice.
+  const canSubmit =
+    baseCanSubmit &&
+    !isBlocked &&
+    (paymentChoice !== null || gate.mode === 'admin' || gate.mode === 'disabled');
+
+  // When the submit button is disabled, explain why — a silent greyed-out
+  // button with no feedback is impossible to debug for the poster.
+  const blockingReason = (() => {
+    if (loading || uploadingMedia) return null; // button shows its own spinner
+    if (canSubmit) return null;
+    if (gate.mode === 'loading') return 'Checking your posting options…';
+    if (gate.mode === 'subscription_at_cap')
+      return 'Your subscription has reached its listing limit. Renew or remove a listing to post another.';
+    if (!formData.contact_name.trim()) return 'Enter your contact name above.';
+    if (!formData.contact_phone.trim()) return 'Enter a contact phone number above.';
+    if (!formData.terms_agreed) return 'Check the SMS-consent box below to continue.';
+    if (paymentChoice === null) return 'Choose a posting option above.';
+    return 'Complete the required fields above to post.';
+  })();
+
+  const dynamicSubmitLabel = (() => {
+    if (paymentChoice === 'pay_at_posting') return 'Pay $25 & post';
+    if (paymentChoice === 'must_pay') return 'Pay $25 & post';
+    return submitLabel;
+  })();
+  const isPayPath = paymentChoice === 'pay_at_posting' || paymentChoice === 'must_pay';
+
+  // Logged-in posters without an active subscription choose how to post in a
+  // modal (free trial / $25 / upgrade) rather than via inline cards.
+  const usesOptionsModal =
+    isAuthenticated && (gate.mode === 'trial_eligible' || gate.mode === 'must_pay');
+  const trialEligible = gate.mode === 'trial_eligible';
+
+  // "Continue" (opens the options modal) only needs the base fields, not a
+  // pre-selected payment choice — the choice is made inside the modal.
+  const canContinue = baseCanSubmit && !isBlocked;
 
   const bedroomLabel =
     formData.bedrooms === 0
@@ -166,13 +283,21 @@ export function Step6ContactAndReview({
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Phone Number <span className="text-red-500">*</span>
+                {isLocked && (
+                  <span className="ml-2 inline-flex items-center gap-1 text-xs font-normal text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded">
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                    Locked
+                  </span>
+                )}
               </label>
               <input
                 type="tel"
                 value={formData.contact_phone}
                 onChange={e => updateFormData({ contact_phone: e.target.value })}
                 placeholder="e.g. 718-555-1234"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-accent-500 focus:border-accent-500"
+                disabled={isLocked}
+                className={`w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-accent-500 focus:border-accent-500 ${isLocked ? 'bg-gray-50 cursor-not-allowed opacity-70' : ''}`}
+                title={isLocked ? 'Contact phone is locked 10 days after posting. Contact support if you need a change.' : undefined}
               />
             </div>
           </div>
@@ -260,6 +385,22 @@ export function Step6ContactAndReview({
           </div>
         </div>
 
+        {/* Payment Choice — only for authed posters NOT using the options modal
+            (i.e. subscription / at-cap / loading / error). Logged-out posters
+            see the account CTA below; trial_eligible / must_pay posters choose
+            inside PostingOptionsModal. */}
+        {isAuthenticated && !usesOptionsModal && (
+          <PaymentChoice
+            mode={gate.mode}
+            subscription={gate.subscription}
+            subscriptionListingsUsed={gate.subscriptionListingsUsed}
+            errorMessage={gate.errorMessage}
+            choice={paymentChoice}
+            onChoiceChange={setPaymentChoice}
+            onWantsToSubscribe={() => navigate('/dashboard?subscribe=open')}
+          />
+        )}
+
         {/* SMS Consent + Submit */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
           <label className="flex items-start gap-3 cursor-pointer select-none">
@@ -289,6 +430,48 @@ export function Step6ContactAndReview({
             </div>
           )}
 
+          {/* Logged-out posters: a friendly "create a free account" CTA. */}
+          {!isAuthenticated && (
+            <div className="mt-5 rounded-xl border-2 border-accent-200 bg-gradient-to-br from-white to-accent-50/50 p-5">
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 rounded-lg bg-accent-100 border border-accent-200 flex items-center justify-center text-accent-700 flex-shrink-0">
+                  <UserPlus className="w-5 h-5" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-base font-semibold text-gray-900">
+                    Almost there — let's get you an account
+                  </h3>
+                  <p className="text-sm text-gray-600 mt-1 leading-relaxed">
+                    You'll need a free account to post. It takes a few seconds, lets you manage and
+                    edit your listing anytime, and keeps renters' inquiries in one place.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={onRequestAccount}
+                    disabled={!canContinue}
+                    className="mt-4 inline-flex items-center gap-2 bg-accent-500 text-white px-6 py-3 rounded-lg text-sm font-semibold hover:bg-accent-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Create a free account to post
+                    <ArrowRight className="w-4 h-4" />
+                  </button>
+                  {!canContinue && blockingReason && (
+                    <p className="mt-2 text-xs text-amber-700 flex items-center gap-1.5">
+                      <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
+                      {blockingReason}
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {isAuthenticated && blockingReason && (
+            <div className="mt-4 flex items-center gap-2 text-sm text-amber-700">
+              <AlertCircle className="w-4 h-4 flex-shrink-0" />
+              {blockingReason}
+            </div>
+          )}
+
           <div className="flex items-center justify-between mt-6">
             <button
               type="button"
@@ -298,28 +481,65 @@ export function Step6ContactAndReview({
               <ArrowLeft className="w-4 h-4" />
               Back
             </button>
-            <button
-              type="button"
-              onClick={onSubmit}
-              disabled={!canSubmit || loading || uploadingMedia}
-              className="flex items-center gap-2 bg-accent-500 text-white px-8 py-3 rounded-lg text-sm font-semibold hover:bg-accent-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {loading ? (
-                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-              ) : uploadingMedia ? (
-                'Uploading…'
-              ) : (
-                <>
-                  <Send className="w-4 h-4" />
-                  {submitLabel}
-                </>
-              )}
-            </button>
+
+            {isAuthenticated && usesOptionsModal ? (
+              /* Logged-in, no subscription: choose how to post in the modal. */
+              <button
+                type="button"
+                onClick={() => setOptionsModalOpen(true)}
+                disabled={!canContinue || loading || uploadingMedia}
+                className="flex items-center gap-2 bg-accent-500 text-white px-8 py-3 rounded-lg text-sm font-semibold hover:bg-accent-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {loading ? (
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                ) : uploadingMedia ? (
+                  'Uploading…'
+                ) : (
+                  <>
+                    Continue
+                    <ArrowRight className="w-4 h-4" />
+                  </>
+                )}
+              </button>
+            ) : isAuthenticated ? (
+              /* Subscription / admin / disabled / at-cap: post directly. */
+              <button
+                type="button"
+                onClick={() => onSubmit(paymentChoice)}
+                disabled={!canSubmit || loading || uploadingMedia}
+                className="flex items-center gap-2 bg-accent-500 text-white px-8 py-3 rounded-lg text-sm font-semibold hover:bg-accent-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {loading ? (
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                ) : uploadingMedia ? (
+                  'Uploading…'
+                ) : (
+                  <>
+                    {isPayPath ? <CreditCard className="w-4 h-4" /> : <Send className="w-4 h-4" />}
+                    {dynamicSubmitLabel}
+                  </>
+                )}
+              </button>
+            ) : null}
           </div>
         </div>
       </div>
 
       <StepTips {...TIPS} />
+
+      {/* Posting options modal (logged-in posters without a subscription). */}
+      <PostingOptionsModal
+        isOpen={optionsModalOpen}
+        onClose={() => setOptionsModalOpen(false)}
+        trialEligible={trialEligible}
+        busy={loading || uploadingMedia}
+        error={submitError}
+        onChooseTrial={() => onSubmit('free_trial')}
+        onChoosePay={() => onSubmit(trialEligible ? 'pay_at_posting' : 'must_pay')}
+        onChooseSubscribe={(plan) => {
+          if (onSubscribeAndPost) onSubscribeAndPost(plan);
+        }}
+      />
     </div>
   );
 }

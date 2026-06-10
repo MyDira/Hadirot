@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import * as Sentry from '@sentry/react';
 import { useAuth } from '@/hooks/useAuth';
+import { supabase } from '@/config/supabase';
 import { Modal } from '../../components/shared/Modal';
 import { AuthForm } from '../../components/auth/AuthForm';
 import { listingsService, getExpirationDate, getAdminActiveDays } from '../../services/listings';
@@ -28,6 +29,32 @@ import { Step7SaleContactAndReview } from './steps/sale/Step7SaleContactAndRevie
 import { CommercialStepsRouter } from './CommercialStepsRouter';
 import { commercialListingsService } from '../../services/commercialListings';
 import { emailService, renderBrandEmail } from '../../services/email';
+import { paymentsService } from '../../services/payments';
+import { subscriptionsService } from '../../services/subscriptions';
+import {
+  type WizardPaymentChoice,
+  WIZARD_PAYMENT_CHOICE_STORAGE_KEY,
+  isValidWizardPaymentChoice,
+} from './components/PaymentChoice';
+
+function readStoredPaymentChoice(): WizardPaymentChoice | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const v = window.sessionStorage.getItem(WIZARD_PAYMENT_CHOICE_STORAGE_KEY);
+    return isValidWizardPaymentChoice(v) ? v : null;
+  } catch {
+    return null;
+  }
+}
+
+function clearStoredPaymentChoice(): void {
+  if (typeof window === 'undefined') return;
+  try {
+    window.sessionStorage.removeItem(WIZARD_PAYMENT_CHOICE_STORAGE_KEY);
+  } catch {
+    /* noop */
+  }
+}
 import type { MediaFile } from '../../components/shared/MediaUploader';
 import {
   trackPostStart,
@@ -162,6 +189,9 @@ export function PostListingWizard() {
   const { user, profile } = useAuth();
   const navigate = useNavigate();
   const [showAuthModal, setShowAuthModal] = useState(false);
+  // Which tab the auth modal opens on. The logged-out "create a free account"
+  // CTA opens it on 'signup'; the submit-while-logged-out safety net uses 'signin'.
+  const [authModalInitialMode, setAuthModalInitialMode] = useState<'signin' | 'signup'>('signin');
   const [loading, setLoading] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
@@ -277,7 +307,7 @@ export function PostListingWizard() {
   // synchronously during each render so by the time any effect fires the
   // current handlers are always present.
   const submitHandlersRef = useRef<{
-    handleSubmit: (() => Promise<void>) | null;
+    handleSubmit: ((paymentChoice?: WizardPaymentChoice | null) => Promise<void>) | null;
     handleCommercialSubmit: (() => Promise<void>) | null;
   }>({ handleSubmit: null, handleCommercialSubmit: null });
 
@@ -374,8 +404,15 @@ export function PostListingWizard() {
   };
 
   const handleCommercialSubmit = async () => {
-    if (!user) {
+    // Trust the real session, not the flickery React `user` (see handleSubmit).
+    let authedUser = user;
+    if (!authedUser) {
+      const { data: { session: liveSession } } = await supabase.auth.getSession();
+      authedUser = liveSession?.user ?? null;
+    }
+    if (!authedUser) {
       setPendingSubmitKind('commercial');
+      setAuthModalInitialMode('signin');
       setShowAuthModal(true);
       return;
     }
@@ -408,7 +445,7 @@ export function PostListingWizard() {
           .join(' — ');
 
       const payload = {
-        user_id: user.id,
+        user_id: authedUser.id,
         agency_id: null,
         listing_type: (isCommercialSale ? 'sale' : 'rental') as 'rental' | 'sale',
         is_commercial: true,
@@ -562,7 +599,7 @@ export function PostListingWizard() {
           ctaHref: `${siteUrl}/commercial-listing/${listing.id}`,
         });
         await emailService.sendEmail({
-          to: user.email!,
+          to: authedUser.email!,
           subject: `Listing Submitted: ${titleForEmail} - HaDirot`,
           html,
         });
@@ -576,9 +613,34 @@ export function PostListingWizard() {
     }
   };
 
-  const handleSubmit = async () => {
-    if (!user) {
+  const handleSubmit = async (
+    paymentChoice?: WizardPaymentChoice | null,
+    opts?: { subscribeAfter?: 'agent' | 'vip' },
+  ) => {
+    // Subscribe-and-post: the listing is created as a held free trial, then we
+    // redirect to the subscription Stripe checkout. Force the trial payment_kind.
+    const subscribeAfter = opts?.subscribeAfter;
+    if (subscribeAfter) paymentChoice = 'free_trial';
+
+    // OAuth-replay safety net: if called from the auth-replay effect (no arg),
+    // recover the user's selection from sessionStorage so they don't lose the
+    // pay-at-posting bonus path after signing in.
+    if (paymentChoice === undefined || paymentChoice === null) {
+      const stored = readStoredPaymentChoice();
+      if (stored) paymentChoice = stored;
+    }
+
+    // The React auth state can briefly flicker to null right after signup
+    // (the persisted Supabase session is still valid). Trust the real session,
+    // not the flickery React `user`, before deciding the user is logged out.
+    let authedUser = user;
+    if (!authedUser) {
+      const { data: { session: liveSession } } = await supabase.auth.getSession();
+      authedUser = liveSession?.user ?? null;
+    }
+    if (!authedUser) {
       setPendingSubmitKind('residential');
+      setAuthModalInitialMode('signin');
       setShowAuthModal(true);
       return;
     }
@@ -646,7 +708,7 @@ export function PostListingWizard() {
         ...wizard.formData,
         title: autoTitle,
         listing_type: (isSalePath ? 'sale' : 'rental') as 'sale' | 'rental',
-        user_id: user.id,
+        user_id: authedUser.id,
         neighborhood: wizard.resolvedNeighborhood,
         location: wizard.formData.location,
         full_address: wizard.formData.street_address
@@ -670,6 +732,7 @@ export function PostListingWizard() {
         utilities_included: wizard.formData.utilities_included?.length > 0 ? wizard.formData.utilities_included : null,
         tenant_notes: wizard.formData.tenant_notes || null,
         // Enum fields that default to "" must be null — DB rejects empty strings
+        lease_length: wizard.formData.lease_length || null,
         basement_type: wizard.formData.basement_type || null,
         building_type: wizard.formData.building_type || null,
         delivery_condition: (wizard.formData as any).delivery_condition || null,
@@ -719,6 +782,34 @@ export function PostListingWizard() {
         city: undefined,
         state: undefined,
         zip_code: undefined,
+        // -----------------------------------------------------------------
+        // Monetization fields — residential rentals only.
+        // payment_kind drives the new payment-permission gate (see
+        // auto_inactivate_old_listings RPC + set_listing_deactivated_timestamp trigger).
+        //   subscription_covered → 'subscription'
+        //   must_pay             → 'pending_payment' (webhook flips to 'individual_paid'
+        //                          on payment success). A distinct kind — NOT null — so an
+        //                          abandoned checkout can never be mistaken for a free/legacy
+        //                          listing at admin-approval time; the cron also deactivates
+        //                          any approved listing still left in 'pending_payment'.
+        //   anything else        → 'individual_trial' (clock starts at APPROVAL)
+        // Sale listings: leave these fields as null/undefined.
+        // When paymentChoice is null/undefined (e.g., monetization master
+        // switch is off — see useMonetizationGate / enable_monetization()),
+        // we leave payment_kind=NULL, so the listing posts exactly as
+        // pre-monetization.
+        // NOTE: trial_started_at is intentionally NOT set here. The free-trial
+        // and paid clocks must begin when an admin APPROVES the listing, not
+        // when it is posted. approve-listing stamps trial_started_at = now and
+        // re-anchors paid_until from the payment ledger at approval time.
+        // -----------------------------------------------------------------
+        ...(isSalePath || !paymentChoice
+          ? {}
+          : paymentChoice === 'subscription_covered'
+            ? { payment_kind: 'subscription' }
+            : paymentChoice === 'must_pay'
+              ? { payment_kind: 'pending_payment' }
+              : { payment_kind: 'individual_trial' }),
       } as any;
 
       const listing = await listingsService.createListing(payload);
@@ -737,10 +828,61 @@ export function PostListingWizard() {
           is_featured: m.is_featured,
           originalName: m.originalName || '',
         }));
-        await listingsService.finalizeTempListingImages(listing.id, user.id, tempImages);
+        await listingsService.finalizeTempListingImages(listing.id, authedUser.id, tempImages);
       }
 
       wizard.clearDraft();
+
+      // Subscribe-and-post: the listing posts as a held free trial; hand off to
+      // the subscription Stripe checkout. On completion the webhook activates the
+      // subscription and its sweep reassigns this listing to payment_kind='subscription'.
+      if (subscribeAfter) {
+        try {
+          const checkout = await subscriptionsService.createCheckoutSession({ plan: subscribeAfter });
+          clearStoredPaymentChoice();
+          window.location.href = checkout.url;
+          return;
+        } catch (subErr) {
+          console.error('Failed to create subscription checkout, falling back to dashboard:', subErr);
+          setSubmitError(
+            'Your listing was created, but we couldn\'t open the subscription checkout. You can subscribe from your dashboard.',
+          );
+          clearStoredPaymentChoice();
+          navigate(`/dashboard?new_listing=true&listing_id=${listing.id}`);
+          return;
+        }
+      }
+
+      // If the user chose a pay path on the wizard, hand off to Stripe Checkout
+      // instead of dropping them on the dashboard. On checkout completion the
+      // webhook records the payment in the ledger; the clock (incl. the 30
+      // pay-at-posting bonus days) is anchored at ADMIN APPROVAL, not here —
+      // see approve-listing and reconcile_individual_listing_anchors.
+      const requiresStripeCheckout =
+        !isSalePath && (paymentChoice === 'pay_at_posting' || paymentChoice === 'must_pay');
+
+      if (requiresStripeCheckout) {
+        try {
+          const checkout = await paymentsService.createCheckoutSession({
+            listingId: listing.id,
+            days: 30,
+            isInitialPurchase: paymentChoice === 'pay_at_posting',
+          });
+          clearStoredPaymentChoice();
+          window.location.href = checkout.url;
+          return;
+        } catch (checkoutErr) {
+          console.error('Failed to create Stripe checkout, falling back to dashboard:', checkoutErr);
+          setSubmitError(
+            'Your listing was created, but we couldn\'t open the payment page. You can pay from your dashboard.',
+          );
+          clearStoredPaymentChoice();
+          navigate(`/dashboard?new_listing=true&listing_id=${listing.id}&payment_pending=true`);
+          return;
+        }
+      }
+
+      clearStoredPaymentChoice();
       navigate(`/dashboard?new_listing=true&listing_id=${listing.id}`);
 
       // Branded confirmation email — matches legacy residential pattern.
@@ -755,7 +897,7 @@ export function PostListingWizard() {
           ctaHref: `${siteUrl}/listing/${listing.id}`,
         });
         await emailService.sendEmail({
-          to: user.email!,
+          to: authedUser.email!,
           subject: `Listing Submitted: ${autoTitle} - HaDirot`,
           html,
         });
@@ -782,6 +924,10 @@ export function PostListingWizard() {
     setShowAuthModal(false);
     const kind = pendingSubmitKind;
     setPendingSubmitKind(null);
+    // We replay the submit directly below. Clear the OAuth-replay marker so the
+    // `useEffect([user])` above doesn't ALSO replay it (which would create two
+    // listings) when `user` transitions to truthy after email/password signup.
+    try { sessionStorage.removeItem('wizard:pendingSubmit'); } catch { /* ignore */ }
     if (kind === 'commercial') {
       setTimeout(() => { void handleCommercialSubmit(); }, 0);
     } else if (kind === 'residential') {
@@ -789,12 +935,23 @@ export function PostListingWizard() {
     }
   };
 
+  // Logged-out "create a free account" CTA on the review step. Opens the auth
+  // modal on the sign-up tab WITHOUT queuing an auto-submit — after sign-up the
+  // poster lands back on the review page (now authenticated) and chooses their
+  // posting option via the Continue → options modal.
+  const handleRequestAccount = () => {
+    setPendingSubmitKind(null);
+    try { sessionStorage.removeItem('wizard:pendingSubmit'); } catch { /* ignore */ }
+    setAuthModalInitialMode('signup');
+    setShowAuthModal(true);
+  };
+
   if (!wizard.selectedPath) {
     return (
       <>
         <PathPicker onSelect={handleSelectPath} />
-        <Modal isOpen={showAuthModal} onClose={() => { setShowAuthModal(false); setPendingSubmitKind(null); try { sessionStorage.removeItem('wizard:pendingSubmit'); } catch { /* ignore */ } }} title="Sign in to continue">
-          <AuthForm onAuthSuccess={handleAuthSuccess} />
+        <Modal size="md" isOpen={showAuthModal} onClose={() => { setShowAuthModal(false); setAuthModalInitialMode('signin'); setPendingSubmitKind(null); try { sessionStorage.removeItem('wizard:pendingSubmit'); } catch { /* ignore */ } }} title={authModalInitialMode === 'signup' ? 'Create your free account' : 'Sign in to continue'}>
+          <AuthForm onAuthSuccess={handleAuthSuccess} initialMode={authModalInitialMode} compact />
         </Modal>
         <PermissionRequestModal
           isOpen={showPermissionModal}
@@ -959,6 +1116,9 @@ export function PostListingWizard() {
             submitError={submitError}
             onSubmit={handleSubmit}
             profile={profile ?? null}
+            isAuthenticated={!!user}
+            onRequestAccount={handleRequestAccount}
+            onSubscribeAndPost={(plan) => handleSubmit('free_trial', { subscribeAfter: plan })}
           />
         );
       default:
@@ -1008,8 +1168,8 @@ export function PostListingWizard() {
         </div>
       </div>
 
-      <Modal isOpen={showAuthModal} onClose={() => { setShowAuthModal(false); setPendingSubmitKind(null); try { sessionStorage.removeItem('wizard:pendingSubmit'); } catch { /* ignore */ } }} title="Sign in to publish your listing">
-        <AuthForm onAuthSuccess={handleAuthSuccess} />
+      <Modal size="md" isOpen={showAuthModal} onClose={() => { setShowAuthModal(false); setAuthModalInitialMode('signin'); setPendingSubmitKind(null); try { sessionStorage.removeItem('wizard:pendingSubmit'); } catch { /* ignore */ } }} title={authModalInitialMode === 'signup' ? 'Create your free account' : 'Sign in to publish your listing'}>
+        <AuthForm onAuthSuccess={handleAuthSuccess} initialMode={authModalInitialMode} compact />
       </Modal>
     </>
     </WizardUIContext.Provider>

@@ -62,8 +62,6 @@ function formatListingIdentifier(listing: ExpiringListing): string {
   let locationStr: string;
   if (listing.full_address) {
     locationStr = listing.full_address;
-  } else if (listing.listing_type === "sale" && listing.full_address) {
-    locationStr = listing.full_address;
   } else {
     locationStr = listing.location || listing.neighborhood || "your listing";
   }

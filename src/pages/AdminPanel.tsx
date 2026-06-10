@@ -14,7 +14,9 @@ import { AdminFeatureModal } from '@/components/admin/AdminFeatureModal';
 import { ConciergeManagement } from '@/components/admin/ConciergeManagement';
 import { PipelineManagement } from '@/components/admin/PipelineManagement';
 import { AdminListingMapModal } from '@/components/admin/AdminListingMapModal';
-import { Briefcase, GitBranch, Map } from 'lucide-react';
+import { Briefcase, GitBranch, Map, Crown, Wallet } from 'lucide-react';
+import { GrantDaysModal } from '../components/admin/GrantDaysModal';
+import { ChargeListingModal } from '../components/admin/ChargeListingModal';
 
 const ADMIN_TAB_KEYS = [
   'overview',
@@ -76,6 +78,12 @@ export function AdminPanel() {
   const rawTabParam = params.get('tab');
   const initialTab: AdminTabKey = isValidAdminTab(rawTabParam) ? rawTabParam : 'overview';
   const [activeTab, setActiveTab] = useState<AdminTabKey>(initialTab);
+  // Admin "grant paid days" modal target (Phase I — accessible from the main listings table).
+  const [grantDaysListingId, setGrantDaysListingId] = useState<string | null>(null);
+  const [grantDaysListingLabel, setGrantDaysListingLabel] = useState<string | null>(null);
+  // Admin "charge via Stripe (on behalf of owner)" modal target.
+  const [chargeListingId, setChargeListingId] = useState<string | null>(null);
+  const [chargeListingLabel, setChargeListingLabel] = useState<string | null>(null);
   const [stats, setStats] = useState<AdminStats>({
     totalUsers: 0,
     totalListings: 0,
@@ -1050,6 +1058,7 @@ export function AdminPanel() {
                     { icon: Mail,       label: 'Digest Manager',        desc: 'Create WhatsApp digest messages',             iconBg: 'bg-purple-100',  iconColor: 'text-purple-600',  onClick: () => navigate('/admin/digest-manager') },
                     { icon: DollarSign, label: 'Sales System',          desc: 'Manage sales listings and commissions',       iconBg: 'bg-emerald-100', iconColor: 'text-emerald-600', onClick: () => handleTabChange('sales') },
                     { icon: Briefcase,  label: 'Concierge',             desc: 'Manage concierge subscriptions',              iconBg: 'bg-indigo-100',  iconColor: 'text-indigo-600',  onClick: () => handleTabChange('concierge') },
+                    { icon: Crown,      label: 'Subscriptions',         desc: 'Agent/VIP plans + paid listings',             iconBg: 'bg-violet-100',  iconColor: 'text-violet-600',  onClick: () => navigate('/admin/subscriptions') },
                     { icon: Home,       label: 'Old Listing Form',      desc: 'Classic listing form (pre-wizard)',           iconBg: 'bg-gray-100',    iconColor: 'text-gray-600',    onClick: () => navigate('/post-old') },
                   ].map(({ icon: ToolIcon, label, desc, iconBg, iconColor, onClick }) => (
                     <button
@@ -1755,6 +1764,30 @@ export function AdminPanel() {
                               >
                                 <Power className="w-5 h-5" />
                               </button>
+                              {listing.listing_type === 'rental' && (
+                                <button
+                                  onClick={() => {
+                                    setGrantDaysListingId(listing.id);
+                                    setGrantDaysListingLabel(`${listing.title} · ${listing.neighborhood || listing.location || ''}`);
+                                  }}
+                                  className="text-violet-600 hover:text-violet-800 transition-colors"
+                                  title="Grant paid days (admin)"
+                                >
+                                  <Clock className="w-5 h-5" />
+                                </button>
+                              )}
+                              {listing.listing_type === 'rental' && (
+                                <button
+                                  onClick={() => {
+                                    setChargeListingId(listing.id);
+                                    setChargeListingLabel(`${listing.title} · ${listing.neighborhood || listing.location || ''}`);
+                                  }}
+                                  className="text-emerald-600 hover:text-emerald-800 transition-colors"
+                                  title="Charge via Stripe (on behalf of owner)"
+                                >
+                                  <Wallet className="w-5 h-5" />
+                                </button>
+                              )}
                               <button
                                 onClick={() => deleteListing(listing.id, listing.title)}
                                 className="text-red-600 hover:text-red-800 transition-colors"
@@ -2093,6 +2126,32 @@ export function AdminPanel() {
       <AdminListingMapModal
         listing={mapModalListing}
         onClose={() => setMapModalListing(null)}
+      />
+
+      {/* Admin Grant Days modal (Phase I) */}
+      <GrantDaysModal
+        open={!!grantDaysListingId}
+        onClose={() => {
+          setGrantDaysListingId(null);
+          setGrantDaysListingLabel(null);
+        }}
+        onGranted={() => {
+          void loadAdminData();
+        }}
+        listingId={grantDaysListingId}
+        listingLabel={grantDaysListingLabel}
+        adminId={user?.id ?? ''}
+      />
+
+      {/* Admin charge-via-Stripe (on behalf of owner) modal */}
+      <ChargeListingModal
+        open={!!chargeListingId}
+        onClose={() => {
+          setChargeListingId(null);
+          setChargeListingLabel(null);
+        }}
+        listingId={chargeListingId}
+        listingLabel={chargeListingLabel}
       />
     </div>
   );

@@ -104,8 +104,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           .single();
 
         if (insertError) {
-          console.error("❌ Error creating profile:", insertError);
-          applyProfileUpdate(null);
+          // A concurrent signUp() insert (or a DB trigger) may have already
+          // created this row, so our insert collides on the primary key. That's
+          // benign — re-fetch the existing profile instead of nulling it out.
+          // Nulling here is what caused the post-signup profile "flicker" and
+          // the console error spam when onAuthStateChange fires repeatedly.
+          const { data: existingProfile } = await supabase
+            .from("profiles")
+            .select(
+              "id, full_name, role, phone, agency, email, is_admin, can_feature_listings, max_featured_listings_per_user, can_manage_agency, is_banned, created_at, updated_at",
+            )
+            .eq("id", session.user.id)
+            .maybeSingle();
+
+          if (existingProfile) {
+            applyProfileUpdate(existingProfile);
+          } else {
+            console.error("❌ Error creating profile:", insertError);
+            applyProfileUpdate(null);
+          }
         } else {
           applyProfileUpdate(newProfile);
 

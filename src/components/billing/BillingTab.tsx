@@ -1,12 +1,25 @@
 import React, { useState, useEffect } from "react";
-import { CreditCard, ExternalLink, Receipt, Clock, Star, Mail, Crown, Briefcase, Plus, Trash2, CheckCircle } from "lucide-react";
+import { CreditCard, ExternalLink, Receipt, Clock, Star, Mail, Crown, Briefcase, Plus, Trash2, CheckCircle, ShieldCheck, Home } from "lucide-react";
 import { Link } from "react-router-dom";
 import * as Sentry from "@sentry/react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/config/supabase";
 import { stripeService, type FeaturedPurchase } from "@/services/stripe";
 import { conciergeService } from "@/services/concierge";
+import { subscriptionsService } from "@/services/subscriptions";
+import { paymentsService } from "@/services/payments";
+import { LISTING_SUBSCRIPTION_PLANS, formatCents } from "@/types/monetization";
 import type { ConciergeSubscription, ConciergeSubmission } from "@/config/supabase";
+import type { ListingSubscription, PaidListingPayment } from "@/types/monetization";
+
+type ListingPaymentRecord = PaidListingPayment & {
+  listings?: { title: string | null; neighborhood: string | null } | null;
+};
+
+const LISTING_PLAN_DISPLAY: Record<string, { name: string; icon: typeof Star }> = {
+  agent: { name: "Agent", icon: ShieldCheck },
+  vip: { name: "VIP", icon: Crown },
+};
 
 const PLAN_LABELS: Record<string, string> = {
   "7day": "1 Week",
@@ -472,6 +485,175 @@ function PurchaseRow({ purchase }: { purchase: FeaturedPurchase }) {
   );
 }
 
+function ListingPlanCard({
+  subscription,
+  onManageBilling,
+  onUpgraded,
+}: {
+  subscription: ListingSubscription;
+  onManageBilling: () => void;
+  onUpgraded: () => Promise<void>;
+}) {
+  const info = LISTING_PLAN_DISPLAY[subscription.plan] || LISTING_PLAN_DISPLAY.agent;
+  const Icon = info.icon;
+  const isVip = subscription.plan === "vip";
+  const comp = subscription.status === "admin_active";
+  const pastDue = subscription.status === "past_due";
+  const priceCents =
+    LISTING_SUBSCRIPTION_PLANS.find((p) => p.plan === subscription.plan)?.priceCents ?? 0;
+  const vipCents = LISTING_SUBSCRIPTION_PLANS.find((p) => p.plan === "vip")?.priceCents ?? 10000;
+  const capText =
+    subscription.listing_cap === null
+      ? "Unlimited active listings"
+      : `Up to ${subscription.listing_cap} active listings`;
+  const statusLabel = comp ? "Complimentary" : pastDue ? "Past due" : subscription.status;
+  const statusStyle = comp
+    ? "bg-teal-100 text-teal-800"
+    : pastDue
+      ? "bg-amber-100 text-amber-800"
+      : STATUS_STYLES[subscription.status] || "bg-gray-100 text-gray-600";
+
+  const [upgradeLoading, setUpgradeLoading] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+
+  const handleUpgrade = async () => {
+    setActionError(null);
+    if (comp) {
+      const confirmed = window.confirm(
+        `Move to VIP? Your Agent plan is currently complimentary. You'll enter a card and start a paid VIP subscription at ${formatCents(vipCents)}/mo.`,
+      );
+      if (!confirmed) return;
+      setUpgradeLoading(true);
+      try {
+        const checkout = await subscriptionsService.createCheckoutSession({ plan: "vip" });
+        window.location.href = checkout.url;
+      } catch (err: any) {
+        setActionError(err.message || "Failed to start VIP checkout");
+        setUpgradeLoading(false);
+      }
+      return;
+    }
+    const confirmed = window.confirm(
+      `Upgrade to VIP? You'll be charged only the prorated difference for the rest of this billing cycle now, then ${formatCents(vipCents)}/mo from your next renewal.`,
+    );
+    if (!confirmed) return;
+    setUpgradeLoading(true);
+    try {
+      await subscriptionsService.upgradeToVip();
+      await onUpgraded();
+    } catch (err: any) {
+      setActionError(err.message || "Failed to upgrade subscription");
+    } finally {
+      setUpgradeLoading(false);
+    }
+  };
+
+  return (
+    <div className="bg-white rounded-lg border border-gray-200 p-5 mb-6">
+      <div className="flex items-start justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-lg bg-[#1E4A74]/10 flex items-center justify-center">
+            <Icon className="w-5 h-5 text-[#1E4A74]" />
+          </div>
+          <div>
+            <h3 className="font-semibold text-[#273140]">{info.name} plan</h3>
+            <p className="text-sm text-gray-500">
+              {comp ? "Complimentary" : `${formatCents(priceCents)} / month`} · {capText}
+            </p>
+          </div>
+        </div>
+        <span
+          className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-medium capitalize ${statusStyle}`}
+        >
+          {statusLabel}
+        </span>
+      </div>
+
+      {actionError && (
+        <div className="mt-3 p-3 rounded-md bg-red-50 border border-red-200 text-red-700 text-sm">
+          {actionError}
+        </div>
+      )}
+
+      <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+        <div>
+          <span className="text-gray-500">Subscribed since</span>
+          <p className="font-medium text-gray-800">{formatDate(subscription.created_at)}</p>
+        </div>
+        {subscription.current_period_end && (
+          <div>
+            <span className="text-gray-500">{pastDue ? "Was due" : "Renews"}</span>
+            <p className="font-medium text-gray-800">{formatDate(subscription.current_period_end)}</p>
+          </div>
+        )}
+      </div>
+
+      <div className="mt-4 pt-4 border-t border-gray-100 flex flex-wrap items-center gap-3">
+        {!isVip && (
+          <button
+            onClick={handleUpgrade}
+            disabled={upgradeLoading}
+            className="inline-flex items-center px-3 py-1.5 text-sm font-semibold rounded-md bg-emerald-600 text-white hover:bg-emerald-700 transition-colors disabled:opacity-50"
+          >
+            <Crown className="w-3.5 h-3.5 mr-1.5" />
+            {upgradeLoading ? "Working…" : "Upgrade to VIP"}
+          </button>
+        )}
+        <button
+          onClick={onManageBilling}
+          className="inline-flex items-center px-3 py-1.5 text-sm font-medium rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 transition-colors"
+        >
+          <ExternalLink className="w-3.5 h-3.5 mr-1.5" />
+          Manage Billing
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function ListingPaymentRow({ payment }: { payment: ListingPaymentRecord }) {
+  const listingTitle =
+    payment.listings?.title || `Listing ${payment.listing_id.slice(0, 8)}`;
+  const isFree = payment.source === "admin_grant" || payment.amount_cents === 0;
+  const amount = isFree ? "Free" : `$${(payment.amount_cents / 100).toFixed(2)}`;
+  const totalDays = payment.days_granted + (payment.bonus_days || 0);
+  const statusLabel = isFree ? "Granted" : "Paid";
+  const statusStyle = isFree ? STATUS_STYLES.free : STATUS_STYLES.paid;
+
+  return (
+    <tr className="hover:bg-gray-50 transition-colors">
+      <td className="py-3 pr-4">
+        <div className="font-medium text-[#273140] truncate max-w-[180px]" title={listingTitle}>
+          {listingTitle}
+        </div>
+        {payment.listings?.neighborhood && (
+          <div className="text-xs text-gray-400 mt-0.5">{payment.listings.neighborhood}</div>
+        )}
+      </td>
+      <td className="py-3 pr-4">
+        <span className="inline-flex items-center gap-1 text-gray-700">
+          <Home className="w-3 h-3 text-[#1E4A74]" />
+          {totalDays} days
+          {payment.bonus_days ? <span className="text-emerald-600"> (+{payment.bonus_days} bonus)</span> : null}
+        </span>
+      </td>
+      <td className="py-3 pr-4 text-gray-700 font-medium">{amount}</td>
+      <td className="py-3 pr-4 text-gray-500">
+        <span className="inline-flex items-center gap-1">
+          <Clock className="w-3 h-3" />
+          {formatDate(payment.created_at)}
+        </span>
+      </td>
+      <td className="py-3 pr-4 text-gray-500 whitespace-nowrap">&mdash;</td>
+      <td className="py-3">
+        <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${statusStyle}`}>
+          {statusLabel}
+        </span>
+      </td>
+    </tr>
+  );
+}
+
 export default function BillingTab() {
   const { user } = useAuth();
   const [purchases, setPurchases] = useState<FeaturedPurchase[]>([]);
@@ -481,6 +663,18 @@ export default function BillingTab() {
   const [portalLoading, setPortalLoading] = useState(false);
   const [portalError, setPortalError] = useState<string | null>(null);
   const [conciergeSub, setConciergeSub] = useState<ConciergeSubscription | null>(null);
+  const [listingSub, setListingSub] = useState<ListingSubscription | null>(null);
+  const [listingPayments, setListingPayments] = useState<ListingPaymentRecord[]>([]);
+
+  const refreshListingSub = async () => {
+    const sub = await subscriptionsService.getMyActiveSubscription().catch((err) => {
+      Sentry.captureException(err, {
+        tags: { flow: "billing_load", source: "listing_subscription" },
+      });
+      return null;
+    });
+    setListingSub(sub);
+  };
 
   const refreshConciergeSub = async () => {
     const sub = await conciergeService
@@ -523,10 +717,20 @@ export default function BillingTab() {
         captureSource("concierge_submissions")(err);
         return [] as ConciergeSubmission[];
       }),
-    ]).then(([purchasesData, sub, submissionsData]) => {
+      subscriptionsService.getMyActiveSubscription().catch((err) => {
+        captureSource("listing_subscription")(err);
+        return null;
+      }),
+      paymentsService.getMyPayments().catch((err) => {
+        captureSource("listing_payments")(err);
+        return [] as ListingPaymentRecord[];
+      }),
+    ]).then(([purchasesData, sub, submissionsData, listingSubData, listingPaymentsData]) => {
       setPurchases(purchasesData);
       setConciergeSub(sub);
       setSubmissions(submissionsData);
+      setListingSub(listingSubData);
+      setListingPayments(listingPaymentsData);
       if (failed.length > 0) {
         setBillingError("Some billing info couldn't load. Refresh the page to try again.");
       }
@@ -579,6 +783,14 @@ export default function BillingTab() {
         </div>
       )}
 
+      {listingSub && (
+        <ListingPlanCard
+          subscription={listingSub}
+          onManageBilling={handleManageBilling}
+          onUpgraded={refreshListingSub}
+        />
+      )}
+
       {conciergeSub && (
         <ConciergeSubscriptionCard
           subscription={conciergeSub}
@@ -621,7 +833,7 @@ export default function BillingTab() {
       )}
 
       <p className="text-sm text-gray-500 mb-6">
-        View your featured listing purchases and concierge submissions. Use "Manage Billing" to access invoices and receipts.
+        Your plan, listing payments, featured boosts, and concierge submissions. Use "Manage Billing" to access invoices and receipts.
       </p>
 
       {billingLoading ? (
@@ -634,12 +846,12 @@ export default function BillingTab() {
         <div className="p-4 rounded-md bg-red-50 border border-red-200 text-red-700 text-sm">
           {billingError}
         </div>
-      ) : purchases.length === 0 && submissions.length === 0 ? (
+      ) : purchases.length === 0 && submissions.length === 0 && listingPayments.length === 0 ? (
         <div className="text-center py-10 text-gray-500">
           <Receipt className="w-10 h-10 mx-auto mb-3 text-gray-300" />
           <p className="font-medium text-gray-600">No purchases yet</p>
           <p className="text-sm mt-1">
-            Feature a listing from your dashboard or submit a concierge request to see your history here.
+            Pay to keep a listing live, feature a listing, or submit a concierge request to see your history here.
           </p>
         </div>
       ) : (
@@ -659,13 +871,16 @@ export default function BillingTab() {
               {[
                 ...purchases.map((p) => ({ type: "purchase" as const, date: p.purchased_at || p.created_at, data: p })),
                 ...submissions.map((s) => ({ type: "submission" as const, date: s.created_at, data: s })),
+                ...listingPayments.map((p) => ({ type: "listing_payment" as const, date: p.created_at, data: p })),
               ]
                 .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
                 .map((item) =>
                   item.type === "purchase" ? (
                     <PurchaseRow key={`purchase-${item.data.id}`} purchase={item.data} />
-                  ) : (
+                  ) : item.type === "submission" ? (
                     <SubmissionRow key={`submission-${item.data.id}`} submission={item.data} />
+                  ) : (
+                    <ListingPaymentRow key={`listing-payment-${item.data.id}`} payment={item.data} />
                   )
                 )}
             </tbody>

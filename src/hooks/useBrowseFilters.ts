@@ -300,7 +300,9 @@ export function useBrowseFilters(mode: 'rental' | 'sales' = 'rental') {
         // Clear the restore flag
         try {
           sessionStorage.removeItem(SCROLL_RESTORE_KEY);
-        } catch {}
+        } catch {
+          /* ignore storage errors */
+        }
 
         // Mark restoration as complete after URL is updated
         setTimeout(() => {

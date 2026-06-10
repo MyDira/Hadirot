@@ -55,10 +55,18 @@ SELECT cron.schedule(
   $$
 );
 
--- Update the job to use America/New_York timezone
-UPDATE cron.job
-SET timezone = 'America/New_York'
-WHERE jobname = 'daily-approved-listings-email';
+-- Update the job to use America/New_York timezone.
+-- Guarded: cron.job.timezone is a Supabase-hosted platform column that does not
+-- exist in upstream pg_cron (local OSS images). On live the column exists so
+-- this runs unchanged; on a from-scratch local build it is skipped.
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.columns
+             WHERE table_schema = 'cron' AND table_name = 'job' AND column_name = 'timezone') THEN
+    UPDATE cron.job SET timezone = 'America/New_York'
+    WHERE jobname = 'daily-approved-listings-email';
+  END IF;
+END $$;
 
 -- Add comment for documentation
 COMMENT ON EXTENSION pg_cron IS 'Job scheduler for PostgreSQL - used for daily approved listings email at 7 AM EST';

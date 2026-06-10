@@ -56,7 +56,7 @@ export interface CreateModalInput {
   priority?: number;
 }
 
-export interface UpdateModalInput extends Partial<CreateModalInput> {}
+export type UpdateModalInput = Partial<CreateModalInput>;
 
 export const modalsService = {
   async getActiveModals(): Promise<ModalPopup[]> {

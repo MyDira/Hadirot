@@ -86,10 +86,17 @@ SELECT cron.schedule(
   $$
 );
 
--- Set timezone for the cron job
-UPDATE cron.job
-SET timezone = 'America/New_York'
-WHERE jobname = 'daily-admin-digest-email';
+-- Set timezone for the cron job.
+-- Guarded: cron.job.timezone is a Supabase-hosted-only column (absent in
+-- upstream pg_cron). Runs unchanged on live; skipped on a from-scratch local DB.
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.columns
+             WHERE table_schema = 'cron' AND table_name = 'job' AND column_name = 'timezone') THEN
+    UPDATE cron.job SET timezone = 'America/New_York'
+    WHERE jobname = 'daily-admin-digest-email';
+  END IF;
+END $$;
 
 -- Add comment explaining the schedule
 COMMENT ON EXTENSION pg_cron IS
