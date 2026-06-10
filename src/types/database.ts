@@ -3193,6 +3193,31 @@ export type Database = {
         Args: { p_end_ts: string; p_start_ts: string }
         Returns: number
       }
+      admin_list_agencies: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          agency: string
+        }[]
+      }
+      admin_search_listings: {
+        Args: {
+          p_active?: string
+          p_date_from?: string
+          p_date_to?: string
+          p_dir?: string
+          p_limit?: number
+          p_listing_type?: string
+          p_offset?: number
+          p_owner_role?: string
+          p_search?: string
+          p_sort?: string
+          p_status?: string
+        }
+        Returns: {
+          listing: Json
+          total_count: number
+        }[]
+      }
       analytics_abuse_signals: {
         Args: {
           days_back?: number
