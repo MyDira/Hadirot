@@ -22,8 +22,11 @@ export const BOOST_PRICES = {
 //   "Agent Plan — Starter"   ($50/mo, 7-listing cap) → agent
 //   "Agent Plan — Unlimited" ($100/mo, unlimited)    → vip
 //   "Concierge Listing Service" ($50/mo)             → addon_concierge
-// Env vars override (use them to point at test- vs live-mode prices); the
-// literals below are the live defaults.
+// ⚠️ The literals below are TEST-MODE price ids (local/dev fallback only).
+// In production the three env secrets are REQUIRED — set them to live-mode
+// price ids (see MONETIZATION_LAUNCH_PLAN.md §0.1/0.2). With a live
+// STRIPE_API_KEY these test ids would make checkout creation fail loudly,
+// not silently charge the wrong price.
 export const LISTING_SUBSCRIPTION_PRICES = {
   agent:           Deno.env.get("STRIPE_AGENT_PRICE_ID")           || "price_1Tc8PYJvRPzH20A9UURtXKeg",
   vip:             Deno.env.get("STRIPE_VIP_PRICE_ID")             || "price_1Tc8PxJvRPzH20A9OyuLWHHD",

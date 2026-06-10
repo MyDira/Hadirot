@@ -27,10 +27,11 @@ flip one switch.
    `checkout.session.completed`, `customer.subscription.updated`,
    `customer.subscription.deleted`, **`charge.refunded`** (the last one is new —
    it powers the refund audit log; add it if missing).
-3. **Do not assume** the price-id literals baked into
-   `supabase/functions/_shared/stripe-prices.ts` exist in live mode — check them
-   in the Stripe dashboard. If they don't, the env secrets in 0.2 override them,
-   so just set the secrets.
+3. The price-id literals baked into
+   `supabase/functions/_shared/stripe-prices.ts` are **confirmed TEST-MODE ids**
+   (local/dev fallback only). The three env secrets in 0.2 are therefore
+   **mandatory** for launch — without them, subscription checkout creation will
+   fail in production (loudly, not by mischarging).
 
 ### 0.2 Edge-function secrets (Supabase dashboard → Edge Functions → Secrets)
 Already set from existing features (verify, don't re-create):
@@ -38,7 +39,7 @@ Already set from existing features (verify, don't re-create):
 `TWILIO_AUTH_TOKEN`, `TWILIO_PHONE_NUMBER`, `ZEPTO_TOKEN`, `ZEPTO_FROM_ADDRESS`,
 `ZEPTO_FROM_NAME`, `PUBLIC_SITE_URL=https://hadirot.com`.
 
-New — set these three with the live price ids from 0.1:
+New — **REQUIRED** — set these three with the live price ids from 0.1:
 ```
 STRIPE_AGENT_PRICE_ID=price_…
 STRIPE_VIP_PRICE_ID=price_…
@@ -73,7 +74,7 @@ frontend host (Netlify/Vercel) auto-deploys `main`. Nothing user-visible changes
 every monetization surface checks `monetization_enabled` (still `false`) and the
 wizard posts exactly as today.
 
-### 1.2 Apply the 12 new migrations to live — IN THIS ORDER
+### 1.2 Apply the 13 new migrations to live — IN THIS ORDER
 Apply via the **Supabase dashboard SQL editor**, one file at a time, top to
 bottom (paste each file's contents and run). Do **not** use `supabase db push`
 unless you already use it routinely — the live project's migration-history table
@@ -93,6 +94,7 @@ may not match the repo and push could misbehave.
 | 10 | `20260604000000_reconcile_individual_listing_anchors.sql` | hourly race-heal cron |
 | 11 | `20260604120000_create_subscription_trial_eligibility_fn.sql` | `is_subscription_trial_eligible` |
 | 12 | `20260609000000_monetization_hardening.sql` | tamper guard, old-form default, cron FINAL, audit fixes |
+| 13 | `20260610000000_stagger_grandfather_trials.sql` | grandfathered trials staggered into 3 daily cohorts |
 
 Three older migration files were also edited on the branch
 (`20251020000001…`, `20251029000003…`, `20251107000000…`) — those edits only
@@ -146,9 +148,10 @@ You can stay in this state for days — it's fully inert.
 As an admin, open **`/admin/subscriptions` → Activate monetization → confirm.**
 That calls `enable_monetization()`, which atomically:
 - sets `monetization_enabled = true`;
-- tags every **active** rental `individual_trial` with `trial_started_at = NOW()`
-  → **every existing live listing gets its 14-day free trial from this moment**
-  (exactly the grandfathering you asked for);
+- tags every **active** rental `individual_trial`, split into **three even
+  cohorts** with trial starts of now / +1 day / +2 days → every existing live
+  listing gets at least its 14-day free trial, and expirations spread across
+  **days 14, 15 and 16** instead of one cliff;
 - tags **pending-approval** rentals `individual_trial` (their clock starts at
   approval);
 - tags previously-deactivated rentals `legacy_free` (never payment-blocked if
@@ -178,9 +181,9 @@ WHERE listing_type='rental' GROUP BY payment_kind;
 ### 2.3 What happens automatically after launch
 | When | What |
 |------|------|
-| Day 11 after activation | First trial-ending SMS wave (3 days before expiry). **Note: every grandfathered listing shares the same trial clock, so this is one large burst of SMS — roughly one per active listing with a phone. Budget for it in Twilio.** Fridays/Saturdays are skipped (Shabbat); a reminder whose day lands then is skipped, not delayed. |
-| Day 14 | Trial-ends-today SMS wave; that night the hourly cron deactivates every unconverted grandfathered listing. **This is the launch cliff — expect the browse page to visibly shrink.** If that's too aggressive, you can extend the runway before day 14 by granting days to chosen listings from the admin Paid Listings tab. |
-| Day 17 | "Your listing has been off for 3 days — reactivate" SMS to the deactivated ones, with a one-tap checkout link. |
+| Days 11–13 after activation | Trial-ending SMS waves (3 days before expiry), one cohort per day — roughly a third of active listings each day instead of one big burst. Fridays/Saturdays are skipped (Shabbat); a reminder whose day lands then is skipped, not delayed. |
+| Days 14–16 | Trial-ends-today SMS per cohort; each night the hourly cron deactivates that day's unconverted cohort. The browse-page shrink spreads over three days instead of one cliff. You can still extend the runway for chosen listings beforehand by granting days from the admin Paid Listings tab. |
+| Days 17–19 | "Your listing has been off for 3 days — reactivate" SMS per cohort, with a one-tap checkout link. |
 | Hourly | `auto_inactivate_old_listings` enforces trials/balances/subscriptions; `reconcile_individual_listing_anchors` heals any approve-vs-webhook race. |
 | Daily 10 AM ET | `send-paid-listing-reminders` (trial-ending, balance-ending, post-deactivation). |
 
@@ -219,7 +222,9 @@ risky changes — that separation just saved you several launch bugs.
   but inactive) until the owner pays — approving it does not publish it.
 
 ## Residual risks worth knowing
-- The day-14 deactivation cliff (see 2.3) is the biggest launch-experience risk.
+- Grandfathered-trial deactivations are staggered over days 14–16 (see 2.3),
+  but each cohort still expires together — watch the first cohort on day 14
+  and grant days to listings you want to keep before the wave hits.
 - SMS links are valid 14 days and reusable until then (each tap only opens a
   fresh checkout the user must complete — no stored-card charge is possible).
 - The pre-existing `Users can update own listings` RLS policy is broad; the new
