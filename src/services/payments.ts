@@ -410,16 +410,20 @@ export const paymentsService = {
       payment_kind: PaymentKind | null;
       paid_until: string | null;
       is_active: boolean | null;
+      paused_paid_days: number | null;
     };
 
-    // Compute new paid_until: stack on existing or start fresh.
+    // Compute new paid_until: stack on existing or start fresh. A deactivated
+    // listing banks its remaining days in paused_paid_days (paid_until is NULL
+    // while inactive) — include those so an admin grant never erases them.
+    const bankedDays = !l.is_active ? (l.paused_paid_days ?? 0) : 0;
     let newPaidUntil: Date;
     if (l.paid_until && new Date(l.paid_until) > now) {
       newPaidUntil = new Date(l.paid_until);
-      newPaidUntil.setUTCDate(newPaidUntil.getUTCDate() + params.days);
+      newPaidUntil.setUTCDate(newPaidUntil.getUTCDate() + params.days + bankedDays);
     } else {
       newPaidUntil = new Date(now);
-      newPaidUntil.setUTCDate(newPaidUntil.getUTCDate() + params.days);
+      newPaidUntil.setUTCDate(newPaidUntil.getUTCDate() + params.days + bankedDays);
     }
 
     const { error: payErr } = await sb.from('paid_listing_payments').insert({

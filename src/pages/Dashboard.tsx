@@ -1107,11 +1107,37 @@ export default function Dashboard() {
                   cls: 'bg-emerald-600 hover:bg-emerald-700 text-white',
                 };
               } else if (!listing.is_active && listing.approved) {
-                primary = {
-                  label: 'Republish',
-                  onClick: () => isCommercial ? handleRenewCommercialListing(listing.id) : handleRenewListing(listing.id),
-                  cls: 'bg-brand-600 hover:bg-brand-700 text-white',
+                // Republishing is free only while the listing still has
+                // coverage (unexpired trial, banked paid days, subscription,
+                // admin grant, legacy). An exhausted trial/balance or an
+                // unpaid must-pay listing routes to payment instead — the
+                // cron would deactivate a free republish within the hour
+                // anyway, so don't offer a button that silently un-does itself.
+                const lr = listing as Listing & {
+                  trial_started_at?: string | null;
+                  paused_paid_days?: number | null;
                 };
+                const trialExpired =
+                  payState?.paymentKind === 'individual_trial' &&
+                  !!lr.trial_started_at &&
+                  Date.now() > new Date(lr.trial_started_at).getTime() + 14 * 86400000;
+                const paidExhausted =
+                  payState?.paymentKind === 'individual_paid' &&
+                  (lr.paused_paid_days ?? 0) <= 0;
+                const unpaid = payState?.paymentKind === 'pending_payment';
+                const needsPaymentToRepublish =
+                  monetizationEnabled && !isCommercial && (trialExpired || paidExhausted || unpaid);
+                primary = needsPaymentToRepublish
+                  ? {
+                      label: 'Add days to relist',
+                      onClick: () => openQuickPay(listing.id),
+                      cls: 'bg-emerald-600 hover:bg-emerald-700 text-white',
+                    }
+                  : {
+                      label: 'Republish',
+                      onClick: () => isCommercial ? handleRenewCommercialListing(listing.id) : handleRenewListing(listing.id),
+                      cls: 'bg-brand-600 hover:bg-brand-700 text-white',
+                    };
               } else if (expiringSoon) {
                 primary = {
                   label: 'Extend listing',
