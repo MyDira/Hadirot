@@ -690,7 +690,7 @@ export function AdminSubscriptions() {
             <p className={`text-sm mt-0.5 leading-relaxed ${monetization.enabled ? 'text-emerald-800' : 'text-amber-800'}`}>
               {monetization.enabled
                 ? 'Trial timers, payment gates, dashboard pills, and SMS reminders are live for residential rentals.'
-                : 'Listings post the legacy way. The cron only enforces the existing freshness rule. Click "Activate" when you\'re ready to switch the whole system on — every currently-active residential rental will get a fresh 14-day trial.'}
+                : 'Listings post the legacy way. The cron only enforces the existing freshness rule. Click "Activate" when you\'re ready to switch the whole system on — singular active rentals (unique contact phone) start a 14-day trial staggered over 3 days; high-volume listings (2+ active rentals sharing a phone) stay as they are today.'}
             </p>
             {activationResult && (
               <p className="mt-2 text-xs text-gray-700 bg-white border border-gray-200 rounded px-2 py-1">
