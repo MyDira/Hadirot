@@ -490,6 +490,34 @@ export interface ScrapedListing {
   published_listing_id: string | null;
   created_at: string;
   updated_at: string;
+  // Admin AI Intake fields (source = 'admin_intake' rows only)
+  intake_batch_id: string | null;
+  intake_block_index: number | null;
+  listing_kind: 'rental' | 'sale';
+  description: string | null;
+  assigned_user_id: string | null;
+  admin_custom_agency_name: string | null;
+  admin_listing_type_display: 'agent' | 'owner' | null;
+  image_paths: IntakeImage[];
+  intake_extra: IntakeExtra;
+}
+
+export interface IntakeImage {
+  filePath: string;
+  publicUrl: string;
+  is_featured: boolean;
+}
+
+/** Listing-form fields with no dedicated scraped_listings column. */
+export interface IntakeExtra {
+  property_type?: PropertyType;
+  parking?: ParkingType;
+  heat?: HeatType;
+  washer_dryer_hookup?: boolean;
+  lease_length?: LeaseLength | null;
+  call_for_price?: boolean;
+  asking_price?: number | null;
+  broker_fee?: boolean;
 }
 
 export interface ScrapeRun {
@@ -507,6 +535,7 @@ export interface ScrapeRun {
   started_at: string;
   completed_at: string | null;
   status: string;
+  created_by: string | null;
 }
 
 export type ConciergeTier = 'tier1_quick' | 'tier2_forward' | 'tier3_vip';

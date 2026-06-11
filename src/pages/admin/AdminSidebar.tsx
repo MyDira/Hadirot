@@ -12,6 +12,7 @@ import {
   Mail,
   Menu,
   Settings,
+  Sparkles,
   TrendingUp,
   Users,
   X,
@@ -41,6 +42,7 @@ const NAV_GROUPS: NavGroup[] = [
       { to: '/admin/listings', label: 'Listings', icon: Home },
       { to: '/admin/pending', label: 'Pending', icon: Eye },
       { to: '/admin/pipeline', label: 'Pipeline', icon: GitBranch },
+      { to: '/admin/ai-intake', label: 'AI Intake', icon: Sparkles },
     ],
   },
   {

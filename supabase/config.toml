@@ -29,3 +29,6 @@ verify_jwt = false
 
 [functions.update-concierge-subscription]
 verify_jwt = true
+
+[functions.parse-bulk-listings]
+verify_jwt = true

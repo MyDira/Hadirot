@@ -10,6 +10,7 @@ const PendingSection = lazy(() => import('./sections/PendingSection').then((m) =
 const SalesManagement = lazy(() => import('@/components/admin/SalesManagement').then((m) => ({ default: m.SalesManagement })));
 const ConciergeManagement = lazy(() => import('@/components/admin/ConciergeManagement').then((m) => ({ default: m.ConciergeManagement })));
 const PipelineManagement = lazy(() => import('@/components/admin/PipelineManagement').then((m) => ({ default: m.PipelineManagement })));
+const AiIntakeSection = lazy(() => import('./sections/AiIntakeSection').then((m) => ({ default: m.AiIntakeSection })));
 const AdminSubscriptions = lazy(() => import('@/pages/AdminSubscriptions').then((m) => ({ default: m.AdminSubscriptions })));
 const ContentManagement = lazy(() => import('@/pages/ContentManagement').then((m) => ({ default: m.ContentManagement })));
 const DigestManager = lazy(() => import('@/pages/DigestManager').then((m) => ({ default: m.DigestManager })));
@@ -39,6 +40,7 @@ export function AdminArea() {
         <Route path="sales" element={<SalesManagement />} />
         <Route path="concierge" element={<ConciergeManagement />} />
         <Route path="pipeline" element={<PipelineManagement />} />
+        <Route path="ai-intake" element={<AiIntakeSection />} />
         <Route path="subscriptions" element={<AdminSubscriptions />} />
         <Route path="content-management" element={<ContentManagement />} />
         <Route path="digest" element={<DigestManager />} />
