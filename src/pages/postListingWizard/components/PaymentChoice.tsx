@@ -15,7 +15,7 @@ import { Sparkles, ShieldCheck, Zap, Crown, ArrowUpRight, AlertTriangle } from '
 import type { MonetizationGateMode } from '../../../hooks/useMonetizationGate';
 import type { ListingSubscription } from '../../../types/monetization';
 
-export type WizardPaymentChoice = 'free_trial' | 'pay_at_posting' | 'must_pay' | 'subscription_covered' | 'admin';
+export type WizardPaymentChoice = 'free_trial' | 'pay_at_posting' | 'must_pay' | 'subscription_covered' | 'admin' | 'agent_free';
 
 // Persistence across sign-in (OAuth or modal). When a logged-out user fills
 // the wizard, hits submit, and signs in, the resulting OAuth redirect (or
@@ -30,7 +30,8 @@ export function isValidWizardPaymentChoice(v: unknown): v is WizardPaymentChoice
     v === 'pay_at_posting' ||
     v === 'must_pay' ||
     v === 'subscription_covered' ||
-    v === 'admin'
+    v === 'admin' ||
+    v === 'agent_free'
   );
 }
 

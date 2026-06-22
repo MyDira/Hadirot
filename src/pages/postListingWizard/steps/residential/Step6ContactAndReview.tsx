@@ -132,11 +132,15 @@ export function Step6ContactAndReview({
   }, [paymentChoice]);
 
   useEffect(() => {
-    if (gate.mode === 'disabled' || gate.mode === 'agent_free') {
-      // Master switch off, or the poster is a free-posting agent — clear any
-      // stored choice so the listing posts the legacy way (payment_kind NULL,
-      // normal admin-controlled expiration).
+    if (gate.mode === 'disabled') {
+      // Master switch off — clear any stored choice so the listing posts the
+      // legacy way (payment_kind NULL, normal admin-controlled expiration).
       setPaymentChoice(null);
+    } else if (gate.mode === 'agent_free') {
+      // Free-posting agent — post as legacy_free with the normal admin-controlled
+      // expiration. legacy_free (not NULL) so the dashboard/cron treat it
+      // correctly while monetization is on.
+      setPaymentChoice('agent_free');
     } else if (gate.mode === 'subscription') {
       setPaymentChoice('subscription_covered');
     } else if (gate.mode === 'admin') {
