@@ -65,6 +65,28 @@ export function PaymentChoice({
     return null;
   }
 
+  if (mode === 'agent_free') {
+    // The poster qualifies as an agent and charge_agents is off — they post
+    // free with the standard listing duration. Keep this calm and avoid
+    // surfacing any paid-plan options.
+    void choice;
+    return (
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        <div className="flex items-start gap-4">
+          <div className="w-10 h-10 rounded-lg bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-600 flex-shrink-0">
+            <ShieldCheck className="w-5 h-5" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <h3 className="text-base font-semibold text-gray-900">Free to post</h3>
+            <p className="text-sm text-gray-500 mt-1">
+              Your listing posts at no charge and stays live for the standard listing period.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (mode === 'loading') {
     return (
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">

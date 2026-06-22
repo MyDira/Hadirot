@@ -132,8 +132,10 @@ export function Step6ContactAndReview({
   }, [paymentChoice]);
 
   useEffect(() => {
-    if (gate.mode === 'disabled') {
-      // Master switch off — clear any stored choice so the listing posts the legacy way.
+    if (gate.mode === 'disabled' || gate.mode === 'agent_free') {
+      // Master switch off, or the poster is a free-posting agent — clear any
+      // stored choice so the listing posts the legacy way (payment_kind NULL,
+      // normal admin-controlled expiration).
       setPaymentChoice(null);
     } else if (gate.mode === 'subscription') {
       setPaymentChoice('subscription_covered');
@@ -156,7 +158,10 @@ export function Step6ContactAndReview({
   const canSubmit =
     baseCanSubmit &&
     !isBlocked &&
-    (paymentChoice !== null || gate.mode === 'admin' || gate.mode === 'disabled');
+    (paymentChoice !== null ||
+      gate.mode === 'admin' ||
+      gate.mode === 'disabled' ||
+      gate.mode === 'agent_free');
 
   // When the submit button is disabled, explain why — a silent greyed-out
   // button with no feedback is impossible to debug for the poster.
