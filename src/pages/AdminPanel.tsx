@@ -133,6 +133,7 @@ export function AdminPanel() {
   const [toast, setToast] = useState<{ message: string; tone: 'success' | 'error' } | null>(null);
   const [updatingAgencyAccessId, setUpdatingAgencyAccessId] = useState<string | null>(null);
   const [updatingSalesAccessId, setUpdatingSalesAccessId] = useState<string | null>(null);
+  const [updatingFreeAgentId, setUpdatingFreeAgentId] = useState<string | null>(null);
   const [salesFeatureEnabled, setSalesFeatureEnabled] = useState(false);
   const [impersonatingUserId, setImpersonatingUserId] = useState<string | null>(null);
   const [rentalActiveDays, setRentalActiveDays] = useState<number>(30);
@@ -368,7 +369,7 @@ export function AdminPanel() {
       // when truncation is hiding rows from the admin.
       const { data: allUsers, count: usersCount } = await supabase
         .from('profiles')
-        .select('id, full_name, email, role, phone, agency, is_admin, is_banned, created_at, can_manage_agency, can_post_sales', { count: 'exact' })
+        .select('id, full_name, email, role, phone, agency, is_admin, is_banned, created_at, can_manage_agency, can_post_sales, free_posting_agent', { count: 'exact' })
         .order('created_at', { ascending: false });
 
       const { data: allListings, count: listingsCount } = await supabase
@@ -622,6 +623,47 @@ export function AdminPanel() {
       setToast({ message: "Couldn't update Sales Access. Try again.", tone: 'error' });
     } finally {
       setUpdatingSalesAccessId(null);
+    }
+  };
+
+  const handleToggleFreeAgent = async (targetUser: Profile) => {
+    if (!profile?.is_admin || updatingFreeAgentId === targetUser.id) {
+      return;
+    }
+
+    const previousValue = Boolean(targetUser.free_posting_agent);
+    const nextValue = !previousValue;
+
+    setUpdatingFreeAgentId(targetUser.id);
+    setUsers(prev =>
+      prev.map(user =>
+        user.id === targetUser.id ? { ...user, free_posting_agent: nextValue } : user
+      )
+    );
+
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ free_posting_agent: nextValue })
+        .eq('id', targetUser.id);
+
+      if (error) {
+        throw error;
+      }
+
+      setToast({ message: 'Free posting (agent) updated', tone: 'success' });
+    } catch (error) {
+      console.error('Error updating free posting agent:', error);
+      setUsers(prev =>
+        prev.map(user =>
+          user.id === targetUser.id
+            ? { ...user, free_posting_agent: previousValue }
+            : user
+        )
+      );
+      setToast({ message: "Couldn't update Free posting. Try again.", tone: 'error' });
+    } finally {
+      setUpdatingFreeAgentId(null);
     }
   };
 
@@ -1235,6 +1277,11 @@ export function AdminPanel() {
                             Sales Access
                           </th>
                         )}
+                        {profile?.is_admin && (
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" title="Marks the user as a free-posting agent (overrides the paywall while 'Charge agents' is off).">
+                            Free Posting
+                          </th>
+                        )}
                         <th className="hidden lg:table-cell px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                           <button
                             onClick={() => handleUsersSort('status')}
@@ -1335,6 +1382,27 @@ export function AdminPanel() {
                                 <span
                                   className={`inline-block h-5 w-5 transform rounded-full bg-white transition ${
                                     user.can_post_sales ? 'translate-x-5' : 'translate-x-1'
+                                  }`}
+                                />
+                              </button>
+                            </td>
+                          )}
+                          {profile?.is_admin && (
+                            <td className="px-4 py-3 align-top">
+                              <button
+                                type="button"
+                                role="switch"
+                                aria-checked={Boolean(user.free_posting_agent)}
+                                aria-label="Toggle free posting (agent)"
+                                onClick={() => handleToggleFreeAgent(user)}
+                                disabled={updatingFreeAgentId === user.id}
+                                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                                  user.free_posting_agent ? 'bg-[#4E4B43]' : 'bg-gray-300'
+                                } ${updatingFreeAgentId === user.id ? 'cursor-wait opacity-60' : 'cursor-pointer'}`}
+                              >
+                                <span
+                                  className={`inline-block h-5 w-5 transform rounded-full bg-white transition ${
+                                    user.free_posting_agent ? 'translate-x-5' : 'translate-x-1'
                                   }`}
                                 />
                               </button>
