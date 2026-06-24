@@ -3125,6 +3125,8 @@ export type Database = {
           direct_views: number | null
           impressions: number | null
           listing_id: string | null
+          map_pin_clicks: number | null
+          phone_reveals: number | null
         }
         Relationships: []
       }

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { CreditCard as Edit, Eye, MousePointerClick, MessageSquare, Star, Trash2, Zap, RefreshCw, Plus, EyeOff, AlertTriangle, Clock, Home, DollarSign, Info, CheckCircle, XCircle, Briefcase, X, Building2, Gift, ArrowUpRight, MoreVertical, Pencil, Crown, ShieldCheck } from "lucide-react";
+import { CreditCard as Edit, Eye, MousePointerClick, MessageSquare, Star, Trash2, Zap, RefreshCw, Plus, EyeOff, AlertTriangle, Clock, Home, DollarSign, Info, CheckCircle, XCircle, Briefcase, X, Building2, Gift, ArrowUpRight, MoreVertical, Pencil, Crown, ShieldCheck, Phone, MapPin } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { Listing, SaleStatus, CommercialListing, supabase } from "../config/supabase";
 import {
@@ -49,6 +49,7 @@ export default function Dashboard() {
   const [modalListingTitle, setModalListingTitle] = useState<string>('');
   const [modalInquiries, setModalInquiries] = useState<Inquiry[]>([]);
   const [modalLoading, setModalLoading] = useState(false);
+  const [phoneRevealInfoOpen, setPhoneRevealInfoOpen] = useState(false);
   const [featureModalListing, setFeatureModalListing] = useState<Listing | null>(null);
   const [featuredPurchases, setFeaturedPurchases] = useState<Record<string, FeaturedPurchase>>({});
   const [featureBanner, setFeatureBanner] = useState<{ type: 'success' | 'cancelled'; message: string } | null>(null);
@@ -1295,15 +1296,30 @@ export default function Dashboard() {
                           {(listing.direct_views ?? 0).toLocaleString()}
                         </span>
                         {!isCommercial && (
-                          <button
-                            type="button"
-                            onClick={() => handleOpenInquiries(listing.id, listing.title)}
-                            className="flex items-center gap-1 hover:text-accent-600 transition-colors"
-                            title="View inquiries"
-                          >
-                            <MessageSquare className="w-3.5 h-3.5 opacity-70" />
-                            <span className="hover:underline">{inquiryCounts[listing.id] ?? 0}</span>
-                          </button>
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => handleOpenInquiries(listing.id, listing.title)}
+                              className="flex items-center gap-1 hover:text-accent-600 transition-colors"
+                              title="View inquiries"
+                            >
+                              <MessageSquare className="w-3.5 h-3.5 opacity-70" />
+                              <span className="hover:underline">{inquiryCounts[listing.id] ?? 0}</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setPhoneRevealInfoOpen(true)}
+                              className="flex items-center gap-1 hover:text-accent-600 transition-colors"
+                              title="Phone reveals — what's this?"
+                            >
+                              <Phone className="w-3.5 h-3.5 opacity-70" />
+                              <span className="hover:underline">{(listing.phone_reveals ?? 0).toLocaleString()}</span>
+                            </button>
+                            <span className="flex items-center gap-1" title="Map pin clicks">
+                              <MapPin className="w-3.5 h-3.5 opacity-70" />
+                              {(listing.map_pin_clicks ?? 0).toLocaleString()}
+                            </span>
+                          </>
                         )}
                       </div>
 
@@ -1568,15 +1584,30 @@ export default function Dashboard() {
                           {(listing.direct_views ?? 0).toLocaleString()}
                         </span>
                         {!isCommercial && (
-                          <button
-                            type="button"
-                            onClick={() => handleOpenInquiries(listing.id, listing.title)}
-                            className="flex items-center gap-1 hover:text-accent-600 transition-colors"
-                            title="View inquiries"
-                          >
-                            <MessageSquare className="w-3.5 h-3.5 opacity-70" />
-                            <span className="hover:underline">{inquiryCounts[listing.id] ?? 0}</span>
-                          </button>
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => handleOpenInquiries(listing.id, listing.title)}
+                              className="flex items-center gap-1 hover:text-accent-600 transition-colors"
+                              title="View inquiries"
+                            >
+                              <MessageSquare className="w-3.5 h-3.5 opacity-70" />
+                              <span className="hover:underline">{inquiryCounts[listing.id] ?? 0}</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setPhoneRevealInfoOpen(true)}
+                              className="flex items-center gap-1 hover:text-accent-600 transition-colors"
+                              title="Phone reveals — what's this?"
+                            >
+                              <Phone className="w-3.5 h-3.5 opacity-70" />
+                              <span className="hover:underline">{(listing.phone_reveals ?? 0).toLocaleString()}</span>
+                            </button>
+                            <span className="flex items-center gap-1" title="Map pin clicks">
+                              <MapPin className="w-3.5 h-3.5 opacity-70" />
+                              {(listing.map_pin_clicks ?? 0).toLocaleString()}
+                            </span>
+                          </>
                         )}
                       </div>
 
@@ -1624,6 +1655,49 @@ export default function Dashboard() {
         inquiries={modalInquiries}
         loading={modalLoading}
       />
+
+      {phoneRevealInfoOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="phone-reveal-info-title"
+          onClick={() => setPhoneRevealInfoOpen(false)}
+        >
+          <div
+            className="relative bg-white rounded-lg shadow-xl max-w-sm w-full mx-auto overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between p-4 border-b border-gray-200">
+              <h3 id="phone-reveal-info-title" className="flex items-center gap-2 text-lg font-semibold text-[#273140]">
+                <Phone className="w-5 h-5 text-accent-600" />
+                Phone reveals
+              </h3>
+              <button
+                onClick={() => setPhoneRevealInfoOpen(false)}
+                className="text-gray-400 hover:text-gray-600 transition-colors"
+                aria-label="Close"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-4 text-sm text-gray-600 leading-relaxed">
+              This counts how many times people clicked to reveal your contact
+              phone number on this listing. A high number means strong interest —
+              renters who saw your phone number are ready to reach out by call or
+              text.
+            </div>
+            <div className="flex justify-end p-4 pt-0">
+              <button
+                onClick={() => setPhoneRevealInfoOpen(false)}
+                className="px-4 py-2 rounded-lg text-sm font-semibold bg-accent-600 text-white hover:bg-accent-700 transition-colors"
+              >
+                Got it
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {featureModalListing && (
         <FeatureListingModal

@@ -105,6 +105,8 @@ export interface Listing {
   posted_at?: string | null;
   impressions?: number;
   direct_views?: number;
+  phone_reveals?: number;
+  map_pin_clicks?: number;
   created_at: string;
   updated_at: string;
   last_published_at: string;
