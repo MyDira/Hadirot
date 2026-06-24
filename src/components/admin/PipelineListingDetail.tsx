@@ -5,7 +5,7 @@ import {
   CalendarDays, Repeat2, Sofa, Tag, Clock, Calendar,
 } from 'lucide-react';
 import type { ScrapedListing, CallStatus } from '@/config/supabase';
-import { getValidTransitions, CALL_STATUS_LABELS, pipelineService } from '@/services/pipeline';
+import { getValidTransitions, CALL_STATUS_LABELS, getSourceMeta, pipelineService } from '@/services/pipeline';
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog';
 
 interface PipelineListingDetailProps {
@@ -90,8 +90,7 @@ export function PipelineListingDetail({ listing, onStatusChange, onPublish, onRe
       ? { bg: 'bg-yellow-100', text: 'text-yellow-700', label: 'Pending' }
       : { bg: 'bg-red-100', text: 'text-red-700', label: 'Failed' };
 
-  const formatSource = (s: string | null) =>
-    s ? s.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()) : '-';
+  const sourceMeta = getSourceMeta(listing.source);
 
   const confidenceValue =
     listing.parse_confidence != null
@@ -264,7 +263,7 @@ export function PipelineListingDetail({ listing, onStatusChange, onPublish, onRe
           </div>
           <div className="flex items-center gap-2 py-1.5">
             <Calendar className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
-            <span className="text-xs text-gray-500">PDF date</span>
+            <span className="text-xs text-gray-500">{sourceMeta.kind === 'website' ? 'Posted date' : 'PDF date'}</span>
             <span className="text-sm font-medium text-gray-900 ml-auto">
               {listing.pdf_date ? new Date(listing.pdf_date).toLocaleDateString() : '-'}
             </span>
@@ -286,8 +285,25 @@ export function PipelineListingDetail({ listing, onStatusChange, onPublish, onRe
           <div className="flex items-center gap-2 py-1.5">
             <Tag className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
             <span className="text-xs text-gray-500">Source</span>
-            <span className="text-sm font-medium text-gray-900 ml-auto">{formatSource(listing.source)}</span>
+            <span className={`text-xs font-medium px-1.5 py-0.5 rounded ml-auto ${sourceMeta.badgeClass}`}>
+              {sourceMeta.label}
+            </span>
           </div>
+          {listing.source_url && (
+            <div className="flex items-center gap-2 py-1.5">
+              <ExternalLink className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+              <span className="text-xs text-gray-500">Original</span>
+              <a
+                href={listing.source_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sm font-medium text-blue-600 hover:text-blue-700 hover:underline ml-auto truncate max-w-[180px]"
+                title={listing.source_url}
+              >
+                View on luach.com
+              </a>
+            </div>
+          )}
         </div>
       </div>
 

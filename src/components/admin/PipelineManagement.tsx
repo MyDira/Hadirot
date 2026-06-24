@@ -4,6 +4,7 @@ import type { ScrapedListing, ScrapeRun, CallStatus } from '@/config/supabase';
 import {
   pipelineService,
   getValidTransitions,
+  getSourceMeta,
   CALL_STATUS_LABELS,
   type PipelineFilters,
 } from '@/services/pipeline';
@@ -58,15 +59,14 @@ function MatchBadge({ status }: { status: string }) {
   return <span className="px-2 py-0.5 text-xs font-medium rounded bg-blue-100 text-blue-700">New lead</span>;
 }
 
-function formatSource(source: string | null): string {
-  if (!source) return 'Unknown';
-  return source.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
-}
-
 function SourceBadge({ source }: { source: string | null }) {
+  const meta = getSourceMeta(source);
   return (
-    <span className="inline-flex items-center px-1.5 py-0.5 text-xs font-medium rounded bg-slate-100 text-slate-600 whitespace-nowrap max-w-[100px] truncate" title={source || ''}>
-      {formatSource(source)}
+    <span
+      className={`inline-flex items-center px-1.5 py-0.5 text-xs font-medium rounded whitespace-nowrap max-w-[150px] truncate ${meta.badgeClass}`}
+      title={meta.label}
+    >
+      {meta.label}
     </span>
   );
 }

@@ -29,6 +29,35 @@ export const CALL_STATUS_LABELS: Record<CallStatus, string> = {
   suppressed: 'Suppressed',
 };
 
+export interface SourceMeta {
+  /** Friendly label shown in the UI. */
+  label: string;
+  /** Whether this lead came from an online website or a printed publication. */
+  kind: 'website' | 'publication' | 'other';
+  /** Tailwind classes for the source badge, color-coded by kind. */
+  badgeClass: string;
+}
+
+/**
+ * Maps a raw `scraped_listings.source` value to display metadata so the pipeline
+ * visibly distinguishes online (luach.com) leads from publication (Luach
+ * HaTsibbur PDF) leads.
+ */
+export function getSourceMeta(source: string | null): SourceMeta {
+  switch (source) {
+    case 'luach_com':
+      return { label: 'Luach.com · Website', kind: 'website', badgeClass: 'bg-indigo-100 text-indigo-700' };
+    case 'luach_hatsibbur':
+      return { label: 'Luach HaTsibbur · Publication', kind: 'publication', badgeClass: 'bg-amber-100 text-amber-700' };
+    default: {
+      const label = source
+        ? source.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
+        : 'Unknown';
+      return { label, kind: 'other', badgeClass: 'bg-slate-100 text-slate-600' };
+    }
+  }
+}
+
 export const pipelineService = {
   async getLatestScrapeRun(): Promise<ScrapeRun | null> {
     const { data, error } = await supabase
