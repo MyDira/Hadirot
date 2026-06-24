@@ -71,6 +71,7 @@ export type Database = {
       }
       admin_settings: {
         Row: {
+          charge_agents: boolean
           featured_duration_days: number | null
           id: string
           listing_active_days: number | null
@@ -78,6 +79,8 @@ export type Database = {
           max_featured_listings: number | null
           max_featured_per_user: number | null
           max_featured_sales: number | null
+          monetization_enabled: boolean
+          monetization_enabled_at: string | null
           rental_active_days: number | null
           sale_active_days: number | null
           sales_feature_enabled: boolean | null
@@ -85,6 +88,7 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
+          charge_agents?: boolean
           featured_duration_days?: number | null
           id?: string
           listing_active_days?: number | null
@@ -92,6 +96,8 @@ export type Database = {
           max_featured_listings?: number | null
           max_featured_per_user?: number | null
           max_featured_sales?: number | null
+          monetization_enabled?: boolean
+          monetization_enabled_at?: string | null
           rental_active_days?: number | null
           sale_active_days?: number | null
           sales_feature_enabled?: boolean | null
@@ -99,6 +105,7 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
+          charge_agents?: boolean
           featured_duration_days?: number | null
           id?: string
           listing_active_days?: number | null
@@ -106,6 +113,8 @@ export type Database = {
           max_featured_listings?: number | null
           max_featured_per_user?: number | null
           max_featured_sales?: number | null
+          monetization_enabled?: boolean
+          monetization_enabled_at?: string | null
           rental_active_days?: number | null
           sale_active_days?: number | null
           sales_feature_enabled?: boolean | null
@@ -879,6 +888,7 @@ export type Database = {
           email_handle: string | null
           id: string
           last_checked_at: string | null
+          listing_subscription_id: string | null
           sources: Json | null
           status: string
           stripe_customer_id: string | null
@@ -895,6 +905,7 @@ export type Database = {
           email_handle?: string | null
           id?: string
           last_checked_at?: string | null
+          listing_subscription_id?: string | null
           sources?: Json | null
           status?: string
           stripe_customer_id?: string | null
@@ -911,6 +922,7 @@ export type Database = {
           email_handle?: string | null
           id?: string
           last_checked_at?: string | null
+          listing_subscription_id?: string | null
           sources?: Json | null
           status?: string
           stripe_customer_id?: string | null
@@ -920,6 +932,13 @@ export type Database = {
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "concierge_subscriptions_listing_subscription_id_fkey"
+            columns: ["listing_subscription_id"]
+            isOneToOne: false
+            referencedRelation: "listing_subscriptions"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "concierge_subscriptions_user_id_fkey"
             columns: ["user_id"]
@@ -2084,6 +2103,92 @@ export type Database = {
           },
         ]
       }
+      listing_subscriptions: {
+        Row: {
+          admin_active_from: string | null
+          admin_notes: string | null
+          billing_day_of_month: number | null
+          cancelled_at: string | null
+          created_at: string
+          current_period_end: string | null
+          granted_by_admin_id: string | null
+          id: string
+          is_admin_granted: boolean
+          listing_cap: number | null
+          plan: string
+          status: string
+          stripe_customer_id: string | null
+          stripe_subscription_id: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          admin_active_from?: string | null
+          admin_notes?: string | null
+          billing_day_of_month?: number | null
+          cancelled_at?: string | null
+          created_at?: string
+          current_period_end?: string | null
+          granted_by_admin_id?: string | null
+          id?: string
+          is_admin_granted?: boolean
+          listing_cap?: number | null
+          plan: string
+          status?: string
+          stripe_customer_id?: string | null
+          stripe_subscription_id?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          admin_active_from?: string | null
+          admin_notes?: string | null
+          billing_day_of_month?: number | null
+          cancelled_at?: string | null
+          created_at?: string
+          current_period_end?: string | null
+          granted_by_admin_id?: string | null
+          id?: string
+          is_admin_granted?: boolean
+          listing_cap?: number | null
+          plan?: string
+          status?: string
+          stripe_customer_id?: string | null
+          stripe_subscription_id?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "listing_subscriptions_granted_by_admin_id_fkey"
+            columns: ["granted_by_admin_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "listing_subscriptions_granted_by_admin_id_fkey"
+            columns: ["granted_by_admin_id"]
+            isOneToOne: false
+            referencedRelation: "public_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "listing_subscriptions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "listing_subscriptions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "public_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       listings: {
         Row: {
           ac_type: string | null
@@ -2152,7 +2257,10 @@ export type Database = {
             | Database["public"]["Enums"]["occupancy_status"]
             | null
           outdoor_space: string[] | null
+          paid_until: string | null
           parking: Database["public"]["Enums"]["parking_type"] | null
+          paused_paid_days: number
+          payment_kind: string | null
           payment_status:
             | Database["public"]["Enums"]["listing_payment_status"]
             | null
@@ -2172,6 +2280,7 @@ export type Database = {
           square_footage: number | null
           tenant_notes: string | null
           title: string
+          trial_started_at: string | null
           unit_count: number | null
           updated_at: string | null
           user_id: string | null
@@ -2253,7 +2362,10 @@ export type Database = {
             | Database["public"]["Enums"]["occupancy_status"]
             | null
           outdoor_space?: string[] | null
+          paid_until?: string | null
           parking?: Database["public"]["Enums"]["parking_type"] | null
+          paused_paid_days?: number
+          payment_kind?: string | null
           payment_status?:
             | Database["public"]["Enums"]["listing_payment_status"]
             | null
@@ -2273,6 +2385,7 @@ export type Database = {
           square_footage?: number | null
           tenant_notes?: string | null
           title: string
+          trial_started_at?: string | null
           unit_count?: number | null
           updated_at?: string | null
           user_id?: string | null
@@ -2354,7 +2467,10 @@ export type Database = {
             | Database["public"]["Enums"]["occupancy_status"]
             | null
           outdoor_space?: string[] | null
+          paid_until?: string | null
           parking?: Database["public"]["Enums"]["parking_type"] | null
+          paused_paid_days?: number
+          payment_kind?: string | null
           payment_status?:
             | Database["public"]["Enums"]["listing_payment_status"]
             | null
@@ -2374,6 +2490,7 @@ export type Database = {
           square_footage?: number | null
           tenant_notes?: string | null
           title?: string
+          trial_started_at?: string | null
           unit_count?: number | null
           updated_at?: string | null
           user_id?: string | null
@@ -2577,6 +2694,169 @@ export type Database = {
           },
         ]
       }
+      paid_listing_payments: {
+        Row: {
+          admin_notes: string | null
+          amount_cents: number
+          bonus_days: number
+          created_at: string
+          days_granted: number
+          granted_by_admin_id: string | null
+          id: string
+          is_initial_purchase: boolean
+          listing_id: string
+          source: string
+          stripe_checkout_session_id: string | null
+          stripe_payment_intent_id: string | null
+          user_id: string
+        }
+        Insert: {
+          admin_notes?: string | null
+          amount_cents: number
+          bonus_days?: number
+          created_at?: string
+          days_granted: number
+          granted_by_admin_id?: string | null
+          id?: string
+          is_initial_purchase?: boolean
+          listing_id: string
+          source: string
+          stripe_checkout_session_id?: string | null
+          stripe_payment_intent_id?: string | null
+          user_id: string
+        }
+        Update: {
+          admin_notes?: string | null
+          amount_cents?: number
+          bonus_days?: number
+          created_at?: string
+          days_granted?: number
+          granted_by_admin_id?: string | null
+          id?: string
+          is_initial_purchase?: boolean
+          listing_id?: string
+          source?: string
+          stripe_checkout_session_id?: string | null
+          stripe_payment_intent_id?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "paid_listing_payments_granted_by_admin_id_fkey"
+            columns: ["granted_by_admin_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "paid_listing_payments_granted_by_admin_id_fkey"
+            columns: ["granted_by_admin_id"]
+            isOneToOne: false
+            referencedRelation: "public_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "paid_listing_payments_listing_id_fkey"
+            columns: ["listing_id"]
+            isOneToOne: false
+            referencedRelation: "listing_metrics_v1"
+            referencedColumns: ["listing_id"]
+          },
+          {
+            foreignKeyName: "paid_listing_payments_listing_id_fkey"
+            columns: ["listing_id"]
+            isOneToOne: false
+            referencedRelation: "listings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "paid_listing_payments_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "paid_listing_payments_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "public_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      paid_listing_refunds: {
+        Row: {
+          amount_cents: number
+          created_at: string
+          id: string
+          listing_id: string | null
+          payment_id: string | null
+          reason: string | null
+          stripe_charge_id: string | null
+          stripe_refund_id: string | null
+          user_id: string | null
+        }
+        Insert: {
+          amount_cents: number
+          created_at?: string
+          id?: string
+          listing_id?: string | null
+          payment_id?: string | null
+          reason?: string | null
+          stripe_charge_id?: string | null
+          stripe_refund_id?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          amount_cents?: number
+          created_at?: string
+          id?: string
+          listing_id?: string | null
+          payment_id?: string | null
+          reason?: string | null
+          stripe_charge_id?: string | null
+          stripe_refund_id?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "paid_listing_refunds_listing_id_fkey"
+            columns: ["listing_id"]
+            isOneToOne: false
+            referencedRelation: "listing_metrics_v1"
+            referencedColumns: ["listing_id"]
+          },
+          {
+            foreignKeyName: "paid_listing_refunds_listing_id_fkey"
+            columns: ["listing_id"]
+            isOneToOne: false
+            referencedRelation: "listings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "paid_listing_refunds_payment_id_fkey"
+            columns: ["payment_id"]
+            isOneToOne: false
+            referencedRelation: "paid_listing_payments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "paid_listing_refunds_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "paid_listing_refunds_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "public_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           agency: string | null
@@ -2585,6 +2865,7 @@ export type Database = {
           can_post_sales: boolean | null
           created_at: string | null
           email: string | null
+          free_posting_agent: boolean
           full_name: string
           has_active_subscription: boolean | null
           id: string
@@ -2603,6 +2884,7 @@ export type Database = {
           can_post_sales?: boolean | null
           created_at?: string | null
           email?: string | null
+          free_posting_agent?: boolean
           full_name: string
           has_active_subscription?: boolean | null
           id: string
@@ -2621,6 +2903,7 @@ export type Database = {
           can_post_sales?: boolean | null
           created_at?: string | null
           email?: string | null
+          free_posting_agent?: boolean
           full_name?: string
           has_active_subscription?: boolean | null
           id?: string
@@ -2797,6 +3080,7 @@ export type Database = {
           section_8_ok: boolean | null
           separate_entrance: boolean | null
           source: string
+          source_url: string | null
           square_footage: number | null
           times_seen: number | null
           title: string
@@ -2847,6 +3131,7 @@ export type Database = {
           section_8_ok?: boolean | null
           separate_entrance?: boolean | null
           source?: string
+          source_url?: string | null
           square_footage?: number | null
           times_seen?: number | null
           title: string
@@ -2897,6 +3182,7 @@ export type Database = {
           section_8_ok?: boolean | null
           separate_entrance?: boolean | null
           source?: string
+          source_url?: string | null
           square_footage?: number | null
           times_seen?: number | null
           title?: string
@@ -3125,6 +3411,8 @@ export type Database = {
           direct_views: number | null
           impressions: number | null
           listing_id: string | null
+          map_pin_clicks: number | null
+          phone_reveals: number | null
         }
         Relationships: []
       }
@@ -3675,6 +3963,17 @@ export type Database = {
           }
       deactivate_old_listings: { Args: never; Returns: undefined }
       delete_very_old_listings: { Args: never; Returns: undefined }
+      disable_monetization: { Args: never; Returns: undefined }
+      enable_monetization: {
+        Args: never
+        Returns: {
+          enabled: boolean
+          enabled_at: string
+          high_volume_count: number
+          legacy_count: number
+          trialed_count: number
+        }[]
+      }
       ensure_agency_for_owner: {
         Args: { p_owner: string }
         Returns: {
@@ -3787,6 +4086,10 @@ export type Database = {
         }[]
       }
       get_sales_feature_enabled: { Args: never; Returns: boolean }
+      get_user_lifetime_listing_count: {
+        Args: { p_user_id: string }
+        Returns: number
+      }
       get_user_listing_counts: {
         Args: never
         Returns: {
@@ -3819,6 +4122,16 @@ export type Database = {
         Returns: undefined
       }
       is_admin_cached: { Args: never; Returns: boolean }
+      is_listing_locked: { Args: { p_listing_id: string }; Returns: boolean }
+      is_phone_trial_eligible: {
+        Args: { p_phone_e164: string }
+        Returns: boolean
+      }
+      is_subscription_trial_eligible: {
+        Args: { p_user_id?: string }
+        Returns: boolean
+      }
+      reconcile_individual_listing_anchors: { Args: never; Returns: number }
       require_admin: { Args: never; Returns: undefined }
       rollup_analytics_events: { Args: never; Returns: undefined }
       search_locations: {
