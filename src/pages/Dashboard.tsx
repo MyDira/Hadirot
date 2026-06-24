@@ -30,6 +30,34 @@ import type { MonetizationListingFields } from "../services/payments";
 
 type DashboardTab = 'rentals' | 'sales';
 
+type MetricKey = 'impressions' | 'direct_views' | 'map_pin_clicks' | 'phone_reveals';
+
+const METRIC_EXPLAINERS: Record<
+  MetricKey,
+  { icon: typeof Eye; title: string; body: string }
+> = {
+  impressions: {
+    icon: Eye,
+    title: 'Impressions',
+    body: "How many times your listing showed up in front of people — in search results, on browse pages, and on the map. A high number means lots of people are seeing it.",
+  },
+  direct_views: {
+    icon: MousePointerClick,
+    title: 'Listing views',
+    body: "How many times people clicked through to open your listing's full page. These are visitors actively reading your details and looking at your photos.",
+  },
+  map_pin_clicks: {
+    icon: MapPin,
+    title: 'Map pin clicks',
+    body: "How many times people clicked your listing's pin on the map to take a closer look. A good sign your location is catching attention.",
+  },
+  phone_reveals: {
+    icon: Phone,
+    title: 'Phone reveals',
+    body: "How many times people clicked to reveal your contact phone number on this listing. A high number means strong interest — renters who saw your number are ready to call or text.",
+  },
+};
+
 export default function Dashboard() {
   const { user, profile, loading: authLoading, refreshProfile } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -49,7 +77,7 @@ export default function Dashboard() {
   const [modalListingTitle, setModalListingTitle] = useState<string>('');
   const [modalInquiries, setModalInquiries] = useState<Inquiry[]>([]);
   const [modalLoading, setModalLoading] = useState(false);
-  const [phoneRevealInfoOpen, setPhoneRevealInfoOpen] = useState(false);
+  const [infoModalKey, setInfoModalKey] = useState<MetricKey | null>(null);
   const [featureModalListing, setFeatureModalListing] = useState<Listing | null>(null);
   const [featuredPurchases, setFeaturedPurchases] = useState<Record<string, FeaturedPurchase>>({});
   const [featureBanner, setFeatureBanner] = useState<{ type: 'success' | 'cancelled'; message: string } | null>(null);
@@ -1287,16 +1315,35 @@ export default function Dashboard() {
                     {/* Stats + actions row */}
                     <div className="flex items-center justify-between gap-3 mt-3 pt-3 border-t border-gray-100">
                       <div className="flex items-center gap-3 sm:gap-4 text-xs text-gray-500 min-w-0">
-                        <span className="flex items-center gap-1" title="Impressions">
+                        <button
+                          type="button"
+                          onClick={() => setInfoModalKey('impressions')}
+                          className="flex items-center gap-1 hover:text-accent-600 transition-colors"
+                          title="Impressions — what's this?"
+                        >
                           <Eye className="w-3.5 h-3.5 opacity-70" />
-                          {(listing.impressions ?? 0).toLocaleString()}
-                        </span>
-                        <span className="flex items-center gap-1" title="Direct views">
+                          <span className="hover:underline">{(listing.impressions ?? 0).toLocaleString()}</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setInfoModalKey('direct_views')}
+                          className="flex items-center gap-1 hover:text-accent-600 transition-colors"
+                          title="Listing views — what's this?"
+                        >
                           <MousePointerClick className="w-3.5 h-3.5 opacity-70" />
-                          {(listing.direct_views ?? 0).toLocaleString()}
-                        </span>
+                          <span className="hover:underline">{(listing.direct_views ?? 0).toLocaleString()}</span>
+                        </button>
                         {!isCommercial && (
                           <>
+                            <button
+                              type="button"
+                              onClick={() => setInfoModalKey('map_pin_clicks')}
+                              className="flex items-center gap-1 hover:text-accent-600 transition-colors"
+                              title="Map pin clicks — what's this?"
+                            >
+                              <MapPin className="w-3.5 h-3.5 opacity-70" />
+                              <span className="hover:underline">{(listing.map_pin_clicks ?? 0).toLocaleString()}</span>
+                            </button>
                             <button
                               type="button"
                               onClick={() => handleOpenInquiries(listing.id, listing.title)}
@@ -1308,17 +1355,13 @@ export default function Dashboard() {
                             </button>
                             <button
                               type="button"
-                              onClick={() => setPhoneRevealInfoOpen(true)}
+                              onClick={() => setInfoModalKey('phone_reveals')}
                               className="flex items-center gap-1 hover:text-accent-600 transition-colors"
                               title="Phone reveals — what's this?"
                             >
                               <Phone className="w-3.5 h-3.5 opacity-70" />
                               <span className="hover:underline">{(listing.phone_reveals ?? 0).toLocaleString()}</span>
                             </button>
-                            <span className="flex items-center gap-1" title="Map pin clicks">
-                              <MapPin className="w-3.5 h-3.5 opacity-70" />
-                              {(listing.map_pin_clicks ?? 0).toLocaleString()}
-                            </span>
                           </>
                         )}
                       </div>
@@ -1575,16 +1618,35 @@ export default function Dashboard() {
                     {/* Stats + actions row */}
                     <div className="flex items-center justify-between gap-3 mt-3 pt-3 border-t border-gray-100">
                       <div className="flex items-center gap-3 sm:gap-4 text-xs text-gray-500 min-w-0">
-                        <span className="flex items-center gap-1" title="Impressions">
+                        <button
+                          type="button"
+                          onClick={() => setInfoModalKey('impressions')}
+                          className="flex items-center gap-1 hover:text-accent-600 transition-colors"
+                          title="Impressions — what's this?"
+                        >
                           <Eye className="w-3.5 h-3.5 opacity-70" />
-                          {(listing.impressions ?? 0).toLocaleString()}
-                        </span>
-                        <span className="flex items-center gap-1" title="Direct views">
+                          <span className="hover:underline">{(listing.impressions ?? 0).toLocaleString()}</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setInfoModalKey('direct_views')}
+                          className="flex items-center gap-1 hover:text-accent-600 transition-colors"
+                          title="Listing views — what's this?"
+                        >
                           <MousePointerClick className="w-3.5 h-3.5 opacity-70" />
-                          {(listing.direct_views ?? 0).toLocaleString()}
-                        </span>
+                          <span className="hover:underline">{(listing.direct_views ?? 0).toLocaleString()}</span>
+                        </button>
                         {!isCommercial && (
                           <>
+                            <button
+                              type="button"
+                              onClick={() => setInfoModalKey('map_pin_clicks')}
+                              className="flex items-center gap-1 hover:text-accent-600 transition-colors"
+                              title="Map pin clicks — what's this?"
+                            >
+                              <MapPin className="w-3.5 h-3.5 opacity-70" />
+                              <span className="hover:underline">{(listing.map_pin_clicks ?? 0).toLocaleString()}</span>
+                            </button>
                             <button
                               type="button"
                               onClick={() => handleOpenInquiries(listing.id, listing.title)}
@@ -1596,17 +1658,13 @@ export default function Dashboard() {
                             </button>
                             <button
                               type="button"
-                              onClick={() => setPhoneRevealInfoOpen(true)}
+                              onClick={() => setInfoModalKey('phone_reveals')}
                               className="flex items-center gap-1 hover:text-accent-600 transition-colors"
                               title="Phone reveals — what's this?"
                             >
                               <Phone className="w-3.5 h-3.5 opacity-70" />
                               <span className="hover:underline">{(listing.phone_reveals ?? 0).toLocaleString()}</span>
                             </button>
-                            <span className="flex items-center gap-1" title="Map pin clicks">
-                              <MapPin className="w-3.5 h-3.5 opacity-70" />
-                              {(listing.map_pin_clicks ?? 0).toLocaleString()}
-                            </span>
                           </>
                         )}
                       </div>
@@ -1656,48 +1714,49 @@ export default function Dashboard() {
         loading={modalLoading}
       />
 
-      {phoneRevealInfoOpen && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="phone-reveal-info-title"
-          onClick={() => setPhoneRevealInfoOpen(false)}
-        >
+      {infoModalKey && (() => {
+        const info = METRIC_EXPLAINERS[infoModalKey];
+        const Icon = info.icon;
+        return (
           <div
-            className="relative bg-white rounded-lg shadow-xl max-w-sm w-full mx-auto overflow-hidden"
-            onClick={(e) => e.stopPropagation()}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="metric-info-title"
+            onClick={() => setInfoModalKey(null)}
           >
-            <div className="flex items-center justify-between p-4 border-b border-gray-200">
-              <h3 id="phone-reveal-info-title" className="flex items-center gap-2 text-lg font-semibold text-[#273140]">
-                <Phone className="w-5 h-5 text-accent-600" />
-                Phone reveals
-              </h3>
-              <button
-                onClick={() => setPhoneRevealInfoOpen(false)}
-                className="text-gray-400 hover:text-gray-600 transition-colors"
-                aria-label="Close"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <div className="p-4 text-sm text-gray-600 leading-relaxed">
-              This counts how many times people clicked to reveal your contact
-              phone number on this listing. A high number means strong interest —
-              renters who saw your phone number are ready to reach out by call or
-              text.
-            </div>
-            <div className="flex justify-end p-4 pt-0">
-              <button
-                onClick={() => setPhoneRevealInfoOpen(false)}
-                className="px-4 py-2 rounded-lg text-sm font-semibold bg-accent-600 text-white hover:bg-accent-700 transition-colors"
-              >
-                Got it
-              </button>
+            <div
+              className="relative bg-white rounded-lg shadow-xl max-w-sm w-full mx-auto overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between p-4 border-b border-gray-200">
+                <h3 id="metric-info-title" className="flex items-center gap-2 text-lg font-semibold text-[#273140]">
+                  <Icon className="w-5 h-5 text-accent-600" />
+                  {info.title}
+                </h3>
+                <button
+                  onClick={() => setInfoModalKey(null)}
+                  className="text-gray-400 hover:text-gray-600 transition-colors"
+                  aria-label="Close"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <div className="p-4 text-sm text-gray-600 leading-relaxed">
+                {info.body}
+              </div>
+              <div className="flex justify-end p-4 pt-0">
+                <button
+                  onClick={() => setInfoModalKey(null)}
+                  className="px-4 py-2 rounded-lg text-sm font-semibold bg-accent-600 text-white hover:bg-accent-700 transition-colors"
+                >
+                  Got it
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {featureModalListing && (
         <FeatureListingModal
