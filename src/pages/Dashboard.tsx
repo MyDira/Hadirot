@@ -44,7 +44,7 @@ const METRIC_EXPLAINERS: Record<
   direct_views: {
     icon: MousePointerClick,
     title: 'Listing views',
-    body: "How many times people clicked through to open your listing's full page. These are visitors actively reading your details and looking at your photos.",
+    body: "How many times people clicked through to open your listing's full page. It's a measure of how many people were interested enough to take a closer look after seeing it in the results — visitors actively reading your details and photos.",
   },
   map_pin_clicks: {
     icon: MapPin,
