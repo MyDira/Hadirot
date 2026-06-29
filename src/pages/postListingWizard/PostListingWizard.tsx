@@ -803,13 +803,17 @@ export function PostListingWizard() {
         // when it is posted. approve-listing stamps trial_started_at = now and
         // re-anchors paid_until from the payment ledger at approval time.
         // -----------------------------------------------------------------
+        //   agent_free           → 'legacy_free' (free-posting agent; normal
+        //                          admin-controlled expiration, no payment clock)
         ...(isSalePath || !paymentChoice
           ? {}
           : paymentChoice === 'subscription_covered'
             ? { payment_kind: 'subscription' }
             : paymentChoice === 'must_pay'
               ? { payment_kind: 'pending_payment' }
-              : { payment_kind: 'individual_trial' }),
+              : paymentChoice === 'agent_free'
+                ? { payment_kind: 'legacy_free' }
+                : { payment_kind: 'individual_trial' }),
       } as any;
 
       const listing = await listingsService.createListing(payload);

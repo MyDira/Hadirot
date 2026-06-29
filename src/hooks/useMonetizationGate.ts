@@ -10,14 +10,17 @@
 // until a valid phone is entered.
 
 import { useEffect, useState } from 'react';
+import { supabase } from '../config/supabase';
 import { subscriptionsService } from '../services/subscriptions';
 import { paymentsService } from '../services/payments';
 import { monetizationStatusService } from '../services/monetizationStatus';
+import { agentFreePostingService } from '../services/agentFreePosting';
 import type { ListingSubscription } from '../types/monetization';
 
 export type MonetizationGateMode =
   | 'loading'
   | 'disabled'       // monetization master switch is off — wizard posts the legacy way
+  | 'agent_free'     // user qualifies as an agent and charge_agents is off — posts free (legacy expiration)
   | 'subscription'
   | 'subscription_at_cap'
   | 'trial_eligible'
@@ -97,6 +100,34 @@ export function useMonetizationGate(opts: {
         return;
       }
 
+      // Agent-free posting: while admin_settings.charge_agents is off, users who
+      // qualify as agents (role=agent, admin-flagged, or high lifetime volume)
+      // post free with normal expiration — exactly like the pre-monetization
+      // path. Skipped (falls through to the paywall) when charge_agents is on.
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (cancelled) return;
+        if (user) {
+          const isFreeAgent = await agentFreePostingService.isUserFreeAgent(user.id);
+          if (cancelled) return;
+          if (isFreeAgent) {
+            setState({
+              mode: 'agent_free',
+              subscription: null,
+              subscriptionListingsUsed: 0,
+              errorMessage: null,
+            });
+            return;
+          }
+        }
+      } catch (err) {
+        // If the agent-free check can't run (e.g. columns/RPC missing because
+        // this migration hasn't been applied), fall through to the existing
+        // paywall rather than blocking the wizard.
+        console.warn('Agent-free eligibility check failed; using paywall:', err);
+        if (cancelled) return;
+      }
+
       try {
         const coverage = await subscriptionsService.canPostUnderSubscription();
         if (cancelled) return;
@@ -138,6 +169,7 @@ export function useMonetizationGate(opts: {
   useEffect(() => {
     if (!opts.enabled || opts.isAdmin) return;
     if (state.mode === 'disabled') return; // master switch off
+    if (state.mode === 'agent_free') return; // agent posts free; phone is irrelevant
     if (state.subscription) return; // already covered
 
     const normalized = phoneToE164(opts.contactPhone);

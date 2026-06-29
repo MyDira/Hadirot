@@ -50,6 +50,7 @@ export interface Profile {
   can_feature_listings?: boolean;
   can_manage_agency?: boolean;
   can_post_sales?: boolean;
+  free_posting_agent?: boolean;
   max_featured_listings_per_user?: number;
   created_at: string;
   updated_at: string;
