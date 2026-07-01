@@ -2,7 +2,8 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders } from "../_shared/cors.ts";
 
 interface ContactFormData {
-  listingId: string;
+  listingId?: string;
+  commercialListingId?: string;
   userName: string;
   userPhone: string;
   consentToFollowup: boolean;
@@ -94,6 +95,13 @@ Deno.serve(async (req) => {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         }
       );
+    }
+
+    // Commercial callers send `commercialListingId`; normalize it into `listingId`
+    // so the rest of the handler (which branches on isCommercial + the correct
+    // table) can treat the id uniformly.
+    if (formData.isCommercial === true && formData.commercialListingId) {
+      formData.listingId = formData.commercialListingId;
     }
 
     if (!formData.listingId || !formData.userName || !formData.userPhone) {
@@ -285,7 +293,7 @@ Deno.serve(async (req) => {
     let shortCode: string | null = null;
     try {
       const listingPath = isCommercial
-        ? `${siteUrl}/commercial/${formData.listingId}`
+        ? `${siteUrl}/commercial-listing/${formData.listingId}`
         : `${siteUrl}/listing/${formData.listingId}`;
 
       const { data: code, error: shortUrlError } = await supabase.rpc("create_short_url", {
@@ -380,7 +388,8 @@ Deno.serve(async (req) => {
     const { error: insertError } = await supabase
       .from("listing_contact_submissions")
       .insert({
-        listing_id: formData.listingId,
+        listing_id: isCommercial ? null : formData.listingId,
+        commercial_listing_id: isCommercial ? formData.listingId : null,
         user_name: formData.userName,
         user_phone: formData.userPhone,
         consent_to_followup: formData.consentToFollowup || false,
