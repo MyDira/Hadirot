@@ -1010,7 +1010,13 @@ export function BrowseListings() {
                   filters.parking_included ||
                   filters.no_fee_only ||
                   (filters.neighborhoods && filters.neighborhoods.length > 0) ||
-                  (filters.lease_terms && filters.lease_terms.length > 0)) && (
+                  (filters.lease_terms && filters.lease_terms.length > 0) ||
+                  (filters.commercial_space_types && filters.commercial_space_types.length > 0) ||
+                  (filters.commercial_lease_types && filters.commercial_lease_types.length > 0) ||
+                  (filters.commercial_conditions && filters.commercial_conditions.length > 0) ||
+                  (filters.building_classes && filters.building_classes.length > 0) ||
+                  filters.min_sf ||
+                  filters.max_sf) && (
                   <span className="bg-brand-600 text-white text-xs px-1.5 py-0.5 rounded-full">
                     Active
                   </span>
@@ -1105,8 +1111,11 @@ export function BrowseListings() {
                           { value: 'oldest', label: 'Oldest First' },
                           { value: 'price_asc', label: 'Price: Low to High' },
                           { value: 'price_desc', label: 'Price: High to Low' },
-                          { value: 'bedrooms_asc', label: 'Bedrooms: Low to High' },
-                          { value: 'bedrooms_desc', label: 'Bedrooms: High to Low' },
+                          // Bedroom sort is meaningless for commercial-only browse.
+                          ...(filters.listingTypeFilter === 'commercial' ? [] : [
+                            { value: 'bedrooms_asc', label: 'Bedrooms: Low to High' },
+                            { value: 'bedrooms_desc', label: 'Bedrooms: High to Low' },
+                          ]),
                         ].map((option) => (
                           <button
                             key={option.value}
