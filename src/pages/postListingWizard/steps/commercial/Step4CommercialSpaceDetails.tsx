@@ -7,7 +7,9 @@ import { StepShell, type CommercialStepProps, type StepTipsData } from './_StepS
 const TIPS: StepTipsData = {
   heading: 'Space Details',
   bullets: [
-    'Tips will appear here.',
+    'Available SF and lease type are the fields tenants filter on most — fill them in.',
+    'Build-out condition (Turnkey, Second Generation, Shell…) sets tenant expectations up front.',
+    'Add floor level, ceiling height, and frontage where they apply to your space type.',
   ],
 };
 import { WizardTriStateToggle } from './_TriStateToggle';
@@ -168,8 +170,12 @@ export function Step4CommercialSpaceDetails({ formData, updateFormData, isSale, 
     formData.commercial_space_type === 'office' &&
     (formData.commercial_subtype === 'medical_office' || formData.commercial_subtype === 'medical');
 
+  // Require the square footage before continuing — it's the field tenants filter
+  // on most and the core of this step (fixes users skipping through empty).
+  const canContinue = !!formData.available_sf && Number(formData.available_sf) > 0;
+
   return (
-    <StepShell title="Space Details" onBack={onBack} onNext={onNext} tips={TIPS}>
+    <StepShell title="Space Details" onBack={onBack} onNext={onNext} canContinue={canContinue} tips={TIPS}>
       {/* Type-specific fields */}
       {typeFields.length > 0 && (
         <div className="mb-6">

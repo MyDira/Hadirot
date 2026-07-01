@@ -5,7 +5,9 @@ import { StepShell, type CommercialStepProps, type StepTipsData } from './_StepS
 const TIPS: StepTipsData = {
   heading: 'Optional Details',
   bullets: [
-    'Tips will appear here.',
+    'These fields are optional, but the more you add the stronger your listing looks to tenants.',
+    'Add parking, HVAC, power, and type-specific features (loading docks, exam rooms, kitchen exhaust…).',
+    'For sales / investments, CAP rate, NOI, and taxes help buyers evaluate quickly.',
   ],
 };
 import { WizardTriStateToggle } from './_TriStateToggle';
