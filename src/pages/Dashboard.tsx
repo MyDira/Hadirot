@@ -1294,17 +1294,15 @@ export default function Dashboard() {
                           <MousePointerClick className="w-3.5 h-3.5 opacity-70" />
                           {(listing.direct_views ?? 0).toLocaleString()}
                         </span>
-                        {!isCommercial && (
-                          <button
-                            type="button"
-                            onClick={() => handleOpenInquiries(listing.id, listing.title)}
-                            className="flex items-center gap-1 hover:text-accent-600 transition-colors"
-                            title="View inquiries"
-                          >
-                            <MessageSquare className="w-3.5 h-3.5 opacity-70" />
-                            <span className="hover:underline">{inquiryCounts[listing.id] ?? 0}</span>
-                          </button>
-                        )}
+                        <button
+                          type="button"
+                          onClick={() => handleOpenInquiries(listing.id, listing.title)}
+                          className="flex items-center gap-1 hover:text-accent-600 transition-colors"
+                          title="View inquiries"
+                        >
+                          <MessageSquare className="w-3.5 h-3.5 opacity-70" />
+                          <span className="hover:underline">{inquiryCounts[listing.id] ?? 0}</span>
+                        </button>
                       </div>
 
                       <div className="flex items-center gap-1.5 flex-shrink-0">
@@ -1567,17 +1565,15 @@ export default function Dashboard() {
                           <MousePointerClick className="w-3.5 h-3.5 opacity-70" />
                           {(listing.direct_views ?? 0).toLocaleString()}
                         </span>
-                        {!isCommercial && (
-                          <button
-                            type="button"
-                            onClick={() => handleOpenInquiries(listing.id, listing.title)}
-                            className="flex items-center gap-1 hover:text-accent-600 transition-colors"
-                            title="View inquiries"
-                          >
-                            <MessageSquare className="w-3.5 h-3.5 opacity-70" />
-                            <span className="hover:underline">{inquiryCounts[listing.id] ?? 0}</span>
-                          </button>
-                        )}
+                        <button
+                          type="button"
+                          onClick={() => handleOpenInquiries(listing.id, listing.title)}
+                          className="flex items-center gap-1 hover:text-accent-600 transition-colors"
+                          title="View inquiries"
+                        >
+                          <MessageSquare className="w-3.5 h-3.5 opacity-70" />
+                          <span className="hover:underline">{inquiryCounts[listing.id] ?? 0}</span>
+                        </button>
                       </div>
 
                       <div className="flex items-center gap-1.5 flex-shrink-0">
