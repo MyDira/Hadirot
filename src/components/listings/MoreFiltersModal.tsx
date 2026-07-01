@@ -27,36 +27,40 @@ const LEASE_TERM_LABELS: Record<string, string> = {
   winter_rental: "Winter Rental",
 };
 
+// Values MUST match the DB enums written by the posting wizard
+// (src/pages/postListingWizard/steps/commercial). Do not use display labels as
+// values — the service filters with a case-sensitive `.in()`, so a label like
+// "NNN" or "Retail" would never match the stored "nnn" / "storefront".
 const COMMERCIAL_SPACE_TYPES = [
-  { value: "retail", label: "Retail" },
+  { value: "storefront", label: "Retail" },
   { value: "restaurant", label: "Restaurant" },
   { value: "office", label: "Office" },
   { value: "warehouse", label: "Warehouse" },
   { value: "industrial", label: "Industrial" },
   { value: "mixed_use", label: "Mixed Use" },
-  { value: "community", label: "Community" },
+  { value: "community_facility", label: "Community" },
   { value: "basement_commercial", label: "Basement Commercial" },
 ];
 
 const COMMERCIAL_LEASE_TYPES = [
-  { value: "NNN", label: "NNN (Triple Net)" },
-  { value: "Gross", label: "Gross" },
-  { value: "Modified Gross", label: "Modified Gross" },
-  { value: "Full Service", label: "Full Service" },
-  { value: "Industrial Gross", label: "Industrial Gross" },
+  { value: "nnn", label: "NNN (Triple Net)" },
+  { value: "gross", label: "Gross" },
+  { value: "modified_gross", label: "Modified Gross" },
+  { value: "full_service", label: "Full Service" },
+  { value: "industrial_gross", label: "Industrial Gross" },
 ];
 
 const COMMERCIAL_CONDITIONS = [
-  { value: "Built Out", label: "Built Out" },
-  { value: "Shell", label: "Shell" },
-  { value: "2nd Generation", label: "2nd Generation" },
-  { value: "Turnkey", label: "Turnkey" },
+  { value: "full_build_out", label: "Built Out" },
+  { value: "shell", label: "Shell" },
+  { value: "second_generation", label: "2nd Generation" },
+  { value: "turnkey", label: "Turnkey" },
 ];
 
 const BUILDING_CLASS_OPTIONS = [
-  { value: "A", label: "Class A" },
-  { value: "B", label: "Class B" },
-  { value: "C", label: "Class C" },
+  { value: "a", label: "Class A" },
+  { value: "b", label: "Class B" },
+  { value: "c", label: "Class C" },
 ];
 
 function CheckboxGroup({
