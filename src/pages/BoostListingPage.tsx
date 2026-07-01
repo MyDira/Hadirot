@@ -26,6 +26,7 @@ interface BoostData {
   already_featured: boolean;
   already_pending: boolean;
   is_active: boolean;
+  is_commercial: boolean;
 }
 
 function formatPrice(listing: BoostListing): string {
@@ -90,7 +91,7 @@ export function BoostListingPage() {
 
     try {
       const { data, error: fnError } = await supabase.functions.invoke('create-boost-checkout', {
-        body: { listing_id: listingId, plan: selectedPlan },
+        body: { listing_id: listingId, plan: selectedPlan, is_commercial: boostData?.is_commercial ?? false },
       });
 
       if (fnError || data?.error) {
@@ -348,7 +349,7 @@ export function BoostListingPage() {
         </div>
 
         <p className="text-center text-sm text-gray-400">
-          <Link to={`/listing/${listing.id}`} className="hover:text-gray-600 underline underline-offset-2">
+          <Link to={`${boostData.is_commercial ? '/commercial-listing' : '/listing'}/${listing.id}`} className="hover:text-gray-600 underline underline-offset-2">
             View listing page
           </Link>
         </p>
