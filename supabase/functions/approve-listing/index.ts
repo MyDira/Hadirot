@@ -112,9 +112,40 @@ Deno.serve(async (req) => {
     let listingData: { id: string; title: string | null; user_id: string } | null = null;
 
     if (isCommercial) {
+      // Anchor the lifecycle clock at APPROVAL time (parity with residential).
+      // Commercial is free — no trial/paid logic — so this is a straight freshness
+      // window from admin_settings. Without this, expires_at stays at the
+      // posting-time value and the queue wait is silently eaten from the live window.
+      const now = new Date();
+
+      const { data: current } = await supabaseClient
+        .from('commercial_listings')
+        .select('listing_type')
+        .eq('id', listingId)
+        .maybeSingle();
+
+      const { data: settings } = await supabaseClient
+        .from('admin_settings')
+        .select('rental_active_days, sale_active_days')
+        .maybeSingle();
+
+      const activeDays =
+        current?.listing_type === 'sale'
+          ? (settings?.sale_active_days ?? 30)
+          : (settings?.rental_active_days ?? 30);
+
+      const expiresAt = new Date(now);
+      expiresAt.setUTCDate(expiresAt.getUTCDate() + activeDays);
+
       const { data, error } = await supabaseClient
         .from('commercial_listings')
-        .update({ approved: true, is_active: true, updated_at: new Date().toISOString() })
+        .update({
+          approved: true,
+          is_active: true,
+          last_published_at: now.toISOString(),
+          expires_at: expiresAt.toISOString(),
+          updated_at: now.toISOString(),
+        })
         .eq('id', listingId)
         .select('id, title, user_id')
         .single();
