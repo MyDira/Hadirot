@@ -333,11 +333,13 @@ export function AdminPanel() {
 
   const loadAdminData = async () => {
     try {
-      // Load stats
-      const [usersRes, listingsRes, featuredRes] = await Promise.all([
+      // Load stats (residential + commercial)
+      const [usersRes, listingsRes, featuredRes, commercialCountRes, commercialFeaturedCount] = await Promise.all([
         supabase.from('profiles').select('*', { count: 'exact' }),
         supabase.from('listings').select('*', { count: 'exact' }),
         supabase.from('listings').select('*', { count: 'exact' }).eq('is_featured', true).eq('is_active', true),
+        supabase.from('commercial_listings').select('*', { count: 'exact', head: true }),
+        commercialListingsService.getCommercialFeaturedListingsCount(),
       ]);
 
       const { data: allListingsRaw } = await supabase
@@ -348,8 +350,8 @@ export function AdminPanel() {
 
       setStats({
         totalUsers: usersRes.count || 0,
-        totalListings: listingsRes.count || 0,
-        featuredListings: currentlyFeaturedCount,
+        totalListings: (listingsRes.count || 0) + (commercialCountRes.count || 0),
+        featuredListings: currentlyFeaturedCount + (commercialFeaturedCount || 0),
         activeUsers: usersRes.count || 0, // Simplified for now
       });
 
