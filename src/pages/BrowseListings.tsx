@@ -6,7 +6,6 @@ import { CommercialListingCard } from "../components/listings/CommercialListingC
 import { ListingFiltersHorizontal } from "../components/listings/ListingFiltersHorizontal";
 import { ListingsMapEnhanced } from "../components/listings/ListingsMapEnhancedLazy";
 import { SmartSearchBar, SmartSearchBarRef } from "../components/listings/SmartSearchBar";
-import { MobileListingCarousel } from "../components/listings/MobileListingCarousel";
 import { Listing, CommercialListing } from "../config/supabase";
 import { listingsService } from "../services/listings";
 import { commercialListingsService } from "../services/commercialListings";
@@ -411,8 +410,12 @@ export function BrowseListings() {
 
   const loadNeighborhoods = async () => {
     try {
-      const neighborhoods = await listingsService.getActiveRentalNeighborhoods();
-      setAllNeighborhoods(neighborhoods);
+      const [residential, commercial] = await Promise.all([
+        listingsService.getActiveRentalNeighborhoods(),
+        commercialListingsService.getActiveCommercialNeighborhoods().catch(() => [] as string[]),
+      ]);
+      const merged = Array.from(new Set([...residential, ...commercial])).sort();
+      setAllNeighborhoods(merged);
     } catch (error) {
       console.error("Error loading neighborhoods:", error);
     }
@@ -1229,16 +1232,35 @@ export function BrowseListings() {
               ) : displayItems.length === 0 ? (
                 <div className="px-6">{renderEmptyState()}</div>
               ) : (
-                <MobileListingCarousel
-                  listings={displayListings}
-                  favoriteIds={new Set(userFavorites)}
-                  onFavoriteChange={handleFavoriteChange}
-                  onCardClick={(listing) => {
-                    const idx = displayListings.findIndex(l => l.id === listing.id);
-                    handleCardClick(listing, idx);
-                    markNavigatingToDetail();
-                  }}
-                />
+                <div className="flex flex-col gap-4 px-4">
+                  {displayItems.map((item, idx) => {
+                    const id = item.data.id;
+                    const itemKey = item.kind === 'residential' ? item.data.key : `commercial-${id}`;
+                    return (
+                      <div key={itemKey} className="w-full">
+                        {item.kind === 'residential' ? (
+                          <ListingCard
+                            listing={item.data}
+                            isFavorited={userFavorites.includes(id)}
+                            onFavoriteChange={handleFavoriteChange}
+                            showFeaturedBadge={item.data.showFeaturedBadge}
+                            onClick={() => {
+                              handleCardClick(item.data, idx);
+                              markNavigatingToDetail();
+                            }}
+                            onNavigateToDetail={markNavigatingToDetail}
+                          />
+                        ) : (
+                          <CommercialListingCard
+                            listing={item.data}
+                            isFavorited={commercialFavorites.includes(id)}
+                            onFavoriteChange={loadUserFavorites}
+                          />
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
               )}
             </div>
 
