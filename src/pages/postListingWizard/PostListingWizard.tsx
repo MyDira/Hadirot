@@ -582,6 +582,21 @@ export function PostListingWizard() {
         }
       }
 
+      // Notify admins that a commercial listing is awaiting approval (parity with
+      // the legacy /post-commercial page and the residential flow).
+      try {
+        const typeLabel = (fd.commercial_space_type || 'Commercial')
+          .replace(/_/g, ' ')
+          .replace(/\b\w/g, (l: string) => l.toUpperCase());
+        const locationDisplay = fd.full_address || [cross_street_a, cross_street_b].filter(Boolean).join(' & ');
+        await emailService.sendAdminNotification(
+          'New Commercial Listing Pending Approval',
+          `A new commercial listing has been submitted and requires approval.\n\nType: ${typeLabel}\nLocation: ${locationDisplay || 'Not specified'}\nNeighborhood: ${wizard.resolvedNeighborhood || fd.neighborhood || 'Not specified'}\nListing ID: ${listing.id}\n\nPlease review it in the admin panel.`,
+        );
+      } catch (adminErr) {
+        console.warn('Failed to send admin notification for commercial listing', adminErr);
+      }
+
       wizard.clearDraft();
       setCommercialMediaFiles([]);
       navigate(`/dashboard?new_listing=true&listing_id=${listing.id}`);

@@ -162,6 +162,9 @@ export function BrowseListings() {
         listing_type: c.listing_type,
         commercial_space_type: c.commercial_space_type,
         neighborhood: c.neighborhood,
+        call_for_price: c.call_for_price,
+        is_featured: c.is_featured,
+        featured_expires_at: c.featured_expires_at,
       }));
   }, [allCommercialForMap]);
 

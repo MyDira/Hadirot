@@ -235,6 +235,7 @@ export function ListingsMapEnhanced({
   }, [listingsWithCoords]);
 
   const formatCommercialPinPrice = (pin: CommercialMapPin): string => {
+    if (pin.call_for_price) return "Call";
     const isRental = pin.listing_type === "rental";
     const rawPrice = isRental ? pin.price : pin.asking_price;
     if (rawPrice == null) return "N/A";
@@ -753,7 +754,9 @@ export function ListingsMapEnhanced({
   const updatePopupPosition = useCallback(() => {
     if (!popupContainer.current || !map.current || !mapContainer.current || !activeListingId.current) return;
 
-    const listing = listingsWithCoords.find(l => l.id === activeListingId.current);
+    const listing =
+      listingsWithCoords.find(l => l.id === activeListingId.current) ??
+      commercialListings.find(l => l.id === activeListingId.current);
     if (!listing || listing.latitude == null || listing.longitude == null) return;
 
     const markerLngLat: [number, number] = [listing.longitude, listing.latitude];
@@ -796,7 +799,7 @@ export function ListingsMapEnhanced({
       (arrow as HTMLElement).style.left = `${arrowOffset}px`;
       arrow.className = position.anchor === 'bottom' ? 'popup-arrow-bottom' : 'popup-arrow-top';
     }
-  }, [listingsWithCoords]);
+  }, [listingsWithCoords, commercialListings]);
 
   const handleIndicatorClick = useCallback((listingId: string) => {
     if (!map.current) return;
