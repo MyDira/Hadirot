@@ -220,6 +220,12 @@ export function BrowseSales() {
         neighborhoods: filters.neighborhoods,
         sort: (filters.sort === 'price_asc' || filters.sort === 'price_desc' || filters.sort === 'newest' || filters.sort === 'oldest') ? filters.sort : 'newest' as any,
         bounds: filterBounds || undefined,
+        commercial_space_types: filters.commercial_space_types,
+        min_sf: filters.min_sf,
+        max_sf: filters.max_sf,
+        commercial_lease_types: filters.commercial_lease_types,
+        commercial_conditions: filters.commercial_conditions,
+        building_classes: filters.building_classes,
       };
 
       let residentialCount = 0;

@@ -24,7 +24,6 @@ import { Modal } from '../components/shared/Modal';
 import { AuthForm, type AuthSuccessMethod } from '../components/auth/AuthForm';
 import { savePendingAuth } from '../lib/pendingAuth';
 import {
-  savePendingListingAction,
   peekPendingListingAction,
   clearPendingListingAction,
 } from '../lib/pendingListingAction';
