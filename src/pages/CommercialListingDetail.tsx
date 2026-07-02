@@ -34,6 +34,7 @@ import {
   trackLoginGateAuthSuccess,
   trackLoginGateActionCompleted,
   trackPhoneReveal,
+  trackListingView,
   type LoginGateAction,
 } from '../lib/analytics';
 import { commercialLabels, triStateLabel } from '../utils/commercialLabels';
@@ -498,7 +499,11 @@ export function CommercialListingDetail() {
   useEffect(() => {
     if (id && !hasViewedRef.current) {
       hasViewedRef.current = true;
+      // Row-column count (source of truth for the owner banner) + analytics_events
+      // 'listing_view' so commercial appears in the admin analytics view/conversion
+      // metrics, matching residential.
       commercialListingsService.incrementCommercialListingView(id).catch(() => {});
+      trackListingView(id);
     }
   }, [id]);
 
