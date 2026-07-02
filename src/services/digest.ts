@@ -396,12 +396,12 @@ export const digestService = {
   },
 
   async getDigestSentListings(digestSendId: string) {
+    // No FK embed here — digest_sent_listings.listing_id is polymorphic
+    // (residential OR commercial) once 20260702030000 drops the FK, so
+    // listing details are resolved with explicit id lookups instead.
     const { data, error } = await supabase
       .from('digest_sent_listings')
-      .select(`
-        *,
-        listing:listings(id, title, price, bedrooms, location)
-      `)
+      .select('*')
       .eq('digest_send_id', digestSendId);
 
     if (error) {
@@ -409,7 +409,22 @@ export const digestService = {
       throw new Error(`Failed to fetch sent listings: ${error.message}`);
     }
 
-    return data || [];
+    const rows = data || [];
+    const ids = [...new Set(rows.map((r: any) => r.listing_id).filter(Boolean))];
+    if (ids.length === 0) return rows;
+
+    const [{ data: res }, { data: com }] = await Promise.all([
+      supabase.from('listings').select('id, title, price, bedrooms, location').in('id', ids),
+      supabase.from('commercial_listings').select('id, title, price, full_address').in('id', ids),
+    ]);
+
+    const byId: Record<string, any> = {};
+    (res || []).forEach((l: any) => { byId[l.id] = l; });
+    (com || []).forEach((l: any) => {
+      byId[l.id] = { id: l.id, title: l.title, price: l.price, bedrooms: null, location: l.full_address };
+    });
+
+    return rows.map((r: any) => ({ ...r, listing: byId[r.listing_id] ?? null }));
   },
 
   // ============================================================================

@@ -97,13 +97,22 @@ Deno.serve(async (req) => {
       auth: { autoRefreshToken: false, persistSession: false },
     });
 
-    const { data: activeListings, error: listingsError } = await supabaseAdmin
-      .from('listings')
-      .select('id, contact_phone')
-      .eq('is_active', true)
-      .eq('approved', true)
-      .not('contact_phone', 'is', null)
-      .not('user_id', 'is', null);
+    const [{ data: residentialListings, error: listingsError }, { data: commercialActive, error: commercialErr }] = await Promise.all([
+      supabaseAdmin
+        .from('listings')
+        .select('id, contact_phone')
+        .eq('is_active', true)
+        .eq('approved', true)
+        .not('contact_phone', 'is', null)
+        .not('user_id', 'is', null),
+      supabaseAdmin
+        .from('commercial_listings')
+        .select('id, contact_phone')
+        .eq('is_active', true)
+        .eq('approved', true)
+        .not('contact_phone', 'is', null)
+        .not('user_id', 'is', null),
+    ]);
 
     if (listingsError) {
       console.error("Error querying listings:", listingsError);
@@ -112,6 +121,14 @@ Deno.serve(async (req) => {
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
+    if (commercialErr) {
+      console.error("Error querying commercial listings (continuing without):", commercialErr);
+    }
+
+    // Commercial listings join the per-phone report. Their 7-day callbacks and
+    // phone reveals count correctly; impression/view events are residential-only
+    // pipelines, so those columns simply contribute 0 for commercial.
+    const activeListings = [...(residentialListings ?? []), ...(commercialActive ?? [])];
 
     if (!activeListings || activeListings.length === 0) {
       return new Response(
@@ -146,7 +163,7 @@ Deno.serve(async (req) => {
 
       supabaseAdmin
         .from('listing_contact_submissions')
-        .select('listing_id')
+        .select('listing_id, commercial_listing_id')
         .gte('created_at', sevenDaysAgo),
     ]);
 
@@ -189,8 +206,9 @@ Deno.serve(async (req) => {
     const callbacksByListing = new Map<string, number>();
     if (callbacksResult.data) {
       for (const sub of callbacksResult.data) {
-        if (sub.listing_id && listingIdSet.has(sub.listing_id)) {
-          callbacksByListing.set(sub.listing_id, (callbacksByListing.get(sub.listing_id) || 0) + 1);
+        const subListingId = sub.listing_id ?? sub.commercial_listing_id;
+        if (subListingId && listingIdSet.has(subListingId)) {
+          callbacksByListing.set(subListingId, (callbacksByListing.get(subListingId) || 0) + 1);
         }
       }
     }
