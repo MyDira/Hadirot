@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import * as Sentry from "@sentry/react";
 import { Building2 } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
+import { COMMERCIAL_POSTING_LIVE } from "../config/launchFlags";
 import { INITIAL_COMMERCIAL_FORM_DATA } from "./postCommercial/commercialTypes";
 import type { CommercialListingFormData } from "./postCommercial/commercialTypes";
 import type { CommercialSpaceType, CommercialSubtype } from "../config/supabase";
@@ -113,8 +114,13 @@ export function PostCommercialListing() {
     }
   }, [profile]);
 
-  // Redirect if not logged in
+  // Gate behind the commercial launch flag (same switch as the wizard cards),
+  // then redirect if not logged in.
   useEffect(() => {
+    if (!COMMERCIAL_POSTING_LIVE) {
+      navigate("/post-listing-new", { replace: true });
+      return;
+    }
     if (!authLoading && !user) {
       navigate("/auth");
     }

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import * as Sentry from '@sentry/react';
+import { COMMERCIAL_POSTING_LIVE } from '../../config/launchFlags';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/config/supabase';
 import { Modal } from '../../components/shared/Modal';
@@ -109,8 +110,8 @@ const COMMERCIAL_STEP_LABELS = [
 const LISTING_TYPE_OPTIONS: { path: WizardPath; label: string; sub: string; comingSoon?: boolean }[] = [
   { path: 'residential_rent', label: 'Residential Rental', sub: 'Apartment, room, house for rent' },
   { path: 'residential_sale', label: 'Residential Sale',   sub: 'House, condo, co-op for sale'   },
-  { path: 'commercial_lease', label: 'Commercial Rental',  sub: 'Office, retail, industrial', comingSoon: true },
-  { path: 'commercial_sale',  label: 'Commercial Sale',    sub: 'Office, retail, industrial', comingSoon: true },
+  { path: 'commercial_lease', label: 'Commercial Rental',  sub: 'Office, retail, industrial', comingSoon: !COMMERCIAL_POSTING_LIVE },
+  { path: 'commercial_sale',  label: 'Commercial Sale',    sub: 'Office, retail, industrial', comingSoon: !COMMERCIAL_POSTING_LIVE },
 ];
 
 function ChangeListingTypeButton({
