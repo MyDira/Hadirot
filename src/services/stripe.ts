@@ -173,7 +173,9 @@ export const stripeService = {
     adminId: string,
     mode: 'free' | 'manual_payment',
     amountCents?: number,
+    isCommercial = false,
   ) {
+    const table = isCommercial ? 'commercial_listings' : 'listings';
     const now = new Date();
     const endDate = new Date(now.getTime() + durationDays * 24 * 60 * 60 * 1000);
 
@@ -181,7 +183,7 @@ export const stripeService = {
       .from('featured_purchases')
       .insert({
         listing_id: listingId,
-        user_id: (await supabase.from('listings').select('user_id').eq('id', listingId).single()).data?.user_id,
+        user_id: (await supabase.from(table).select('user_id').eq('id', listingId).single()).data?.user_id,
         plan,
         amount_cents: mode === 'free' ? 0 : (amountCents || 0),
         status: mode === 'free' ? 'free' : 'active',
@@ -191,12 +193,13 @@ export const stripeService = {
         featured_start: now.toISOString(),
         featured_end: endDate.toISOString(),
         duration_days: durationDays,
+        is_commercial: isCommercial,
       });
 
     if (purchaseError) throw purchaseError;
 
     const { error: listingError } = await supabase
-      .from('listings')
+      .from(table)
       .update({
         is_featured: true,
         featured_started_at: now.toISOString(),
@@ -208,7 +211,8 @@ export const stripeService = {
     if (listingError) throw listingError;
   },
 
-  async adminRemoveFeature(listingId: string) {
+  async adminRemoveFeature(listingId: string, isCommercial = false) {
+    const table = isCommercial ? 'commercial_listings' : 'listings';
     await supabase
       .from('featured_purchases')
       .update({ status: 'expired', updated_at: new Date().toISOString() })
@@ -216,7 +220,7 @@ export const stripeService = {
       .in('status', ['active', 'free']);
 
     const { error } = await supabase
-      .from('listings')
+      .from(table)
       .update({
         is_featured: false,
         featured_expires_at: null,

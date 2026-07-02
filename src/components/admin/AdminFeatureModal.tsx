@@ -28,6 +28,10 @@ export function AdminFeatureModal({ isOpen, onClose, listing, adminId, onSuccess
 
   if (!isOpen) return null;
 
+  // AdminPanel merges commercial listings into the table as Listing-shaped
+  // rows tagged __commercial — route grants/removals to the right table.
+  const isCommercial = (listing as any).__commercial === true;
+
   const isCurrentlyFeatured = listing.is_featured &&
     listing.featured_expires_at &&
     new Date(listing.featured_expires_at) > new Date();
@@ -41,7 +45,7 @@ export function AdminFeatureModal({ isOpen, onClose, listing, adminId, onSuccess
     setError(null);
     try {
       const opt = DURATION_OPTIONS.find(d => d.id === selectedDuration)!;
-      await stripeService.adminGrantFeature(listing.id, opt.id, opt.days, adminId, 'free');
+      await stripeService.adminGrantFeature(listing.id, opt.id, opt.days, adminId, 'free', undefined, isCommercial);
       onSuccess();
       onClose();
     } catch (err: any) {
@@ -57,7 +61,7 @@ export function AdminFeatureModal({ isOpen, onClose, listing, adminId, onSuccess
     try {
       const opt = DURATION_OPTIONS.find(d => d.id === selectedDuration)!;
       const cents = Math.round(parseFloat(manualAmount || '0') * 100);
-      await stripeService.adminGrantFeature(listing.id, opt.id, opt.days, adminId, 'manual_payment', cents);
+      await stripeService.adminGrantFeature(listing.id, opt.id, opt.days, adminId, 'manual_payment', cents, isCommercial);
       onSuccess();
       onClose();
     } catch (err: any) {
@@ -71,7 +75,7 @@ export function AdminFeatureModal({ isOpen, onClose, listing, adminId, onSuccess
     setLoading(true);
     setError(null);
     try {
-      await stripeService.adminRemoveFeature(listing.id);
+      await stripeService.adminRemoveFeature(listing.id, isCommercial);
       onSuccess();
       onClose();
     } catch (err: any) {

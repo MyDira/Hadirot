@@ -374,12 +374,38 @@ export function AdminPanel() {
         .select('id, full_name, email, role, phone, agency, is_admin, is_banned, created_at, can_manage_agency, can_post_sales, free_posting_agent', { count: 'exact' })
         .order('created_at', { ascending: false });
 
-      const { data: allListings, count: listingsCount } = await supabase
-        .from('listings')
-        .select(`
-          *,
-          owner:profiles!listings_user_id_fkey(full_name, role, agency)
-        `, { count: 'exact' });
+      const [{ data: allListings, count: listingsCount }, { data: allCommercialRows }] = await Promise.all([
+        supabase
+          .from('listings')
+          .select(`
+            *,
+            owner:profiles!listings_user_id_fkey(full_name, role, agency)
+          `, { count: 'exact' }),
+        supabase
+          .from('commercial_listings')
+          .select(`
+            *,
+            owner:profiles(full_name, role, agency)
+          `),
+      ]);
+
+      // Commercial listings join the management table as Listing-shaped rows
+      // tagged __commercial; row actions and the feature modal branch on it.
+      const commercialAsListings: Listing[] = ((allCommercialRows || []) as any[]).map((c) => ({
+        ...c,
+        title:
+          c.title ||
+          `${String(c.commercial_space_type || 'Commercial').replace(/_/g, ' ')} — ${
+            c.full_address || c.neighborhood || 'No address'
+          }`,
+        location:
+          c.full_address ||
+          [c.cross_street_a, c.cross_street_b].filter(Boolean).join(' & ') ||
+          c.neighborhood ||
+          '',
+        price: c.listing_type === 'sale' ? c.asking_price : c.price,
+        __commercial: true,
+      })) as unknown as Listing[];
 
       if (usersCount !== null && allUsers && usersCount > allUsers.length) {
         setToast({
@@ -423,9 +449,9 @@ export function AdminPanel() {
       setPendingListings(combined);
       setUsers(allUsers || []);
       
-      // Apply date filtering
-      let filteredData = allListings || [];
-      
+      // Apply date filtering (residential + commercial)
+      let filteredData = [...(allListings || []), ...commercialAsListings];
+
       if (dateFilter.startDate || dateFilter.endDate) {
         filteredData = filteredData.filter(listing => {
           const createdAt = new Date(listing.created_at);
@@ -720,13 +746,13 @@ export function AdminPanel() {
     }
   };
 
-  const toggleListingActive = async (listingId: string, isActive: boolean) => {
+  const toggleListingActive = async (listingId: string, isActive: boolean, isCommercial = false) => {
     try {
       await supabase
-        .from('listings')
+        .from(isCommercial ? 'commercial_listings' : 'listings')
         .update({ is_active: !isActive })
         .eq('id', listingId);
-      
+
       await loadAdminData();
     } catch (error) {
       console.error('Error updating listing active status:', error);
@@ -737,14 +763,14 @@ export function AdminPanel() {
     setFeatureModalListing(listing);
   };
 
-  const deleteListing = async (listingId: string, listingTitle: string) => {
+  const deleteListing = async (listingId: string, listingTitle: string, isCommercial = false) => {
     if (!confirm(`Are you sure you want to delete "${listingTitle}" permanently? This action cannot be undone.`)) {
       return;
     }
 
     try {
       const { error } = await supabase
-        .from('listings')
+        .from(isCommercial ? 'commercial_listings' : 'listings')
         .delete()
         .eq('id', listingId);
 
@@ -1746,11 +1772,20 @@ export function AdminPanel() {
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
-                      {currentListings.map((listing) => (
+                      {currentListings.map((listing) => {
+                        const isCommercialRow = (listing as any).__commercial === true;
+                        return (
                         <tr key={listing.id}>
                           <td className="px-6 py-4 whitespace-nowrap">
                             <div>
-                              <div className="font-medium text-gray-900 truncate max-w-xs">{listing.title}</div>
+                              <div className="font-medium text-gray-900 truncate max-w-xs">
+                                {listing.title}
+                                {isCommercialRow && (
+                                  <span className="ml-2 inline-flex items-center bg-cyan-50 text-cyan-700 border border-cyan-200 text-xs px-1.5 py-0.5 rounded align-middle">
+                                    Commercial
+                                  </span>
+                                )}
+                              </div>
                               <div className="text-sm text-gray-500">{listing.location}</div>
                             </div>
                           </td>
@@ -1775,7 +1810,11 @@ export function AdminPanel() {
                             {listing.contact_phone ? formatPhoneForDisplay(listing.contact_phone) : '—'}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                            {listing.call_for_price ? 'Call for Price' : `$${listing.price}/month`}
+                            {listing.call_for_price
+                              ? 'Call for Price'
+                              : listing.listing_type === 'sale'
+                                ? `$${(listing.price ?? 0).toLocaleString()}`
+                                : `$${listing.price}/month`}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                             {new Date(listing.created_at).toLocaleDateString()}
@@ -1799,14 +1838,14 @@ export function AdminPanel() {
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                             <div className="flex items-center space-x-2">
                               <Link
-                                to={`/listing/${listing.id}`}
+                                to={isCommercialRow ? `/commercial-listing/${listing.id}` : `/listing/${listing.id}`}
                                 className="text-blue-600 hover:text-blue-800 transition-colors"
                                 title="View Listing"
                               >
                                 <Eye className="w-5 h-5" />
                               </Link>
                               <Link
-                                to={`/edit/${listing.id}`}
+                                to={isCommercialRow ? `/commercial/edit/${listing.id}` : `/edit/${listing.id}`}
                                 className="text-green-600 hover:text-green-800 transition-colors"
                                 title="Edit Listing"
                               >
@@ -1824,7 +1863,7 @@ export function AdminPanel() {
                                 <Star className={`w-5 h-5 ${listing.is_featured ? 'fill-current' : ''}`} />
                               </button>
                               <button
-                                onClick={() => toggleListingActive(listing.id, listing.is_active)}
+                                onClick={() => toggleListingActive(listing.id, listing.is_active, isCommercialRow)}
                                 className={`transition-colors ${
                                   listing.is_active
                                     ? 'text-red-500 hover:text-red-600'
@@ -1834,7 +1873,7 @@ export function AdminPanel() {
                               >
                                 <Power className="w-5 h-5" />
                               </button>
-                              {listing.listing_type === 'rental' && (
+                              {!isCommercialRow && listing.listing_type === 'rental' && (
                                 <button
                                   onClick={() => {
                                     setGrantDaysListingId(listing.id);
@@ -1846,7 +1885,7 @@ export function AdminPanel() {
                                   <Clock className="w-5 h-5" />
                                 </button>
                               )}
-                              {listing.listing_type === 'rental' && (
+                              {!isCommercialRow && listing.listing_type === 'rental' && (
                                 <button
                                   onClick={() => {
                                     setChargeListingId(listing.id);
@@ -1859,7 +1898,7 @@ export function AdminPanel() {
                                 </button>
                               )}
                               <button
-                                onClick={() => deleteListing(listing.id, listing.title)}
+                                onClick={() => deleteListing(listing.id, listing.title, isCommercialRow)}
                                 className="text-red-600 hover:text-red-800 transition-colors"
                                 title="Delete Listing"
                               >
@@ -1868,7 +1907,8 @@ export function AdminPanel() {
                             </div>
                           </td>
                         </tr>
-                      ))}
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
