@@ -33,6 +33,7 @@ import {
   trackLoginGateDismissed,
   trackLoginGateAuthSuccess,
   trackLoginGateActionCompleted,
+  trackPhoneReveal,
   type LoginGateAction,
 } from '../lib/analytics';
 import { commercialLabels, triStateLabel } from '../utils/commercialLabels';
@@ -517,6 +518,7 @@ export function CommercialListingDetail() {
       if (pending.type === 'reveal_phone') {
         setPhoneRevealedSession(id);
         setPhoneRevealKey((k) => k + 1);
+        trackPhoneReveal(id);
         gaListing('commercial_listing_contact_click', id, {
           contact_method: 'phone',
         });
@@ -738,6 +740,7 @@ export function CommercialListingDetail() {
 
   const handleCallClick = (): boolean | void => {
     if (!listing?.id) return;
+    trackPhoneReveal(listing.id);
     gaListing('commercial_listing_contact_click', listing.id, {
       contact_method: 'phone',
     });
