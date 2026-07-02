@@ -303,7 +303,9 @@ Deno.serve(async (req) => {
       try {
         const listingTitle = listingData.title ?? 'Your listing';
         const siteUrl = Deno.env.get('SITE_URL') ?? Deno.env.get('PUBLIC_SITE_URL') ?? 'https://hadirot.com';
-        const listingUrl = `${siteUrl}/listing/${listingData.id}`;
+        const listingUrl = isCommercial
+          ? `${siteUrl}/commercial-listing/${listingData.id}`
+          : `${siteUrl}/listing/${listingData.id}`;
 
         const html = renderBrandEmail({
           title: 'Your Listing Has Been Approved',
