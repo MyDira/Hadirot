@@ -4167,6 +4167,10 @@ export type Database = {
         Args: { article_id: string }
         Returns: undefined
       }
+      increment_commercial_listing_impressions: {
+        Args: { p_listing_ids: string[] }
+        Returns: undefined
+      }
       increment_commercial_listing_views: {
         Args: { listing_id: string }
         Returns: undefined
