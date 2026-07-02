@@ -1,5 +1,28 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders } from "../_shared/cors.ts";
+import { sendViaZepto } from "../_shared/zepto.ts";
+
+// A failed conversation insert means a later "RENTED" reply has nothing to
+// match — alert the SMS admin instead of failing silently (this is how the
+// state-CHECK constraint bug went unnoticed for months).
+async function alertAdminSmsFailure(supabase: any, context: string, detail: unknown) {
+  try {
+    const { data: cfg } = await supabase
+      .from("sms_admin_config")
+      .select("admin_email, notify_on_errors")
+      .limit(1)
+      .maybeSingle();
+    if (cfg?.admin_email && cfg?.notify_on_errors !== false) {
+      await sendViaZepto({
+        to: cfg.admin_email,
+        subject: `Hadirot SMS alert: ${context}`,
+        html: `<p>${context}</p><pre>${JSON.stringify(detail, null, 2)?.slice(0, 2000)}</pre>`,
+      });
+    }
+  } catch (e) {
+    console.error("Failed to send SMS admin alert:", e);
+  }
+}
 
 interface ContactFormData {
   listingId?: string;
@@ -34,6 +57,8 @@ function formatSpaceType(raw: string): string {
     coworking: "Coworking",
     gallery: "Gallery",
     event_space: "Event Space",
+    community_facility: "Community Facility",
+    basement_commercial: "Basement Commercial",
   };
   return map[raw?.toLowerCase()] ?? (raw ? raw.charAt(0).toUpperCase() + raw.slice(1) : "Commercial");
 }
@@ -405,6 +430,7 @@ Deno.serve(async (req) => {
     // ----------------------------------------------------------------
     // Create callback conversation (non-sale listings only)
     // ----------------------------------------------------------------
+    let callbackConversationCreated = true; // sales don't create one — not a failure
     if (!isSale && listing.user_id) {
       const callbackExpires = new Date(Date.now() + 72 * 60 * 60 * 1000);
       const { error: convError } = await supabase
@@ -429,12 +455,21 @@ Deno.serve(async (req) => {
         });
       if (convError) {
         console.error("Error creating callback conversation:", convError);
+        await alertAdminSmsFailure(
+          supabase,
+          "callback conversation insert failed (owner RENTED reply will not match)",
+          { convError, listingId: formData.listingId, isCommercial },
+        );
       }
+      callbackConversationCreated = !convError;
     }
 
     // ----------------------------------------------------------------
-    // Boost upsell SMS (3-second delay for separate visual message)
+    // Boost upsell SMS — runs in the background AFTER the response is sent.
+    // The 3s delay keeps it visually separate from the alert SMS without
+    // holding the caller's HTTP request open.
     // ----------------------------------------------------------------
+    const upsellTask = (async () => {
     await new Promise((resolve) => setTimeout(resolve, 3000));
 
     try {
@@ -518,12 +553,21 @@ Deno.serve(async (req) => {
     } catch (upsellErr) {
       console.error("Boost upsell error (non-fatal):", upsellErr);
     }
+    })();
+    // deno-lint-ignore no-explicit-any
+    const runtime = (globalThis as any).EdgeRuntime;
+    if (runtime?.waitUntil) {
+      runtime.waitUntil(upsellTask);
+    } else {
+      await upsellTask;
+    }
 
     return new Response(
       JSON.stringify({
         success: true,
         message: "Contact request sent successfully!",
         smsId: twilioData.sid,
+        conversation_created: callbackConversationCreated,
       }),
       {
         status: 200,

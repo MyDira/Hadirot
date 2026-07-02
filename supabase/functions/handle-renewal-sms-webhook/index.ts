@@ -84,6 +84,8 @@ function formatSpaceType(raw: string): string {
     coworking: "Coworking",
     gallery: "Gallery",
     event_space: "Event Space",
+    community_facility: "Community Facility",
+    basement_commercial: "Basement Commercial",
   };
   return map[raw?.toLowerCase()] ?? (raw ? raw.charAt(0).toUpperCase() + raw.slice(1) : "Commercial");
 }
