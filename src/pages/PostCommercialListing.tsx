@@ -444,8 +444,10 @@ export function PostCommercialListing() {
 
       const listing = await commercialListingsService.createCommercialListing(payload as any);
 
-      // Upload images
+      // Upload images — count failures so the user isn't silently left with a
+      // photo-less listing in the approval queue.
       const imageFiles = mediaFiles.filter((m) => m.type === "image" && m.file);
+      let failedUploads = 0;
       for (let i = 0; i < imageFiles.length; i++) {
         const mediaFile = imageFiles[i];
         if (!mediaFile.file) continue;
@@ -461,9 +463,15 @@ export function PostCommercialListing() {
             i
           );
         } catch (err) {
+          failedUploads++;
           console.error("Failed to upload image:", err);
           Sentry.captureException(err);
         }
+      }
+      if (failedUploads > 0) {
+        alert(failedUploads === imageFiles.length
+          ? "Your listing was submitted, but ALL photos failed to upload. Please open the listing from your account and re-add photos."
+          : `Your listing was submitted, but ${failedUploads} photo(s) failed to upload. You can re-add them from Edit Listing.`);
       }
 
       // Send admin notification

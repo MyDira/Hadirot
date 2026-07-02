@@ -48,6 +48,9 @@ const COMMERCIAL_LEASE_TYPES = [
   { value: "modified_gross", label: "Modified Gross" },
   { value: "full_service", label: "Full Service" },
   { value: "industrial_gross", label: "Industrial Gross" },
+  { value: "percentage", label: "Percentage" },
+  { value: "absolute_net", label: "Absolute Net" },
+  { value: "tenant_electric", label: "Tenant Electric" },
 ];
 
 const COMMERCIAL_CONDITIONS = [
@@ -55,6 +58,8 @@ const COMMERCIAL_CONDITIONS = [
   { value: "shell", label: "Shell" },
   { value: "second_generation", label: "2nd Generation" },
   { value: "turnkey", label: "Turnkey" },
+  { value: "vanilla_box", label: "Vanilla Box" },
+  { value: "cold_dark_shell", label: "Cold Dark Shell" },
 ];
 
 const BUILDING_CLASS_OPTIONS = [
