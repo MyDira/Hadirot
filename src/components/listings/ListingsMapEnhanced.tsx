@@ -292,7 +292,8 @@ export function ListingsMapEnhanced({
   }, []);
 
   const createCommercialPopupContent = useCallback((listing: CommercialListing): string => {
-    const sortedImages = (listing as any).commercial_listing_images
+    // The service aliases images as `listing_images` (listing_images:commercial_listing_images(*)).
+    const sortedImages = listing.listing_images
       ?.filter((img: any) => img && img.image_url)
       .sort((a: any, b: any) => {
         if (a.is_featured && !b.is_featured) return -1;
