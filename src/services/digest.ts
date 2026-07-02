@@ -16,6 +16,8 @@ export interface ListingGroup {
   limit: number;
   filters: Record<string, any>;
   time_filter: string;
+  /** 'commercial' pulls from commercial_listings; default/absent = residential. */
+  kind?: 'residential' | 'commercial';
 }
 
 export interface DigestTemplate {
@@ -503,13 +505,20 @@ export const digestService = {
   // ============================================================================
 
   async fetchListingsByGroup(group: ListingGroup): Promise<any[]> {
+    if (group.kind === 'commercial') {
+      return this.fetchCommercialListingsByGroup(group);
+    }
     try {
+      // NOTE: the old `short_url:short_urls!short_urls_listing_id_fkey(...)`
+      // embed is gone — that FK was dropped by the polymorphic-refs migration
+      // (20260630010000), which made this query error. Short codes are now
+      // resolved/created by ensureListingsHaveShortUrls via the RPC (which
+      // dedups per listing+source), so nothing is lost.
       let query = supabase
         .from('listings')
         .select(`
           *,
-          owner:profiles!listings_user_id_fkey(full_name, agency),
-          short_url:short_urls!short_urls_listing_id_fkey(short_code)
+          owner:profiles!listings_user_id_fkey(full_name, agency)
         `)
         .eq('approved', true)
         .eq('is_active', true);
@@ -618,14 +627,99 @@ export const digestService = {
     }
   },
 
+  // Commercial variant of fetchListingsByGroup. Supports the filters that make
+  // sense for commercial_listings: listing_type, commercial_space_types,
+  // price_min/max (rent vs asking price), neighborhood. Results are tagged
+  // __kind so the WhatsApp formatter routes them correctly.
+  async fetchCommercialListingsByGroup(group: ListingGroup): Promise<any[]> {
+    try {
+      let query = supabase
+        .from('commercial_listings')
+        .select(`
+          *,
+          owner:profiles(full_name, agency)
+        `)
+        .eq('approved', true)
+        .eq('is_active', true);
+
+      if (group.time_filter && group.time_filter !== 'all') {
+        const hours = {
+          '24h': 24,
+          '48h': 48,
+          '3d': 72,
+          '7d': 168,
+          '14d': 336,
+          '30d': 720
+        }[group.time_filter] || 0;
+
+        if (hours > 0) {
+          const cutoffDate = new Date();
+          cutoffDate.setHours(cutoffDate.getHours() - hours);
+          query = query.gte('created_at', cutoffDate.toISOString());
+        }
+      }
+
+      const filters = group.filters || {};
+
+      if (filters.listing_type) {
+        query = query.eq('listing_type', filters.listing_type);
+      }
+
+      if (filters.commercial_space_types && Array.isArray(filters.commercial_space_types) && filters.commercial_space_types.length > 0) {
+        query = query.in('commercial_space_type', filters.commercial_space_types);
+      }
+
+      if (filters.price_min !== undefined) {
+        if (filters.listing_type === 'sale') {
+          query = query.gte('asking_price', filters.price_min);
+        } else if (filters.listing_type === 'rental') {
+          query = query.gte('price', filters.price_min);
+        } else {
+          query = query.or(`price.gte.${filters.price_min},asking_price.gte.${filters.price_min}`);
+        }
+      }
+
+      if (filters.price_max !== undefined) {
+        if (filters.listing_type === 'sale') {
+          query = query.lte('asking_price', filters.price_max);
+        } else if (filters.listing_type === 'rental') {
+          query = query.lte('price', filters.price_max);
+        } else {
+          query = query.or(`price.lte.${filters.price_max},asking_price.lte.${filters.price_max}`);
+        }
+      }
+
+      if (filters.neighborhood) {
+        if (Array.isArray(filters.neighborhood)) {
+          query = query.in('neighborhood', filters.neighborhood);
+        } else {
+          query = query.eq('neighborhood', filters.neighborhood);
+        }
+      }
+
+      query = query.order('created_at', { ascending: false });
+      query = query.limit(group.limit || 20);
+
+      const { data, error } = await query;
+      if (error) throw error;
+
+      return (data || []).map((row: any) => ({ ...row, __kind: 'commercial' }));
+    } catch (error) {
+      console.error('Error fetching commercial listings by group:', error);
+      return [];
+    }
+  },
+
   // ============================================================================
   // SHORT URL HELPERS
   // ============================================================================
 
-  async createShortUrlForListing(listingId: string, source: string = 'whatsapp_digest'): Promise<string | null> {
+  async createShortUrlForListing(listingId: string, source: string = 'whatsapp_digest', isCommercial = false): Promise<string | null> {
     try {
       const siteUrl = typeof window !== 'undefined' ? window.location.origin : 'https://hadirot.com';
-      const originalUrl = `${siteUrl}/listing/${listingId}`;
+      const originalUrl = isCommercial
+        ? `${siteUrl}/commercial-listing/${listingId}`
+        : `${siteUrl}/listing/${listingId}`;
 
       const { data: shortCode, error } = await supabase.rpc('create_short_url', {
         p_listing_id: listingId,
@@ -661,9 +755,10 @@ export const digestService = {
           }
         }
 
-        // If no short URL exists, create one
+        // If no short URL exists, create one (commercial listings link to
+        // /commercial-listing/…)
         if (!shortCode) {
-          shortCode = await this.createShortUrlForListing(listing.id, source);
+          shortCode = await this.createShortUrlForListing(listing.id, source, listing.__kind === 'commercial');
         }
 
         // Return listing with short_code attached
