@@ -5,7 +5,6 @@ import { CommercialListingCard } from "../components/listings/CommercialListingC
 import { ListingFiltersHorizontal } from "../components/listings/ListingFiltersHorizontal";
 import { ListingsMapEnhanced } from "../components/listings/ListingsMapEnhancedLazy";
 import { SmartSearchBar, SmartSearchBarRef } from "../components/listings/SmartSearchBar";
-import { MobileListingCarousel } from "../components/listings/MobileListingCarousel";
 import { Toast } from "../components/shared/Toast";
 import { Listing, CommercialListing } from "../config/supabase";
 import { listingsService } from "../services/listings";
@@ -14,6 +13,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { gaEvent, gaListing } from "@/lib/ga";
 import { trackFilterApply } from "../lib/analytics";
 import { useListingImpressions } from "../hooks/useListingImpressions";
+import { useCommercialImpressions } from "../hooks/useCommercialImpressions";
 import { useBrowseFilters, FilterState, SortOption, MapBounds } from "../hooks/useBrowseFilters";
 import { ParsedSearchQuery } from "../utils/searchQueryParser";
 import { LocationResult } from "../services/locationSearch";
@@ -104,6 +104,7 @@ export function BrowseSales() {
   const { observeElement, unobserveElement } = useListingImpressions({
     listingIds: displayListings.map(l => l.id),
   });
+  const { observeCommercial } = useCommercialImpressions();
 
   const ITEMS_PER_PAGE = 20;
   const totalPages = Math.ceil(totalCount / ITEMS_PER_PAGE);
@@ -747,6 +748,10 @@ export function BrowseSales() {
             onMouseEnter={() => handleListingHover(id)}
             onMouseLeave={() => handleListingHover(null)}
             ref={(el) => {
+              if (item.kind === 'commercial') {
+                if (el) observeCommercial(el, id);
+                return;
+              }
               if (el) {
                 observeElement(el, id);
               } else {
@@ -1206,16 +1211,43 @@ export function BrowseSales() {
               ) : displayItems.length === 0 ? (
                 <div className="px-6">{renderEmptyState()}</div>
               ) : (
-                <MobileListingCarousel
-                  listings={displayListings}
-                  favoriteIds={new Set(userFavorites)}
-                  onFavoriteChange={handleFavoriteChange}
-                  onCardClick={(listing) => {
-                    const idx = displayListings.findIndex(l => l.id === listing.id);
-                    handleCardClick(listing, idx);
-                    markNavigatingToDetail();
-                  }}
-                />
+                <div className="flex flex-col gap-4 px-4">
+                  {displayItems.map((item, idx) => {
+                    const id = item.data.id;
+                    const itemKey = item.kind === 'residential'
+                      ? item.data.key
+                      : ((item.data as any).key ? `commercial-${(item.data as any).key}` : `commercial-${id}`);
+                    return (
+                      <div
+                        key={itemKey}
+                        className="w-full"
+                        ref={(el) => {
+                          if (item.kind === 'commercial' && el) observeCommercial(el, id);
+                        }}
+                      >
+                        {item.kind === 'residential' ? (
+                          <ListingCard
+                            listing={item.data}
+                            isFavorited={userFavorites.includes(id)}
+                            onFavoriteChange={handleFavoriteChange}
+                            showFeaturedBadge={item.data.showFeaturedBadge}
+                            onClick={() => {
+                              handleCardClick(item.data, idx);
+                              markNavigatingToDetail();
+                            }}
+                            onNavigateToDetail={markNavigatingToDetail}
+                          />
+                        ) : (
+                          <CommercialListingCard
+                            listing={item.data}
+                            isFavorited={commercialFavorites.includes(id)}
+                            onFavoriteChange={loadUserFavorites}
+                          />
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
               )}
             </div>
 
@@ -1245,6 +1277,10 @@ export function BrowseSales() {
                         <div
                           key={item.kind === 'residential' ? item.data.key : ((item.data as any).key ? `commercial-${(item.data as any).key}` : `commercial-${item.data.id}`)}
                           ref={(el) => {
+                            if (item.kind === 'commercial') {
+                              if (el) observeCommercial(el, id);
+                              return;
+                            }
                             if (el) {
                               observeElement(el, id);
                             }

@@ -13,6 +13,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { gaEvent, gaListing } from "@/lib/ga";
 import { trackFilterApply } from "../lib/analytics";
 import { useListingImpressions } from "../hooks/useListingImpressions";
+import { useCommercialImpressions } from "../hooks/useCommercialImpressions";
 import { useBrowseFilters, FilterState, SortOption, MapBounds } from "../hooks/useBrowseFilters";
 import { ParsedSearchQuery } from "../utils/searchQueryParser";
 import { LocationResult } from "../services/locationSearch";
@@ -122,6 +123,7 @@ export function BrowseListings() {
   const { observeElement, unobserveElement } = useListingImpressions({
     listingIds: displayListings.map(l => l.id),
   });
+  const { observeCommercial } = useCommercialImpressions();
 
   const ITEMS_PER_PAGE = 20;
   const totalPages = Math.ceil(totalCount / ITEMS_PER_PAGE);
@@ -802,6 +804,8 @@ export function BrowseListings() {
                   const existingEl = document.querySelector(`[data-listing-id="${id}"]`);
                   if (existingEl) unobserveElement(existingEl);
                 }
+              } else if (el) {
+                observeCommercial(el, id);
               }
             }}
           >
@@ -1272,7 +1276,13 @@ export function BrowseListings() {
                     const id = item.data.id;
                     const itemKey = item.kind === 'residential' ? item.data.key : ((item.data as any).key ? `commercial-${(item.data as any).key}` : `commercial-${id}`);
                     return (
-                      <div key={itemKey} className="w-full">
+                      <div
+                        key={itemKey}
+                        className="w-full"
+                        ref={(el) => {
+                          if (item.kind === 'commercial' && el) observeCommercial(el, id);
+                        }}
+                      >
                         {item.kind === 'residential' ? (
                           <ListingCard
                             listing={item.data}
@@ -1328,6 +1338,8 @@ export function BrowseListings() {
                           ref={(el) => {
                             if (item.kind === 'residential' && el) {
                               observeElement(el, id);
+                            } else if (el) {
+                              observeCommercial(el, id);
                             }
                           }}
                         >
