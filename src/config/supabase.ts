@@ -433,6 +433,7 @@ export interface CommercialListing {
   current_lease_tenant: string | null;
   current_lease_expiration: string | null;
   current_lease_rent: number | null;
+  sale_status?: SaleStatus | null;
   owner?: Profile;
   listing_images?: CommercialListingImage[];
   is_favorited?: boolean;

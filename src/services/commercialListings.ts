@@ -824,6 +824,11 @@ export const commercialListingsService = {
     listingType: 'rental' | 'sale',
     saleStatus?: string | null,
   ): Promise<CommercialListing> {
+    // Mirrors residential: a sold sale listing cannot be republished/renewed.
+    if (listingType === 'sale' && saleStatus === 'sold') {
+      throw new Error('Cannot renew a sold listing. Update its status first.');
+    }
+
     const { rentalDays, saleDays } = await getAdminActiveDays();
     const newExpiresAt = getExpirationDate(
       listingType,
