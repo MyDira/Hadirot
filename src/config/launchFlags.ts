@@ -4,4 +4,4 @@
 // Commercial posting: gates the wizard PathPicker cards, the wizard
 // type-change dropdown, AND the legacy /post-commercial page (which
 // redirects to the wizard while off). Flip to true at commercial launch.
-export const COMMERCIAL_POSTING_LIVE = false;
+export const COMMERCIAL_POSTING_LIVE = true;
