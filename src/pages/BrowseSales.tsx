@@ -5,7 +5,6 @@ import { CommercialListingCard } from "../components/listings/CommercialListingC
 import { ListingFiltersHorizontal } from "../components/listings/ListingFiltersHorizontal";
 import { ListingsMapEnhanced } from "../components/listings/ListingsMapEnhancedLazy";
 import { SmartSearchBar, SmartSearchBarRef } from "../components/listings/SmartSearchBar";
-import { MobileListingCarousel } from "../components/listings/MobileListingCarousel";
 import { Toast } from "../components/shared/Toast";
 import { Listing, CommercialListing } from "../config/supabase";
 import { listingsService } from "../services/listings";
@@ -14,6 +13,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { gaEvent, gaListing } from "@/lib/ga";
 import { trackFilterApply } from "../lib/analytics";
 import { useListingImpressions } from "../hooks/useListingImpressions";
+import { useCommercialImpressions } from "../hooks/useCommercialImpressions";
 import { useBrowseFilters, FilterState, SortOption, MapBounds } from "../hooks/useBrowseFilters";
 import { ParsedSearchQuery } from "../utils/searchQueryParser";
 import { LocationResult } from "../services/locationSearch";
@@ -104,6 +104,7 @@ export function BrowseSales() {
   const { observeElement, unobserveElement } = useListingImpressions({
     listingIds: displayListings.map(l => l.id),
   });
+  const { observeCommercial } = useCommercialImpressions();
 
   const ITEMS_PER_PAGE = 20;
   const totalPages = Math.ceil(totalCount / ITEMS_PER_PAGE);
@@ -144,6 +145,9 @@ export function BrowseSales() {
         listing_type: c.listing_type,
         commercial_space_type: c.commercial_space_type,
         neighborhood: c.neighborhood,
+        call_for_price: c.call_for_price,
+        is_featured: c.is_featured,
+        featured_expires_at: c.featured_expires_at,
       }));
   }, [allCommercialForMap]);
 
@@ -220,11 +224,18 @@ export function BrowseSales() {
         neighborhoods: filters.neighborhoods,
         sort: (filters.sort === 'price_asc' || filters.sort === 'price_desc' || filters.sort === 'newest' || filters.sort === 'oldest') ? filters.sort : 'newest' as any,
         bounds: filterBounds || undefined,
+        commercial_space_types: filters.commercial_space_types,
+        min_sf: filters.min_sf,
+        max_sf: filters.max_sf,
+        commercial_lease_types: filters.commercial_lease_types,
+        commercial_conditions: filters.commercial_conditions,
+        building_classes: filters.building_classes,
       };
 
       let residentialCount = 0;
       let residentialData: Listing[] = [];
       let allCommercial: CommercialListing[] = [];
+      let commercialCount = 0;
 
       if (fetchResidential && fetchCommercial) {
         const [countResult, commercialResult] = await Promise.all([
@@ -234,6 +245,7 @@ export function BrowseSales() {
         residentialCount = countResult.totalCount;
         residentialData = countResult.data ?? [];
         allCommercial = commercialResult.data;
+        commercialCount = commercialResult.totalCount;
       } else if (fetchResidential) {
         const countResult = await listingsService.getSaleListings(serviceFilters, undefined, user?.id, 0, false);
         residentialCount = countResult.totalCount;
@@ -241,20 +253,21 @@ export function BrowseSales() {
       } else {
         const commercialResult = await commercialListingsService.getCommercialSaleListings(commercialServiceFilters, undefined, user?.id, 0, false);
         allCommercial = commercialResult.data;
+        commercialCount = commercialResult.totalCount;
       }
 
       if (fetchResidential && residentialCount > residentialData.length) {
         console.warn(
-          `[BrowseSales] Map data truncated: showing ${residentialData.length} of ${residentialCount} sale listings. ` +
-            `Supabase row limit hit. Consider viewport-bounded pin fetching.`,
+          `[BrowseSales] Data truncated: showing ${residentialData.length} of ${residentialCount} sale listings. ` +
+            `Supabase row limit hit — deep pages will under-report.`,
         );
       }
 
-      const combinedTotalCount = residentialCount + allCommercial.length;
+      const combinedTotalCount = residentialCount + commercialCount;
       setTotalCount(combinedTotalCount);
 
-      const maxValidPage = Math.max(1, Math.ceil(residentialCount / ITEMS_PER_PAGE));
-      if (fetchResidential && currentPage > maxValidPage && residentialCount > 0) {
+      const maxValidPage = Math.max(1, Math.ceil(combinedTotalCount / ITEMS_PER_PAGE));
+      if (currentPage > maxValidPage && combinedTotalCount > 0) {
         setTimeout(() => {
           updatePage(maxValidPage);
           setToastMessage(`Showing page ${maxValidPage} of ${maxValidPage}`);
@@ -262,66 +275,79 @@ export function BrowseSales() {
         return;
       }
 
-      let finalResidentialItems: (Listing & { showFeaturedBadge: boolean; key: string })[] = [];
+      // ---- one globally sorted stream (kind-tagged), sliced per page ----
+      // Mirrors BrowseListings: strict interleave by the selected sort with
+      // the featured weave applied on top of the page slice.
+      type TaggedItem = (Listing | CommercialListing) & { __kind: 'residential' | 'commercial' };
+      const sortKey = filters.sort || 'newest';
+      const priceOf = (x: any) => (x.asking_price ?? 0);
+      const cmp = (a: any, b: any): number => {
+        switch (sortKey) {
+          case 'oldest':
+            return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+          case 'price_asc':
+            return priceOf(a) - priceOf(b);
+          case 'price_desc':
+            return priceOf(b) - priceOf(a);
+          default:
+            return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+        }
+      };
 
+      const filteredResidential = applySalesClientSideFilters(residentialData, filters);
+      const standardStream: TaggedItem[] = [
+        ...filteredResidential.map(l => ({ ...l, __kind: 'residential' as const })),
+        ...allCommercial.map(l => ({ ...l, __kind: 'commercial' as const })),
+      ].sort(cmp);
+
+      // Featured pool — residential + commercial boosts share the injection slots.
+      const featuredPool: TaggedItem[] = [];
       if (fetchResidential) {
-        let allFeaturedListings: Listing[] = [];
         try {
-          allFeaturedListings = await listingsService.getFeaturedListingsForSearch(
-            serviceFilters,
-            'sale',
-            user?.id,
-          );
-          allFeaturedListings = applySalesClientSideFilters(allFeaturedListings, filters);
+          let feat = await listingsService.getFeaturedListingsForSearch(serviceFilters, 'sale', user?.id);
+          feat = applySalesClientSideFilters(feat, filters);
+          featuredPool.push(...feat.map(l => ({ ...l, __kind: 'residential' as const })));
         } catch (error) {
           console.error("Error loading featured listings:", error);
         }
-
-        const injectionPositions = computeInjectionPositions();
-        const featuredForThisPage = selectFeaturedForPage(
-          allFeaturedListings,
-          currentPage,
-          injectionPositions.length,
-          serviceFilters,
-        );
-
-        const numStandardNeeded = ITEMS_PER_PAGE - featuredForThisPage.length;
-        const standardOffset = (currentPage - 1) * ITEMS_PER_PAGE;
-
-        const { data: rawStandardListings } = await listingsService.getSaleListings(
-          serviceFilters,
-          numStandardNeeded,
-          user?.id,
-          standardOffset,
-          true,
-        );
-
-        const standardListings = applySalesClientSideFilters(rawStandardListings, filters);
-
-        finalResidentialItems = weaveFeaturedIntoListings(
-          featuredForThisPage,
-          standardListings,
-          injectionPositions,
-          ITEMS_PER_PAGE,
-        );
+      }
+      if (fetchCommercial) {
+        try {
+          const comFeat = await commercialListingsService.getCommercialFeaturedListingsForSearch(
+            commercialServiceFilters,
+            'sale',
+            user?.id,
+          );
+          featuredPool.push(...comFeat.map(l => ({ ...l, __kind: 'commercial' as const })));
+        } catch (error) {
+          console.error("Error loading commercial featured listings:", error);
+        }
       }
 
-      const sortKey = filters.sort || 'newest';
-      const residentialWrapped: SalesBrowseItem[] = finalResidentialItems.map(d => ({ kind: 'residential', data: d }));
-      const commercialWrapped: SalesBrowseItem[] = allCommercial.map(d => ({ kind: 'commercial', data: d }));
-      const merged: SalesBrowseItem[] = [...residentialWrapped, ...commercialWrapped];
+      const injectionPositions = computeInjectionPositions();
+      const featuredForThisPage = selectFeaturedForPage(
+        featuredPool as unknown as Listing[],
+        currentPage,
+        injectionPositions.length,
+        serviceFilters,
+      ) as unknown as TaggedItem[];
 
-      merged.sort((a, b) => {
-        const aDate = a.data.created_at;
-        const bDate = b.data.created_at;
-        const aPrice = a.kind === 'residential' ? (a.data.asking_price ?? 0) : (a.data.asking_price ?? 0);
-        const bPrice = b.kind === 'residential' ? (b.data.asking_price ?? 0) : (b.data.asking_price ?? 0);
-        if (sortKey === 'newest') return new Date(bDate).getTime() - new Date(aDate).getTime();
-        if (sortKey === 'oldest') return new Date(aDate).getTime() - new Date(bDate).getTime();
-        if (sortKey === 'price_asc') return aPrice - bPrice;
-        if (sortKey === 'price_desc') return bPrice - aPrice;
-        return new Date(bDate).getTime() - new Date(aDate).getTime();
-      });
+      const numStandardNeeded = ITEMS_PER_PAGE - featuredForThisPage.length;
+      const standardOffset = (currentPage - 1) * ITEMS_PER_PAGE;
+      const pageStandard = standardStream.slice(standardOffset, standardOffset + numStandardNeeded);
+
+      const woven = weaveFeaturedIntoListings(
+        featuredForThisPage as unknown as Listing[],
+        pageStandard as unknown as Listing[],
+        injectionPositions,
+        ITEMS_PER_PAGE,
+      ) as unknown as (TaggedItem & { showFeaturedBadge: boolean; key: string })[];
+
+      const merged: SalesBrowseItem[] = woven.map(item =>
+        item.__kind === 'commercial'
+          ? { kind: 'commercial' as const, data: item as unknown as CommercialListing }
+          : { kind: 'residential' as const, data: item as unknown as Listing & { showFeaturedBadge: boolean; key: string } },
+      );
 
       setDisplayItems(merged);
       setAllCommercialForMap(allCommercial);
@@ -712,7 +738,7 @@ export function BrowseSales() {
         const isNewListing = showCardAnimations && !previousListingIds.has(id);
         return (
           <div
-            key={item.kind === 'residential' ? item.data.key : `commercial-${item.data.id}`}
+            key={item.kind === 'residential' ? item.data.key : ((item.data as any).key ? `commercial-${(item.data as any).key}` : `commercial-${item.data.id}`)}
             id={`listing-card-${id}`}
             className={`transition-all duration-200 ${
               hoveredListingId === id || selectedListingId === id
@@ -722,6 +748,10 @@ export function BrowseSales() {
             onMouseEnter={() => handleListingHover(id)}
             onMouseLeave={() => handleListingHover(null)}
             ref={(el) => {
+              if (item.kind === 'commercial') {
+                if (el) observeCommercial(el, id);
+                return;
+              }
               if (el) {
                 observeElement(el, id);
               } else {
@@ -1181,16 +1211,43 @@ export function BrowseSales() {
               ) : displayItems.length === 0 ? (
                 <div className="px-6">{renderEmptyState()}</div>
               ) : (
-                <MobileListingCarousel
-                  listings={displayListings}
-                  favoriteIds={new Set(userFavorites)}
-                  onFavoriteChange={handleFavoriteChange}
-                  onCardClick={(listing) => {
-                    const idx = displayListings.findIndex(l => l.id === listing.id);
-                    handleCardClick(listing, idx);
-                    markNavigatingToDetail();
-                  }}
-                />
+                <div className="flex flex-col gap-4 px-4">
+                  {displayItems.map((item, idx) => {
+                    const id = item.data.id;
+                    const itemKey = item.kind === 'residential'
+                      ? item.data.key
+                      : ((item.data as any).key ? `commercial-${(item.data as any).key}` : `commercial-${id}`);
+                    return (
+                      <div
+                        key={itemKey}
+                        className="w-full"
+                        ref={(el) => {
+                          if (item.kind === 'commercial' && el) observeCommercial(el, id);
+                        }}
+                      >
+                        {item.kind === 'residential' ? (
+                          <ListingCard
+                            listing={item.data}
+                            isFavorited={userFavorites.includes(id)}
+                            onFavoriteChange={handleFavoriteChange}
+                            showFeaturedBadge={item.data.showFeaturedBadge}
+                            onClick={() => {
+                              handleCardClick(item.data, idx);
+                              markNavigatingToDetail();
+                            }}
+                            onNavigateToDetail={markNavigatingToDetail}
+                          />
+                        ) : (
+                          <CommercialListingCard
+                            listing={item.data}
+                            isFavorited={commercialFavorites.includes(id)}
+                            onFavoriteChange={loadUserFavorites}
+                          />
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
               )}
             </div>
 
@@ -1218,8 +1275,12 @@ export function BrowseSales() {
                       const id = item.kind === 'residential' ? item.data.id : item.data.id;
                       return (
                         <div
-                          key={item.kind === 'residential' ? item.data.key : `commercial-${item.data.id}`}
+                          key={item.kind === 'residential' ? item.data.key : ((item.data as any).key ? `commercial-${(item.data as any).key}` : `commercial-${item.data.id}`)}
                           ref={(el) => {
+                            if (item.kind === 'commercial') {
+                              if (el) observeCommercial(el, id);
+                              return;
+                            }
                             if (el) {
                               observeElement(el, id);
                             }

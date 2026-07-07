@@ -5,7 +5,9 @@ import { StepTips } from '../../StepTips';
 const TIPS = {
   heading: 'Review & Submit',
   bullets: [
-    'Tips will appear here.',
+    'Double-check the contact name and phone — callback requests are sent there by SMS.',
+    'Review each section; use Back to fix anything before submitting.',
+    'After you submit, your listing goes to an admin for approval before it appears publicly.',
   ],
 };
 import type { MediaFile } from '../../../../components/shared/MediaUploader';

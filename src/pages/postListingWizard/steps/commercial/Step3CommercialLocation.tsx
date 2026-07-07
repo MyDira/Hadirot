@@ -9,7 +9,9 @@ import {
 const TIPS = {
   heading: 'Location',
   bullets: [
-    'Tips will appear here.',
+    'A precise address helps tenants find the space and powers the map pin.',
+    'No exact address yet? Enter the two nearest cross streets instead.',
+    'Choose the neighborhood tenants search by — it feeds the neighborhood filter.',
   ],
 };
 import {

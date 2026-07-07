@@ -84,6 +84,8 @@ function formatSpaceType(raw: string): string {
     coworking: "Coworking",
     gallery: "Gallery",
     event_space: "Event Space",
+    community_facility: "Community Facility",
+    basement_commercial: "Basement Commercial",
   };
   return map[raw?.toLowerCase()] ?? (raw ? raw.charAt(0).toUpperCase() + raw.slice(1) : "Commercial");
 }
@@ -366,14 +368,17 @@ Deno.serve(async (req) => {
 
     async function fetchListingForConv(
       conv: RenewalConversation,
-      selectFields: string = "id, listing_type, location, full_address, neighborhood, price, expires_at"
+      selectFields?: string
     ): Promise<{ data: any; error: any }> {
       if (!conv.listing_id) return { data: null, error: null };
       const table = getListingTable(conv);
-      const extraFields = conv.is_commercial ? ", commercial_space_type" : "";
+      // commercial_listings has NO `location` column — per-table defaults.
+      const fields = selectFields ?? (conv.is_commercial === true
+        ? "id, listing_type, full_address, neighborhood, price, expires_at, commercial_space_type"
+        : "id, listing_type, location, full_address, neighborhood, price, expires_at");
       return supabaseAdmin
         .from(table)
-        .select(selectFields + extraFields)
+        .select(fields)
         .eq("id", conv.listing_id)
         .maybeSingle();
     }
@@ -1227,7 +1232,9 @@ Deno.serve(async (req) => {
 
           const { data: nextListing } = await supabaseAdmin
             .from(getListingTable(nextConvTyped))
-            .select("id, listing_type, location, full_address, neighborhood, price, commercial_space_type")
+            .select(nextConvTyped.is_commercial === true
+              ? "id, listing_type, full_address, neighborhood, price, commercial_space_type"
+              : "id, listing_type, location, full_address, neighborhood, price")
             .eq("id", nextConvTyped.listing_id)
             .maybeSingle();
 

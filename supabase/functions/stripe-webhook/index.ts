@@ -119,12 +119,14 @@ function formatEmailDate(d: Date): string {
 }
 
 async function handleFeaturedCheckout(session: Stripe.Checkout.Session) {
-  const { listing_id, user_id, plan, duration_days } = session.metadata || {};
+  const { listing_id, user_id, plan, duration_days, is_commercial } = session.metadata || {};
   if (!listing_id || !user_id || !plan || !duration_days) {
     console.error('Missing metadata in featured checkout session:', session.id);
     return;
   }
 
+  const isCommercial = is_commercial === 'true';
+  const listingTable = isCommercial ? 'commercial_listings' : 'listings';
   const durationDaysNum = parseInt(duration_days, 10);
   const supabaseAdmin = getSupabaseAdmin();
 
@@ -166,11 +168,12 @@ async function handleFeaturedCheckout(session: Stripe.Checkout.Session) {
       status: 'paid',
       purchased_at: new Date().toISOString(),
       duration_days: durationDaysNum,
+      is_commercial: isCommercial,
     });
   }
 
   const { data: listing } = await supabaseAdmin
-    .from('listings')
+    .from(listingTable)
     .select('approved, is_active')
     .eq('id', listing_id)
     .maybeSingle();
@@ -190,7 +193,7 @@ async function handleFeaturedCheckout(session: Stripe.Checkout.Session) {
       .eq('stripe_checkout_session_id', session.id);
 
     await supabaseAdmin
-      .from('listings')
+      .from(listingTable)
       .update({
         is_featured: true,
         featured_started_at: now.toISOString(),
@@ -200,7 +203,7 @@ async function handleFeaturedCheckout(session: Stripe.Checkout.Session) {
       })
       .eq('id', listing_id);
 
-    console.log(`Featured activated for listing ${listing_id} until ${endDate.toISOString()}`);
+    console.log(`Featured activated for ${listingTable} ${listing_id} until ${endDate.toISOString()}`);
   } else {
     console.log(`Payment recorded for listing ${listing_id} - will activate on approval`);
   }

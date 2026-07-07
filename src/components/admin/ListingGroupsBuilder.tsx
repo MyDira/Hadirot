@@ -7,7 +7,20 @@ export interface ListingGroup {
   limit: number;
   filters: Record<string, any>;
   time_filter: string;
+  /** 'commercial' pulls from commercial_listings; default/absent = residential. */
+  kind?: 'residential' | 'commercial';
 }
+
+const COMMERCIAL_SPACE_TYPE_OPTIONS = [
+  { value: 'storefront', label: 'Retail' },
+  { value: 'restaurant', label: 'Restaurant' },
+  { value: 'office', label: 'Office' },
+  { value: 'warehouse', label: 'Warehouse' },
+  { value: 'industrial', label: 'Industrial' },
+  { value: 'mixed_use', label: 'Mixed Use' },
+  { value: 'community_facility', label: 'Community' },
+  { value: 'basement_commercial', label: 'Basement Commercial' },
+];
 
 interface ListingGroupsBuilderProps {
   groups: ListingGroup[];
@@ -61,6 +74,23 @@ export function ListingGroupsBuilder({ groups, onChange }: ListingGroupsBuilderP
   const handleUpdateTimeFilter = (index: number, time_filter: string) => {
     const updated = [...groups];
     updated[index] = { ...updated[index], time_filter };
+    onChange(updated);
+  };
+
+  const handleUpdateKind = (index: number, kind: 'residential' | 'commercial') => {
+    const updated = [...groups];
+    // Keep only the filters that make sense across kinds.
+    const { listing_type, price_min, price_max, neighborhood } = updated[index].filters;
+    updated[index] = {
+      ...updated[index],
+      kind,
+      filters: {
+        ...(listing_type ? { listing_type } : {}),
+        ...(price_min !== undefined ? { price_min } : {}),
+        ...(price_max !== undefined ? { price_max } : {}),
+        ...(neighborhood ? { neighborhood } : {}),
+      },
+    };
     onChange(updated);
   };
 
@@ -195,6 +225,39 @@ export function ListingGroupsBuilder({ groups, onChange }: ListingGroupsBuilderP
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">
+                    Kind
+                  </label>
+                  <select
+                    value={group.kind || 'residential'}
+                    onChange={(e) => handleUpdateKind(index, e.target.value as 'residential' | 'commercial')}
+                    className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    <option value="residential">Residential</option>
+                    <option value="commercial">Commercial</option>
+                  </select>
+                </div>
+
+                {group.kind === 'commercial' && (
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">
+                      Space Type
+                    </label>
+                    <select
+                      value={(group.filters.commercial_space_types && group.filters.commercial_space_types[0]) || ''}
+                      onChange={(e) => handleUpdateFilter(index, 'commercial_space_types', e.target.value ? [e.target.value] : undefined)}
+                      className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    >
+                      <option value="">Any</option>
+                      {COMMERCIAL_SPACE_TYPE_OPTIONS.map(o => (
+                        <option key={o.value} value={o.value}>{o.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                {group.kind !== 'commercial' && (
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">
                     Bedrooms
                   </label>
                   <select
@@ -210,7 +273,9 @@ export function ListingGroupsBuilder({ groups, onChange }: ListingGroupsBuilderP
                     <option value="4">4+ Beds</option>
                   </select>
                 </div>
+                )}
 
+                {group.kind !== 'commercial' && (
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">
                     Property Type
@@ -228,6 +293,7 @@ export function ListingGroupsBuilder({ groups, onChange }: ListingGroupsBuilderP
                     <option value="townhouse">Townhouse</option>
                   </select>
                 </div>
+                )}
 
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">
@@ -270,6 +336,7 @@ export function ListingGroupsBuilder({ groups, onChange }: ListingGroupsBuilderP
                   />
                 </div>
 
+                {group.kind !== 'commercial' && (
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">
                     Broker Fee
@@ -284,7 +351,9 @@ export function ListingGroupsBuilder({ groups, onChange }: ListingGroupsBuilderP
                     <option value="true">Fee</option>
                   </select>
                 </div>
+                )}
 
+                {group.kind !== 'commercial' && (
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">
                     Parking
@@ -301,6 +370,7 @@ export function ListingGroupsBuilder({ groups, onChange }: ListingGroupsBuilderP
                     <option value="no">No Parking</option>
                   </select>
                 </div>
+                )}
               </div>
             </div>
 
