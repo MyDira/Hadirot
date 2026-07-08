@@ -227,7 +227,36 @@ Deno.serve(async (req) => {
       );
     }
 
-    if (!listings || listings.length === 0) {
+    // Commercial listings join the digest (non-fatal if the query errors).
+    const { data: commercialListings, error: commercialError } = await supabaseAdmin
+      .from("commercial_listings")
+      .select(`
+        id,
+        title,
+        listing_type,
+        price,
+        asking_price,
+        call_for_price,
+        commercial_space_type,
+        available_sf,
+        full_address,
+        cross_street_a,
+        cross_street_b,
+        neighborhood,
+        is_featured,
+        created_at,
+        owner:profiles(full_name, role, agency)
+      `)
+      .eq("approved", true)
+      .eq("is_active", true)
+      .gte("updated_at", twentyFourHoursAgo)
+      .order("created_at", { ascending: false });
+
+    if (commercialError) {
+      console.error("❌ Error fetching commercial listings (continuing without):", commercialError);
+    }
+
+    if ((!listings || listings.length === 0) && (!commercialListings || commercialListings.length === 0)) {
       console.log("ℹ️ No new approved listings in last 24 hours");
 
       await supabaseAdmin.from("daily_admin_digest_logs").insert({
@@ -271,11 +300,14 @@ Deno.serve(async (req) => {
     for (const row of ownSent.data ?? []) sentListingIds.add(row.listing_id);
     for (const row of enhancedSent.data ?? []) sentListingIds.add(row.listing_id);
 
-    const newListings = (listings as unknown as Listing[]).filter(
+    const newListings = ((listings ?? []) as unknown as Listing[]).filter(
       listing => !sentListingIds.has(listing.id)
     );
+    const newCommercial = (commercialListings ?? []).filter(
+      (listing: any) => !sentListingIds.has(listing.id)
+    );
 
-    if (newListings.length === 0) {
+    if (newListings.length === 0 && newCommercial.length === 0) {
       console.log("ℹ️ All listings already sent within past 7 days");
 
       await supabaseAdmin.from("daily_admin_digest_logs").insert({
@@ -414,6 +446,62 @@ Deno.serve(async (req) => {
       listingsTextContent += `\n`;
     }
 
+    if (newCommercial.length > 0) {
+      const spaceLabels: Record<string, string> = {
+        storefront: "Retail", restaurant: "Restaurant", office: "Office",
+        warehouse: "Warehouse", industrial: "Industrial", mixed_use: "Mixed Use",
+        community_facility: "Community Facility", basement_commercial: "Basement Commercial",
+      };
+
+      listingsTextContent += `--- COMMERCIAL ---\n\n`;
+
+      for (const listing of newCommercial as any[]) {
+        let listingUrl = `${siteUrl}/commercial-listing/${listing.id}`;
+        try {
+          const { data: shortCode } = await supabaseAdmin.rpc("create_short_url", {
+            p_listing_id: listing.id,
+            p_original_url: listingUrl,
+            p_source: "digest_email",
+            p_expires_days: 90,
+          });
+          if (shortCode) listingUrl = `${siteUrl}/l/${shortCode}`;
+        } catch (shortUrlError) {
+          console.error("Error creating commercial short URL:", shortUrlError);
+        }
+
+        const isSale = listing.listing_type === "sale";
+        const priceValue = isSale ? listing.asking_price : listing.price;
+        const priceText = listing.call_for_price
+          ? "Call for Price"
+          : priceValue != null
+            ? new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(priceValue) + (isSale ? "" : "/month")
+            : "Price Not Available";
+
+        const specsParts: string[] = [];
+        if (listing.available_sf) specsParts.push(`${Number(listing.available_sf).toLocaleString()} SF`);
+        specsParts.push(spaceLabels[listing.commercial_space_type] ?? "Commercial");
+        specsParts.push(isSale ? "For Sale" : "For Lease");
+
+        const locationText = listing.full_address
+          || [listing.cross_street_a, listing.cross_street_b].filter(Boolean).join(" & ")
+          || "";
+        const locationWithNbhd = listing.neighborhood && locationText
+          ? `${listing.neighborhood}, ${locationText}`
+          : listing.neighborhood || locationText;
+
+        const ownerDisplay = listing.owner?.role === "agent" && listing.owner?.agency
+          ? listing.owner.agency
+          : "Owner";
+
+        listingsTextContent += `${priceText}\n`;
+        listingsTextContent += `${specsParts.join(" | ")}\n`;
+        listingsTextContent += `${locationWithNbhd}\n`;
+        listingsTextContent += `Posted by ${ownerDisplay}`;
+        if (listing.is_featured) listingsTextContent += " (FEATURED)";
+        listingsTextContent += `\n${listingUrl}\n\n`;
+      }
+    }
+
     const currentDate = new Date().toLocaleDateString("en-US", {
       weekday: "long",
       year: "numeric",
@@ -485,25 +573,33 @@ https://chat.whatsapp.com/C3qmgo7DNOI63OE0RAZRgt`;
       );
     }
 
-    const listingIds = newListings.map(l => l.id);
-    const sentRecords = listingIds.map(id => ({
-      listing_id: id,
-      sent_at: new Date().toISOString(),
-    }));
-
+    // Residential and commercial ids are logged in SEPARATE inserts so a
+    // failure on one kind can never lose the other's dedup records.
+    const sentAt = new Date().toISOString();
     const { error: insertError } = await supabaseAdmin
       .from("daily_admin_digest_sent_listings")
-      .insert(sentRecords);
+      .insert(newListings.map(l => ({ listing_id: l.id, sent_at: sentAt })));
 
     if (insertError) {
       console.error("❌ Error recording sent listings:", insertError);
     } else {
-      console.log(`✅ Recorded ${listingIds.length} sent listing(s)`);
+      console.log(`✅ Recorded ${newListings.length} sent listing(s)`);
+    }
+
+    if (newCommercial.length > 0) {
+      const { error: comInsertError } = await supabaseAdmin
+        .from("daily_admin_digest_sent_listings")
+        .insert(newCommercial.map((l: any) => ({ listing_id: l.id, sent_at: sentAt })));
+      if (comInsertError) {
+        console.error("❌ Error recording sent commercial listings:", comInsertError);
+      } else {
+        console.log(`✅ Recorded ${newCommercial.length} sent commercial listing(s)`);
+      }
     }
 
     await supabaseAdmin.from("daily_admin_digest_logs").insert({
       run_at: new Date().toISOString(),
-      listings_count: newListings.length,
+      listings_count: newListings.length + newCommercial.length,
       recipients_count: adminEmails.length,
       success: true,
       error_message: null,

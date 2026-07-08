@@ -24,7 +24,6 @@ import { Modal } from '../components/shared/Modal';
 import { AuthForm, type AuthSuccessMethod } from '../components/auth/AuthForm';
 import { savePendingAuth } from '../lib/pendingAuth';
 import {
-  savePendingListingAction,
   peekPendingListingAction,
   clearPendingListingAction,
 } from '../lib/pendingListingAction';
@@ -34,6 +33,8 @@ import {
   trackLoginGateDismissed,
   trackLoginGateAuthSuccess,
   trackLoginGateActionCompleted,
+  trackPhoneReveal,
+  trackListingView,
   type LoginGateAction,
 } from '../lib/analytics';
 import { commercialLabels, triStateLabel } from '../utils/commercialLabels';
@@ -498,7 +499,11 @@ export function CommercialListingDetail() {
   useEffect(() => {
     if (id && !hasViewedRef.current) {
       hasViewedRef.current = true;
+      // Row-column count (source of truth for the owner banner) + analytics_events
+      // 'listing_view' so commercial appears in the admin analytics view/conversion
+      // metrics, matching residential.
       commercialListingsService.incrementCommercialListingView(id).catch(() => {});
+      trackListingView(id);
     }
   }, [id]);
 
@@ -518,6 +523,7 @@ export function CommercialListingDetail() {
       if (pending.type === 'reveal_phone') {
         setPhoneRevealedSession(id);
         setPhoneRevealKey((k) => k + 1);
+        trackPhoneReveal(id);
         gaListing('commercial_listing_contact_click', id, {
           contact_method: 'phone',
         });
@@ -739,6 +745,7 @@ export function CommercialListingDetail() {
 
   const handleCallClick = (): boolean | void => {
     if (!listing?.id) return;
+    trackPhoneReveal(listing.id);
     gaListing('commercial_listing_contact_click', listing.id, {
       contact_method: 'phone',
     });

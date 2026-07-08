@@ -15,7 +15,9 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { listing_id, plan } = await req.json();
+    const { listing_id, plan, is_commercial } = await req.json();
+    const isCommercial = is_commercial === true;
+    const listingTable = isCommercial ? "commercial_listings" : "listings";
 
     if (!listing_id || !plan) {
       return new Response(JSON.stringify({ error: "Missing listing_id or plan" }), {
@@ -46,7 +48,7 @@ Deno.serve(async (req) => {
     );
 
     const { data: listing, error: listingError } = await supabaseAdmin
-      .from("listings")
+      .from(listingTable)
       .select("id, user_id, title, is_featured, featured_expires_at, is_active")
       .eq("id", listing_id)
       .maybeSingle();
@@ -106,9 +108,10 @@ Deno.serve(async (req) => {
         duration_days: String(planConfig.days),
         listing_title: (listing.title || "Listing").substring(0, 100),
         source: "sms_boost",
+        is_commercial: String(isCommercial),
       },
       allow_promotion_codes: true,
-      success_url: `${origin}/boost/success?listing_id=${listing_id}`,
+      success_url: `${origin}/boost/success?listing_id=${listing_id}&is_commercial=${isCommercial}`,
       cancel_url: `${origin}/boost/${listing_id}?cancelled=true`,
     });
 
@@ -121,6 +124,7 @@ Deno.serve(async (req) => {
         amount_cents: planConfig.amount,
         status: "pending",
         duration_days: planConfig.days,
+        is_commercial: isCommercial,
       });
     } catch (insertError) {
       if (insertError?.code === "23505") {

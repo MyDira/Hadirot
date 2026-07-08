@@ -1,5 +1,28 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders } from "../_shared/cors.ts";
+import { sendViaZepto } from "../_shared/zepto.ts";
+
+// A failed conversation insert means the owner's YES/NO reply has nothing to
+// attach to — alert the SMS admin instead of failing silently (this is how
+// the state-CHECK constraint bug went unnoticed for months).
+async function alertAdminSmsFailure(supabase: any, context: string, detail: unknown) {
+  try {
+    const { data: cfg } = await supabase
+      .from("sms_admin_config")
+      .select("admin_email, notify_on_errors")
+      .limit(1)
+      .maybeSingle();
+    if (cfg?.admin_email && cfg?.notify_on_errors !== false) {
+      await sendViaZepto({
+        to: cfg.admin_email,
+        subject: `Hadirot SMS alert: ${context}`,
+        html: `<p>${context}</p><pre>${JSON.stringify(detail, null, 2)?.slice(0, 2000)}</pre>`,
+      });
+    }
+  } catch (e) {
+    console.error("Failed to send SMS admin alert:", e);
+  }
+}
 
 interface ReportRequest {
   listingId: string;
@@ -168,6 +191,7 @@ Deno.serve(async (req) => {
 
     const twilioUrl = `https://api.twilio.com/2010-04-01/Accounts/${twilioAccountSid}/Messages.json`;
     const twilioAuth = btoa(`${twilioAccountSid}:${twilioAuthToken}`);
+    const statusCallbackUrl = `${supabaseUrl}/functions/v1/sms-status-webhook`;
 
     const twilioResponse = await fetch(twilioUrl, {
       method: "POST",
@@ -179,6 +203,7 @@ Deno.serve(async (req) => {
         To: formattedPhone,
         From: twilioPhoneNumber,
         Body: smsMessage,
+        StatusCallback: statusCallbackUrl,
       }),
     });
 
@@ -239,6 +264,11 @@ Deno.serve(async (req) => {
 
     if (insertError) {
       console.error("Error creating conversation:", insertError);
+      await alertAdminSmsFailure(
+        supabase,
+        "report-rented conversation insert failed (owner YES/NO reply will not work for this report)",
+        { insertError, listingId: listing.id, isCommercial },
+      );
     }
 
     if (newConv) {
@@ -256,6 +286,7 @@ Deno.serve(async (req) => {
         success: true,
         message: "Report sent! The listing owner has been notified via SMS.",
         smsId: twilioData.sid,
+        conversation_created: !insertError && !!newConv,
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );

@@ -12,31 +12,6 @@ export type Database = {
   __InternalSupabase: {
     PostgrestVersion: "12.2.12 (cd3cf9e)"
   }
-  graphql_public: {
-    Tables: {
-      [_ in never]: never
-    }
-    Views: {
-      [_ in never]: never
-    }
-    Functions: {
-      graphql: {
-        Args: {
-          extensions?: Json
-          operationName?: string
-          query?: string
-          variables?: Json
-        }
-        Returns: Json
-      }
-    }
-    Enums: {
-      [_ in never]: never
-    }
-    CompositeTypes: {
-      [_ in never]: never
-    }
-  }
   public: {
     Tables: {
       admin_audit_log: {
@@ -513,6 +488,7 @@ export type Database = {
           property_taxes_annual: number | null
           rail_access: boolean | null
           renewal_options: string | null
+          sale_status: Database["public"]["Enums"]["sale_status"] | null
           seating_capacity: number | null
           security_deposit: string | null
           separate_entrance: boolean | null
@@ -634,6 +610,7 @@ export type Database = {
           property_taxes_annual?: number | null
           rail_access?: boolean | null
           renewal_options?: string | null
+          sale_status?: Database["public"]["Enums"]["sale_status"] | null
           seating_capacity?: number | null
           security_deposit?: string | null
           separate_entrance?: boolean | null
@@ -755,6 +732,7 @@ export type Database = {
           property_taxes_annual?: number | null
           rail_access?: boolean | null
           renewal_options?: string | null
+          sale_status?: Database["public"]["Enums"]["sale_status"] | null
           seating_capacity?: number | null
           security_deposit?: string | null
           separate_entrance?: boolean | null
@@ -1914,39 +1892,49 @@ export type Database = {
       }
       listing_contact_submissions: {
         Row: {
+          commercial_listing_id: string | null
           consent_to_followup: boolean
           created_at: string
           id: string
           ip_address: string | null
-          listing_id: string
+          listing_id: string | null
           session_id: string | null
           user_agent: string | null
           user_name: string
           user_phone: string
         }
         Insert: {
+          commercial_listing_id?: string | null
           consent_to_followup?: boolean
           created_at?: string
           id?: string
           ip_address?: string | null
-          listing_id: string
+          listing_id?: string | null
           session_id?: string | null
           user_agent?: string | null
           user_name: string
           user_phone: string
         }
         Update: {
+          commercial_listing_id?: string | null
           consent_to_followup?: boolean
           created_at?: string
           id?: string
           ip_address?: string | null
-          listing_id?: string
+          listing_id?: string | null
           session_id?: string | null
           user_agent?: string | null
           user_name?: string
           user_phone?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "listing_contact_submissions_commercial_listing_id_fkey"
+            columns: ["commercial_listing_id"]
+            isOneToOne: false
+            referencedRelation: "commercial_listings"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "listing_contact_submissions_listing_id_fkey"
             columns: ["listing_id"]
@@ -2988,6 +2976,7 @@ export type Database = {
       scrape_runs: {
         Row: {
           completed_at: string | null
+          created_by: string | null
           errors: Json | null
           id: string
           listings_geocoded: number | null
@@ -3004,6 +2993,7 @@ export type Database = {
         }
         Insert: {
           completed_at?: string | null
+          created_by?: string | null
           errors?: Json | null
           id?: string
           listings_geocoded?: number | null
@@ -3020,6 +3010,7 @@ export type Database = {
         }
         Update: {
           completed_at?: string | null
+          created_by?: string | null
           errors?: Json | null
           id?: string
           listings_geocoded?: number | null
@@ -3034,12 +3025,30 @@ export type Database = {
           status?: string | null
           total_pages?: number | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "scrape_runs_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "scrape_runs_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "public_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       scraped_listings: {
         Row: {
           additional_notes: string | null
+          admin_custom_agency_name: string | null
+          admin_listing_type_display: string | null
           agency_name: string | null
+          assigned_user_id: string | null
           basement: boolean | null
           bathrooms: number | null
           bedrooms: number | null
@@ -3056,15 +3065,21 @@ export type Database = {
           date_first_seen: string
           date_last_seen: string
           dedup_key: string
+          description: string | null
           existing_listing_id: string | null
           floor: number | null
           geocode_status: string | null
           has_porch: boolean | null
           heat_included: boolean | null
           id: string
+          image_paths: Json
+          intake_batch_id: string | null
+          intake_block_index: number | null
+          intake_extra: Json
           is_active: boolean | null
           is_furnished: boolean | null
           latitude: number | null
+          listing_kind: string
           longitude: number | null
           match_status: string | null
           neighborhood: string | null
@@ -3090,7 +3105,10 @@ export type Database = {
         }
         Insert: {
           additional_notes?: string | null
+          admin_custom_agency_name?: string | null
+          admin_listing_type_display?: string | null
           agency_name?: string | null
+          assigned_user_id?: string | null
           basement?: boolean | null
           bathrooms?: number | null
           bedrooms?: number | null
@@ -3107,15 +3125,21 @@ export type Database = {
           date_first_seen: string
           date_last_seen: string
           dedup_key: string
+          description?: string | null
           existing_listing_id?: string | null
           floor?: number | null
           geocode_status?: string | null
           has_porch?: boolean | null
           heat_included?: boolean | null
           id?: string
+          image_paths?: Json
+          intake_batch_id?: string | null
+          intake_block_index?: number | null
+          intake_extra?: Json
           is_active?: boolean | null
           is_furnished?: boolean | null
           latitude?: number | null
+          listing_kind?: string
           longitude?: number | null
           match_status?: string | null
           neighborhood?: string | null
@@ -3141,7 +3165,10 @@ export type Database = {
         }
         Update: {
           additional_notes?: string | null
+          admin_custom_agency_name?: string | null
+          admin_listing_type_display?: string | null
           agency_name?: string | null
+          assigned_user_id?: string | null
           basement?: boolean | null
           bathrooms?: number | null
           bedrooms?: number | null
@@ -3158,15 +3185,21 @@ export type Database = {
           date_first_seen?: string
           date_last_seen?: string
           dedup_key?: string
+          description?: string | null
           existing_listing_id?: string | null
           floor?: number | null
           geocode_status?: string | null
           has_porch?: boolean | null
           heat_included?: boolean | null
           id?: string
+          image_paths?: Json
+          intake_batch_id?: string | null
+          intake_block_index?: number | null
+          intake_extra?: Json
           is_active?: boolean | null
           is_furnished?: boolean | null
           latitude?: number | null
+          listing_kind?: string
           longitude?: number | null
           match_status?: string | null
           neighborhood?: string | null
@@ -3192,6 +3225,20 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "scraped_listings_assigned_user_id_fkey"
+            columns: ["assigned_user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "scraped_listings_assigned_user_id_fkey"
+            columns: ["assigned_user_id"]
+            isOneToOne: false
+            referencedRelation: "public_profiles"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "scraped_listings_existing_listing_id_fkey"
             columns: ["existing_listing_id"]
             isOneToOne: false
@@ -3203,6 +3250,13 @@ export type Database = {
             columns: ["existing_listing_id"]
             isOneToOne: false
             referencedRelation: "listings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "scraped_listings_intake_batch_id_fkey"
+            columns: ["intake_batch_id"]
+            isOneToOne: false
+            referencedRelation: "scrape_runs"
             referencedColumns: ["id"]
           },
           {
@@ -4113,6 +4167,14 @@ export type Database = {
         Args: { article_id: string }
         Returns: undefined
       }
+      increment_commercial_listing_impressions: {
+        Args: { p_listing_ids: string[] }
+        Returns: undefined
+      }
+      increment_commercial_listing_views: {
+        Args: { listing_id: string }
+        Returns: undefined
+      }
       increment_listing_views: {
         Args: { listing_id: string }
         Returns: undefined
@@ -4384,9 +4446,6 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
-  graphql_public: {
-    Enums: {},
-  },
   public: {
     Enums: {
       account_type: ["agency", "landlord"],

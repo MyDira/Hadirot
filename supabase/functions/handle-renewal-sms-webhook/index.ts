@@ -22,6 +22,11 @@ interface ConversationMetadata {
   report_type?: string;
   inquiry_from?: string;
   inquiry_phone?: string;
+  // Bulk renewal batches (send-renewal-reminders sends ONE message covering
+  // every listing in the batch; a single reply resolves them all).
+  bulk?: boolean;
+  listing_count?: number;
+  deactivated_refs?: Array<{ id: string; is_commercial: boolean }>;
 }
 
 interface DisambiguationMetadata {
@@ -84,6 +89,8 @@ function formatSpaceType(raw: string): string {
     coworking: "Coworking",
     gallery: "Gallery",
     event_space: "Event Space",
+    community_facility: "Community Facility",
+    basement_commercial: "Basement Commercial",
   };
   return map[raw?.toLowerCase()] ?? (raw ? raw.charAt(0).toUpperCase() + raw.slice(1) : "Commercial");
 }
@@ -260,6 +267,7 @@ Deno.serve(async (req) => {
       messageSid?: string | null;
       messageSource: string;
       listingId?: string | null;
+      status?: string;
     }) {
       try {
         await supabaseAdmin.from("sms_messages").insert({
@@ -270,7 +278,7 @@ Deno.serve(async (req) => {
           message_sid: params.messageSid || null,
           message_source: params.messageSource,
           listing_id: params.listingId || null,
-          status: params.direction === 'outbound' ? 'sent' : 'received',
+          status: params.status ?? (params.direction === 'outbound' ? 'sent' : 'received'),
         });
       } catch (error) {
         console.error("Error logging message:", error);
@@ -286,6 +294,7 @@ Deno.serve(async (req) => {
     ): Promise<void> {
       const twilioUrl = `https://api.twilio.com/2010-04-01/Accounts/${twilioAccountSid}/Messages.json`;
       const twilioAuth = btoa(`${twilioAccountSid}:${twilioAuthToken}`);
+      const statusCallbackUrl = `${supabaseUrl}/functions/v1/sms-status-webhook`;
       try {
         const response = await fetch(twilioUrl, {
           method: "POST",
@@ -297,6 +306,7 @@ Deno.serve(async (req) => {
             To: toPhone,
             From: twilioPhoneNumber!,
             Body: message,
+            StatusCallback: statusCallbackUrl,
           }),
         });
         let twilioSid: string | null = null;
@@ -315,13 +325,14 @@ Deno.serve(async (req) => {
           messageSid: twilioSid,
           messageSource: source,
           listingId: listingId || null,
+          status: response.ok ? 'sent' : 'failed',
         });
       } catch (error) {
         console.error("Error sending SMS:", error);
       }
     }
 
-    async function notifyAdmin(subject: string, details: string): Promise<void> {
+    async function notifyAdmin(subject: string, details: string, kind: 'error' | 'unrecognized' = 'error'): Promise<void> {
       try {
         const { data: config } = await supabaseAdmin
           .from("sms_admin_config")
@@ -333,6 +344,9 @@ Deno.serve(async (req) => {
           console.log("No admin email configured, skipping notification");
           return;
         }
+
+        if (kind === 'error' && config.notify_on_errors === false) return;
+        if (kind === 'unrecognized' && config.notify_on_unrecognized === false) return;
 
         const htmlBody = `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
@@ -366,14 +380,17 @@ Deno.serve(async (req) => {
 
     async function fetchListingForConv(
       conv: RenewalConversation,
-      selectFields: string = "id, listing_type, location, full_address, neighborhood, price, expires_at"
+      selectFields?: string
     ): Promise<{ data: any; error: any }> {
       if (!conv.listing_id) return { data: null, error: null };
       const table = getListingTable(conv);
-      const extraFields = conv.is_commercial ? ", commercial_space_type" : "";
+      // commercial_listings has NO `location` column — per-table defaults.
+      const fields = selectFields ?? (conv.is_commercial === true
+        ? "id, listing_type, full_address, neighborhood, price, expires_at, commercial_space_type"
+        : "id, listing_type, location, full_address, neighborhood, price, expires_at");
       return supabaseAdmin
         .from(table)
-        .select(selectFields + extraFields)
+        .select(fields)
         .eq("id", conv.listing_id)
         .maybeSingle();
     }
@@ -401,6 +418,18 @@ Deno.serve(async (req) => {
     }
 
     async function updateHadirotConversion(conv: RenewalConversation, value: boolean): Promise<void> {
+      // Bulk batches record which listings were deactivated; the single
+      // hadirot-question answer applies to all of them.
+      const refs = (conv.metadata as ConversationMetadata | null)?.deactivated_refs;
+      if (Array.isArray(refs) && refs.length > 0) {
+        for (const ref of refs) {
+          await supabaseAdmin
+            .from(ref.is_commercial ? "commercial_listings" : "listings")
+            .update({ hadirot_conversion: value })
+            .eq("id", ref.id);
+        }
+        return;
+      }
       if (!conv.listing_id) return;
       await supabaseAdmin
         .from(getListingTable(conv))
@@ -586,6 +615,155 @@ Deno.serve(async (req) => {
       console.log(`Sent disambiguation prompt to ${phone} with ${candidateDescriptions.length} candidates`);
     }
 
+    // ============================================
+    // BULK BATCH HANDLING
+    // ============================================
+    // New-style renewal batches (head conversation has metadata.bulk) send ONE
+    // message listing every expiring listing; a single reply resolves the whole
+    // batch. Old-style one-at-a-time chains (no bulk flag) still flow through
+    // advanceToNextInBatch below.
+
+    async function handleBulkAvailabilityReply(
+      headConv: RenewalConversation,
+      replyBody: string,
+      phone: string,
+    ): Promise<void> {
+      const { data: batchRows, error: batchError } = await supabaseAdmin
+        .from("listing_renewal_conversations")
+        .select("*")
+        .eq("batch_id", headConv.batch_id)
+        .in("state", ["awaiting_availability", "pending"])
+        .order("listing_index", { ascending: true });
+
+      if (batchError || !batchRows || batchRows.length === 0) {
+        console.error("Error loading bulk batch:", batchError);
+        await sendSMS(phone, "Hadirot Alert: Sorry, there was an error. Please manage your listings at hadirot.com/dashboard.", 'system_response', headConv.listing_id, headConv.id);
+        return;
+      }
+
+      const batch = batchRows as RenewalConversation[];
+      const nowIso = new Date().toISOString();
+      const normalized = replyBody.toLowerCase().trim();
+
+      const renewOne = async (c: RenewalConversation) => {
+        if (!c.listing_id) return;
+        const { data: l } = await fetchListingForConv(c, "expires_at");
+        const currentExpiry = l?.expires_at ? new Date(l.expires_at) : new Date();
+        const base = currentExpiry > new Date() ? currentExpiry : new Date();
+        const newExpiry = new Date(base.getTime() + SMS_RENEWAL_DAYS * 24 * 60 * 60 * 1000);
+        await renewListingForConv(c, newExpiry);
+      };
+
+      const completeConvs = async (ids: string[], actionTaken: string) => {
+        if (ids.length === 0) return;
+        await supabaseAdmin
+          .from("listing_renewal_conversations")
+          .update({ state: "completed", action_taken: actionTaken, updated_at: nowIso })
+          .in("id", ids);
+      };
+
+      const markHeadReply = async (updates: Record<string, unknown>) => {
+        await supabaseAdmin
+          .from("listing_renewal_conversations")
+          .update({
+            reply_received_at: nowIso,
+            reply_text: replyBody,
+            updated_at: nowIso,
+            ...updates,
+          })
+          .eq("id", headConv.id);
+      };
+
+      const bulkAffirmative = ['all', 'yes all', 'keep all', 'all available', 'all good', 'all still available'];
+      const intent = parseMessageIntent(replyBody, 'awaiting_availability');
+      const isAffirmative = intent.type === 'affirmative' || bulkAffirmative.includes(normalized);
+      // Only EXACT negatives deactivate everything. A keyword reply like
+      // "the 2 bedroom is rented" clearly refers to one listing, not all of
+      // them — for those we ask for numbers instead of nuking the batch.
+      const exactNegatives = ['no', 'n', 'nope', 'nah', 'none'];
+      const isNegativeAll = exactNegatives.includes(normalized);
+      const numberTokens = replyBody.match(/\d+/g);
+
+      if (isAffirmative) {
+        for (const c of batch) await renewOne(c);
+        await completeConvs(batch.filter(c => c.id !== headConv.id).map(c => c.id), "extended");
+        await markHeadReply({ state: "completed", action_taken: "extended" });
+        await sendSMS(phone, `Hadirot Alert: OK, we have extended all ${batch.length} listings for another 2 weeks. Thank you!`, 'system_response', headConv.listing_id, headConv.id);
+        return;
+      }
+
+      if (isNegativeAll) {
+        const refs: Array<{ id: string; is_commercial: boolean }> = [];
+        for (const c of batch) {
+          await deactivateListingForConv(c);
+          if (c.listing_id) refs.push({ id: c.listing_id, is_commercial: c.is_commercial === true });
+        }
+        await completeConvs(batch.filter(c => c.id !== headConv.id).map(c => c.id), "deactivated");
+        const meta = (headConv.metadata && !('candidates' in headConv.metadata)) ? headConv.metadata : {};
+        await markHeadReply({
+          state: "awaiting_hadirot_question",
+          action_taken: "deactivated",
+          metadata: { ...meta, deactivated_refs: refs },
+        });
+        await sendSMS(phone, `Hadirot Alert: All ${batch.length} listings deactivated. Did the tenants/buyers find you through Hadirot? Reply YES or NO.`, 'system_response', headConv.listing_id, headConv.id);
+        return;
+      }
+
+      if (numberTokens && numberTokens.length > 0 && !/[a-z]/.test(normalized.replace(/\band\b/g, ''))) {
+        const picks = [...new Set(numberTokens.map(Number))];
+        const maxIndex = batch.length;
+        if (picks.some(p => p < 1 || p > maxIndex)) {
+          await sendSMS(phone, `Hadirot Alert: Please reply with numbers between 1 and ${maxIndex}, YES to keep all, or NO if none are available.`, 'system_response', headConv.listing_id, headConv.id);
+          return;
+        }
+
+        const selected = batch.filter(c => c.listing_index !== null && picks.includes(c.listing_index));
+        const kept = batch.filter(c => !selected.includes(c));
+
+        const refs: Array<{ id: string; is_commercial: boolean }> = [];
+        for (const c of selected) {
+          await deactivateListingForConv(c);
+          if (c.listing_id) refs.push({ id: c.listing_id, is_commercial: c.is_commercial === true });
+        }
+        for (const c of kept) await renewOne(c);
+
+        await completeConvs(selected.filter(c => c.id !== headConv.id).map(c => c.id), "deactivated");
+        await completeConvs(kept.filter(c => c.id !== headConv.id).map(c => c.id), "extended");
+
+        const headSelected = selected.some(c => c.id === headConv.id);
+        const meta = (headConv.metadata && !('candidates' in headConv.metadata)) ? headConv.metadata : {};
+        await markHeadReply({
+          state: "awaiting_hadirot_question",
+          action_taken: headSelected ? "deactivated" : "extended",
+          metadata: { ...meta, deactivated_refs: refs },
+        });
+
+        const keptMsg = kept.length > 0 ? ` The other ${kept.length} ${kept.length === 1 ? 'has' : 'have'} been extended for 2 weeks.` : '';
+        await sendSMS(phone, `Hadirot Alert: ${selected.length} listing${selected.length === 1 ? '' : 's'} deactivated.${keptMsg} Did the tenant/buyer find you through Hadirot? Reply YES or NO.`, 'system_response', headConv.listing_id, headConv.id);
+        return;
+      }
+
+      // Deactivation keywords without a number ("rented", "the studio is
+      // taken") — ambiguous in a bulk batch; ask which one.
+      if (intent.type === 'negative' || intent.type === 'deactivation') {
+        await sendSMS(phone, `Hadirot Alert: Which listing is no longer available? Reply with its number (1-${batch.length}), or NO if none of them are available.`, 'system_response', headConv.listing_id, headConv.id);
+        return;
+      }
+
+      // Help / unknown: resend the list.
+      const lines: string[] = [];
+      for (let i = 0; i < batch.length; i++) {
+        const c = batch[i];
+        if (!c.listing_id) {
+          lines.push(`${i + 1}. Unknown`);
+          continue;
+        }
+        const { data: l } = await fetchListingForConv(c, undefined);
+        lines.push(`${i + 1}. ${l ? formatListingIdentifier(l as Listing) : 'Unknown'}`);
+      }
+      await sendSMS(phone, `Hadirot Alert: Your expiring listings:\n${lines.join('\n')}\nReply YES to keep all, NO if none are available, or the numbers that are no longer available (e.g. 2).`, 'system_response', headConv.listing_id, headConv.id);
+    }
+
     // MAINTENANCE NOTE: The state handling logic below mirrors the main state handlers
     // in the conversation routing section. If you modify the behavior for any state
     // (awaiting_availability, awaiting_hadirot_question, awaiting_report_response,
@@ -683,6 +861,13 @@ Deno.serve(async (req) => {
         }
 
         if (targetConv.state === 'awaiting_availability') {
+          // Bulk batch heads route through the shared bulk handler so a
+          // disambiguated reply gets identical semantics.
+          if (targetConv.batch_id && (targetConv.metadata as ConversationMetadata | null)?.bulk === true) {
+            await handleBulkAvailabilityReply(targetConv, originalReply, phone);
+            return;
+          }
+
           const intent = parseMessageIntent(originalReply, 'awaiting_availability');
 
           if (intent.type === 'affirmative') {
@@ -1157,7 +1342,8 @@ Deno.serve(async (req) => {
 
           await notifyAdmin(
             "Unrecognized phone number",
-            `Received SMS from ${normalizedPhone} which has no associated listings.\nMessage: "${body}"`
+            `Received SMS from ${normalizedPhone} which has no associated listings.\nMessage: "${body}"`,
+            'unrecognized'
           );
         }
       } else {
@@ -1227,7 +1413,9 @@ Deno.serve(async (req) => {
 
           const { data: nextListing } = await supabaseAdmin
             .from(getListingTable(nextConvTyped))
-            .select("id, listing_type, location, full_address, neighborhood, price, commercial_space_type")
+            .select(nextConvTyped.is_commercial === true
+              ? "id, listing_type, full_address, neighborhood, price, commercial_space_type"
+              : "id, listing_type, location, full_address, neighborhood, price")
             .eq("id", nextConvTyped.listing_id)
             .maybeSingle();
 
@@ -1250,6 +1438,12 @@ Deno.serve(async (req) => {
       }
 
       if (conv.state === "awaiting_availability") {
+        // Bulk batch: one reply resolves every listing in the batch.
+        if (conv.batch_id && (conv.metadata as ConversationMetadata | null)?.bulk === true) {
+          await handleBulkAvailabilityReply(conv, body, normalizedPhone);
+          return new Response(emptyTwiML, { headers: { "Content-Type": "text/xml" } });
+        }
+
         if (!listing) {
           console.error("No listing found for awaiting_availability conversation");
           return new Response(emptyTwiML, { headers: { "Content-Type": "text/xml" } });

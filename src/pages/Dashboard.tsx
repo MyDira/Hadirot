@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { CreditCard as Edit, Eye, MousePointerClick, MessageSquare, Star, Trash2, Zap, RefreshCw, Plus, EyeOff, AlertTriangle, Clock, Home, DollarSign, Info, CheckCircle, XCircle, Briefcase, X, Building2, Gift, ArrowUpRight, MoreVertical, Pencil, Crown, ShieldCheck } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { Listing, SaleStatus, CommercialListing, supabase } from "../config/supabase";
@@ -32,6 +32,7 @@ type DashboardTab = 'rentals' | 'sales';
 
 export default function Dashboard() {
   const { user, profile, loading: authLoading, refreshProfile } = useAuth();
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [listings, setListings] = useState<Listing[]>([]);
   const [commercialListings, setCommercialListings] = useState<CommercialListing[]>([]);
@@ -632,11 +633,11 @@ export default function Dashboard() {
     try {
       const listing = commercialListings.find((l) => l.id === listingId);
       const listingType = listing?.listing_type ?? 'rental';
-      await commercialListingsService.renewCommercialListing(listingId, listingType);
+      await commercialListingsService.renewCommercialListing(listingId, listingType, listing?.sale_status);
       await loadUserListings();
     } catch (error) {
       console.error("Error renewing commercial listing:", error);
-      alert("Failed to renew listing. Please try again.");
+      alert(error instanceof Error ? error.message : "Failed to renew listing. Please try again.");
     } finally {
       setActionLoading(null);
     }
@@ -1088,10 +1089,15 @@ export default function Dashboard() {
                 : null;
 
               const featuredStatus = !isCommercial ? getListingFeaturedStatus(listing as Listing) : null;
-              const canGetFeatured = !isCommercial
-                && listing.is_active
+              const commercialCurrentlyFeatured = isCommercial
+                && !!listing.is_featured
+                && !!listing.featured_expires_at
+                && new Date(listing.featured_expires_at) > new Date();
+              const canGetFeatured = listing.is_active
                 && listing.approved
-                && !isListingCurrentlyFeatured(listing as Listing);
+                && (isCommercial
+                  ? !commercialCurrentlyFeatured
+                  : !isListingCurrentlyFeatured(listing as Listing));
 
               const expiringSoon = listing.is_active
                 && daysUntilExpiration != null
@@ -1147,7 +1153,9 @@ export default function Dashboard() {
               } else if (canGetFeatured) {
                 primary = {
                   label: 'Get Featured',
-                  onClick: () => { setFeatureModalListing(listing as Listing); setShowSuccessBanner(false); },
+                  onClick: () => isCommercial
+                    ? navigate(`/boost/${listing.id}`)
+                    : (() => { setFeatureModalListing(listing as Listing); setShowSuccessBanner(false); })(),
                   cls: 'bg-accent-500 hover:bg-accent-600 text-white',
                 };
               }
@@ -1294,17 +1302,15 @@ export default function Dashboard() {
                           <MousePointerClick className="w-3.5 h-3.5 opacity-70" />
                           {(listing.direct_views ?? 0).toLocaleString()}
                         </span>
-                        {!isCommercial && (
-                          <button
-                            type="button"
-                            onClick={() => handleOpenInquiries(listing.id, listing.title)}
-                            className="flex items-center gap-1 hover:text-accent-600 transition-colors"
-                            title="View inquiries"
-                          >
-                            <MessageSquare className="w-3.5 h-3.5 opacity-70" />
-                            <span className="hover:underline">{inquiryCounts[listing.id] ?? 0}</span>
-                          </button>
-                        )}
+                        <button
+                          type="button"
+                          onClick={() => handleOpenInquiries(listing.id, listing.title)}
+                          className="flex items-center gap-1 hover:text-accent-600 transition-colors"
+                          title="View inquiries"
+                        >
+                          <MessageSquare className="w-3.5 h-3.5 opacity-70" />
+                          <span className="hover:underline">{inquiryCounts[listing.id] ?? 0}</span>
+                        </button>
                       </div>
 
                       <div className="flex items-center gap-1.5 flex-shrink-0">
@@ -1369,10 +1375,15 @@ export default function Dashboard() {
                 : null;
 
               const featuredStatus = !isCommercial ? getListingFeaturedStatus(listing as Listing) : null;
-              const canGetFeatured = !isCommercial
-                && listing.is_active
+              const commercialCurrentlyFeatured = isCommercial
+                && !!listing.is_featured
+                && !!listing.featured_expires_at
+                && new Date(listing.featured_expires_at) > new Date();
+              const canGetFeatured = listing.is_active
                 && listing.approved
-                && !isListingCurrentlyFeatured(listing as Listing);
+                && (isCommercial
+                  ? !commercialCurrentlyFeatured
+                  : !isListingCurrentlyFeatured(listing as Listing));
 
               // Pick the single most useful primary action for a sale listing.
               type Primary = { label: string; onClick: () => void; cls: string; disabled?: boolean; title?: string } | null;
@@ -1393,7 +1404,9 @@ export default function Dashboard() {
               } else if (canGetFeatured) {
                 primary = {
                   label: 'Get Featured',
-                  onClick: () => { setFeatureModalListing(listing as Listing); setShowSuccessBanner(false); },
+                  onClick: () => isCommercial
+                    ? navigate(`/boost/${listing.id}`)
+                    : (() => { setFeatureModalListing(listing as Listing); setShowSuccessBanner(false); })(),
                   cls: 'bg-accent-500 hover:bg-accent-600 text-white',
                 };
               }
@@ -1567,17 +1580,15 @@ export default function Dashboard() {
                           <MousePointerClick className="w-3.5 h-3.5 opacity-70" />
                           {(listing.direct_views ?? 0).toLocaleString()}
                         </span>
-                        {!isCommercial && (
-                          <button
-                            type="button"
-                            onClick={() => handleOpenInquiries(listing.id, listing.title)}
-                            className="flex items-center gap-1 hover:text-accent-600 transition-colors"
-                            title="View inquiries"
-                          >
-                            <MessageSquare className="w-3.5 h-3.5 opacity-70" />
-                            <span className="hover:underline">{inquiryCounts[listing.id] ?? 0}</span>
-                          </button>
-                        )}
+                        <button
+                          type="button"
+                          onClick={() => handleOpenInquiries(listing.id, listing.title)}
+                          className="flex items-center gap-1 hover:text-accent-600 transition-colors"
+                          title="View inquiries"
+                        >
+                          <MessageSquare className="w-3.5 h-3.5 opacity-70" />
+                          <span className="hover:underline">{inquiryCounts[listing.id] ?? 0}</span>
+                        </button>
                       </div>
 
                       <div className="flex items-center gap-1.5 flex-shrink-0">

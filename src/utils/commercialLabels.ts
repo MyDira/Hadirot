@@ -46,6 +46,7 @@ const COMMERCIAL_SUBTYPE: LabelMap = {
   // industrial
   manufacturing: 'Manufacturing',
   rd_lab: 'R&D / Lab',
+  data_center: 'Data Center',
   // community facility
   daycare: 'Daycare',
   religious: 'Religious',

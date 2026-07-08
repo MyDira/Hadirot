@@ -1,8 +1,32 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders } from "../_shared/cors.ts";
+import { sendViaZepto } from "../_shared/zepto.ts";
+
+// A failed conversation insert means a later "RENTED" reply has nothing to
+// match — alert the SMS admin instead of failing silently (this is how the
+// state-CHECK constraint bug went unnoticed for months).
+async function alertAdminSmsFailure(supabase: any, context: string, detail: unknown) {
+  try {
+    const { data: cfg } = await supabase
+      .from("sms_admin_config")
+      .select("admin_email, notify_on_errors")
+      .limit(1)
+      .maybeSingle();
+    if (cfg?.admin_email && cfg?.notify_on_errors !== false) {
+      await sendViaZepto({
+        to: cfg.admin_email,
+        subject: `Hadirot SMS alert: ${context}`,
+        html: `<p>${context}</p><pre>${JSON.stringify(detail, null, 2)?.slice(0, 2000)}</pre>`,
+      });
+    }
+  } catch (e) {
+    console.error("Failed to send SMS admin alert:", e);
+  }
+}
 
 interface ContactFormData {
-  listingId: string;
+  listingId?: string;
+  commercialListingId?: string;
   userName: string;
   userPhone: string;
   consentToFollowup: boolean;
@@ -33,6 +57,8 @@ function formatSpaceType(raw: string): string {
     coworking: "Coworking",
     gallery: "Gallery",
     event_space: "Event Space",
+    community_facility: "Community Facility",
+    basement_commercial: "Basement Commercial",
   };
   return map[raw?.toLowerCase()] ?? (raw ? raw.charAt(0).toUpperCase() + raw.slice(1) : "Commercial");
 }
@@ -96,6 +122,13 @@ Deno.serve(async (req) => {
       );
     }
 
+    // Commercial callers send `commercialListingId`; normalize it into `listingId`
+    // so the rest of the handler (which branches on isCommercial + the correct
+    // table) can treat the id uniformly.
+    if (formData.isCommercial === true && formData.commercialListingId) {
+      formData.listingId = formData.commercialListingId;
+    }
+
     if (!formData.listingId || !formData.userName || !formData.userPhone) {
       return new Response(
         JSON.stringify({ error: "Missing required fields" }),
@@ -106,9 +139,11 @@ Deno.serve(async (req) => {
       );
     }
 
-    const phoneRegex = /^\+?1?\d{10}$/;
-    const cleanedPhone = formData.userPhone.replace(/\D/g, "");
-    if (!phoneRegex.test(cleanedPhone) || cleanedPhone.length !== 10) {
+    let cleanedPhone = formData.userPhone.replace(/\D/g, "");
+    if (cleanedPhone.length === 11 && cleanedPhone.startsWith("1")) {
+      cleanedPhone = cleanedPhone.slice(1);
+    }
+    if (cleanedPhone.length !== 10) {
       return new Response(
         JSON.stringify({ error: "Invalid phone number format" }),
         {
@@ -117,6 +152,10 @@ Deno.serve(async (req) => {
         }
       );
     }
+    // Normalize so the SMS body, the duplicate-submit rate-limit check, and
+    // the submissions log all use the same value regardless of how the
+    // caller formatted the input (e.g. "+1 (555) 123-4567" vs "5551234567").
+    formData.userPhone = `${cleanedPhone.slice(0, 3)}-${cleanedPhone.slice(3, 6)}-${cleanedPhone.slice(6)}`;
 
     const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     if (!UUID_RE.test(formData.listingId)) {
@@ -150,6 +189,56 @@ Deno.serve(async (req) => {
     }
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    // ----------------------------------------------------------------
+    // Rate limiting — this endpoint is reachable with just the anon key
+    // (verify_jwt passes for any authenticated-or-anon caller), so without
+    // limits here it can be looped to SMS-bomb listing owners and burn
+    // Twilio spend. Each check fails OPEN on its own query error:
+    // availability of the real feature matters more than the limit if the
+    // rate-limit check itself breaks.
+    // ----------------------------------------------------------------
+    try {
+      const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+      const { count: recentContactCount, error: contactCountError } = await supabase
+        .from("sms_messages")
+        .select("id", { count: "exact", head: true })
+        .eq("message_source", "contact_notification")
+        .eq("listing_id", formData.listingId)
+        .gt("created_at", oneHourAgo);
+
+      if (contactCountError) {
+        console.error("Rate limit check (sms_messages) failed, failing open:", contactCountError);
+      } else if ((recentContactCount ?? 0) >= 3) {
+        return new Response(
+          JSON.stringify({ error: "Too many contact requests for this listing right now. Please try again later." }),
+          { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+    } catch (rateLimitErr) {
+      console.error("Rate limit check (sms_messages) threw, failing open:", rateLimitErr);
+    }
+
+    try {
+      const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+      const { count: recentSubmissionCount, error: submissionCountError } = await supabase
+        .from("listing_contact_submissions")
+        .select("id", { count: "exact", head: true })
+        .eq("user_phone", formData.userPhone)
+        .gt("created_at", tenMinutesAgo)
+        .or(`listing_id.eq.${formData.listingId},commercial_listing_id.eq.${formData.listingId}`);
+
+      if (submissionCountError) {
+        console.error("Rate limit check (listing_contact_submissions) failed, failing open:", submissionCountError);
+      } else if ((recentSubmissionCount ?? 0) >= 1) {
+        return new Response(
+          JSON.stringify({ error: "You already requested a callback for this listing. The owner has been notified." }),
+          { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+    } catch (dupSubmitErr) {
+      console.error("Rate limit check (listing_contact_submissions) threw, failing open:", dupSubmitErr);
+    }
 
     const formatPhoneForSMS = (phone: string): string => {
       const cleaned = phone.replace(/\D/g, "");
@@ -285,7 +374,7 @@ Deno.serve(async (req) => {
     let shortCode: string | null = null;
     try {
       const listingPath = isCommercial
-        ? `${siteUrl}/commercial/${formData.listingId}`
+        ? `${siteUrl}/commercial-listing/${formData.listingId}`
         : `${siteUrl}/listing/${formData.listingId}`;
 
       const { data: code, error: shortUrlError } = await supabase.rpc("create_short_url", {
@@ -331,6 +420,7 @@ Deno.serve(async (req) => {
     // ----------------------------------------------------------------
     const twilioUrl = `https://api.twilio.com/2010-04-01/Accounts/${twilioAccountSid}/Messages.json`;
     const twilioAuth = btoa(`${twilioAccountSid}:${twilioAuthToken}`);
+    const statusCallbackUrl = `${supabaseUrl}/functions/v1/sms-status-webhook`;
 
     const twilioResponse = await fetch(twilioUrl, {
       method: "POST",
@@ -342,6 +432,7 @@ Deno.serve(async (req) => {
         To: formatPhoneForSMS(listing.contact_phone),
         From: twilioPhoneNumber,
         Body: smsMessage,
+        StatusCallback: statusCallbackUrl,
       }),
     });
 
@@ -377,15 +468,23 @@ Deno.serve(async (req) => {
     // ----------------------------------------------------------------
     // Log to listing_contact_submissions
     // ----------------------------------------------------------------
+    // Client-supplied ipAddress is not trustworthy (it's just a field the
+    // caller can set to anything) — derive it from request headers instead.
+    const forwardedFor = req.headers.get("x-forwarded-for");
+    const derivedIpAddress = forwardedFor
+      ? forwardedFor.split(",")[0].trim()
+      : req.headers.get("cf-connecting-ip") || null;
+
     const { error: insertError } = await supabase
       .from("listing_contact_submissions")
       .insert({
-        listing_id: formData.listingId,
+        listing_id: isCommercial ? null : formData.listingId,
+        commercial_listing_id: isCommercial ? formData.listingId : null,
         user_name: formData.userName,
         user_phone: formData.userPhone,
         consent_to_followup: formData.consentToFollowup || false,
         session_id: formData.sessionId,
-        ip_address: formData.ipAddress,
+        ip_address: derivedIpAddress,
         user_agent: formData.userAgent,
       });
 
@@ -396,6 +495,7 @@ Deno.serve(async (req) => {
     // ----------------------------------------------------------------
     // Create callback conversation (non-sale listings only)
     // ----------------------------------------------------------------
+    let callbackConversationCreated = true; // sales don't create one — not a failure
     if (!isSale && listing.user_id) {
       const callbackExpires = new Date(Date.now() + 72 * 60 * 60 * 1000);
       const { error: convError } = await supabase
@@ -420,12 +520,21 @@ Deno.serve(async (req) => {
         });
       if (convError) {
         console.error("Error creating callback conversation:", convError);
+        await alertAdminSmsFailure(
+          supabase,
+          "callback conversation insert failed (owner RENTED reply will not match)",
+          { convError, listingId: formData.listingId, isCommercial },
+        );
       }
+      callbackConversationCreated = !convError;
     }
 
     // ----------------------------------------------------------------
-    // Boost upsell SMS (3-second delay for separate visual message)
+    // Boost upsell SMS — runs in the background AFTER the response is sent.
+    // The 3s delay keeps it visually separate from the alert SMS without
+    // holding the caller's HTTP request open.
     // ----------------------------------------------------------------
+    const upsellTask = (async () => {
     await new Promise((resolve) => setTimeout(resolve, 3000));
 
     try {
@@ -484,6 +593,7 @@ Deno.serve(async (req) => {
                 To: agentPhone,
                 From: twilioPhoneNumber,
                 Body: upsellMessage,
+                StatusCallback: statusCallbackUrl,
               }),
             });
 
@@ -509,12 +619,21 @@ Deno.serve(async (req) => {
     } catch (upsellErr) {
       console.error("Boost upsell error (non-fatal):", upsellErr);
     }
+    })();
+    // deno-lint-ignore no-explicit-any
+    const runtime = (globalThis as any).EdgeRuntime;
+    if (runtime?.waitUntil) {
+      runtime.waitUntil(upsellTask);
+    } else {
+      await upsellTask;
+    }
 
     return new Response(
       JSON.stringify({
         success: true,
         message: "Contact request sent successfully!",
         smsId: twilioData.sid,
+        conversation_created: callbackConversationCreated,
       }),
       {
         status: 200,

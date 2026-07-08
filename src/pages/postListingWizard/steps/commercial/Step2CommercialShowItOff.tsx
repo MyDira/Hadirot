@@ -10,7 +10,10 @@ import { StepTips } from '../../StepTips';
 const TIPS = {
   heading: 'Photos & Description',
   bullets: [
-    'Tips will appear here.',
+    'Lead with your best exterior / storefront shot — it drives the most clicks.',
+    'Include wide interior shots, the layout, frontage, and any build-out or fixtures.',
+    'Aim for 5–10 well-lit photos; listings with more photos get more inquiries.',
+    'In the description, call out condition, ceiling height, frontage, and ideal uses.',
   ],
 };
 
@@ -97,6 +100,19 @@ export function Step2CommercialShowItOff({
               rows={6}
               placeholder={placeholder}
               className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-accent-500 focus:border-accent-500 resize-y"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Video URL
+              <span className="ml-1.5 text-xs font-normal text-gray-400">(optional — YouTube, Vimeo, Matterport…)</span>
+            </label>
+            <input
+              type="url"
+              value={formData.video_url || ''}
+              onChange={e => updateFormData({ video_url: e.target.value })}
+              placeholder="https://www.youtube.com/watch?v=…"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-accent-500 focus:border-accent-500"
             />
           </div>
         </div>

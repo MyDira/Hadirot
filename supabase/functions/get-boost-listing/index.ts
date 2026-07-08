@@ -21,33 +21,62 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
 
-    const { data: listing, error: listingError } = await supabaseAdmin
+    // Try residential first, then commercial (ids are globally unique).
+    let isCommercial = false;
+    let listing: Record<string, any> | null = null;
+
+    const { data: resListing } = await supabaseAdmin
       .from("listings")
       .select("id, bedrooms, bathrooms, price, asking_price, neighborhood, cross_street_a, cross_street_b, listing_type, call_for_price, is_featured, featured_expires_at, is_active, approved, title, location")
       .eq("id", listing_id)
       .maybeSingle();
 
-    if (listingError || !listing) {
+    if (resListing) {
+      listing = resListing;
+    } else {
+      const { data: comListing } = await supabaseAdmin
+        .from("commercial_listings")
+        .select("id, price, asking_price, neighborhood, cross_street_a, cross_street_b, listing_type, call_for_price, is_featured, featured_expires_at, is_active, approved, title, full_address, commercial_space_type")
+        .eq("id", listing_id)
+        .maybeSingle();
+      if (comListing) {
+        listing = comListing;
+        isCommercial = true;
+      }
+    }
+
+    if (!listing) {
       return new Response(JSON.stringify({ error: "Listing not found" }), {
         status: 404,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    const { data: images } = await supabaseAdmin
-      .from("listing_images")
-      .select("storage_path")
-      .eq("listing_id", listing_id)
-      .order("display_order", { ascending: true })
-      .limit(1);
-
-    const primaryImage = images?.[0]?.storage_path || null;
+    // Primary image — commercial images store a full public image_url; residential
+    // images store a storage_path that must be resolved to a public URL.
     let imageUrl: string | null = null;
-    if (primaryImage) {
-      const { data: urlData } = supabaseAdmin.storage
-        .from("listing-images")
-        .getPublicUrl(primaryImage);
-      imageUrl = urlData?.publicUrl || null;
+    if (isCommercial) {
+      const { data: images } = await supabaseAdmin
+        .from("commercial_listing_images")
+        .select("image_url")
+        .eq("listing_id", listing_id)
+        .order("sort_order", { ascending: true })
+        .limit(1);
+      imageUrl = images?.[0]?.image_url || null;
+    } else {
+      const { data: images } = await supabaseAdmin
+        .from("listing_images")
+        .select("storage_path")
+        .eq("listing_id", listing_id)
+        .order("display_order", { ascending: true })
+        .limit(1);
+      const primaryImage = images?.[0]?.storage_path || null;
+      if (primaryImage) {
+        const { data: urlData } = supabaseAdmin.storage
+          .from("listing-images")
+          .getPublicUrl(primaryImage);
+        imageUrl = urlData?.publicUrl || null;
+      }
     }
 
     const alreadyFeatured =
@@ -67,8 +96,8 @@ Deno.serve(async (req) => {
       JSON.stringify({
         listing: {
           id: listing.id,
-          bedrooms: listing.bedrooms,
-          bathrooms: listing.bathrooms,
+          bedrooms: listing.bedrooms ?? null,
+          bathrooms: listing.bathrooms ?? null,
           price: listing.price,
           asking_price: listing.asking_price,
           neighborhood: listing.neighborhood,
@@ -77,13 +106,15 @@ Deno.serve(async (req) => {
           listing_type: listing.listing_type,
           call_for_price: listing.call_for_price,
           title: listing.title,
-          location: listing.location,
+          location: isCommercial ? (listing.full_address ?? null) : listing.location,
+          commercial_space_type: isCommercial ? listing.commercial_space_type : null,
           image_url: imageUrl,
           approved: listing.approved,
         },
         already_featured: !!alreadyFeatured,
         already_pending: !!pendingPurchase,
         is_active: listing.is_active,
+        is_commercial: isCommercial,
       }),
       {
         status: 200,

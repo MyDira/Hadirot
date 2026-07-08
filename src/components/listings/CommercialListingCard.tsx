@@ -18,6 +18,7 @@ import NumericText from "@/components/common/NumericText";
 import { computePrimaryListingImage, buildListingAlt } from "../../utils/stockImage";
 import { LISTING_IMAGE_FALLBACK_SRC } from "../../utils/listingImageFallback";
 import { ShareButton } from "../shared/ShareButton";
+import { SaleStatusBadge } from "./SaleStatusBadge";
 
 interface CommercialListingCardProps {
   listing: CommercialListing;
@@ -485,7 +486,10 @@ export function CommercialListingCard({
             )}
           </span>
           <div className="flex items-center gap-1.5 flex-shrink-0">
-            {isSaleListing && (
+            {isSaleListing && listing.sale_status && listing.sale_status !== 'available' && (
+              <SaleStatusBadge status={listing.sale_status} size="sm" />
+            )}
+            {isSaleListing && listing.sale_status !== 'sold' && (
               <span className="inline-flex items-center bg-emerald-50 text-emerald-700 text-xs px-2 py-0.5 rounded border border-emerald-200">
                 For Sale
               </span>

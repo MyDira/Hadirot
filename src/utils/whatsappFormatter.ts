@@ -296,6 +296,86 @@ export class WhatsAppFormatter {
   }
 
   /**
+   * Convert a COMMERCIAL listing row to FormattedListing.
+   * Specs lead with SF + space type (+ lease abbreviation for rentals);
+   * links go to /commercial-listing/. Commercial groups are never sectioned
+   * by bedrooms/property_type, so no sectionKey is produced.
+   */
+  static formatCommercialListingData(
+    listing: any,
+    shortCode?: string,
+  ): FormattedListing {
+    const isSale = listing.listing_type === 'sale';
+
+    let price: string;
+    if (listing.call_for_price) {
+      price = 'Call for Price';
+    } else if (isSale) {
+      price = listing.asking_price
+        ? this.abbreviateSalePrice(listing.asking_price)
+        : 'Call for Price';
+    } else {
+      price = listing.price
+        ? `$${Number(listing.price).toLocaleString()}/month`
+        : 'Price Not Available';
+    }
+
+    const spaceLabels: Record<string, string> = {
+      storefront: 'Retail',
+      restaurant: 'Restaurant',
+      office: 'Office',
+      warehouse: 'Warehouse',
+      industrial: 'Industrial',
+      mixed_use: 'Mixed Use',
+      community_facility: 'Community Facility',
+      basement_commercial: 'Basement Commercial',
+    };
+    const leaseAbbr: Record<string, string> = {
+      nnn: 'NNN',
+      gross: 'Gross',
+      modified_gross: 'MG',
+      full_service: 'FS',
+      percentage: '%',
+      industrial_gross: 'IG',
+      absolute_net: 'Net',
+      tenant_electric: 'TE',
+    };
+
+    const specs: string[] = [];
+    if (listing.available_sf) {
+      specs.push(`${Number(listing.available_sf).toLocaleString()} SF`);
+    }
+    specs.push(spaceLabels[listing.commercial_space_type] ?? 'Commercial');
+    if (!isSale && listing.lease_type && leaseAbbr[listing.lease_type]) {
+      specs.push(leaseAbbr[listing.lease_type]);
+    }
+
+    const displayLocation =
+      listing.full_address ||
+      [listing.cross_street_a, listing.cross_street_b].filter(Boolean).join(' & ') ||
+      'Location not specified';
+    const location = listing.neighborhood
+      ? `${listing.neighborhood}, ${displayLocation}`
+      : displayLocation;
+
+    const ownerAgency = listing.owner?.agency;
+    const postedBy = ownerAgency ? `Posted by ${ownerAgency}` : 'Posted by Owner';
+
+    const url = shortCode
+      ? `https://hadirot.com/l/${shortCode}`
+      : `https://hadirot.com/commercial-listing/${listing.id}`;
+
+    return {
+      price,
+      specs: specs.join(' | '),
+      location,
+      postedBy,
+      url,
+      listingType: isSale ? 'sale' : 'rental',
+    };
+  }
+
+  /**
    * Format property type for display in WhatsApp digest
    * Converts database property type strings to human-readable format
    */

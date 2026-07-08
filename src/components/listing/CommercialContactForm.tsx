@@ -135,7 +135,7 @@ export function CommercialContactForm({
       <div className="bg-green-50 border border-green-200 rounded-lg p-6 text-center">
         <div className="text-green-800 font-semibold mb-2">Request Sent!</div>
         <p className="text-green-700 text-sm">
-          The property owner will contact you shortly.
+          You'll be contacted shortly.
         </p>
       </div>
     );

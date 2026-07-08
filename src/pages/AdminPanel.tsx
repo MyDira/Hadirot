@@ -133,6 +133,7 @@ export function AdminPanel() {
   const [toast, setToast] = useState<{ message: string; tone: 'success' | 'error' } | null>(null);
   const [updatingAgencyAccessId, setUpdatingAgencyAccessId] = useState<string | null>(null);
   const [updatingSalesAccessId, setUpdatingSalesAccessId] = useState<string | null>(null);
+  const [updatingFreeAgentId, setUpdatingFreeAgentId] = useState<string | null>(null);
   const [salesFeatureEnabled, setSalesFeatureEnabled] = useState(false);
   const [impersonatingUserId, setImpersonatingUserId] = useState<string | null>(null);
   const [rentalActiveDays, setRentalActiveDays] = useState<number>(30);
@@ -332,11 +333,13 @@ export function AdminPanel() {
 
   const loadAdminData = async () => {
     try {
-      // Load stats
-      const [usersRes, listingsRes, featuredRes] = await Promise.all([
+      // Load stats (residential + commercial)
+      const [usersRes, listingsRes, featuredRes, commercialCountRes, commercialFeaturedCount] = await Promise.all([
         supabase.from('profiles').select('*', { count: 'exact' }),
         supabase.from('listings').select('*', { count: 'exact' }),
         supabase.from('listings').select('*', { count: 'exact' }).eq('is_featured', true).eq('is_active', true),
+        supabase.from('commercial_listings').select('*', { count: 'exact', head: true }),
+        commercialListingsService.getCommercialFeaturedListingsCount(),
       ]);
 
       const { data: allListingsRaw } = await supabase
@@ -347,8 +350,8 @@ export function AdminPanel() {
 
       setStats({
         totalUsers: usersRes.count || 0,
-        totalListings: listingsRes.count || 0,
-        featuredListings: currentlyFeaturedCount,
+        totalListings: (listingsRes.count || 0) + (commercialCountRes.count || 0),
+        featuredListings: currentlyFeaturedCount + (commercialFeaturedCount || 0),
         activeUsers: usersRes.count || 0, // Simplified for now
       });
 
@@ -368,15 +371,41 @@ export function AdminPanel() {
       // when truncation is hiding rows from the admin.
       const { data: allUsers, count: usersCount } = await supabase
         .from('profiles')
-        .select('id, full_name, email, role, phone, agency, is_admin, is_banned, created_at, can_manage_agency, can_post_sales', { count: 'exact' })
+        .select('id, full_name, email, role, phone, agency, is_admin, is_banned, created_at, can_manage_agency, can_post_sales, free_posting_agent', { count: 'exact' })
         .order('created_at', { ascending: false });
 
-      const { data: allListings, count: listingsCount } = await supabase
-        .from('listings')
-        .select(`
-          *,
-          owner:profiles!listings_user_id_fkey(full_name, role, agency)
-        `, { count: 'exact' });
+      const [{ data: allListings, count: listingsCount }, { data: allCommercialRows }] = await Promise.all([
+        supabase
+          .from('listings')
+          .select(`
+            *,
+            owner:profiles!listings_user_id_fkey(full_name, role, agency)
+          `, { count: 'exact' }),
+        supabase
+          .from('commercial_listings')
+          .select(`
+            *,
+            owner:profiles(full_name, role, agency)
+          `),
+      ]);
+
+      // Commercial listings join the management table as Listing-shaped rows
+      // tagged __commercial; row actions and the feature modal branch on it.
+      const commercialAsListings: Listing[] = ((allCommercialRows || []) as any[]).map((c) => ({
+        ...c,
+        title:
+          c.title ||
+          `${String(c.commercial_space_type || 'Commercial').replace(/_/g, ' ')} — ${
+            c.full_address || c.neighborhood || 'No address'
+          }`,
+        location:
+          c.full_address ||
+          [c.cross_street_a, c.cross_street_b].filter(Boolean).join(' & ') ||
+          c.neighborhood ||
+          '',
+        price: c.listing_type === 'sale' ? c.asking_price : c.price,
+        __commercial: true,
+      })) as unknown as Listing[];
 
       if (usersCount !== null && allUsers && usersCount > allUsers.length) {
         setToast({
@@ -420,9 +449,9 @@ export function AdminPanel() {
       setPendingListings(combined);
       setUsers(allUsers || []);
       
-      // Apply date filtering
-      let filteredData = allListings || [];
-      
+      // Apply date filtering (residential + commercial)
+      let filteredData = [...(allListings || []), ...commercialAsListings];
+
       if (dateFilter.startDate || dateFilter.endDate) {
         filteredData = filteredData.filter(listing => {
           const createdAt = new Date(listing.created_at);
@@ -625,6 +654,47 @@ export function AdminPanel() {
     }
   };
 
+  const handleToggleFreeAgent = async (targetUser: Profile) => {
+    if (!profile?.is_admin || updatingFreeAgentId === targetUser.id) {
+      return;
+    }
+
+    const previousValue = Boolean(targetUser.free_posting_agent);
+    const nextValue = !previousValue;
+
+    setUpdatingFreeAgentId(targetUser.id);
+    setUsers(prev =>
+      prev.map(user =>
+        user.id === targetUser.id ? { ...user, free_posting_agent: nextValue } : user
+      )
+    );
+
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ free_posting_agent: nextValue })
+        .eq('id', targetUser.id);
+
+      if (error) {
+        throw error;
+      }
+
+      setToast({ message: 'Free posting (agent) updated', tone: 'success' });
+    } catch (error) {
+      console.error('Error updating free posting agent:', error);
+      setUsers(prev =>
+        prev.map(user =>
+          user.id === targetUser.id
+            ? { ...user, free_posting_agent: previousValue }
+            : user
+        )
+      );
+      setToast({ message: "Couldn't update Free posting. Try again.", tone: 'error' });
+    } finally {
+      setUpdatingFreeAgentId(null);
+    }
+  };
+
   const updateUserRole = async (userId: string, newRole: string) => {
     setActionLoading(userId);
     try {
@@ -676,13 +746,13 @@ export function AdminPanel() {
     }
   };
 
-  const toggleListingActive = async (listingId: string, isActive: boolean) => {
+  const toggleListingActive = async (listingId: string, isActive: boolean, isCommercial = false) => {
     try {
       await supabase
-        .from('listings')
+        .from(isCommercial ? 'commercial_listings' : 'listings')
         .update({ is_active: !isActive })
         .eq('id', listingId);
-      
+
       await loadAdminData();
     } catch (error) {
       console.error('Error updating listing active status:', error);
@@ -693,14 +763,14 @@ export function AdminPanel() {
     setFeatureModalListing(listing);
   };
 
-  const deleteListing = async (listingId: string, listingTitle: string) => {
+  const deleteListing = async (listingId: string, listingTitle: string, isCommercial = false) => {
     if (!confirm(`Are you sure you want to delete "${listingTitle}" permanently? This action cannot be undone.`)) {
       return;
     }
 
     try {
       const { error } = await supabase
-        .from('listings')
+        .from(isCommercial ? 'commercial_listings' : 'listings')
         .delete()
         .eq('id', listingId);
 
@@ -1235,6 +1305,11 @@ export function AdminPanel() {
                             Sales Access
                           </th>
                         )}
+                        {profile?.is_admin && (
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" title="Marks the user as a free-posting agent (overrides the paywall while 'Charge agents' is off).">
+                            Free Posting
+                          </th>
+                        )}
                         <th className="hidden lg:table-cell px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                           <button
                             onClick={() => handleUsersSort('status')}
@@ -1335,6 +1410,27 @@ export function AdminPanel() {
                                 <span
                                   className={`inline-block h-5 w-5 transform rounded-full bg-white transition ${
                                     user.can_post_sales ? 'translate-x-5' : 'translate-x-1'
+                                  }`}
+                                />
+                              </button>
+                            </td>
+                          )}
+                          {profile?.is_admin && (
+                            <td className="px-4 py-3 align-top">
+                              <button
+                                type="button"
+                                role="switch"
+                                aria-checked={Boolean(user.free_posting_agent)}
+                                aria-label="Toggle free posting (agent)"
+                                onClick={() => handleToggleFreeAgent(user)}
+                                disabled={updatingFreeAgentId === user.id}
+                                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                                  user.free_posting_agent ? 'bg-[#4E4B43]' : 'bg-gray-300'
+                                } ${updatingFreeAgentId === user.id ? 'cursor-wait opacity-60' : 'cursor-pointer'}`}
+                              >
+                                <span
+                                  className={`inline-block h-5 w-5 transform rounded-full bg-white transition ${
+                                    user.free_posting_agent ? 'translate-x-5' : 'translate-x-1'
                                   }`}
                                 />
                               </button>
@@ -1676,11 +1772,20 @@ export function AdminPanel() {
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
-                      {currentListings.map((listing) => (
+                      {currentListings.map((listing) => {
+                        const isCommercialRow = (listing as any).__commercial === true;
+                        return (
                         <tr key={listing.id}>
                           <td className="px-6 py-4 whitespace-nowrap">
                             <div>
-                              <div className="font-medium text-gray-900 truncate max-w-xs">{listing.title}</div>
+                              <div className="font-medium text-gray-900 truncate max-w-xs">
+                                {listing.title}
+                                {isCommercialRow && (
+                                  <span className="ml-2 inline-flex items-center bg-cyan-50 text-cyan-700 border border-cyan-200 text-xs px-1.5 py-0.5 rounded align-middle">
+                                    Commercial
+                                  </span>
+                                )}
+                              </div>
                               <div className="text-sm text-gray-500">{listing.location}</div>
                             </div>
                           </td>
@@ -1705,7 +1810,11 @@ export function AdminPanel() {
                             {listing.contact_phone ? formatPhoneForDisplay(listing.contact_phone) : '—'}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                            {listing.call_for_price ? 'Call for Price' : `$${listing.price}/month`}
+                            {listing.call_for_price
+                              ? 'Call for Price'
+                              : listing.listing_type === 'sale'
+                                ? `$${(listing.price ?? 0).toLocaleString()}`
+                                : `$${listing.price}/month`}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                             {new Date(listing.created_at).toLocaleDateString()}
@@ -1729,14 +1838,14 @@ export function AdminPanel() {
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                             <div className="flex items-center space-x-2">
                               <Link
-                                to={`/listing/${listing.id}`}
+                                to={isCommercialRow ? `/commercial-listing/${listing.id}` : `/listing/${listing.id}`}
                                 className="text-blue-600 hover:text-blue-800 transition-colors"
                                 title="View Listing"
                               >
                                 <Eye className="w-5 h-5" />
                               </Link>
                               <Link
-                                to={`/edit/${listing.id}`}
+                                to={isCommercialRow ? `/commercial/edit/${listing.id}` : `/edit/${listing.id}`}
                                 className="text-green-600 hover:text-green-800 transition-colors"
                                 title="Edit Listing"
                               >
@@ -1754,7 +1863,7 @@ export function AdminPanel() {
                                 <Star className={`w-5 h-5 ${listing.is_featured ? 'fill-current' : ''}`} />
                               </button>
                               <button
-                                onClick={() => toggleListingActive(listing.id, listing.is_active)}
+                                onClick={() => toggleListingActive(listing.id, listing.is_active, isCommercialRow)}
                                 className={`transition-colors ${
                                   listing.is_active
                                     ? 'text-red-500 hover:text-red-600'
@@ -1764,7 +1873,7 @@ export function AdminPanel() {
                               >
                                 <Power className="w-5 h-5" />
                               </button>
-                              {listing.listing_type === 'rental' && (
+                              {!isCommercialRow && listing.listing_type === 'rental' && (
                                 <button
                                   onClick={() => {
                                     setGrantDaysListingId(listing.id);
@@ -1776,7 +1885,7 @@ export function AdminPanel() {
                                   <Clock className="w-5 h-5" />
                                 </button>
                               )}
-                              {listing.listing_type === 'rental' && (
+                              {!isCommercialRow && listing.listing_type === 'rental' && (
                                 <button
                                   onClick={() => {
                                     setChargeListingId(listing.id);
@@ -1789,7 +1898,7 @@ export function AdminPanel() {
                                 </button>
                               )}
                               <button
-                                onClick={() => deleteListing(listing.id, listing.title)}
+                                onClick={() => deleteListing(listing.id, listing.title, isCommercialRow)}
                                 className="text-red-600 hover:text-red-800 transition-colors"
                                 title="Delete Listing"
                               >
@@ -1798,7 +1907,8 @@ export function AdminPanel() {
                             </div>
                           </td>
                         </tr>
-                      ))}
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>

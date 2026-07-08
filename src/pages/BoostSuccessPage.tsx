@@ -43,6 +43,7 @@ function formatAddress(listing: BoostListing): string {
 export function BoostSuccessPage() {
   const [searchParams] = useSearchParams();
   const listingId = searchParams.get('listing_id');
+  const isCommercial = searchParams.get('is_commercial') === 'true';
 
   const [listing, setListing] = useState<BoostListing | null>(null);
   const [loading, setLoading] = useState(!!listingId);
@@ -159,7 +160,7 @@ export function BoostSuccessPage() {
         <div className="flex flex-col sm:flex-row gap-3">
           {listingId && (
             <Link
-              to={`/listing/${listingId}`}
+              to={`${isCommercial ? '/commercial-listing' : '/listing'}/${listingId}`}
               className="flex-1 flex items-center justify-center gap-2 bg-[#273140] text-white font-semibold py-3 px-5 rounded-xl text-sm hover:bg-[#1e2732] transition-colors"
             >
               View Your Listing
