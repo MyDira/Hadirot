@@ -139,9 +139,11 @@ Deno.serve(async (req) => {
       );
     }
 
-    const phoneRegex = /^\+?1?\d{10}$/;
-    const cleanedPhone = formData.userPhone.replace(/\D/g, "");
-    if (!phoneRegex.test(cleanedPhone) || cleanedPhone.length !== 10) {
+    let cleanedPhone = formData.userPhone.replace(/\D/g, "");
+    if (cleanedPhone.length === 11 && cleanedPhone.startsWith("1")) {
+      cleanedPhone = cleanedPhone.slice(1);
+    }
+    if (cleanedPhone.length !== 10) {
       return new Response(
         JSON.stringify({ error: "Invalid phone number format" }),
         {
@@ -150,6 +152,10 @@ Deno.serve(async (req) => {
         }
       );
     }
+    // Normalize so the SMS body, the duplicate-submit rate-limit check, and
+    // the submissions log all use the same value regardless of how the
+    // caller formatted the input (e.g. "+1 (555) 123-4567" vs "5551234567").
+    formData.userPhone = `${cleanedPhone.slice(0, 3)}-${cleanedPhone.slice(3, 6)}-${cleanedPhone.slice(6)}`;
 
     const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     if (!UUID_RE.test(formData.listingId)) {
@@ -183,6 +189,56 @@ Deno.serve(async (req) => {
     }
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    // ----------------------------------------------------------------
+    // Rate limiting — this endpoint is reachable with just the anon key
+    // (verify_jwt passes for any authenticated-or-anon caller), so without
+    // limits here it can be looped to SMS-bomb listing owners and burn
+    // Twilio spend. Each check fails OPEN on its own query error:
+    // availability of the real feature matters more than the limit if the
+    // rate-limit check itself breaks.
+    // ----------------------------------------------------------------
+    try {
+      const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+      const { count: recentContactCount, error: contactCountError } = await supabase
+        .from("sms_messages")
+        .select("id", { count: "exact", head: true })
+        .eq("message_source", "contact_notification")
+        .eq("listing_id", formData.listingId)
+        .gt("created_at", oneHourAgo);
+
+      if (contactCountError) {
+        console.error("Rate limit check (sms_messages) failed, failing open:", contactCountError);
+      } else if ((recentContactCount ?? 0) >= 3) {
+        return new Response(
+          JSON.stringify({ error: "Too many contact requests for this listing right now. Please try again later." }),
+          { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+    } catch (rateLimitErr) {
+      console.error("Rate limit check (sms_messages) threw, failing open:", rateLimitErr);
+    }
+
+    try {
+      const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+      const { count: recentSubmissionCount, error: submissionCountError } = await supabase
+        .from("listing_contact_submissions")
+        .select("id", { count: "exact", head: true })
+        .eq("user_phone", formData.userPhone)
+        .gt("created_at", tenMinutesAgo)
+        .or(`listing_id.eq.${formData.listingId},commercial_listing_id.eq.${formData.listingId}`);
+
+      if (submissionCountError) {
+        console.error("Rate limit check (listing_contact_submissions) failed, failing open:", submissionCountError);
+      } else if ((recentSubmissionCount ?? 0) >= 1) {
+        return new Response(
+          JSON.stringify({ error: "You already requested a callback for this listing. The owner has been notified." }),
+          { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+    } catch (dupSubmitErr) {
+      console.error("Rate limit check (listing_contact_submissions) threw, failing open:", dupSubmitErr);
+    }
 
     const formatPhoneForSMS = (phone: string): string => {
       const cleaned = phone.replace(/\D/g, "");
@@ -410,6 +466,13 @@ Deno.serve(async (req) => {
     // ----------------------------------------------------------------
     // Log to listing_contact_submissions
     // ----------------------------------------------------------------
+    // Client-supplied ipAddress is not trustworthy (it's just a field the
+    // caller can set to anything) — derive it from request headers instead.
+    const forwardedFor = req.headers.get("x-forwarded-for");
+    const derivedIpAddress = forwardedFor
+      ? forwardedFor.split(",")[0].trim()
+      : req.headers.get("cf-connecting-ip") || null;
+
     const { error: insertError } = await supabase
       .from("listing_contact_submissions")
       .insert({
@@ -419,7 +482,7 @@ Deno.serve(async (req) => {
         user_phone: formData.userPhone,
         consent_to_followup: formData.consentToFollowup || false,
         session_id: formData.sessionId,
-        ip_address: formData.ipAddress,
+        ip_address: derivedIpAddress,
         user_agent: formData.userAgent,
       });
 
