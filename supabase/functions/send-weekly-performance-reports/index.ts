@@ -125,9 +125,10 @@ Deno.serve(async (req) => {
       console.error("Error querying commercial listings (continuing without):", commercialErr);
     }
 
-    // Commercial listings join the per-phone report. Their 7-day callbacks and
-    // phone reveals count correctly; impression/view events are residential-only
-    // pipelines, so those columns simply contribute 0 for commercial.
+    // Commercial listings join the per-phone report. Since July 2 2026 the commercial
+    // listing detail page fires listing_view and phone_reveal into analytics_events, so
+    // views and phone reveals count correctly for commercial too; only impressions
+    // (listing_impression_batch) remain residential-only and contribute 0 for commercial.
     const activeListings = [...(residentialListings ?? []), ...(commercialActive ?? [])];
 
     if (!activeListings || activeListings.length === 0) {
@@ -216,9 +217,15 @@ Deno.serve(async (req) => {
     const contactMetricsMap = new Map<string, ContactMetrics>();
 
     for (const listing of activeListings) {
-      if (!contactMetricsMap.has(listing.contact_phone)) {
-        contactMetricsMap.set(listing.contact_phone, {
-          contact_phone: listing.contact_phone,
+      const normalizedPhone = formatPhoneForSMS(listing.contact_phone);
+      if (!/^\+1\d{10}$/.test(normalizedPhone)) {
+        console.log(`Skipping listing ${listing.id}: contact_phone does not normalize to a valid US number`);
+        continue;
+      }
+
+      if (!contactMetricsMap.has(normalizedPhone)) {
+        contactMetricsMap.set(normalizedPhone, {
+          contact_phone: normalizedPhone,
           listing_count: 0,
           total_impressions: 0,
           avg_impressions: 0,
@@ -230,7 +237,7 @@ Deno.serve(async (req) => {
         });
       }
 
-      const metrics = contactMetricsMap.get(listing.contact_phone)!;
+      const metrics = contactMetricsMap.get(normalizedPhone)!;
       metrics.listing_count++;
       metrics.total_impressions += impressionsByListing.get(listing.id) || 0;
       metrics.total_views += viewsByListing.get(listing.id) || 0;
@@ -274,6 +281,7 @@ Deno.serve(async (req) => {
 
           const twilioUrl = `https://api.twilio.com/2010-04-01/Accounts/${twilioAccountSid}/Messages.json`;
           const twilioAuth = btoa(`${twilioAccountSid}:${twilioAuthToken}`);
+          const statusCallbackUrl = `${supabaseUrl}/functions/v1/sms-status-webhook`;
 
           const twilioResponse = await fetch(twilioUrl, {
             method: "POST",
@@ -285,6 +293,7 @@ Deno.serve(async (req) => {
               To: phoneNumber,
               From: twilioPhoneNumber,
               Body: message,
+              StatusCallback: statusCallbackUrl,
             }),
           });
 
