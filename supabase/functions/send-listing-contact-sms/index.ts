@@ -420,6 +420,7 @@ Deno.serve(async (req) => {
     // ----------------------------------------------------------------
     const twilioUrl = `https://api.twilio.com/2010-04-01/Accounts/${twilioAccountSid}/Messages.json`;
     const twilioAuth = btoa(`${twilioAccountSid}:${twilioAuthToken}`);
+    const statusCallbackUrl = `${supabaseUrl}/functions/v1/sms-status-webhook`;
 
     const twilioResponse = await fetch(twilioUrl, {
       method: "POST",
@@ -431,6 +432,7 @@ Deno.serve(async (req) => {
         To: formatPhoneForSMS(listing.contact_phone),
         From: twilioPhoneNumber,
         Body: smsMessage,
+        StatusCallback: statusCallbackUrl,
       }),
     });
 
@@ -591,6 +593,7 @@ Deno.serve(async (req) => {
                 To: agentPhone,
                 From: twilioPhoneNumber,
                 Body: upsellMessage,
+                StatusCallback: statusCallbackUrl,
               }),
             });
 

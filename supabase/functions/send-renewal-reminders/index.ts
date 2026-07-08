@@ -280,6 +280,7 @@ Deno.serve(async (req) => {
 
     const twilioUrl = `https://api.twilio.com/2010-04-01/Accounts/${twilioAccountSid}/Messages.json`;
     const twilioAuth = btoa(`${twilioAccountSid}:${twilioAuthToken}`);
+    const statusCallbackUrl = `${supabaseUrl}/functions/v1/sms-status-webhook`;
 
     const daysUntil = (iso: string | null): number => {
       if (!iso) return 5;
@@ -351,6 +352,7 @@ Deno.serve(async (req) => {
             To: phoneNumber,
             From: twilioPhoneNumber,
             Body: smsMessage,
+            StatusCallback: statusCallbackUrl,
           }),
         });
 
