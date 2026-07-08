@@ -7,6 +7,29 @@
 
 ---
 
+## 0. Status update — SMS audit fixes (July 8, 2026)
+
+After this audit, a separate SMS-system audit (`SMS_AUDIT_2026-07-08.md`, merged to `main`, commits `780b9bf`→`2b88525`) fixed several issues. Cross-referenced against this audit's findings:
+
+**✅ Resolved / verified**
+- **Report 01 P2 — `send-weekly-performance-reports` cron placeholders:** the LIVE cron was repaired via `SMS_CRON_FIX.sql` (real URL, verified in prod). ⚠️ Residual: the committed migration files *still* contain the `[PROJECT-REF]`/`[SERVICE-ROLE-KEY]` placeholders, so a from-scratch rebuild would reintroduce the break (Report 07 P1 #1 stays partially open until a migration captures the live fix).
+- **Report 07 P2 — SMS opt-out / TCPA:** verified in the Twilio console — Advanced Opt-Out is active and working (12 STOP opt-outs observed live). The dashboard-checklist item below is satisfied. (An app-level suppression table remains a defense-in-depth nice-to-have.)
+- *(Separately, the SMS audit's own two P0s — `send-paid-listing-reminders` and `send-weekly-performance-reports` crons that had never sent a single SMS — are now live. Those weren't in this audit's scope but are worth noting.)*
+
+**🟡 Partially fixed**
+- **Report 02 P1 — unauthenticated SMS relays:** `send-listing-contact-sms` now has rate limiting (3/hr per listing + a duplicate-submit guard), a server-derived IP (no longer client-supplied), and accepts 11-digit phones. **But `send-report-rented-sms` is still unauthenticated and unthrottled** — finding not fully closed.
+- **Report 02 P2 — `verify_jwt` config drift:** `sms-status-webhook` is now pinned `verify_jwt=false` and both Twilio webhooks are declared; still not declared for all 42 functions.
+- **Report 04 P1 — unbatched SMS reminder loops:** `send-renewal-reminders` was redesigned to a bulk-batch model (one SMS per owner listing all their expiring listings). **`send-paid-listing-reminders` is unchanged** (still a per-row loop).
+
+**⚠️ Touched but NOT fixed — still open, important**
+- **C3 / Report 02 P0 — Twilio signature validation:** the inbound webhook `handle-renewal-sms-webhook` was heavily reworked (bulk-batch replies) but **still does not validate `X-Twilio-Signature`.** This P0 remains fully open. Worse, the SMS audit added a **new** unauthenticated Twilio endpoint, `sms-status-webhook` (`verify_jwt=false`, no signature check) — a second instance of the same class. Both need the fix from Report 02 P0 #1.
+- **C5 / Report 01 P0 — world-readable/writable SMS tables** (`sms_messages`, `listing_renewal_conversations`, `sms_admin_config`): not touched. Still fully open — and the SMS audit's new features write *more* data into these same exposed tables.
+- **C8 / Report 07 P0 — edge-function error visibility:** only partial — the new `sms-status-webhook` adds delivery tracking, but `handle-renewal-sms-webhook` and `send-renewal-reminders` still have no admin alerting/Sentry.
+
+**Net effect on the Critical list: none of C1–C9 are fully closed by the SMS work.** C3 and C5 — the two SMS-related Criticals — both remain live P0s and stay at the top of Phase 0.
+
+---
+
 ## 1. The bottom line — your three questions answered
 
 ### "Is the foundation solid? Will it break as I scale?"
@@ -134,9 +157,9 @@ No agent can see these — they live in third-party consoles. Please check:
 - [ ] **Supabase → Database → Backups:** Is Point-in-Time Recovery enabled? What's the retention window? (Free/Pro defaults may be as short as 24h.)
 - [ ] **Supabase → Billing:** Is a spend cap set? On or off? (Off = risk of a surprise bill from the abuse vectors above.)
 - [ ] **Take one manual `pg_dump`** stored somewhere outside Supabase, so recovery doesn't depend solely on their infrastructure.
-- [ ] **Twilio console → Messaging/Compliance:** Is "Advanced Opt-Out" (auto-STOP handling) enabled on your sending number? (Your only TCPA protection right now.)
+- [x] **Twilio console → Messaging/Compliance:** ~~Is "Advanced Opt-Out" enabled?~~ **Verified July 8 2026 — active and working (12 STOP opt-outs observed).** Toll-free number +18557109728, Toll-Free Verification approved.
 - [ ] **Stripe → Webhooks:** Confirm the endpoint is healthy and check the failed-events count (relevant to the silent-webhook-failure finding).
-- [ ] **Run `SELECT jobid, jobname, schedule, command FROM cron.job;`** in the Supabase SQL editor and confirm the three placeholder crons were hand-fixed live (and paste the output into a tracked file per Report 07 P1).
+- [~] **Run `SELECT jobid, jobname, schedule, command FROM cron.job;`** — partially done: the SMS-audit `SMS_CRON_FIX.sql` repaired the weekly-reports + paid-reminders crons live (verified). Still to do: paste the full live cron list into a tracked file, and write a migration capturing the fixes so a rebuild doesn't reintroduce the placeholders (Report 07 P1 #1).
 - [ ] **Rotate the `service_role` key** (C7) and confirm edge functions still work afterward.
 - [ ] **Password manager:** record login/ownership for Stripe, Twilio, Zepto, Supabase, domain registrar, host (Netlify/Vercel), Mapbox, Sentry — and share emergency access with one trusted person.
 

@@ -131,6 +131,8 @@ Findings: 2 P0, 6 P1, 5 P2, 2 P3.
   "server" or "edge-function" tagged issue.
 
 ### [P1] Three cron jobs still contain literal placeholder URLs/keys in committed migrations
+
+> **🟡 STATUS (SMS audit, July 8 2026): FIXED LIVE, GIT STILL STALE.** `SMS_CRON_FIX.sql` repaired the live `send-weekly-performance-reports` (and `send-paid-listing-reminders`) crons — verified in prod. The committed migration files still contain the `[PROJECT-REF]`/`[SERVICE-ROLE-KEY]` placeholders, so the rebuild-from-migrations risk described below is not yet closed. Write a migration capturing the live fix to fully resolve.
 - **Where:** `supabase/migrations/20260113202436_create_sms_renewal_system.sql` (lines
   137–164, jobs `send-renewal-reminders` and `cleanup-expired-renewals`) and
   `supabase/migrations/20260121191812_schedule_weekly_performance_reports.sql` (lines
@@ -444,6 +446,8 @@ Findings: 2 P0, 6 P1, 5 P2, 2 P3.
   Supabase's own backup system being available/intact.
 
 ### [P2] SMS opt-out relies entirely on Twilio's platform default, with no application-level suppression list
+
+> **✅ STATUS (SMS audit, July 8 2026): VERIFIED.** Twilio Advanced Opt-Out confirmed active/working in the console (12 STOP opt-outs observed; err 21610). The TCPA-compliance risk is resolved at the platform level. An app-level `sms_opt_outs` suppression table remains an optional defense-in-depth improvement, not a compliance gap.
 - **Where:** `supabase/functions/handle-renewal-sms-webhook/index.ts` (full inbound-SMS
   intent classifier, lines 1–~200+); `supabase/functions/send-renewal-reminders/index.ts`;
   `supabase/functions/send-weekly-performance-reports/index.ts`;
