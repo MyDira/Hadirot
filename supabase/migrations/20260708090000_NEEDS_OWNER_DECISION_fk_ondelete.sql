@@ -1,0 +1,94 @@
+-- =============================================================================
+-- DO NOT APPLY WITHOUT OWNER SIGN-OFF
+-- =============================================================================
+-- [P2 / Track-1] FK ON DELETE policy for user deletion — PRODUCT DECISION REQUIRED
+--
+-- This migration is intentionally NOT part of the safe-to-apply set. It changes
+-- data-loss / deletion semantics and must be reviewed by the owner before it is
+-- run against any environment. The orchestrator must NOT apply it automatically.
+--
+-- -----------------------------------------------------------------------------
+-- THE PROBLEM (audit 01-database-rls.md)
+-- -----------------------------------------------------------------------------
+-- 1. FINANCIAL RECORDS ARE CASCADE-DELETED ON USER DELETE.
+--    Current FKs:
+--      paid_listing_payments.user_id  -> profiles(id)     ON DELETE CASCADE
+--      featured_purchases.user_id     -> auth.users(id)   ON DELETE CASCADE
+--    Deleting a user (or their auth.users row) permanently destroys their Stripe
+--    payment / featured-purchase history — records needed for accounting and
+--    dispute handling.
+--
+--    ⚠️ SECONDARY CASCADE PATH (does not go away by changing user_id alone):
+--       profiles --CASCADE--> listings --CASCADE--> paid_listing_payments
+--       (paid_listing_payments.listing_id -> listings ON DELETE CASCADE, and
+--        listings.user_id -> profiles ON DELETE CASCADE).
+--    So even after switching paid_listing_payments.user_id to SET NULL, deleting
+--    the profile still nukes the payment rows via the listing. Fully preserving
+--    financial history therefore ALSO requires breaking that path (e.g. change
+--    paid_listing_payments.listing_id to SET NULL, or — cleaner — copy payments
+--    into an append-only ledger table before deleting the user). This is the crux
+--    of the product decision and why an automatic apply is unsafe.
+--
+--    Note the inconsistency the audit calls out: commercial_listings.user_id uses
+--    ON DELETE SET NULL (listing preserved), unlike the residential CASCADE.
+--
+-- 2. USER DELETION HARD-FAILS FOR AGENCY OWNERS.
+--      agencies.owner_profile_id -> profiles(id) ON DELETE RESTRICT
+--    Deleting a profile that owns an agency raises a FK violation, so the
+--    delete-user edge function errors for any agency owner, leaving a
+--    partially-deleted user.
+--
+-- -----------------------------------------------------------------------------
+-- TRADEOFFS TO DECIDE (owner)
+-- -----------------------------------------------------------------------------
+-- A) Payment history on account deletion:
+--      Option A1 (recommended): PRESERVE. Move payment/featured rows to an
+--        append-only ledger (or de-identify: set user_id NULL AND break the
+--        listing cascade) before delete. Keeps accounting/audit trail; requires
+--        delete-user changes. Best for accounting + dispute defensibility, but
+--        retains records about a deleted user (check against your GDPR/erasure
+--        policy — may need field-level de-identification rather than deletion).
+--      Option A2: KEEP CASCADE (current). Simplest / most complete erasure, but
+--        loses financial audit trail on every account deletion.
+--
+-- B) Agency owner deletion:
+--      Option B1 (recommended): have delete-user REASSIGN or deactivate owned
+--        agencies before deleting the profile (app-layer, no schema change).
+--      Option B2: change owner_profile_id to ON DELETE SET NULL (orphans the
+--        agency with a null owner — needs a backfill/admin reassignment flow).
+--
+-- -----------------------------------------------------------------------------
+-- RECOMMENDED SQL (illustrative — apply only the options the owner approves).
+-- These statements are written but MUST NOT be run without sign-off.
+-- Verify first by simulating a delete of a test user who owns an agency and has
+-- payments inside a transaction you ROLL BACK.
+-- Cross-check Track 7 (delete-user PII completeness) and Track 3 (billing).
+-- -----------------------------------------------------------------------------
+
+-- Option A1/A2 — preserve payment rows on user delete (make user_id nullable,
+-- switch CASCADE -> SET NULL). NOTE: does NOT by itself stop the listing-cascade
+-- path described above; pair with a ledger or a listing_id FK change.
+--
+-- ALTER TABLE public.paid_listing_payments ALTER COLUMN user_id DROP NOT NULL;
+-- ALTER TABLE public.paid_listing_payments DROP CONSTRAINT IF EXISTS paid_listing_payments_user_id_fkey;
+-- ALTER TABLE public.paid_listing_payments
+--   ADD CONSTRAINT paid_listing_payments_user_id_fkey
+--   FOREIGN KEY (user_id) REFERENCES public.profiles(id) ON DELETE SET NULL;
+--
+-- ALTER TABLE public.featured_purchases ALTER COLUMN user_id DROP NOT NULL;
+-- ALTER TABLE public.featured_purchases DROP CONSTRAINT IF EXISTS featured_purchases_user_id_fkey;
+-- ALTER TABLE public.featured_purchases
+--   ADD CONSTRAINT featured_purchases_user_id_fkey
+--   FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE SET NULL;
+
+-- Option B2 — do not block deletion on agency ownership (orphan agency instead).
+-- Prefer Option B1 (app-layer reassignment) unless you have an owner-reassign flow.
+--
+-- ALTER TABLE public.agencies DROP CONSTRAINT IF EXISTS agencies_owner_profile_id_fkey;
+-- ALTER TABLE public.agencies
+--   ADD CONSTRAINT agencies_owner_profile_id_fkey
+--   FOREIGN KEY (owner_profile_id) REFERENCES public.profiles(id) ON DELETE SET NULL;
+
+-- =============================================================================
+-- END — DO NOT APPLY WITHOUT OWNER SIGN-OFF
+-- =============================================================================
