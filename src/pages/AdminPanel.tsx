@@ -333,25 +333,29 @@ export function AdminPanel() {
 
   const loadAdminData = async () => {
     try {
-      // Load stats (residential + commercial)
-      const [usersRes, listingsRes, featuredRes, commercialCountRes, commercialFeaturedCount] = await Promise.all([
-        supabase.from('profiles').select('*', { count: 'exact' }),
-        supabase.from('listings').select('*', { count: 'exact' }),
-        supabase.from('listings').select('*', { count: 'exact' }).eq('is_featured', true).eq('is_active', true),
+      // Load stats (residential + commercial). All of these are count-only
+      // queries: `head: true` fetches the count without downloading any rows,
+      // so opening the panel no longer pulls the full profiles/listings tables
+      // (multiple times) just to display four numbers. The "currently featured"
+      // count is computed DB-side (is_featured AND not expired) instead of
+      // fetching every listing row and filtering in JS.
+      const nowIso = new Date().toISOString();
+      const [usersRes, listingsRes, residentialFeaturedRes, commercialCountRes, commercialFeaturedCount] = await Promise.all([
+        supabase.from('profiles').select('*', { count: 'exact', head: true }),
+        supabase.from('listings').select('*', { count: 'exact', head: true }),
+        supabase
+          .from('listings')
+          .select('*', { count: 'exact', head: true })
+          .eq('is_featured', true)
+          .gt('featured_expires_at', nowIso),
         supabase.from('commercial_listings').select('*', { count: 'exact', head: true }),
         commercialListingsService.getCommercialFeaturedListingsCount(),
       ]);
 
-      const { data: allListingsRaw } = await supabase
-       .from('listings')
-       .select('is_featured, featured_expires_at');
-
-      const currentlyFeaturedCount = (allListingsRaw || []).filter(isListingCurrentlyFeatured).length;
-
       setStats({
         totalUsers: usersRes.count || 0,
         totalListings: (listingsRes.count || 0) + (commercialCountRes.count || 0),
-        featuredListings: currentlyFeaturedCount + (commercialFeaturedCount || 0),
+        featuredListings: (residentialFeaturedRes.count || 0) + (commercialFeaturedCount || 0),
         activeUsers: usersRes.count || 0, // Simplified for now
       });
 
@@ -374,19 +378,33 @@ export function AdminPanel() {
         .select('id, full_name, email, role, phone, agency, is_admin, is_banned, created_at, can_manage_agency, can_post_sales, free_posting_agent', { count: 'exact' })
         .order('created_at', { ascending: false });
 
+      // Date filtering is applied server-side (was previously fetch-all +
+      // Array.filter), so changing the date range fetches only the matching
+      // rows instead of re-downloading the entire table.
+      let listingsQuery = supabase
+        .from('listings')
+        .select(`
+          *,
+          owner:profiles!listings_user_id_fkey(full_name, role, agency)
+        `, { count: 'exact' });
+      let commercialQuery = supabase
+        .from('commercial_listings')
+        .select(`
+          *,
+          owner:profiles(full_name, role, agency)
+        `);
+      if (dateFilter.startDate) {
+        listingsQuery = listingsQuery.gte('created_at', dateFilter.startDate);
+        commercialQuery = commercialQuery.gte('created_at', dateFilter.startDate);
+      }
+      if (dateFilter.endDate) {
+        listingsQuery = listingsQuery.lte('created_at', dateFilter.endDate);
+        commercialQuery = commercialQuery.lte('created_at', dateFilter.endDate);
+      }
+
       const [{ data: allListings, count: listingsCount }, { data: allCommercialRows }] = await Promise.all([
-        supabase
-          .from('listings')
-          .select(`
-            *,
-            owner:profiles!listings_user_id_fkey(full_name, role, agency)
-          `, { count: 'exact' }),
-        supabase
-          .from('commercial_listings')
-          .select(`
-            *,
-            owner:profiles(full_name, role, agency)
-          `),
+        listingsQuery,
+        commercialQuery,
       ]);
 
       // Commercial listings join the management table as Listing-shaped rows
@@ -449,21 +467,10 @@ export function AdminPanel() {
       setPendingListings(combined);
       setUsers(allUsers || []);
       
-      // Apply date filtering (residential + commercial)
-      let filteredData = [...(allListings || []), ...commercialAsListings];
+      // Date filtering is now applied server-side (see queries above), so the
+      // residential + commercial rows can be merged directly.
+      const filteredData = [...(allListings || []), ...commercialAsListings];
 
-      if (dateFilter.startDate || dateFilter.endDate) {
-        filteredData = filteredData.filter(listing => {
-          const createdAt = new Date(listing.created_at);
-          const startDate = dateFilter.startDate ? new Date(dateFilter.startDate) : null;
-          const endDate = dateFilter.endDate ? new Date(dateFilter.endDate) : null;
-          
-          if (startDate && createdAt < startDate) return false;
-          if (endDate && createdAt > endDate) return false;
-          return true;
-        });
-      }
-      
       setAllListings(filteredData);
       
       // Extract unique agencies for filter
