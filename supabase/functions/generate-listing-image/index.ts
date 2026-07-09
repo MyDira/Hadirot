@@ -1,5 +1,49 @@
+import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders } from "../_shared/cors.ts";
 import { generateListingCardHTML } from "../_shared/listingCardTemplate.ts";
+
+// Sliding-window rate limiting — this endpoint makes paid hcti.io calls, so it
+// must not be an anonymous cost sink.
+const rateLimitMap = new Map<string, { count: number; windowStart: number }>();
+
+function checkRateLimit(key: string, windowMs: number, max: number): boolean {
+  const now = Date.now();
+  const entry = rateLimitMap.get(key);
+  if (!entry || now - entry.windowStart >= windowMs) {
+    rateLimitMap.set(key, { count: 1, windowStart: now });
+    if (rateLimitMap.size > 10_000) {
+      for (const [k, v] of rateLimitMap) {
+        if (now - v.windowStart >= windowMs) rateLimitMap.delete(k);
+      }
+    }
+    return true;
+  }
+  if (entry.count + 1 > max) return false;
+  entry.count += 1;
+  return true;
+}
+
+function getClientIp(req: Request): string | null {
+  for (const header of ["x-forwarded-for", "x-real-ip", "cf-connecting-ip"]) {
+    const value = req.headers.get(header);
+    if (value) {
+      const ip = value.split(",")[0]?.trim();
+      if (ip) return ip;
+    }
+  }
+  return null;
+}
+
+async function sha256Hex(value: string): Promise<string> {
+  const data = new TextEncoder().encode(value);
+  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+  return Array.from(new Uint8Array(hashBuffer))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+const RATE_WINDOW_MS = 60 * 1000; // 1 minute
+const RATE_MAX = 10; // image renders per user/IP per minute
 
 interface GenerateImageRequest {
   listing: {
@@ -30,6 +74,47 @@ Deno.serve(async (req) => {
   }
 
   try {
+    // Require an authenticated caller — image generation is a paid third-party
+    // call and is only needed by logged-in posting/sharing flows.
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+    const authClient = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
+    );
+    const { data: { user }, error: authError } = await authClient.auth.getUser(
+      authHeader.replace('Bearer ', ''),
+    );
+    if (authError || !user) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Rate limit per user and per IP.
+    if (!checkRateLimit(`genimg-user:${user.id}`, RATE_WINDOW_MS, RATE_MAX)) {
+      return new Response(JSON.stringify({ error: 'Too many requests. Please slow down.' }), {
+        status: 429,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+    const clientIp = getClientIp(req);
+    if (clientIp) {
+      const ipHash = await sha256Hex(clientIp);
+      if (!checkRateLimit(`genimg-ip:${ipHash}`, RATE_WINDOW_MS, RATE_MAX)) {
+        return new Response(JSON.stringify({ error: 'Too many requests. Please slow down.' }), {
+          status: 429,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+    }
+
     const { listing }: GenerateImageRequest = await req.json();
 
     if (!listing || typeof listing !== 'object') {
