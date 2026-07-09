@@ -4,11 +4,19 @@
 //
 // Gated by admin_settings.charge_agents. While that is false (default), a user
 // is a free agent if ANY of:
-//   - profiles.role === 'agent', OR
 //   - profiles.free_posting_agent === true (admin manual override), OR
 //   - lifetime listing count (all types) >= AGENT_LIFETIME_LISTING_THRESHOLD.
 // When charge_agents is true, NOBODY is treated as a free agent here — agents
 // fall back into the existing subscription/trial/pay flow, which stays intact.
+//
+// SECURITY (billing audit P1): the self-declared profiles.role='agent' is NO
+// LONGER a free-posting signal. role is chosen at signup and is not protected by
+// any privileged-column guard, so trusting it let a landlord self-select "agent"
+// to bypass the paywall. Eligibility is now the admin-set flag or the
+// lifetime-count rule only. This MUST stay in sync with the server-side
+// is_user_free_agent(uid) helper in
+// 20260708100100_agent_free_legacy_free_guard.sql, which the
+// monetization_payment_guard trigger uses as the source of truth.
 //
 // Schema: supabase/migrations/20260622000000_agent_free_posting.sql.
 // The Supabase client is typed against the pre-migration schema until
@@ -71,7 +79,7 @@ export const agentFreePostingService = {
       await Promise.all([
         sb
           .from('profiles')
-          .select('role, free_posting_agent')
+          .select('free_posting_agent')
           .eq('id', userId)
           .maybeSingle(),
         sb.rpc('get_user_lifetime_listing_count', { p_user_id: userId }),
@@ -80,15 +88,11 @@ export const agentFreePostingService = {
     if (profErr) throw profErr;
     if (cntErr) throw cntErr;
 
-    const role = (profile as { role?: string } | null)?.role;
+    // NOTE: profiles.role is intentionally NOT consulted here — see the header.
     const flagged =
       (profile as { free_posting_agent?: boolean } | null)?.free_posting_agent === true;
     const lifetimeCount = typeof count === 'number' ? count : 0;
 
-    return (
-      role === 'agent' ||
-      flagged ||
-      lifetimeCount >= AGENT_LIFETIME_LISTING_THRESHOLD
-    );
+    return flagged || lifetimeCount >= AGENT_LIFETIME_LISTING_THRESHOLD;
   },
 };
