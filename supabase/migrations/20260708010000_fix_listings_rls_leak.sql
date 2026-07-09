@@ -26,7 +26,9 @@
      never widen access. The owner can still see their own rows; everyone else
      sees a banned owner's rows only through the normal permissive grants
      (which already require is_active AND approved), and this restrictive policy
-     additionally hides them once the owner is banned.
+     additionally hides them once the owner is banned. Admins are exempted via
+     is_admin_cached() so the admin panel (which reads listings through RLS with
+     the admin's JWT) still sees banned owners' listings for moderation.
 
   Kept intact (not touched here): "Users can read own listings",
   "Anyone can read active rental listings", "Admins can manage all listings".
@@ -54,6 +56,7 @@ CREATE POLICY "hide_banned_owner_listings"
   TO authenticated
   USING (
     user_id = (SELECT auth.uid())
+    OR is_admin_cached()
     OR NOT EXISTS (
       SELECT 1 FROM public.profiles p
       WHERE p.id = public.listings.user_id
