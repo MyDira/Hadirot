@@ -15,6 +15,30 @@ Deno.serve(async (req) => {
   }
 
   try {
+    // Require an authenticated caller. Without this, anyone can create
+    // status:"pending" featured_purchases rows for arbitrary listings, which
+    // then block the legitimate owner from boosting/featuring their own listing.
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const supabaseAuth = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_ANON_KEY")!,
+    );
+    const token = authHeader.replace("Bearer ", "");
+    const { data: { user }, error: authError } = await supabaseAuth.auth.getUser(token);
+    if (authError || !user) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     const { listing_id, plan, is_commercial } = await req.json();
     const isCommercial = is_commercial === true;
     const listingTable = isCommercial ? "commercial_listings" : "listings";
@@ -56,6 +80,15 @@ Deno.serve(async (req) => {
     if (listingError || !listing) {
       return new Response(JSON.stringify({ error: "Listing not found" }), {
         status: 404,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Only the listing owner (or an admin) may create a boost checkout for it.
+    const isAdmin = user.app_metadata?.is_admin === true;
+    if (listing.user_id !== user.id && !isAdmin) {
+      return new Response(JSON.stringify({ error: "Forbidden" }), {
+        status: 403,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
