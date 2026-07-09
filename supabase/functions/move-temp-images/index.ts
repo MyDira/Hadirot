@@ -19,6 +19,31 @@ Deno.serve(async (req) => {
       },
     );
 
+    // Require an authenticated caller. Without this, the service-role storage
+    // client below is an unauthenticated IDOR: anyone could download and delete
+    // arbitrary images by supplying a victim's filePath.
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    const supabaseAuth = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
+    );
+    const token = authHeader.replace('Bearer ', '');
+    const { data: { user }, error: authError } = await supabaseAuth.auth.getUser(token);
+    if (authError || !user) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+    const isAdmin = user.app_metadata?.is_admin === true;
+
     const { listingId, userId, tempImages } = await req.json();
 
     if (!listingId || !userId || !tempImages || !Array.isArray(tempImages)) {
@@ -50,6 +75,39 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Authorization: the caller must own the userId whose temp images are being
+    // finalized, AND own the target listing (admins bypass both).
+    if (!isAdmin && user.id !== userId) {
+      return new Response(JSON.stringify({ error: 'Forbidden' }), {
+        status: 403,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    const { data: targetListing, error: targetListingError } = await supabaseAdmin
+      .from('listings')
+      .select('id, user_id')
+      .eq('id', listingId)
+      .maybeSingle();
+
+    if (targetListingError || !targetListing) {
+      return new Response(JSON.stringify({ error: 'Listing not found' }), {
+        status: 404,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    if (!isAdmin && targetListing.user_id !== user.id) {
+      return new Response(JSON.stringify({ error: 'Forbidden' }), {
+        status: 403,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Every filePath must live under the owning user's temp prefix, so a caller
+    // can never download/remove another user's storage objects.
+    const allowedPrefix = `user_${userId}/temp/`;
+
     const newImageRecords = [];
     const errors = [];
 
@@ -59,6 +117,12 @@ Deno.serve(async (req) => {
       
       if (!filePath) {
         errors.push(`Image ${i + 1}: Missing filePath`);
+        continue;
+      }
+
+      // Reject any path outside the owner's temp prefix (path traversal / IDOR).
+      if (typeof filePath !== 'string' || !filePath.startsWith(allowedPrefix) || filePath.includes('..')) {
+        errors.push(`Image ${i + 1}: filePath outside allowed prefix`);
         continue;
       }
 
