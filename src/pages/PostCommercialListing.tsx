@@ -3,7 +3,6 @@ import { useNavigate } from "react-router-dom";
 import * as Sentry from "@sentry/react";
 import { Building2 } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
-import { COMMERCIAL_POSTING_LIVE } from "../config/launchFlags";
 import { INITIAL_COMMERCIAL_FORM_DATA } from "./postCommercial/commercialTypes";
 import type { CommercialListingFormData } from "./postCommercial/commercialTypes";
 import type { CommercialSpaceType, CommercialSubtype } from "../config/supabase";
@@ -114,17 +113,12 @@ export function PostCommercialListing() {
     }
   }, [profile]);
 
-  // Gate behind the commercial launch flag (same switch as the wizard cards),
-  // then redirect if not logged in.
+  // Legacy standalone commercial posting form — superseded by the
+  // postListingWizard's commercial steps. Always redirect to the wizard;
+  // this page is kept only so the route doesn't 404 for old bookmarks/links.
   useEffect(() => {
-    if (!COMMERCIAL_POSTING_LIVE) {
-      navigate("/post-listing-new", { replace: true });
-      return;
-    }
-    if (!authLoading && !user) {
-      navigate("/auth");
-    }
-  }, [authLoading, user, navigate]);
+    navigate("/post", { replace: true });
+  }, [navigate]);
 
   // Auto-calculate price_per_sf_year
   useEffect(() => {

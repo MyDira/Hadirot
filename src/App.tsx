@@ -30,7 +30,6 @@ const PostListing = lazy(() => import('./pages/PostListing').then(m => ({ defaul
 const PostListingWizard = lazy(() => import('./pages/postListingWizard/PostListingWizard').then(m => ({ default: m.PostListingWizard })));
 const EditListingWizard = lazy(() => import('./pages/postListingWizard/EditListingWizard').then(m => ({ default: m.EditListingWizard })));
 const EditCommercialListingWizard = lazy(() => import('./pages/postListingWizard/EditCommercialListingWizard').then(m => ({ default: m.EditCommercialListingWizard })));
-const PostCommercialListing = lazy(() => import('./pages/PostCommercialListing').then(m => ({ default: m.PostCommercialListing })));
 const EditListing = lazy(() => import('./pages/EditListing').then(m => ({ default: m.EditListing })));
 const Account = lazy(() => import('./pages/Account').then(m => ({ default: m.Account })));
 const AgencySettings = lazy(() => import('./pages/AgencySettings').then(m => ({ default: m.AgencySettings })));
@@ -108,7 +107,7 @@ function App() {
                   <Route path="/post" element={<PostListingWizard />} />
                   <Route path="/post-old" element={<PostListing />} />
                   <Route path="/post-listing-new" element={<Navigate to="/post" replace />} />
-                  <Route path="/post-commercial" element={<PostCommercialListing />} />
+                  <Route path="/post-commercial" element={<Navigate to="/post" replace />} />
                   <Route path="/edit/:id" element={<EditListingWizard />} />
                   <Route path="/edit-old/:id" element={<EditListing />} />
                   <Route path="/commercial/edit/:id" element={<EditCommercialListingWizard />} />
