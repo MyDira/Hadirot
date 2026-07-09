@@ -283,73 +283,92 @@ Deno.serve(async (req) => {
     let smsErrors = 0;
     let skipped = 0;
 
-    for (const r of reminders) {
-      const phone = formatPhoneForSMS(r.listing.contact_phone_e164 || r.listing.contact_phone || "");
-      if (!phone) {
-        skipped++;
-        continue;
-      }
+    // Send in fixed-size batches (dedup SELECT + Twilio send + log INSERT run in
+    // parallel within a batch) instead of one fully-sequential recipient at a
+    // time, so the job completes well within the Edge Function wall-clock limit
+    // as the number of due reminders grows. Mirrors send-weekly-performance-reports.
+    const BATCH_SIZE = 10;
 
-      // Skip if we've already sent a paid-listing reminder for this listing today.
-      const { data: existing } = await supabaseAdmin
-        .from("sms_messages")
-        .select("id")
-        .eq("phone_number", phone)
-        .eq("listing_id", r.listing.id)
-        .eq("message_source", SOURCE_KEY)
-        .gte("created_at", todayStart.toISOString())
-        .limit(1)
-        .maybeSingle();
+    for (let i = 0; i < reminders.length; i += BATCH_SIZE) {
+      const batch = reminders.slice(i, i + BATCH_SIZE);
+      const results = await Promise.allSettled(
+        batch.map(async (r): Promise<"sent" | "error" | "skipped"> => {
+          const phone = formatPhoneForSMS(r.listing.contact_phone_e164 || r.listing.contact_phone || "");
+          if (!phone) return "skipped";
 
-      if (existing) {
-        skipped++;
-        continue;
-      }
+          // Skip if we've already sent a paid-listing reminder for this listing today.
+          const { data: existing } = await supabaseAdmin
+            .from("sms_messages")
+            .select("id")
+            .eq("phone_number", phone)
+            .eq("listing_id", r.listing.id)
+            .eq("message_source", SOURCE_KEY)
+            .gte("created_at", todayStart.toISOString())
+            .limit(1)
+            .maybeSingle();
 
-      try {
-        const resp = await fetch(twilioUrl, {
-          method: "POST",
-          headers: {
-            "Authorization": `Basic ${twilioAuth}`,
-            "Content-Type": "application/x-www-form-urlencoded",
-          },
-          body: new URLSearchParams({
-            To: phone,
-            From: twilioPhoneNumber,
-            Body: r.message,
-            StatusCallback: statusCallbackUrl,
-          }),
-        });
-        const data: TwilioResponse = await resp.json();
+          if (existing) return "skipped";
 
-        if (!resp.ok) {
-          console.error(`Twilio error sending ${r.kind} reminder for listing ${r.listing.id}:`, data);
-          smsErrors++;
+          const resp = await fetch(twilioUrl, {
+            method: "POST",
+            headers: {
+              "Authorization": `Basic ${twilioAuth}`,
+              "Content-Type": "application/x-www-form-urlencoded",
+            },
+            body: new URLSearchParams({
+              To: phone,
+              From: twilioPhoneNumber,
+              Body: r.message,
+              StatusCallback: statusCallbackUrl,
+            }),
+          });
+          const data: TwilioResponse = await resp.json();
+
+          if (!resp.ok) {
+            console.error(`Twilio error sending ${r.kind} reminder for listing ${r.listing.id}:`, data);
+            await supabaseAdmin.from("sms_messages").insert({
+              direction: "outbound",
+              phone_number: phone,
+              message_body: r.message,
+              message_source: SOURCE_KEY,
+              listing_id: r.listing.id,
+              status: "failed",
+            });
+            return "error";
+          }
+
           await supabaseAdmin.from("sms_messages").insert({
             direction: "outbound",
             phone_number: phone,
             message_body: r.message,
+            message_sid: data.sid,
             message_source: SOURCE_KEY,
             listing_id: r.listing.id,
-            status: "failed",
+            status: "sent",
           });
-          continue;
-        }
+          return "sent";
+        })
+      );
 
-        smsSent++;
-        await supabaseAdmin.from("sms_messages").insert({
-          direction: "outbound",
-          phone_number: phone,
-          message_body: r.message,
-          message_sid: data.sid,
-          message_source: SOURCE_KEY,
-          listing_id: r.listing.id,
-          status: "sent",
-        });
-      } catch (sendErr) {
-        console.error(`Network error sending ${r.kind} for listing ${r.listing.id}:`, sendErr);
-        smsErrors++;
+      for (const res of results) {
+        if (res.status === "fulfilled") {
+          if (res.value === "sent") smsSent++;
+          else if (res.value === "skipped") skipped++;
+          else smsErrors++;
+        } else {
+          console.error("send-paid-listing-reminders task failed:", res.reason);
+          smsErrors++;
+        }
       }
+    }
+
+    // If the accounted total is short of what we found, the run likely aborted
+    // mid-way (e.g. wall-clock timeout) — surface it in the summary.
+    const reconciled = smsSent + smsErrors + skipped === reminders.length;
+    if (!reconciled) {
+      console.error(
+        `send-paid-listing-reminders reconciliation mismatch: found ${reminders.length}, accounted ${smsSent + smsErrors + skipped}`,
+      );
     }
 
     const summary = {
@@ -358,6 +377,7 @@ Deno.serve(async (req) => {
       smsSent,
       smsErrors,
       skipped,
+      reconciled,
       timestamp: new Date().toISOString(),
     };
     console.log("send-paid-listing-reminders complete:", summary);
