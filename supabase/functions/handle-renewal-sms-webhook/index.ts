@@ -1,6 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { sendViaZepto } from "../_shared/zepto.ts";
 import { corsHeaders } from "../_shared/cors.ts";
+import { formDataToParams, verifyTwilioRequest } from "../_shared/verifyTwilioSignature.ts";
 
 interface ListingMetadata {
   id: string;
@@ -242,6 +243,17 @@ Deno.serve(async (req) => {
     }
 
     const formData = await req.formData();
+
+    // Validate the Twilio signature over the exact URL + POST params before
+    // trusting any field. Without this, anyone can forge an inbound reply and
+    // renew/deactivate arbitrary listings by phone match.
+    const twilioParams = formDataToParams(formData);
+    const signatureValid = await verifyTwilioRequest(req, twilioParams, twilioAuthToken);
+    if (!signatureValid) {
+      console.error("Rejected inbound SMS webhook: invalid X-Twilio-Signature");
+      return new Response("Forbidden", { status: 403, headers: corsHeaders });
+    }
+
     from = formData.get("From")?.toString() || "";
     body = formData.get("Body")?.toString() || "";
     const messageSid = formData.get("MessageSid")?.toString() || "";

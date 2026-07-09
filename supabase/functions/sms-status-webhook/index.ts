@@ -1,6 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders } from "../_shared/cors.ts";
 import { sendViaZepto } from "../_shared/zepto.ts";
+import { formDataToParams, verifyTwilioRequest } from "../_shared/verifyTwilioSignature.ts";
 
 // Twilio StatusCallback webhook. Twilio POSTs application/x-www-form-urlencoded
 // with MessageSid + MessageStatus (queued|sending|sent|delivered|undelivered|failed)
@@ -18,6 +19,17 @@ Deno.serve(async (req) => {
   // retries/backs off this webhook.
   try {
     const formData = await req.formData();
+
+    // Validate the Twilio signature before trusting any status field. Returns
+    // 403 on mismatch (Twilio won't retry StatusCallbacks on a 403, and a
+    // forged callback should never mutate our sms_messages rows).
+    const twilioParams = formDataToParams(formData);
+    const signatureValid = await verifyTwilioRequest(req, twilioParams);
+    if (!signatureValid) {
+      console.error("Rejected SMS status callback: invalid X-Twilio-Signature");
+      return new Response(null, { status: 403, headers: corsHeaders });
+    }
+
     const messageSid = formData.get("MessageSid")?.toString() || "";
     const messageStatus = formData.get("MessageStatus")?.toString() || "";
     const errorCode = formData.get("ErrorCode")?.toString() || "";
