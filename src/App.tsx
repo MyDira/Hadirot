@@ -4,12 +4,9 @@ import { Layout } from './components/shared/Layout';
 import { ErrorBoundary } from './components/shared/ErrorBoundary';
 import { Home } from './pages/Home';
 import { BrowseListings } from './pages/BrowseListings';
-import { BrowseSales } from './pages/BrowseSales';
 import { AuthForm } from './components/auth/AuthForm';
 import PasswordRecoveryGate from './components/auth/PasswordRecoveryGate';
 import { ListingDetail } from './pages/ListingDetail';
-import { CommercialListingDetail } from './pages/CommercialListingDetail';
-import { AgencyPage } from './pages/AgencyPage';
 import { ShortUrlRedirect } from './pages/ShortUrlRedirect';
 import { NotFound } from './pages/NotFound';
 import { useAuth } from '@/hooks/useAuth';
@@ -19,6 +16,10 @@ import GASmokeTest from '@/dev/gaSmokeTest';
 // the initial bundle. Admin pages won't load for non-admin visitors; form
 // pages (post/edit) only for authenticated users taking action; info pages
 // only when someone navigates there.
+// Not needed for the homepage first paint — split into their own chunks.
+const BrowseSales = lazy(() => import('./pages/BrowseSales').then(m => ({ default: m.BrowseSales })));
+const CommercialListingDetail = lazy(() => import('./pages/CommercialListingDetail').then(m => ({ default: m.CommercialListingDetail })));
+const AgencyPage = lazy(() => import('./pages/AgencyPage').then(m => ({ default: m.AgencyPage })));
 const AdminPanel = lazy(() => import('./pages/AdminPanel').then(m => ({ default: m.AdminPanel })));
 const InternalAnalytics = lazy(() => import('./pages/InternalAnalytics').then(m => ({ default: m.InternalAnalytics })));
 const ContentManagement = lazy(() => import('./pages/ContentManagement').then(m => ({ default: m.ContentManagement })));
