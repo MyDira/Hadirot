@@ -643,16 +643,11 @@ async function handleIndividualListingCheckout(session: Stripe.Checkout.Session)
     return;
   }
 
-  // Idempotency: skip if a payment row already exists for this session.
-  const { data: existingPayment } = await supabaseAdmin
-    .from('paid_listing_payments')
-    .select('id')
-    .eq('stripe_checkout_session_id', session.id)
-    .maybeSingle();
-  if (existingPayment) {
-    console.log(`Idempotency: paid_listing_payment already exists for session ${session.id}`);
-    return;
-  }
+  // Idempotency is enforced ATOMICALLY by the paid_listing_payments insert
+  // below (unique index on stripe_checkout_session_id), NOT by a read-then-act
+  // check. A pre-read let two concurrent deliveries both pass and both apply the
+  // day-math, stacking double the paid days for one payment. Now the day-math
+  // runs only when THIS delivery actually created the ledger row.
 
   // Look up listing state (must exist).
   const { data: listing } = await supabaseAdmin
@@ -690,18 +685,33 @@ async function handleIndividualListingCheckout(session: Stripe.Checkout.Session)
 
   // Record the payment (ledger) — always, regardless of approval state. The
   // ledger is the source of truth that approve-listing reads when it re-anchors
-  // the clock at approval time.
-  await supabaseAdmin.from('paid_listing_payments').insert({
-    listing_id,
-    user_id,
-    amount_cents: session.amount_total || 0,
-    days_granted: daysGranted,
-    bonus_days: bonusDays,
-    source: 'stripe',
-    is_initial_purchase: isInitialPurchase,
-    stripe_checkout_session_id: session.id,
-    stripe_payment_intent_id: session.payment_intent as string,
-  });
+  // the clock at approval time. This insert is ALSO the idempotency gate: a
+  // 23505 unique-violation on stripe_checkout_session_id means another delivery
+  // already recorded this payment, so we return WITHOUT re-applying day-math.
+  const { error: paymentInsertErr } = await supabaseAdmin
+    .from('paid_listing_payments')
+    .insert({
+      listing_id,
+      user_id,
+      amount_cents: session.amount_total || 0,
+      days_granted: daysGranted,
+      bonus_days: bonusDays,
+      source: 'stripe',
+      is_initial_purchase: isInitialPurchase,
+      stripe_checkout_session_id: session.id,
+      stripe_payment_intent_id: session.payment_intent as string,
+    });
+  if (paymentInsertErr) {
+    if (paymentInsertErr.code === '23505') {
+      console.log(`Idempotency: paid_listing_payment already exists for session ${session.id}; skipping day-math.`);
+      return;
+    }
+    // Customer paid but we couldn't record the ledger row — throw so Stripe
+    // retries (the outer webhook handler converts this to a 500).
+    throw new Error(
+      `paid_listing_payments insert failed for session ${session.id}: ${paymentInsertErr.message}`,
+    );
+  }
 
   // Pre-approval payment (paid during posting, before an admin approves).
   // The clock must start at APPROVAL, not now — so defer all day-math to
