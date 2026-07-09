@@ -158,7 +158,7 @@ async function handleFeaturedCheckout(session: Stripe.Checkout.Session) {
 
   if (purchaseError || !purchase) {
     console.error('Error updating purchase, creating fallback:', purchaseError);
-    await supabaseAdmin.from('featured_purchases').insert({
+    const { error: fallbackErr } = await supabaseAdmin.from('featured_purchases').insert({
       listing_id,
       user_id,
       stripe_checkout_session_id: session.id,
@@ -170,6 +170,14 @@ async function handleFeaturedCheckout(session: Stripe.Checkout.Session) {
       duration_days: durationDaysNum,
       is_commercial: isCommercial,
     });
+    // 23505 = another delivery already recorded this paid purchase; that's the
+    // idempotency signal, not a failure. Any other error means the customer paid
+    // but we recorded nothing -> throw so Stripe retries.
+    if (fallbackErr && fallbackErr.code !== '23505') {
+      throw new Error(
+        `featured_purchases fallback insert failed for session ${session.id}: ${fallbackErr.message}`,
+      );
+    }
   }
 
   const { data: listing } = await supabaseAdmin
@@ -182,7 +190,7 @@ async function handleFeaturedCheckout(session: Stripe.Checkout.Session) {
     const now = new Date();
     const endDate = new Date(now.getTime() + durationDaysNum * 24 * 60 * 60 * 1000);
 
-    await supabaseAdmin
+    const { error: fpActivateErr } = await supabaseAdmin
       .from('featured_purchases')
       .update({
         status: 'active',
@@ -191,8 +199,13 @@ async function handleFeaturedCheckout(session: Stripe.Checkout.Session) {
         updated_at: now.toISOString(),
       })
       .eq('stripe_checkout_session_id', session.id);
+    if (fpActivateErr) {
+      throw new Error(
+        `featured_purchases activation update failed for session ${session.id}: ${fpActivateErr.message}`,
+      );
+    }
 
-    await supabaseAdmin
+    const { error: listingActivateErr } = await supabaseAdmin
       .from(listingTable)
       .update({
         is_featured: true,
@@ -202,6 +215,11 @@ async function handleFeaturedCheckout(session: Stripe.Checkout.Session) {
         updated_at: now.toISOString(),
       })
       .eq('id', listing_id);
+    if (listingActivateErr) {
+      throw new Error(
+        `${listingTable} featured activation failed for listing ${listing_id}: ${listingActivateErr.message}`,
+      );
+    }
 
     console.log(`Featured activated for ${listingTable} ${listing_id} until ${endDate.toISOString()}`);
   } else {
@@ -894,8 +912,15 @@ async function handleListingSubscriptionCheckout(session: Stripe.Checkout.Sessio
     .single();
 
   if (insertErr || !newSub) {
+    // Money-critical: the customer was charged (or a trial with card on file was
+    // created) but we failed to record the covering subscription. Throw so the
+    // webhook returns 500 and Stripe retries rather than silently losing the
+    // entitlement. (The duplicate one-active-per-user 23505 case is handled
+    // specially by Fix 7 — see the wrapping logic there when present.)
     console.error('Failed to insert listing_subscriptions row:', insertErr);
-    return;
+    throw new Error(
+      `listing_subscriptions insert failed for stripe sub ${stripeSubId}: ${insertErr?.message ?? 'no row returned'}`,
+    );
   }
 
   // Concierge add-on (optional).
@@ -1043,30 +1068,75 @@ Deno.serve(async (req) => {
 
     console.log(`Stripe event received: ${event.type} (${event.id})`);
 
-    if (event.type === 'checkout.session.completed') {
-      const session = event.data.object as Stripe.Checkout.Session;
-      const metadata = session.metadata || {};
+    // ---- Idempotency + retry-safety (stripe_webhook_events) ----
+    // A row with processed_at SET = already processed successfully -> skip.
+    // A row with processed_at NULL = seen but not yet done (a prior attempt
+    // failed after a charge) -> reprocess; per-handler atomic unique-index
+    // inserts prevent any double-grant. On money-critical failure we record the
+    // error here and re-throw so the outer catch returns 500 and Stripe retries.
+    const eventLog = getSupabaseAdmin();
+    const { data: priorEvent } = await eventLog
+      .from('stripe_webhook_events')
+      .select('event_id, processed_at')
+      .eq('event_id', event.id)
+      .maybeSingle();
 
-      if (metadata.type === 'concierge') {
-        await handleConciergeCheckout(session);
-      } else if (metadata.type === 'individual_listing') {
-        await handleIndividualListingCheckout(session);
-      } else if (metadata.type === 'listing_subscription') {
-        await handleListingSubscriptionCheckout(session);
-      } else {
-        await handleFeaturedCheckout(session);
+    if (priorEvent?.processed_at) {
+      console.log(`Idempotency: event ${event.id} already processed; skipping.`);
+      return new Response(JSON.stringify({ received: true, duplicate: true }), { status: 200 });
+    }
+
+    if (!priorEvent) {
+      // Claim the event. processed_at NULL until the handler succeeds. Under a
+      // concurrent double-delivery the loser's insert hits the PK and errors
+      // silently — harmless, the row already exists.
+      await eventLog
+        .from('stripe_webhook_events')
+        .insert({ event_id: event.id, type: event.type, processed_at: null });
+    }
+
+    try {
+      if (event.type === 'checkout.session.completed') {
+        const session = event.data.object as Stripe.Checkout.Session;
+        const metadata = session.metadata || {};
+
+        if (metadata.type === 'concierge') {
+          await handleConciergeCheckout(session);
+        } else if (metadata.type === 'individual_listing') {
+          await handleIndividualListingCheckout(session);
+        } else if (metadata.type === 'listing_subscription') {
+          await handleListingSubscriptionCheckout(session);
+        } else {
+          await handleFeaturedCheckout(session);
+        }
       }
+
+      if (event.type === 'customer.subscription.updated' || event.type === 'customer.subscription.deleted') {
+        const subscription = event.data.object as Stripe.Subscription;
+        await handleSubscriptionUpdate(subscription);
+      }
+
+      if (event.type === 'charge.refunded') {
+        const charge = event.data.object as Stripe.Charge;
+        await handleChargeRefunded(charge);
+      }
+    } catch (handlerError) {
+      // Record the failure for admin visibility and re-throw so the outer catch
+      // returns 500 -> Stripe retries. processed_at stays NULL so the retry
+      // reprocesses (handler atomic inserts guard against double-grant).
+      const msg = handlerError instanceof Error ? handlerError.message : String(handlerError);
+      await eventLog
+        .from('stripe_webhook_events')
+        .update({ error: msg.slice(0, 2000) })
+        .eq('event_id', event.id);
+      throw handlerError;
     }
 
-    if (event.type === 'customer.subscription.updated' || event.type === 'customer.subscription.deleted') {
-      const subscription = event.data.object as Stripe.Subscription;
-      await handleSubscriptionUpdate(subscription);
-    }
-
-    if (event.type === 'charge.refunded') {
-      const charge = event.data.object as Stripe.Charge;
-      await handleChargeRefunded(charge);
-    }
+    // Success: mark processed and clear any prior error.
+    await eventLog
+      .from('stripe_webhook_events')
+      .update({ processed_at: new Date().toISOString(), error: null })
+      .eq('event_id', event.id);
 
     return new Response(JSON.stringify({ received: true }), { status: 200 });
   } catch (error) {
