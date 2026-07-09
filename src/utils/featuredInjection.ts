@@ -46,6 +46,40 @@ export function selectFeaturedForPage(
   return [...new Map(featuredForThisPage.map(f => [f.id, f])).values()];
 }
 
+/**
+ * Compute the standard-stream window for a given page, accounting for the
+ * featured listings woven onto every prior page.
+ *
+ * Featured injection consumes `itemsPerPage - featuredForThisPage.length`
+ * standard items per page. The old code advanced the standard cursor by a full
+ * `itemsPerPage` each page while only consuming `numStandardNeeded`, so
+ * `featuredCount` standard listings fell into an unreachable gap at every page
+ * boundary (bughunt P1). Here we sum the *actual* per-page standard consumption
+ * for pages `1..currentPage-1` to get a gap-free, overlap-free cursor.
+ *
+ * `selectFeaturedForPage` is a pure, deterministic function of the featured
+ * pool + page + filters, so the per-page featured counts can be recomputed
+ * cheaply without needing the standard data for prior pages. This also lets the
+ * caller fetch only `standardOffset + numStandardNeeded` standard rows from the
+ * server instead of the entire matching set.
+ */
+export function computeStandardWindow(
+  featuredPool: Listing[],
+  currentPage: number,
+  slotsPerPage: number,
+  itemsPerPage: number,
+  serviceFilters: unknown,
+): { featuredForThisPage: Listing[]; standardOffset: number; numStandardNeeded: number } {
+  let standardOffset = 0;
+  for (let p = 1; p < currentPage; p++) {
+    const featuredForPrior = selectFeaturedForPage(featuredPool, p, slotsPerPage, serviceFilters);
+    standardOffset += Math.max(0, itemsPerPage - featuredForPrior.length);
+  }
+  const featuredForThisPage = selectFeaturedForPage(featuredPool, currentPage, slotsPerPage, serviceFilters);
+  const numStandardNeeded = Math.max(0, itemsPerPage - featuredForThisPage.length);
+  return { featuredForThisPage, standardOffset, numStandardNeeded };
+}
+
 export function weaveFeaturedIntoListings(
   featured: Listing[],
   standard: Listing[],

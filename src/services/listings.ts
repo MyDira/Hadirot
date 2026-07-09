@@ -101,6 +101,7 @@ interface GetListingsFilters {
   noFeeOnly?: boolean;
   poster_type?: string;
   agency_name?: string;
+  lease_terms?: string[];
   sort?: SortOption;
   bounds?: MapBounds;
 }
@@ -196,6 +197,25 @@ export const listingsService = {
     }
     if (filters.noFeeOnly) {
       query = query.eq('broker_fee', false);
+    }
+
+    // Lease-term filtering (rentals). Pushed server-side so the DB `count`
+    // reflects it and pagination stays consistent (bughunt P2 count drift).
+    // Mirrors the client-side logic: null lease_length is treated as
+    // long-term/annual.
+    if (filters.lease_terms && filters.lease_terms.length > 0) {
+      const selectedTerms = filters.lease_terms;
+      const hasLongTermSelected = selectedTerms.includes('long_term_annual');
+      const specialTerms = selectedTerms.filter((t) => t !== 'long_term_annual');
+      if (hasLongTermSelected && specialTerms.length > 0) {
+        query = query.or(
+          `lease_length.is.null,lease_length.eq.long_term_annual,lease_length.in.(${specialTerms.join(',')})`,
+        );
+      } else if (hasLongTermSelected) {
+        query = query.or('lease_length.is.null,lease_length.eq.long_term_annual');
+      } else if (specialTerms.length > 0) {
+        query = query.in('lease_length', specialTerms);
+      }
     }
 
     if (filters.bounds) {

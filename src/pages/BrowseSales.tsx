@@ -22,7 +22,7 @@ import { isElementFullyVisible, scrollElementIntoView } from "../utils/viewportU
 import { MapPin, CommercialMapPin, applyFilters } from "../utils/filterUtils";
 import {
   computeInjectionPositions,
-  selectFeaturedForPage,
+  computeStandardWindow,
   weaveFeaturedIntoListings,
 } from "../utils/featuredInjection";
 
@@ -232,75 +232,11 @@ export function BrowseSales() {
         building_classes: filters.building_classes,
       };
 
-      let residentialCount = 0;
-      let residentialData: Listing[] = [];
-      let allCommercial: CommercialListing[] = [];
-      let commercialCount = 0;
-
-      if (fetchResidential && fetchCommercial) {
-        const [countResult, commercialResult] = await Promise.all([
-          listingsService.getSaleListings(serviceFilters, undefined, user?.id, 0, false),
-          commercialListingsService.getCommercialSaleListings(commercialServiceFilters, undefined, user?.id, 0, false),
-        ]);
-        residentialCount = countResult.totalCount;
-        residentialData = countResult.data ?? [];
-        allCommercial = commercialResult.data;
-        commercialCount = commercialResult.totalCount;
-      } else if (fetchResidential) {
-        const countResult = await listingsService.getSaleListings(serviceFilters, undefined, user?.id, 0, false);
-        residentialCount = countResult.totalCount;
-        residentialData = countResult.data ?? [];
-      } else {
-        const commercialResult = await commercialListingsService.getCommercialSaleListings(commercialServiceFilters, undefined, user?.id, 0, false);
-        allCommercial = commercialResult.data;
-        commercialCount = commercialResult.totalCount;
-      }
-
-      if (fetchResidential && residentialCount > residentialData.length) {
-        console.warn(
-          `[BrowseSales] Data truncated: showing ${residentialData.length} of ${residentialCount} sale listings. ` +
-            `Supabase row limit hit — deep pages will under-report.`,
-        );
-      }
-
-      const combinedTotalCount = residentialCount + commercialCount;
-      setTotalCount(combinedTotalCount);
-
-      const maxValidPage = Math.max(1, Math.ceil(combinedTotalCount / ITEMS_PER_PAGE));
-      if (currentPage > maxValidPage && combinedTotalCount > 0) {
-        setTimeout(() => {
-          updatePage(maxValidPage);
-          setToastMessage(`Showing page ${maxValidPage} of ${maxValidPage}`);
-        }, 250);
-        return;
-      }
-
-      // ---- one globally sorted stream (kind-tagged), sliced per page ----
-      // Mirrors BrowseListings: strict interleave by the selected sort with
-      // the featured weave applied on top of the page slice.
       type TaggedItem = (Listing | CommercialListing) & { __kind: 'residential' | 'commercial' };
-      const sortKey = filters.sort || 'newest';
-      const priceOf = (x: any) => (x.asking_price ?? 0);
-      const cmp = (a: any, b: any): number => {
-        switch (sortKey) {
-          case 'oldest':
-            return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
-          case 'price_asc':
-            return priceOf(a) - priceOf(b);
-          case 'price_desc':
-            return priceOf(b) - priceOf(a);
-          default:
-            return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-        }
-      };
 
-      const filteredResidential = applySalesClientSideFilters(residentialData, filters);
-      const standardStream: TaggedItem[] = [
-        ...filteredResidential.map(l => ({ ...l, __kind: 'residential' as const })),
-        ...allCommercial.map(l => ({ ...l, __kind: 'commercial' as const })),
-      ].sort(cmp);
-
-      // Featured pool — residential + commercial boosts share the injection slots.
+      // ---- 1. Featured pool (small, fetched separately) ----
+      // Fetched first because the per-page featured counts determine how many
+      // standard rows we must request from the server for this page.
       const featuredPool: TaggedItem[] = [];
       if (fetchResidential) {
         try {
@@ -325,16 +261,79 @@ export function BrowseSales() {
       }
 
       const injectionPositions = computeInjectionPositions();
-      const featuredForThisPage = selectFeaturedForPage(
+      // Gap-free cumulative standard window for this page (fixes the pagination
+      // skip bug) + the exact number of standard rows this page needs.
+      const { featuredForThisPage, standardOffset, numStandardNeeded } = computeStandardWindow(
         featuredPool as unknown as Listing[],
         currentPage,
         injectionPositions.length,
+        ITEMS_PER_PAGE,
         serviceFilters,
-      ) as unknown as TaggedItem[];
+      );
+      const standardWindowEnd = standardOffset + numStandardNeeded;
 
-      const numStandardNeeded = ITEMS_PER_PAGE - featuredForThisPage.length;
-      const standardOffset = (currentPage - 1) * ITEMS_PER_PAGE;
-      const pageStandard = standardStream.slice(standardOffset, standardOffset + numStandardNeeded);
+      // ---- 2. Fetch the standard streams (server-paginated) ----
+      // Residential is windowed to `[0, standardWindowEnd)`; commercial stays a
+      // full fetch (low volume; it also feeds the commercial map pins).
+      let residentialCount = 0;
+      let residentialData: Listing[] = [];
+      let allCommercial: CommercialListing[] = [];
+      let commercialCount = 0;
+
+      if (fetchResidential && fetchCommercial) {
+        const [resResult, commercialResult] = await Promise.all([
+          listingsService.getSaleListings(serviceFilters, standardWindowEnd, user?.id, 0, true),
+          commercialListingsService.getCommercialSaleListings(commercialServiceFilters, undefined, user?.id, 0, false),
+        ]);
+        residentialCount = resResult.totalCount;
+        residentialData = resResult.data ?? [];
+        allCommercial = commercialResult.data;
+        commercialCount = commercialResult.totalCount;
+      } else if (fetchResidential) {
+        const resResult = await listingsService.getSaleListings(serviceFilters, standardWindowEnd, user?.id, 0, true);
+        residentialCount = resResult.totalCount;
+        residentialData = resResult.data ?? [];
+      } else {
+        const commercialResult = await commercialListingsService.getCommercialSaleListings(commercialServiceFilters, undefined, user?.id, 0, false);
+        allCommercial = commercialResult.data;
+        commercialCount = commercialResult.totalCount;
+      }
+
+      const combinedTotalCount = residentialCount + commercialCount;
+      setTotalCount(combinedTotalCount);
+
+      const maxValidPage = Math.max(1, Math.ceil(combinedTotalCount / ITEMS_PER_PAGE));
+      if (currentPage > maxValidPage && combinedTotalCount > 0) {
+        setTimeout(() => {
+          updatePage(maxValidPage);
+          setToastMessage(`Showing page ${maxValidPage} of ${maxValidPage}`);
+        }, 250);
+        return;
+      }
+
+      // ---- 3. Merge-sort the fetched window and slice this page's standard rows ----
+      const sortKey = filters.sort || 'newest';
+      const priceOf = (x: any) => (x.asking_price ?? 0);
+      const cmp = (a: any, b: any): number => {
+        switch (sortKey) {
+          case 'oldest':
+            return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+          case 'price_asc':
+            return priceOf(a) - priceOf(b);
+          case 'price_desc':
+            return priceOf(b) - priceOf(a);
+          default:
+            return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+        }
+      };
+
+      const filteredResidential = applySalesClientSideFilters(residentialData, filters);
+      const standardStream: TaggedItem[] = [
+        ...filteredResidential.map(l => ({ ...l, __kind: 'residential' as const })),
+        ...allCommercial.map(l => ({ ...l, __kind: 'commercial' as const })),
+      ].sort(cmp);
+
+      const pageStandard = standardStream.slice(standardOffset, standardWindowEnd);
 
       const woven = weaveFeaturedIntoListings(
         featuredForThisPage as unknown as Listing[],

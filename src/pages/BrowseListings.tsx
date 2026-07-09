@@ -22,7 +22,7 @@ import { isElementFullyVisible, scrollElementIntoView } from "../utils/viewportU
 import { MapPin, CommercialMapPin, applyFilters } from "../utils/filterUtils";
 import {
   computeInjectionPositions,
-  selectFeaturedForPage,
+  computeStandardWindow,
   weaveFeaturedIntoListings,
 } from "../utils/featuredInjection";
 
@@ -259,35 +259,73 @@ export function BrowseListings() {
         building_classes: filters.building_classes,
       };
 
+      type TaggedItem = (Listing | CommercialListing) & { __kind: 'residential' | 'commercial' };
+
+      // ---- 1. Featured pool (small, fetched separately) ----
+      // Fetched first because the per-page featured counts determine how many
+      // standard rows we must request from the server for this page.
+      const featuredPool: TaggedItem[] = [];
+      if (fetchResidential) {
+        try {
+          let feat = await listingsService.getFeaturedListingsForSearch(serviceFilters, 'rental', user?.id);
+          feat = applyClientSideFilters(feat, filters);
+          featuredPool.push(...feat.map(l => ({ ...l, __kind: 'residential' as const })));
+        } catch (error) {
+          console.error("Error loading featured listings:", error);
+        }
+      }
+      if (fetchCommercial) {
+        try {
+          const comFeat = await commercialListingsService.getCommercialFeaturedListingsForSearch(
+            commercialServiceFilters,
+            'rental',
+            user?.id,
+          );
+          featuredPool.push(...comFeat.map(l => ({ ...l, __kind: 'commercial' as const })));
+        } catch (error) {
+          console.error("Error loading commercial featured listings:", error);
+        }
+      }
+
+      const injectionPositions = computeInjectionPositions();
+      // Gap-free cumulative standard window for this page (fixes the pagination
+      // skip bug) + the exact number of standard rows this page needs, so we can
+      // ask Postgres for a bounded slice instead of the whole matching set.
+      const { featuredForThisPage, standardOffset, numStandardNeeded } = computeStandardWindow(
+        featuredPool as unknown as Listing[],
+        currentPage,
+        injectionPositions.length,
+        ITEMS_PER_PAGE,
+        serviceFilters,
+      );
+      const standardWindowEnd = standardOffset + numStandardNeeded;
+
+      // ---- 2. Fetch the standard streams (server-paginated) ----
+      // Residential is windowed to `[0, standardWindowEnd)` — a safe upper bound
+      // for the merged residential+commercial slice this page renders. Commercial
+      // stays a full fetch (low volume; it also feeds the commercial map pins).
       let residentialCount = 0;
       let residentialData: Listing[] = [];
       let allCommercial: CommercialListing[] = [];
       let commercialCount = 0;
 
       if (fetchResidential && fetchCommercial) {
-        const [countResult, commercialResult] = await Promise.all([
-          listingsService.getListings(serviceFilters, undefined, user?.id, 0, false),
+        const [resResult, commercialResult] = await Promise.all([
+          listingsService.getListings(serviceFilters, standardWindowEnd, user?.id, 0, true),
           commercialListingsService.getCommercialListings(commercialServiceFilters, undefined, user?.id, 0, false),
         ]);
-        residentialCount = countResult.totalCount;
-        residentialData = countResult.data ?? [];
+        residentialCount = resResult.totalCount;
+        residentialData = resResult.data ?? [];
         allCommercial = commercialResult.data;
         commercialCount = commercialResult.totalCount;
       } else if (fetchResidential) {
-        const countResult = await listingsService.getListings(serviceFilters, undefined, user?.id, 0, false);
-        residentialCount = countResult.totalCount;
-        residentialData = countResult.data ?? [];
+        const resResult = await listingsService.getListings(serviceFilters, standardWindowEnd, user?.id, 0, true);
+        residentialCount = resResult.totalCount;
+        residentialData = resResult.data ?? [];
       } else {
         const commercialResult = await commercialListingsService.getCommercialListings(commercialServiceFilters, undefined, user?.id, 0, false);
         allCommercial = commercialResult.data;
         commercialCount = commercialResult.totalCount;
-      }
-
-      if (fetchResidential && residentialCount > residentialData.length) {
-        console.warn(
-          `[BrowseListings] Data truncated: showing ${residentialData.length} of ${residentialCount} listings. ` +
-            `Supabase row limit hit — deep pages will under-report.`,
-        );
       }
 
       const combinedTotalCount = residentialCount + commercialCount;
@@ -301,11 +339,7 @@ export function BrowseListings() {
         return;
       }
 
-      // ---- one globally sorted stream (kind-tagged), sliced per page ----
-      // Both kinds are fully fetched above (they also feed the map), so page
-      // content is derived in memory: a strict interleave by the selected
-      // sort, with the featured weave applied on top of the page slice.
-      type TaggedItem = (Listing | CommercialListing) & { __kind: 'residential' | 'commercial' };
+      // ---- 3. Merge-sort the fetched window and slice this page's standard rows ----
       const sortKey = filters.sort || 'newest';
       const priceOf = (x: any) => (x.listing_type === 'sale' ? (x.asking_price ?? 0) : (x.price ?? 0));
       const cmp = (a: any, b: any): number => {
@@ -331,43 +365,7 @@ export function BrowseListings() {
         ...allCommercial.map(l => ({ ...l, __kind: 'commercial' as const })),
       ].sort(cmp);
 
-      // Featured pool — residential + commercial boosts share the injection slots.
-      const featuredPool: TaggedItem[] = [];
-      if (fetchResidential) {
-        try {
-          let feat = await listingsService.getFeaturedListingsForSearch(serviceFilters, 'rental', user?.id);
-          feat = applyClientSideFilters(feat, filters);
-          featuredPool.push(...feat.map(l => ({ ...l, __kind: 'residential' as const })));
-        } catch (error) {
-          console.error("Error loading featured listings:", error);
-        }
-      }
-      if (fetchCommercial) {
-        try {
-          const comFeat = await commercialListingsService.getCommercialFeaturedListingsForSearch(
-            commercialServiceFilters,
-            'rental',
-            user?.id,
-          );
-          featuredPool.push(...comFeat.map(l => ({ ...l, __kind: 'commercial' as const })));
-        } catch (error) {
-          console.error("Error loading commercial featured listings:", error);
-        }
-      }
-
-      const injectionPositions = computeInjectionPositions();
-      // selectFeaturedForPage / weaveFeaturedIntoListings only touch `.id`,
-      // so they are safe on the kind-tagged mixed objects.
-      const featuredForThisPage = selectFeaturedForPage(
-        featuredPool as unknown as Listing[],
-        currentPage,
-        injectionPositions.length,
-        serviceFilters,
-      ) as unknown as TaggedItem[];
-
-      const numStandardNeeded = ITEMS_PER_PAGE - featuredForThisPage.length;
-      const standardOffset = (currentPage - 1) * ITEMS_PER_PAGE;
-      const pageStandard = standardStream.slice(standardOffset, standardOffset + numStandardNeeded);
+      const pageStandard = standardStream.slice(standardOffset, standardWindowEnd);
 
       const woven = weaveFeaturedIntoListings(
         featuredForThisPage as unknown as Listing[],
