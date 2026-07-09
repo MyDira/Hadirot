@@ -6,8 +6,19 @@ import "./styles/global.css";
 import "mapbox-gl/dist/mapbox-gl.css";
 import { AuthProvider } from "@/hooks/useAuth";
 
+// Injected by vite.config.ts's `define` at build time (short git SHA, or the
+// package version if git isn't available). Must match the release name the
+// @sentry/vite-plugin uses when uploading source maps, so Sentry can
+// associate this release's events with the uploaded maps.
+declare const __SENTRY_RELEASE__: string;
+
 Sentry.init({
   dsn: "https://ca3ceb8f19fa68cf58690ab12f4cf76d@o4510417390534656.ingest.us.sentry.io/4510417418125312",
+
+  // Release identifier — enables readable (non-minified) stack traces once
+  // source maps for this release have been uploaded by the build-time
+  // @sentry/vite-plugin (see vite.config.ts).
+  release: typeof __SENTRY_RELEASE__ !== 'undefined' ? __SENTRY_RELEASE__ : undefined,
 
   // Environment configuration
   environment: import.meta.env.MODE || 'production',
