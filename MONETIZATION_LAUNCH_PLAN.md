@@ -65,6 +65,24 @@ STRIPE_VIP_PRICE_ID=price_1Tc8PxJvRPzH20A9OyuLWHHD
 STRIPE_ADDON_CONCIERGE_PRICE_ID=price_1Tc8QSJvRPzH20A9qA8Gp1PF
 ```
 
+New — **OPTIONAL** (billing audit) — boost/featured/concierge price ids now read
+from env with the hardcoded launch ids as fallback, same as the three above.
+Set these ONLY if the current literals are test-mode and you need live ids
+without a code change/redeploy; otherwise leave them unset and the fallbacks
+apply. Boost and featured share the same underlying prices today, so their ids
+are usually identical.
+```
+STRIPE_BOOST_7DAY_PRICE_ID=price_1SzMw9JvRPzH20A9CJA2SQ87
+STRIPE_BOOST_14DAY_PRICE_ID=price_1SzeDPJvRPzH20A9i8bj9rrN
+STRIPE_BOOST_30DAY_PRICE_ID=price_1SzMz3JvRPzH20A9pA8pBPwj
+STRIPE_FEATURED_7DAY_PRICE_ID=price_1SzMw9JvRPzH20A9CJA2SQ87
+STRIPE_FEATURED_14DAY_PRICE_ID=price_1SzeDPJvRPzH20A9i8bj9rrN
+STRIPE_FEATURED_30DAY_PRICE_ID=price_1SzMz3JvRPzH20A9pA8pBPwj
+STRIPE_CONCIERGE_TIER1_PRICE_ID=price_1T5TvZJvRPzH20A9ry7ZTpMk
+STRIPE_CONCIERGE_TIER2_PRICE_ID=price_1T5Tx4JvRPzH20A995RVffU5
+STRIPE_CONCIERGE_TIER3_PRICE_ID=price_1T5TybJvRPzH20A9GrEh0jTD
+```
+
 ### 0.3 Verify the cron plumbing on live
 Run in the live SQL editor:
 ```sql

@@ -2,16 +2,18 @@
 // Client-side counterpart lives in src/services/stripe.ts — keep these in
 // sync until we unify via env vars or a shared SKU table.
 
+// Env-overridable (see LISTING_SUBSCRIPTION_PRICES note below). Setting the
+// secret lets a test->live price rotation happen with NO code change/redeploy.
 export const CONCIERGE_PRICES = {
-  tier1_quick:   "price_1T5TvZJvRPzH20A9ry7ZTpMk",  // one-time payment
-  tier2_forward: "price_1T5Tx4JvRPzH20A995RVffU5",  // monthly subscription
-  tier3_vip:     "price_1T5TybJvRPzH20A9GrEh0jTD",  // monthly subscription
+  tier1_quick:   Deno.env.get("STRIPE_CONCIERGE_TIER1_PRICE_ID") || "price_1T5TvZJvRPzH20A9ry7ZTpMk",  // one-time payment
+  tier2_forward: Deno.env.get("STRIPE_CONCIERGE_TIER2_PRICE_ID") || "price_1T5Tx4JvRPzH20A995RVffU5",  // monthly subscription
+  tier3_vip:     Deno.env.get("STRIPE_CONCIERGE_TIER3_PRICE_ID") || "price_1T5TybJvRPzH20A9GrEh0jTD",  // monthly subscription
 } as const;
 
 export const BOOST_PRICES = {
-  "7day":  { priceId: "price_1SzMw9JvRPzH20A9CJA2SQ87", amount: 2500, days: 7 },
-  "14day": { priceId: "price_1SzeDPJvRPzH20A9i8bj9rrN", amount: 4000, days: 14 },
-  "30day": { priceId: "price_1SzMz3JvRPzH20A9pA8pBPwj", amount: 7500, days: 30 },
+  "7day":  { priceId: Deno.env.get("STRIPE_BOOST_7DAY_PRICE_ID")  || "price_1SzMw9JvRPzH20A9CJA2SQ87", amount: 2500, days: 7 },
+  "14day": { priceId: Deno.env.get("STRIPE_BOOST_14DAY_PRICE_ID") || "price_1SzeDPJvRPzH20A9i8bj9rrN", amount: 4000, days: 14 },
+  "30day": { priceId: Deno.env.get("STRIPE_BOOST_30DAY_PRICE_ID") || "price_1SzMz3JvRPzH20A9pA8pBPwj", amount: 7500, days: 30 },
 } as const;
 
 // Featured-listing prices (create-checkout-session, mode: 'payment').
