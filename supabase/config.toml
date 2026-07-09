@@ -15,27 +15,167 @@ enable_signup = true
 [auth.email]
 enable_confirmations = false
 
-[functions.send-deactivation-emails]
-verify_jwt = false
+# ─────────────────────────────────────────────────────────────────────────────
+# verify_jwt posture for EVERY edge function (single source of truth).
+#
+# true  = the platform gateway requires a valid JWT before the function runs.
+#         Used for authenticated user/admin/money endpoints.
+# false = the gateway does NOT require a JWT. Used for:
+#           • external webhooks (Stripe/Twilio) that send no JWT,
+#           • token/secret-gated endpoints (pay-listing-link HMAC, cron
+#             functions gated by X-Cron-Secret),
+#           • intentionally-public utilities (track, redirect, get-*, contact,
+#             report, password-reset, send-email's anonymous report fallback).
+#         Every false-gated function performs its own in-function authorization.
+#
+# NOTE: deploys here are manual. After changing this file, redeploy so the
+# declared posture == the live posture, and verify each against the dashboard.
+# ─────────────────────────────────────────────────────────────────────────────
 
-[functions.stripe-webhook]
-verify_jwt = false
+# ── Authenticated: admin ──────────────────────────────────────────────────────
+[functions.admin-sign-in-as-user]
+verify_jwt = true
 
-[functions.pay-listing-link]
-verify_jwt = false
+[functions.approve-listing]
+verify_jwt = true
 
-[functions.geocode-cross-streets]
-verify_jwt = false
+[functions.delete-user]
+verify_jwt = true
+
+[functions.send-listing-email-manual]
+verify_jwt = true
+
+# ── Authenticated: money / subscriptions (owner or admin, in-function) ────────
+[functions.create-checkout-session]
+verify_jwt = true
+
+[functions.create-boost-checkout]
+verify_jwt = true
+
+[functions.create-concierge-checkout]
+verify_jwt = true
+
+[functions.create-individual-listing-checkout]
+verify_jwt = true
+
+[functions.create-listing-subscription-checkout]
+verify_jwt = true
+
+[functions.create-portal-session]
+verify_jwt = true
+
+[functions.upgrade-listing-subscription]
+verify_jwt = true
+
+[functions.extend-paid-listing]
+verify_jwt = true
 
 [functions.update-concierge-subscription]
 verify_jwt = true
 
+[functions.update-concierge-sources]
+verify_jwt = true
+
+# Called by the client (user JWT) AND by stripe-webhook (service-role JWT);
+# both satisfy verify_jwt=true.
+[functions.cascade-deactivate-subscription]
+verify_jwt = true
+
+# ── Authenticated: listing utilities (now require auth in-function too) ───────
+[functions.move-temp-images]
+verify_jwt = true
+
+[functions.move-temp-commercial-images]
+verify_jwt = true
+
+[functions.geocode-cross-streets]
+verify_jwt = true
+
+[functions.generate-listing-image]
+verify_jwt = true
+
+# ── External webhooks: no JWT sent ────────────────────────────────────────────
+[functions.stripe-webhook]
+# Stripe signs the raw body; verified in-function via constructEventAsync.
+verify_jwt = false
+
+[functions.pay-listing-link]
+# Authenticated by an HMAC-signed token in the URL, not a JWT.
+verify_jwt = false
+
 [functions.handle-renewal-sms-webhook]
 # Twilio posts inbound SMS unauthenticated — a redeploy without this pin
 # defaults to verify_jwt=true and 401s every webhook (inbound dead Apr 16 2026).
+# Signature is now validated in-function via X-Twilio-Signature.
 verify_jwt = false
 
 [functions.sms-status-webhook]
 # Twilio posts delivery StatusCallback events unauthenticated — a redeploy
 # without this pin defaults to verify_jwt=true and 401s every callback.
+# Signature is now validated in-function via X-Twilio-Signature.
+verify_jwt = false
+
+# ── Scheduled (pg_cron): gated in-function by X-Cron-Secret ───────────────────
+[functions.delete-old-listings]
+verify_jwt = false
+
+[functions.inactivate-old-listings]
+verify_jwt = false
+
+[functions.cleanup-expired-renewals]
+verify_jwt = false
+
+[functions.send-renewal-reminders]
+verify_jwt = false
+
+[functions.send-paid-listing-reminders]
+verify_jwt = false
+
+[functions.send-deactivation-emails]
+verify_jwt = false
+
+[functions.send-weekly-performance-reports]
+verify_jwt = false
+
+[functions.update-neighborhood-polygons]
+verify_jwt = false
+
+# Dual manual(admin)/cron paths; both verified in-function.
+[functions.send-enhanced-digest]
+verify_jwt = false
+
+[functions.send-daily-admin-digest]
+verify_jwt = false
+
+# ── Intentionally public utilities (in-function limits/validation) ────────────
+[functions.track]
+verify_jwt = false
+
+[functions.redirect-short-url]
+verify_jwt = false
+
+[functions.send-contact-message]
+verify_jwt = false
+
+[functions.send-report-rented-sms]
+verify_jwt = false
+
+[functions.send-listing-contact-sms]
+verify_jwt = false
+
+[functions.send-password-reset]
+verify_jwt = false
+
+# Mixed paths: admin_notification is reachable by the anonymous report-rented
+# fallback, so the gateway must not require a JWT; auth is enforced per-path.
+[functions.send-email]
+verify_jwt = false
+
+[functions.get-boost-listing]
+verify_jwt = false
+
+[functions.get-neighborhood-polygon]
+verify_jwt = false
+
+[functions.get-zipcode-polygon]
 verify_jwt = false
