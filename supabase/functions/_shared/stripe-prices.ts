@@ -14,6 +14,17 @@ export const BOOST_PRICES = {
   "30day": { priceId: "price_1SzMz3JvRPzH20A9pA8pBPwj", amount: 7500, days: 30 },
 } as const;
 
+// Featured-listing prices (create-checkout-session, mode: 'payment').
+// SECURITY: the checkout function derives the charged price AND the granted
+// duration_days AND amount_cents from THIS table keyed by the validated plan —
+// never from a client-supplied price_id. Keeping priceId/amount/days together
+// here is what makes "pay the 7-day price, get 30 days" impossible.
+export const FEATURED_PRICES = {
+  "7day":  { priceId: Deno.env.get("STRIPE_FEATURED_7DAY_PRICE_ID")  || "price_1SzMw9JvRPzH20A9CJA2SQ87", amount: 2500, days: 7 },
+  "14day": { priceId: Deno.env.get("STRIPE_FEATURED_14DAY_PRICE_ID") || "price_1SzeDPJvRPzH20A9i8bj9rrN", amount: 4000, days: 14 },
+  "30day": { priceId: Deno.env.get("STRIPE_FEATURED_30DAY_PRICE_ID") || "price_1SzMz3JvRPzH20A9pA8pBPwj", amount: 7500, days: 30 },
+} as const;
+
 // Residential-rental monetization (Phase B).
 // Subscription plans require Stripe price IDs (recurring monthly).
 // Individual listing payments use ad-hoc price_data (variable day packages).
@@ -54,3 +65,4 @@ export type IndividualListingDays = (typeof INDIVIDUAL_LISTING_PACKAGES)[number]
 export type ListingSubscriptionPlan = keyof typeof LISTING_SUBSCRIPTION_PRICES;
 export type ConciergeTier = keyof typeof CONCIERGE_PRICES;
 export type BoostPlan = keyof typeof BOOST_PRICES;
+export type FeaturedPlan = keyof typeof FEATURED_PRICES;

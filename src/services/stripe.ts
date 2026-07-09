@@ -104,6 +104,9 @@ export interface FeaturedPurchase {
 
 export const stripeService = {
   async createCheckoutSession(listingId: string, plan: string) {
+    // Validate the plan key client-side for a fast error, but do NOT send a
+    // price_id — the edge function resolves the price, duration, and amount
+    // server-side from the plan key (security: prevents pay-less-get-more).
     const selectedPlan = FEATURED_PLANS.find(p => p.id === plan);
     if (!selectedPlan) throw new Error('Invalid plan');
 
@@ -111,7 +114,6 @@ export const stripeService = {
       body: {
         listing_id: listingId,
         plan,
-        price_id: selectedPlan.priceId,
       },
     });
 

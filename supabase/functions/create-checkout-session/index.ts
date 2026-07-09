@@ -1,16 +1,15 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import Stripe from 'https://esm.sh/stripe@14?target=denonext';
 import { corsHeaders } from '../_shared/cors.ts';
+import { FEATURED_PRICES } from '../_shared/stripe-prices.ts';
 
 const stripe = new Stripe(Deno.env.get('STRIPE_API_KEY')!, {
   apiVersion: '2023-10-16',
 });
 
-const VALID_PLANS: Record<string, number> = {
-  '7day': 7,
-  '14day': 14,
-  '30day': 30,
-};
+// Valid featured plans. The price, duration, and amount are ALL derived from
+// FEATURED_PRICES server-side — the client only chooses which plan key.
+const VALID_PLANS = FEATURED_PRICES;
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -40,32 +39,32 @@ Deno.serve(async (req) => {
       });
     }
 
-    const { listing_id, plan, price_id } = await req.json();
+    // SECURITY: never accept price_id (or amount) from the client. The plan key
+    // is the only client input; the charged price, duration_days, and
+    // amount_cents are all resolved from FEATURED_PRICES below.
+    const { listing_id, plan } = await req.json();
 
-    if (!listing_id || !plan || !price_id) {
+    if (!listing_id || !plan) {
       return new Response(JSON.stringify({ error: 'Missing required fields' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    if (!VALID_PLANS[plan]) {
+    const priceConfig = VALID_PLANS[plan as keyof typeof VALID_PLANS];
+    if (!priceConfig) {
       return new Response(JSON.stringify({ error: 'Invalid plan' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
+    const durationDays = priceConfig.days;
+    const priceId = priceConfig.priceId;
+    const amountCents = priceConfig.amount;
 
     const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     if (!UUID_RE.test(listing_id)) {
       return new Response(JSON.stringify({ error: 'Invalid listing_id format' }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-
-    if (typeof price_id !== 'string' || price_id.length > 100) {
-      return new Response(JSON.stringify({ error: 'Invalid price_id' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
@@ -151,12 +150,12 @@ Deno.serve(async (req) => {
     const session = await stripe.checkout.sessions.create({
       mode: 'payment',
       customer: stripeCustomerId,
-      line_items: [{ price: price_id, quantity: 1 }],
+      line_items: [{ price: priceId, quantity: 1 }],
       metadata: {
         listing_id,
         user_id: user.id,
         plan,
-        duration_days: String(VALID_PLANS[plan]),
+        duration_days: String(durationDays),
         listing_title: (listing.title || 'Listing').substring(0, 100),
       },
       allow_promotion_codes: true,
@@ -164,17 +163,15 @@ Deno.serve(async (req) => {
       cancel_url: `${origin}/dashboard?featured=cancelled`,
     });
 
-    const amountMap: Record<string, number> = { '7day': 2500, '14day': 4000, '30day': 7500 };
-
     try {
       await supabaseAdmin.from('featured_purchases').insert({
         listing_id,
         user_id: user.id,
         stripe_checkout_session_id: session.id,
         plan,
-        amount_cents: amountMap[plan],
+        amount_cents: amountCents,
         status: 'pending',
-        duration_days: VALID_PLANS[plan],
+        duration_days: durationDays,
       });
     } catch (insertError) {
       if (insertError?.code === '23505') {
