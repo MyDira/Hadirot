@@ -66,18 +66,61 @@ function todayInNY(): string {
   });
 }
 
-function isoStartOfUtcDay(offsetDays: number): string {
-  const d = new Date();
-  d.setUTCDate(d.getUTCDate() + offsetDays);
-  d.setUTCHours(0, 0, 0, 0);
-  return d.toISOString();
+// Minutes that America/New_York is ahead of UTC at the given instant (negative:
+// e.g. -240 during EDT, -300 during EST). Used to convert NY wall-clock times to
+// exact UTC instants so reminder buckets align with the customer's calendar day
+// (consistent with the Shabbat guard, which already uses NY time).
+function nyOffsetMinutes(date: Date): number {
+  const dtf = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York",
+    year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false,
+  });
+  const map: Record<string, string> = {};
+  for (const p of dtf.formatToParts(date)) map[p.type] = p.value;
+  const asIfUtc = Date.UTC(
+    +map.year, +map.month - 1, +map.day,
+    +map.hour % 24, +map.minute, +map.second,
+  );
+  return (asIfUtc - date.getTime()) / 60000;
 }
 
-function isoEndOfUtcDay(offsetDays: number): string {
-  const d = new Date();
-  d.setUTCDate(d.getUTCDate() + offsetDays);
-  d.setUTCHours(23, 59, 59, 999);
-  return d.toISOString();
+// Convert a NY wall-clock date/time to the corresponding UTC Date.
+function nyLocalToUtc(
+  y: number, mo: number, d: number,
+  h: number, mi: number, s: number, ms: number,
+): Date {
+  const asUtc = Date.UTC(y, mo - 1, d, h, mi, s, ms);
+  const offsetMin = nyOffsetMinutes(new Date(asUtc));
+  return new Date(asUtc - offsetMin * 60000);
+}
+
+// UTC [start, end] instants for the America/New_York calendar day that is
+// `offsetDays` from today (NY). offsetDays 0 = today NY, 3 = three NY days out,
+// -3 = three NY days ago.
+function nyDayWindowUtc(offsetDays: number): { start: string; end: string } {
+  const now = new Date();
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/New_York",
+    year: "numeric", month: "2-digit", day: "2-digit",
+  }).format(now).split("-").map(Number);
+  // Anchor at noon UTC of today's NY date, then shift whole days (noon avoids
+  // any DST-boundary rollover when adding/subtracting days).
+  const anchor = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2], 12, 0, 0));
+  anchor.setUTCDate(anchor.getUTCDate() + offsetDays);
+  const ty = anchor.getUTCFullYear();
+  const tm = anchor.getUTCMonth() + 1;
+  const td = anchor.getUTCDate();
+  return {
+    start: nyLocalToUtc(ty, tm, td, 0, 0, 0, 0).toISOString(),
+    end: nyLocalToUtc(ty, tm, td, 23, 59, 59, 999).toISOString(),
+  };
+}
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+function shiftIso(iso: string, ms: number): string {
+  return new Date(new Date(iso).getTime() + ms).toISOString();
 }
 
 // Build a one-tap "pay from your phone" link that lands straight on Stripe.
@@ -168,12 +211,12 @@ Deno.serve(async (req) => {
     // We want listings where the deadline falls today (offset 0) or in 3 days (offset 3).
     // Equivalently: trial_started_at + 14d falls in [start_of_offset_day, end_of_offset_day].
     for (const offset of [3, 0]) {
-      // trial_started_at must be in [now-14+offset, now-14+offset+1)
-      const targetStart = new Date();
-      targetStart.setUTCDate(targetStart.getUTCDate() - 14 + offset);
-      targetStart.setUTCHours(0, 0, 0, 0);
-      const targetEnd = new Date(targetStart);
-      targetEnd.setUTCHours(23, 59, 59, 999);
+      // Trial deadline = trial_started_at + 14d. We want deadlines that fall on
+      // the NY calendar day at `offset`, so trial_started_at lands in that NY-day
+      // window shifted back 14 days (exact-duration subtraction preserves it).
+      const nyWindow = nyDayWindowUtc(offset);
+      const targetStart = shiftIso(nyWindow.start, -14 * DAY_MS);
+      const targetEnd = shiftIso(nyWindow.end, -14 * DAY_MS);
 
       const { data: trialListings } = await supabaseAdmin
         .from("listings")
@@ -183,8 +226,8 @@ Deno.serve(async (req) => {
         .eq("listing_type", "rental")
         .eq("payment_kind", "individual_trial")
         .eq("is_active", true)
-        .gte("trial_started_at", targetStart.toISOString())
-        .lte("trial_started_at", targetEnd.toISOString())
+        .gte("trial_started_at", targetStart)
+        .lte("trial_started_at", targetEnd)
         .not("contact_phone_e164", "is", null);
 
       for (const l of (trialListings || []) as ListingRow[]) {
@@ -202,6 +245,7 @@ Deno.serve(async (req) => {
     // -------------------------------------------------------------
     // paid_until in [start_of_offset_day, end_of_offset_day]
     for (const offset of [3, 0]) {
+      const nyWindow = nyDayWindowUtc(offset);
       const { data: paidListings } = await supabaseAdmin
         .from("listings")
         .select(
@@ -210,8 +254,8 @@ Deno.serve(async (req) => {
         .eq("listing_type", "rental")
         .eq("payment_kind", "individual_paid")
         .eq("is_active", true)
-        .gte("paid_until", isoStartOfUtcDay(offset))
-        .lte("paid_until", isoEndOfUtcDay(offset))
+        .gte("paid_until", nyWindow.start)
+        .lte("paid_until", nyWindow.end)
         .not("contact_phone_e164", "is", null);
 
       for (const l of (paidListings || []) as ListingRow[]) {
@@ -238,11 +282,7 @@ Deno.serve(async (req) => {
     // Residential rentals deactivated 3 days ago, still inactive,
     // and not yet purged by auto_delete (within the 30-day window).
     {
-      const targetStart = new Date();
-      targetStart.setUTCDate(targetStart.getUTCDate() - 3);
-      targetStart.setUTCHours(0, 0, 0, 0);
-      const targetEnd = new Date(targetStart);
-      targetEnd.setUTCHours(23, 59, 59, 999);
+      const nyWindow = nyDayWindowUtc(-3);
 
       const { data: deactivatedListings } = await supabaseAdmin
         .from("listings")
@@ -253,8 +293,8 @@ Deno.serve(async (req) => {
         .eq("is_active", false)
         // Exclude listings deactivated as legacy_free (pre-launch inactive listings).
         .in("payment_kind", ["individual_trial", "individual_paid", "subscription"])
-        .gte("deactivated_at", targetStart.toISOString())
-        .lte("deactivated_at", targetEnd.toISOString())
+        .gte("deactivated_at", nyWindow.start)
+        .lte("deactivated_at", nyWindow.end)
         .not("contact_phone_e164", "is", null);
 
       for (const l of (deactivatedListings || []) as ListingRow[]) {
