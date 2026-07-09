@@ -27,6 +27,8 @@ import { MonetizationModal, type MonetizationModalListingOption } from "../compo
 import { QuickPayDaysModal } from "../components/dashboard/QuickPayDaysModal";
 import { paymentsService } from "../services/payments";
 import type { MonetizationListingFields } from "../services/payments";
+import { agentFreePostingService } from "../services/agentFreePosting";
+import { getRentalStatusLine } from "../utils/listingStatusLine";
 
 type DashboardTab = 'rentals' | 'sales';
 
@@ -68,6 +70,9 @@ export default function Dashboard() {
   const [openCardMenu, setOpenCardMenu] = useState<string | null>(null);
   // Phase J: master switch. When false, dashboard hides monetization UI.
   const [monetizationEnabled, setMonetizationEnabled] = useState<boolean>(false);
+  // Agent-free posting: when the current user posts for free (agent), suppress
+  // all trial / "keep it active" / pay messaging on their listings.
+  const [isFreeAgent, setIsFreeAgent] = useState<boolean>(false);
 
   // Read the master switch + the user's listing subscription once on mount.
   useEffect(() => {
@@ -84,6 +89,14 @@ export default function Dashboard() {
         if (!cancelled) setListingSubscription(sub);
       } catch (err) {
         console.warn('Failed to load listing subscription:', err);
+      }
+      if (user) {
+        try {
+          const freeAgent = await agentFreePostingService.isUserFreeAgent(user.id);
+          if (!cancelled) setIsFreeAgent(freeAgent);
+        } catch (err) {
+          console.warn('Failed to resolve free-agent status (assuming not):', err);
+        }
       }
     })();
     return () => {
@@ -150,49 +163,8 @@ export default function Dashboard() {
     setQuickPayListing({ id: listingId, label: l ? buildListingLabel(l) : 'This listing' });
   };
 
-  // One friendly, reassuring status line for a rental card. Avoids scary money
-  // language ("Permanently inactive", "Pay") in favor of plain, calm copy.
-  const getRentalStatusLine = (
-    listing: any,
-    payState: ReturnType<typeof paymentsService.derivePaymentState> | null,
-    daysUntilExpiration: number | null,
-  ): { dot: string; text: string; tone: 'good' | 'warn' | 'muted' } => {
-    if (!listing.approved) {
-      return { dot: 'bg-amber-400', text: "In review — we'll publish it soon", tone: 'warn' };
-    }
-    if (!listing.is_active) {
-      return { dot: 'bg-gray-400', text: 'Paused — not visible to renters', tone: 'muted' };
-    }
-    if (payState) {
-      switch (payState.label) {
-        case 'paid_expired':
-          return { dot: 'bg-amber-400', text: 'Time’s up — add days to keep it live', tone: 'warn' };
-        case 'paid_renewal_due':
-          return { dot: 'bg-amber-400', text: 'Renewal coming up soon', tone: 'warn' };
-        case 'trial_ending':
-          return { dot: 'bg-amber-400', text: `Free trial ending${payState.trialDaysRemaining != null ? ` · ${payState.trialDaysRemaining}d left` : ''}`, tone: 'warn' };
-        case 'trial_active':
-          return { dot: 'bg-emerald-500', text: `Live · free trial${payState.trialDaysRemaining != null ? ` · ${payState.trialDaysRemaining}d left` : ''}`, tone: 'good' };
-        case 'paid_active':
-          return { dot: 'bg-emerald-500', text: `Live${payState.paidDaysRemaining != null ? ` · ${payState.paidDaysRemaining} days left` : ''}`, tone: 'good' };
-        case 'subscription_active':
-          return { dot: 'bg-emerald-500', text: 'Live · covered by your plan', tone: 'good' };
-        case 'admin_granted':
-          return { dot: 'bg-emerald-500', text: 'Live · complimentary', tone: 'good' };
-        case 'payment_required':
-          return { dot: 'bg-amber-400', text: 'Finish payment to publish', tone: 'warn' };
-        case 'legacy_free':
-          return { dot: 'bg-emerald-500', text: 'Live', tone: 'good' };
-      }
-    }
-    if (daysUntilExpiration != null) {
-      if (daysUntilExpiration <= 0) {
-        return { dot: 'bg-amber-400', text: 'Expired — extend to keep it live', tone: 'warn' };
-      }
-      return { dot: 'bg-emerald-500', text: `Live · ${daysUntilExpiration} day${daysUntilExpiration === 1 ? '' : 's'} left`, tone: 'good' };
-    }
-    return { dot: 'bg-emerald-500', text: 'Live', tone: 'good' };
-  };
+  // Friendly per-listing status line lives in ../utils/listingStatusLine
+  // (shared with the listing-detail owner/admin banner).
 
   // Listings the modal's "pay per listing" tab should offer. Residential rentals
   // owned by the current user, sorted newest first.
@@ -1068,11 +1040,13 @@ export default function Dashboard() {
                     isAdmin: profile?.is_admin === true,
                   })
                 : null;
-              const showPayAction = !!payState
+              // Free-posting agents never pay: suppress every pay CTA.
+              const showPayAction = !isFreeAgent
+                && !!payState
                 && !!payState.nextActionUrl
                 && payState.nextActionUrl.includes('action=pay');
 
-              const status = getRentalStatusLine(listing, payState, daysUntilExpiration);
+              const status = getRentalStatusLine(listing, payState, daysUntilExpiration, isFreeAgent);
 
               const priceText = isCommercial
                 ? ((listing as CommercialListing).call_for_price
@@ -1132,7 +1106,7 @@ export default function Dashboard() {
                   (lr.paused_paid_days ?? 0) <= 0;
                 const unpaid = payState?.paymentKind === 'pending_payment';
                 const needsPaymentToRepublish =
-                  monetizationEnabled && !isCommercial && (trialExpired || paidExhausted || unpaid);
+                  !isFreeAgent && monetizationEnabled && !isCommercial && (trialExpired || paidExhausted || unpaid);
                 primary = needsPaymentToRepublish
                   ? {
                       label: 'Add days to relist',
