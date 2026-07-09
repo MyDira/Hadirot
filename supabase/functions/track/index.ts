@@ -142,11 +142,27 @@ async function sha256Hex(value: string): Promise<string> {
     .join('');
 }
 
+// Cap the serialized size of a single event's props so a batch of large JSON
+// blobs can't bloat the analytics_events table (rate limit + batch cap already
+// bound volume; this bounds per-event payload size).
+const MAX_EVENT_PROPS_BYTES = 8 * 1024; // 8 KB serialized
+
 function sanitizeEventProps(raw: unknown): Record<string, unknown> {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
     return {};
   }
-  return raw as Record<string, unknown>;
+  const obj = raw as Record<string, unknown>;
+  let serializedLength = 0;
+  try {
+    serializedLength = JSON.stringify(obj).length;
+  } catch {
+    // Non-serializable (e.g. circular) — drop it.
+    return { _dropped: 'unserializable_event_props' };
+  }
+  if (serializedLength > MAX_EVENT_PROPS_BYTES) {
+    return { _dropped: 'event_props_too_large', _size: serializedLength };
+  }
+  return obj;
 }
 
 function toIsoTimestamp(value: string | undefined, fallbackIso: string): string {

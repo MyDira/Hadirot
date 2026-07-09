@@ -2,6 +2,15 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders } from "../_shared/cors.ts";
 import { renderBrandEmail, sendViaZepto } from "../_shared/zepto.ts";
 
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
 Deno.serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === "OPTIONS") {
@@ -175,8 +184,8 @@ Deno.serve(async (req) => {
       try {
         const html = renderBrandEmail({
           title: "Account Deleted",
-          intro: `Hi ${fullName},`,
-          bodyHtml: `<p>Your Hadirot account has been deleted.</p>${reason ? `<p>${reason}</p>` : ""}<p>If you have questions, contact support@hadirot.com.</p>`,
+          intro: `Hi ${escapeHtml(String(fullName ?? ""))},`,
+          bodyHtml: `<p>Your Hadirot account has been deleted.</p>${reason ? `<p>${escapeHtml(String(reason))}</p>` : ""}<p>If you have questions, contact support@hadirot.com.</p>`,
         });
 
         await sendViaZepto({
