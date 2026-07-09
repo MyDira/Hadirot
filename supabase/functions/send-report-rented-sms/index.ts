@@ -31,6 +31,64 @@ interface ReportRequest {
   isCommercial?: boolean;
 }
 
+// Sliding-window rate limiting (mirrors send-contact-message). This function is
+// public and fires a paid Twilio SMS to the listing owner plus opens a
+// 24h-auto-deactivate conversation, so it is a harassment + cost + takedown
+// lever without throttling.
+const rateLimitMap = new Map<string, { count: number; windowStart: number }>();
+
+function checkRateLimit(
+  key: string,
+  windowMs: number,
+  max: number,
+): { allowed: true } | { allowed: false; retryAfterSeconds: number } {
+  const now = Date.now();
+  const entry = rateLimitMap.get(key);
+
+  if (!entry || now - entry.windowStart >= windowMs) {
+    rateLimitMap.set(key, { count: 1, windowStart: now });
+    if (rateLimitMap.size > 10_000) {
+      for (const [k, v] of rateLimitMap) {
+        if (now - v.windowStart >= windowMs) rateLimitMap.delete(k);
+      }
+    }
+    return { allowed: true };
+  }
+
+  if (entry.count + 1 > max) {
+    return {
+      allowed: false,
+      retryAfterSeconds: Math.ceil((windowMs - (now - entry.windowStart)) / 1000),
+    };
+  }
+
+  entry.count += 1;
+  return { allowed: true };
+}
+
+function getClientIp(req: Request): string | null {
+  const headers = ["x-forwarded-for", "x-real-ip", "cf-connecting-ip"];
+  for (const header of headers) {
+    const value = req.headers.get(header);
+    if (value) {
+      const ip = value.split(",")[0]?.trim();
+      if (ip) return ip;
+    }
+  }
+  return null;
+}
+
+async function sha256Hex(value: string): Promise<string> {
+  const data = new TextEncoder().encode(value);
+  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+  return Array.from(new Uint8Array(hashBuffer))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+const IP_RATE_WINDOW_MS = 60 * 60 * 1000; // 1 hour
+const IP_RATE_MAX = 10; // reports per IP per hour
+
 const SPACE_TYPE_SHORT: Record<string, string> = {
   storefront: "Retail",
   restaurant: "Restaurant",
@@ -70,6 +128,26 @@ Deno.serve(async (req) => {
         status: 405,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
+    }
+
+    // Per-IP rate limit (anti-abuse gate against enumerate-and-blast).
+    const clientIp = getClientIp(req);
+    if (clientIp) {
+      const ipHash = await sha256Hex(clientIp);
+      const rate = checkRateLimit(`report-ip:${ipHash}`, IP_RATE_WINDOW_MS, IP_RATE_MAX);
+      if (!rate.allowed) {
+        return new Response(
+          JSON.stringify({ error: "Too many requests. Please try again later." }),
+          {
+            status: 429,
+            headers: {
+              ...corsHeaders,
+              "Content-Type": "application/json",
+              "Retry-After": String(rate.retryAfterSeconds),
+            },
+          },
+        );
+      }
     }
 
     const twilioAccountSid = Deno.env.get("TWILIO_ACCOUNT_SID");
@@ -160,6 +238,47 @@ Deno.serve(async (req) => {
           alreadyInactive: true
         }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Dedupe: if a report conversation is already open for this listing, do not
+    // send another SMS or open a second conversation. This blocks repeat
+    // harassment of the same owner and prevents piling up auto-deactivation
+    // timers on one listing.
+    const { data: openConversation } = await supabase
+      .from("listing_renewal_conversations")
+      .select("id")
+      .eq("listing_id", listing.id)
+      .eq("state", "awaiting_report_response")
+      .gt("expires_at", new Date().toISOString())
+      .limit(1)
+      .maybeSingle();
+
+    if (openConversation) {
+      console.log("Report conversation already open for listing:", listing.id);
+      return new Response(
+        JSON.stringify({
+          success: true,
+          message: "A report for this listing is already being processed.",
+          alreadyReported: true,
+        }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Per-listing rate limit (belt-and-suspenders alongside the dedupe above).
+    const listingRate = checkRateLimit(`report-listing:${listing.id}`, IP_RATE_WINDOW_MS, 3);
+    if (!listingRate.allowed) {
+      return new Response(
+        JSON.stringify({ error: "Too many reports for this listing. Please try again later." }),
+        {
+          status: 429,
+          headers: {
+            ...corsHeaders,
+            "Content-Type": "application/json",
+            "Retry-After": String(listingRate.retryAfterSeconds),
+          },
+        },
       );
     }
 
