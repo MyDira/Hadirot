@@ -675,7 +675,7 @@ export const listingsService = {
         }
       }
     }
-    
+
     return result;
   },
 
@@ -1391,23 +1391,13 @@ export const listingsService = {
   },
 
   async incrementListingView(listingId: string) {
-    const { data: listing, error } = await supabase
-      .from('listings')
-      .select('views')
-      .eq('id', listingId)
-      .maybeSingle();
+    // Atomic DB-side increment (coalesces null → 0). Avoids the lost-update
+    // race of a read-modify-write under concurrent detail-page views.
+    const { error } = await supabase.rpc('increment_listing_view', { p_id: listingId });
 
-    if (error || !listing) {
-      console.error("❌ Error fetching listing to increment view:", error);
-      return;
+    if (error) {
+      console.error("❌ Error incrementing listing view:", error);
     }
-
-    const newViews = listing.views + 1;
-
-    await supabase
-      .from('listings')
-      .update({ views: newViews })
-      .eq('id', listingId);
   },
 
   async deleteListingImage(imageId: string, imageUrl: string) {
