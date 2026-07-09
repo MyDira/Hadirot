@@ -87,8 +87,12 @@ export function TierCards({
 }: TierCardsProps) {
   const handlers = [onSelectTier1, onSelectTier2, onSelectTier3];
 
-  const isCancelled = activeSubscription?.status === 'cancelled';
-  const isActive = activeSubscription?.status === 'active';
+  // A scheduled cancel now keeps status='active' with cancelled_at set (coverage
+  // persists until current_period_end); older rows may still read 'cancelled'.
+  // Treat either as "cancelling" and exclude those from the truly-active state
+  // so upgrade/downgrade paths stay suppressed while a cancel is pending.
+  const isCancelled = !!activeSubscription?.cancelled_at || activeSubscription?.status === 'cancelled';
+  const isActive = activeSubscription?.status === 'active' && !isCancelled;
   const hasActiveSub = (isActive || isCancelled) && activeSubscription != null;
 
   return (

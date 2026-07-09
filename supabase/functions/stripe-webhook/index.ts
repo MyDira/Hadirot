@@ -476,11 +476,20 @@ async function handleSubscriptionUpdate(subscription: Stripe.Subscription) {
     ? new Date(subscription.current_period_end * 1000).toISOString()
     : null;
 
-  // Status mapping shared by both subscription tables.
+  // Status mapping for the concierge table.
   function computeUpdate(): Record<string, unknown> {
     const update: Record<string, unknown> = { current_period_end: periodEnd };
-    if (subscription.cancel_at_period_end === true) {
-      update.status = 'cancelled';
+    if (
+      subscription.cancel_at_period_end === true &&
+      (subscription.status === 'active' || subscription.status === 'trialing')
+    ) {
+      // Scheduled-to-cancel but still paid through the period: KEEP coverage
+      // active (record the pending cancel via cancelled_at). Only move to
+      // 'cancelled' when Stripe sends customer.subscription.deleted at period
+      // end. Mirrors the listing_subscriptions semantics below — previously
+      // concierge flipped to 'cancelled' immediately, cutting off a subscriber
+      // who had paid for the remainder of the month.
+      update.status = subscription.status === 'trialing' ? 'trial' : 'active';
       update.cancelled_at = new Date().toISOString();
     } else if (subscription.cancel_at_period_end === false && subscription.status === 'active') {
       update.status = 'active';

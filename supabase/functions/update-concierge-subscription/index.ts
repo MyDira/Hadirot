@@ -233,15 +233,26 @@ Deno.serve(async (req) => {
         ? new Date(updatedSub.current_period_end * 1000).toISOString()
         : null;
 
+      // The subscriber has paid through current_period_end, so KEEP the row
+      // 'active' and record the scheduled cancel via cancelled_at. The webhook
+      // moves it to 'cancelled' only on customer.subscription.deleted at period
+      // end (matches listing_subscriptions semantics). Previously this set
+      // status='cancelled' immediately, cutting coverage before the paid period
+      // ended. A non-null cancelled_at on an 'active' row means "cancels at
+      // current_period_end" — status consumers/UI should read it that way.
       const { error: dbUpdateError } = await supabaseAdmin
         .from("concierge_subscriptions")
-        .update({ status: "cancelled", current_period_end: periodEndIso })
+        .update({
+          status: "active",
+          cancelled_at: new Date().toISOString(),
+          current_period_end: periodEndIso,
+        })
         .eq("id", subscription.id);
 
       if (dbUpdateError) {
         console.error("[cancel] DB update error:", dbUpdateError);
       } else {
-        console.log("[cancel] DB updated: status=cancelled, current_period_end=", periodEndIso);
+        console.log("[cancel] DB updated: status=active (cancel scheduled), current_period_end=", periodEndIso);
       }
 
       return new Response(

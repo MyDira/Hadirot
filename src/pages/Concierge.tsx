@@ -126,7 +126,9 @@ export function Concierge() {
   };
 
   const cancelled = searchParams.get('cancelled') === 'true';
-  const subIsCancelling = activeSub?.status === 'cancelled';
+  // A scheduled cancel now keeps status='active' with cancelled_at set (coverage
+  // persists until current_period_end); a legacy row may still read 'cancelled'.
+  const subIsCancelling = !!activeSub?.cancelled_at || activeSub?.status === 'cancelled';
 
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
