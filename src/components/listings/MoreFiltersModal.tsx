@@ -1,5 +1,17 @@
 import React, { useState, useEffect } from "react";
-import { X } from "lucide-react";
+import {
+  X,
+  Home,
+  Building2,
+  CalendarClock,
+  Sparkles,
+  Car,
+  BadgePercent,
+  MapPin,
+  Users,
+  Check,
+  LucideIcon,
+} from "lucide-react";
 import {
   IconSelectGrid,
   RENTAL_PROPERTY_TYPES,
@@ -110,6 +122,92 @@ function CheckboxGroup({
   );
 }
 
+function SectionHeader({
+  icon: Icon,
+  title,
+  subtitle,
+  action,
+}: {
+  icon: LucideIcon;
+  title: string;
+  subtitle?: string;
+  action?: React.ReactNode;
+}) {
+  return (
+    <div className="mb-4">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2.5">
+          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-green-50 text-green-600">
+            <Icon className="w-4 h-4" />
+          </span>
+          <h3 className="text-base font-semibold text-gray-900">{title}</h3>
+        </div>
+        {action}
+      </div>
+      {subtitle && (
+        <p className="mt-2 text-xs text-gray-500 pl-[42px]">{subtitle}</p>
+      )}
+    </div>
+  );
+}
+
+function FeatureToggle({
+  icon: Icon,
+  label,
+  description,
+  active,
+  onClick,
+}: {
+  icon: LucideIcon;
+  label: string;
+  description?: string;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`flex items-center gap-3 p-4 rounded-xl border-2 text-left transition-all ${
+        active
+          ? "border-green-600 bg-green-50"
+          : "border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50"
+      }`}
+    >
+      <span
+        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg transition-colors ${
+          active ? "bg-green-600 text-white" : "bg-gray-100 text-gray-400"
+        }`}
+      >
+        <Icon className="w-5 h-5" />
+      </span>
+      <span className="flex-1 min-w-0">
+        <span
+          className={`block text-sm font-semibold ${
+            active ? "text-green-700" : "text-gray-900"
+          }`}
+        >
+          {label}
+        </span>
+        {description && (
+          <span className="block text-xs text-gray-500 mt-0.5">
+            {description}
+          </span>
+        )}
+      </span>
+      <span
+        className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 transition-colors ${
+          active
+            ? "border-green-600 bg-green-600 text-white"
+            : "border-gray-300"
+        }`}
+      >
+        {active && <Check className="w-3 h-3" strokeWidth={3} />}
+      </span>
+    </button>
+  );
+}
+
 export function MoreFiltersModal({
   isOpen,
   onClose,
@@ -158,7 +256,6 @@ export function MoreFiltersModal({
     listingType === "sale" ? SALE_PROPERTY_TYPES : RENTAL_PROPERTY_TYPES;
 
   const isCommercial = listingTypeFilter === "commercial";
-  const isAll = listingTypeFilter === "all";
   const showResidential = !isCommercial;
 
   return (
@@ -264,46 +361,116 @@ export function MoreFiltersModal({
               </>
             )}
 
-            {showResidential && !isAll && (
+            {showResidential && (
               <>
-                <div>
+                <IconSelectGrid
+                  header="Property Type"
+                  headerIcon={Home}
+                  options={propertyTypeOptions}
+                  selected={localFilters.property_types || []}
+                  onChange={(selected) =>
+                    handleLocalFilterChange(
+                      "property_types",
+                      selected.length > 0 ? selected : undefined
+                    )
+                  }
+                  columns={3}
+                />
+
+                {listingType === "sale" && (
                   <IconSelectGrid
-                    header="Property Type"
-                    options={propertyTypeOptions}
-                    selected={localFilters.property_types || []}
+                    header="Building Type"
+                    headerIcon={Building2}
+                    options={BUILDING_TYPES}
+                    selected={localFilters.building_types || []}
                     onChange={(selected) =>
                       handleLocalFilterChange(
-                        "property_types",
+                        "building_types",
                         selected.length > 0 ? selected : undefined
                       )
                     }
-                    columns={3}
+                    columns={4}
                   />
-                </div>
+                )}
 
-                {listingType === "sale" && (
-                  <div>
-                    <IconSelectGrid
-                      header="Building Type"
-                      options={BUILDING_TYPES}
-                      selected={localFilters.building_types || []}
-                      onChange={(selected) =>
+                {listingType === "rental" &&
+                  availableLeaseTerms.length > 0 && (
+                    <div>
+                      <SectionHeader
+                        icon={CalendarClock}
+                        title="Lease Length"
+                        subtitle="Long Term / Annual excludes short-term and seasonal rentals"
+                      />
+                      <div className="flex flex-wrap gap-2.5">
+                        {availableLeaseTerms.map((term) => {
+                          const isSelected =
+                            localFilters.lease_terms?.includes(term) || false;
+                          return (
+                            <button
+                              key={term}
+                              type="button"
+                              onClick={() => {
+                                const current = localFilters.lease_terms || [];
+                                const newLeaseTerms = isSelected
+                                  ? current.filter((t) => t !== term)
+                                  : [...current, term];
+                                handleLocalFilterChange(
+                                  "lease_terms",
+                                  newLeaseTerms.length > 0
+                                    ? newLeaseTerms
+                                    : undefined
+                                );
+                              }}
+                              className={`px-4 py-2.5 rounded-xl text-sm font-medium border-2 transition-all ${
+                                isSelected
+                                  ? "border-green-600 bg-green-50 text-green-700"
+                                  : "border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:bg-gray-50"
+                              }`}
+                            >
+                              {LEASE_TERM_LABELS[term] || term}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                <div>
+                  <SectionHeader icon={Sparkles} title="Features" />
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <FeatureToggle
+                      icon={Car}
+                      label="Parking Included"
+                      description="On-site or included parking"
+                      active={!!localFilters.parking_included}
+                      onClick={() =>
                         handleLocalFilterChange(
-                          "building_types",
-                          selected.length > 0 ? selected : undefined
+                          "parking_included",
+                          !localFilters.parking_included
                         )
                       }
-                      columns={4}
                     />
+                    {listingType === "rental" && (
+                      <FeatureToggle
+                        icon={BadgePercent}
+                        label="No Fee Only"
+                        description="Hide broker-fee listings"
+                        active={!!localFilters.no_fee_only}
+                        onClick={() =>
+                          handleLocalFilterChange(
+                            "no_fee_only",
+                            !localFilters.no_fee_only
+                          )
+                        }
+                      />
+                    )}
                   </div>
-                )}
+                </div>
               </>
             )}
 
             <div>
-              <h3 className="text-base font-semibold text-gray-900 mb-4">
-                Neighborhoods
-              </h3>
+              <SectionHeader icon={MapPin} title="Neighborhoods" />
               <div className="max-h-56 overflow-y-auto border border-gray-200 rounded-xl">
                 {allNeighborhoods.length === 0 ? (
                   <div className="px-4 py-3 text-sm text-gray-500">
@@ -348,9 +515,7 @@ export function MoreFiltersModal({
 
             {!isCommercial && (
               <div>
-                <h3 className="text-base font-semibold text-gray-900 mb-4">
-                  Listed By
-                </h3>
+                <SectionHeader icon={Users} title="Listed By" />
                 <div className="max-h-56 overflow-y-auto border border-gray-200 rounded-xl">
                   <label className="flex items-center px-4 py-3 hover:bg-gray-50 cursor-pointer border-b border-gray-100">
                     <input
@@ -421,94 +586,6 @@ export function MoreFiltersModal({
                         <span className="ml-3 text-sm text-gray-700">{agency}</span>
                       </label>
                     ))}
-                </div>
-              </div>
-            )}
-
-            {showResidential && !isAll && listingType === "rental" && availableLeaseTerms.length > 0 && (
-              <div>
-                <h3 className="text-base font-semibold text-gray-900 mb-2">
-                  Lease Length
-                </h3>
-                <p className="text-xs text-gray-500 mb-4">
-                  Long Term / Annual excludes short-term and seasonal rentals
-                </p>
-                <div className="max-h-56 overflow-y-auto border border-gray-200 rounded-xl">
-                  {availableLeaseTerms.map((term) => {
-                    const isSelected =
-                      localFilters.lease_terms?.includes(term) || false;
-                    return (
-                      <label
-                        key={term}
-                        className="flex items-center px-4 py-3 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-b-0"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={isSelected}
-                          onChange={() => {
-                            const current = localFilters.lease_terms || [];
-                            const newLeaseTerms = isSelected
-                              ? current.filter((t) => t !== term)
-                              : [...current, term];
-                            handleLocalFilterChange(
-                              "lease_terms",
-                              newLeaseTerms.length > 0
-                                ? newLeaseTerms
-                                : undefined
-                            );
-                          }}
-                          className="h-5 w-5 text-green-600 focus:ring-green-500 border-gray-300 rounded"
-                        />
-                        <span className="ml-3 text-sm text-gray-700">
-                          {LEASE_TERM_LABELS[term] || term}
-                        </span>
-                      </label>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            {showResidential && !isAll && (
-              <div>
-                <h3 className="text-base font-semibold text-gray-900 mb-4">
-                  More Options
-                </h3>
-                <div className="flex flex-wrap gap-3">
-                  <button
-                    type="button"
-                    onClick={() =>
-                      handleLocalFilterChange(
-                        "parking_included",
-                        !localFilters.parking_included
-                      )
-                    }
-                    className={`px-5 py-3 rounded-xl text-sm font-medium transition-all border-2 ${
-                      localFilters.parking_included
-                        ? "border-green-600 bg-green-50 text-green-700"
-                        : "border-gray-200 bg-white text-gray-600 hover:border-gray-300"
-                    }`}
-                  >
-                    Parking Included
-                  </button>
-                  {listingType === "rental" && (
-                    <button
-                      type="button"
-                      onClick={() =>
-                        handleLocalFilterChange(
-                          "no_fee_only",
-                          !localFilters.no_fee_only
-                        )
-                      }
-                      className={`px-5 py-3 rounded-xl text-sm font-medium transition-all border-2 ${
-                        localFilters.no_fee_only
-                          ? "border-green-600 bg-green-50 text-green-700"
-                          : "border-gray-200 bg-white text-gray-600 hover:border-gray-300"
-                      }`}
-                    >
-                      No Fee Only
-                    </button>
-                  )}
                 </div>
               </div>
             )}

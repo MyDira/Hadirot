@@ -21,6 +21,7 @@ interface IconSelectGridProps {
   onChange: (selected: string[]) => void;
   columns?: 2 | 3 | 4;
   header?: string;
+  headerIcon?: LucideIcon;
 }
 
 export const RENTAL_PROPERTY_TYPES: IconOption[] = [
@@ -53,6 +54,7 @@ export function IconSelectGrid({
   onChange,
   columns = 3,
   header,
+  headerIcon: HeaderIcon,
 }: IconSelectGridProps) {
   const toggleOption = (value: string) => {
     if (selected.includes(value)) {
@@ -80,7 +82,14 @@ export function IconSelectGrid({
     <div>
       {header && (
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-base font-semibold text-gray-900">{header}</h3>
+          <div className="flex items-center gap-2.5">
+            {HeaderIcon && (
+              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-green-50 text-green-600">
+                <HeaderIcon className="w-4 h-4" />
+              </span>
+            )}
+            <h3 className="text-base font-semibold text-gray-900">{header}</h3>
+          </div>
           {selected.length === options.length ? (
             <button
               type="button"
