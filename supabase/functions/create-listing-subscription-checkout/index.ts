@@ -181,6 +181,17 @@ Deno.serve(async (req) => {
 
     const origin = req.headers.get("origin") || "https://hadirot.com";
 
+    // Pre-checkout lock against double-clicks / retried slow requests. A stable
+    // idempotency key over (owner, plan, addon, trial) within a short time
+    // window makes Stripe return the SAME session for a rapid second submit
+    // instead of creating a second live subscription. The 60s bucket still lets
+    // a deliberate later re-subscribe get a fresh session; the webhook's
+    // one-active-per-user 23505 handler is the backstop for anything that slips
+    // through (it cancels the orphaned duplicate Stripe subscription + alerts).
+    const idempotencyBucket = Math.floor(Date.now() / 60000);
+    const idempotencyKey =
+      `listing-sub:${ownerId}:${plan}:${include_concierge_addon ? 1 : 0}:${isTrial ? 1 : 0}:${idempotencyBucket}`;
+
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",
       customer: stripeCustomerId,
@@ -211,7 +222,7 @@ Deno.serve(async (req) => {
       allow_promotion_codes: true,
       success_url: `${origin}/dashboard?subscription=${isTrial ? "trial_started" : "success"}`,
       cancel_url: `${origin}/dashboard?subscription=cancelled`,
-    });
+    }, { idempotencyKey });
 
     return new Response(JSON.stringify({
       url: session.url,

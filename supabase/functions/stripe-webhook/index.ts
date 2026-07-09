@@ -922,11 +922,38 @@ async function handleListingSubscriptionCheckout(session: Stripe.Checkout.Sessio
     .single();
 
   if (insertErr || !newSub) {
-    // Money-critical: the customer was charged (or a trial with card on file was
-    // created) but we failed to record the covering subscription. Throw so the
-    // webhook returns 500 and Stripe retries rather than silently losing the
-    // entitlement. (The duplicate one-active-per-user 23505 case is handled
-    // specially by Fix 7 — see the wrapping logic there when present.)
+    // Duplicate active subscription for this user (one-active-per-user partial
+    // unique index). This means the user already has a covering subscription and
+    // this checkout created a SECOND live Stripe subscription with no DB home —
+    // the double-click / double-charge case. Cancel the orphaned Stripe
+    // subscription so the customer isn't billed twice, alert admins, and return
+    // (do NOT throw/retry — retrying can't create the row).
+    if (insertErr?.code === '23505') {
+      console.error(
+        `Duplicate active listing subscription for user ${user_id}; cancelling orphan Stripe sub ${stripeSubId}`,
+      );
+      try {
+        await stripe.subscriptions.cancel(stripeSubId);
+      } catch (cancelErr) {
+        console.error(`Failed to cancel orphan Stripe subscription ${stripeSubId}:`, cancelErr);
+      }
+      const adminEmails = await getAdminEmails(supabaseAdmin);
+      if (adminEmails.length > 0) {
+        await sendEmail(
+          adminEmails,
+          'Duplicate subscription auto-cancelled',
+          brandWrap(
+            'Duplicate subscription detected',
+            `<p>User <strong>${escapeHtml(user_id)}</strong> already had an active listing subscription, but a second checkout created Stripe subscription <strong>${escapeHtml(stripeSubId)}</strong>.</p>
+             <p>The duplicate was automatically cancelled to prevent a double charge. Please verify in Stripe that no duplicate charge landed (and refund if it did).</p>`,
+          ),
+        );
+      }
+      return;
+    }
+    // Any other failure: money-critical (customer charged / trial card on file)
+    // but no covering row recorded. Throw so the webhook returns 500 and Stripe
+    // retries rather than silently losing the entitlement.
     console.error('Failed to insert listing_subscriptions row:', insertErr);
     throw new Error(
       `listing_subscriptions insert failed for stripe sub ${stripeSubId}: ${insertErr?.message ?? 'no row returned'}`,
