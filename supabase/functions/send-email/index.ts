@@ -10,6 +10,69 @@ interface EmailRequest {
   type?: "password_reset" | "general" | "admin_notification";
 }
 
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+// Sliding-window rate limiting (mirrors send-contact-message). send-email can
+// relay to admins (unauthenticated report-rented fallback) and to users, so it
+// needs a throttle to prevent inbox flooding / Zepto quota burn.
+const rateLimitMap = new Map<string, { count: number; windowStart: number }>();
+
+function checkRateLimit(
+  key: string,
+  windowMs: number,
+  max: number,
+): { allowed: true } | { allowed: false; retryAfterSeconds: number } {
+  const now = Date.now();
+  const entry = rateLimitMap.get(key);
+  if (!entry || now - entry.windowStart >= windowMs) {
+    rateLimitMap.set(key, { count: 1, windowStart: now });
+    if (rateLimitMap.size > 10_000) {
+      for (const [k, v] of rateLimitMap) {
+        if (now - v.windowStart >= windowMs) rateLimitMap.delete(k);
+      }
+    }
+    return { allowed: true };
+  }
+  if (entry.count + 1 > max) {
+    return {
+      allowed: false,
+      retryAfterSeconds: Math.ceil((windowMs - (now - entry.windowStart)) / 1000),
+    };
+  }
+  entry.count += 1;
+  return { allowed: true };
+}
+
+function getClientIp(req: Request): string | null {
+  const headers = ["x-forwarded-for", "x-real-ip", "cf-connecting-ip"];
+  for (const header of headers) {
+    const value = req.headers.get(header);
+    if (value) {
+      const ip = value.split(",")[0]?.trim();
+      if (ip) return ip;
+    }
+  }
+  return null;
+}
+
+async function sha256Hex(value: string): Promise<string> {
+  const data = new TextEncoder().encode(value);
+  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+  return Array.from(new Uint8Array(hashBuffer))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+const RATE_WINDOW_MS = 60 * 60 * 1000; // 1 hour
+const RATE_MAX = 30; // emails per IP per hour
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -21,6 +84,25 @@ Deno.serve(async (req) => {
         status: 405,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
+    }
+
+    const clientIp = getClientIp(req);
+    if (clientIp) {
+      const ipHash = await sha256Hex(clientIp);
+      const rate = checkRateLimit(`send-email:${ipHash}`, RATE_WINDOW_MS, RATE_MAX);
+      if (!rate.allowed) {
+        return new Response(
+          JSON.stringify({ error: "Too many requests. Please try again later." }),
+          {
+            status: 429,
+            headers: {
+              ...corsHeaders,
+              "Content-Type": "application/json",
+              "Retry-After": String(rate.retryAfterSeconds),
+            },
+          },
+        );
+      }
     }
 
     const authHeader = req.headers.get("Authorization");
@@ -273,9 +355,27 @@ Deno.serve(async (req) => {
 
         console.log(`✅ Found ${adminEmails.length} admin email(s):`, adminEmails);
 
+        // SECURITY: this path is reachable without a user JWT (the anonymous
+        // report-rented email fallback uses it), so we must NOT trust the
+        // caller-supplied `html` — otherwise anyone could deliver arbitrary
+        // (DKIM-valid) phishing HTML into every admin inbox. Ignore client html
+        // and build the body server-side from a fixed template; the only
+        // caller-controlled value is the subject, which we escape.
+        const safeSubject = escapeHtml(String(emailData.subject ?? "").slice(0, 200));
+        const serverHtml = renderBrandEmail({
+          title: "Hadirot Admin Notification",
+          bodyHtml:
+            `<p>An automated notification was triggered on Hadirot:</p>` +
+            `<p style="font-weight:600;">${safeSubject}</p>` +
+            `<p>Open the admin panel to review the related record and details.</p>`,
+          ctaLabel: null,
+          ctaHref: null,
+        });
+
         emailData = {
           ...emailData,
           to: adminEmails,
+          html: serverHtml,
         };
       } catch (error) {
         console.error("❌ Error in admin notification flow:", {
@@ -316,6 +416,53 @@ Deno.serve(async (req) => {
         }
 
         console.log("✅ Auth verified for user:", user.id);
+
+        // Restrict recipients on the `general` path so a throwaway account can't
+        // use this as an open relay to arbitrary external addresses. Admins may
+        // email anyone (they legitimately notify listing owners). Non-admins may
+        // only email their own address or an internal allowlisted domain (the
+        // "new listing pending approval" notice emails admin@hadirot.com).
+        let isAdmin = user.app_metadata?.is_admin === true;
+        if (!isAdmin) {
+          const { data: profile } = await supabaseAdmin
+            .from("profiles")
+            .select("is_admin")
+            .eq("id", user.id)
+            .maybeSingle();
+          isAdmin = profile?.is_admin === true;
+        }
+
+        if (!isAdmin) {
+          const allowlistDomain =
+            (Deno.env.get("EMAIL_ALLOWLIST_DOMAIN") || "hadirot.com").toLowerCase();
+          const requestedRecipients = Array.isArray(emailData.to)
+            ? emailData.to
+            : [emailData.to];
+          const callerEmail = (user.email ?? "").toLowerCase();
+          const allAllowed = requestedRecipients.every((addr) => {
+            if (typeof addr !== "string") return false;
+            const lower = addr.toLowerCase();
+            return (
+              (!!callerEmail && lower === callerEmail) ||
+              lower.endsWith(`@${allowlistDomain}`)
+            );
+          });
+          if (!allAllowed) {
+            console.error("❌ Non-admin attempted to email a disallowed recipient:", {
+              caller: user.id,
+              requested: requestedRecipients,
+            });
+            return new Response(
+              JSON.stringify({
+                error: "You may only send email to your own address",
+              }),
+              {
+                status: 403,
+                headers: { ...corsHeaders, "Content-Type": "application/json" },
+              },
+            );
+          }
+        }
       } catch (error) {
         console.error("❌ Error verifying auth:", error);
         return new Response(
