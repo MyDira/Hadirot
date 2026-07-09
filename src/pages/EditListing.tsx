@@ -204,6 +204,16 @@ export function EditListing() {
     }
   }, [id]);
 
+  // The classic edit form is an ADMIN tool, same as PostListing.tsx's
+  // /post-old. Regular users (even the listing's own owner) must go
+  // through the wizard at /edit/:id. This closes the /edit-old/:id gap
+  // where a non-admin owner could bypass the wizard entirely.
+  useEffect(() => {
+    if (profile && profile.is_admin !== true && id) {
+      navigate(`/edit/${id}`, { replace: true });
+    }
+  }, [profile, id, navigate]);
+
   // Ownership check - allow admins to bypass
   useEffect(() => {
     if (!authLoading && !loading && user && listing && profile) {
