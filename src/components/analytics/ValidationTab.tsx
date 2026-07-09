@@ -48,13 +48,18 @@ function formatMetricName(name: string): string {
     .join(' ');
 }
 
+// "Today" in America/New_York (YYYY-MM-DD). Using UTC (toISOString) rolls over
+// to tomorrow after ~7-8pm ET, so the picker would default to / allow a NY
+// "future" date that misaligns with the NY-bucketed analytics being validated.
+function todayInNewYork(): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York' }).format(new Date());
+}
+
 export function ValidationTab({ loading: parentLoading }: ValidationTabProps) {
   const [results, setResults] = useState<ValidationResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [selectedDate, setSelectedDate] = useState<string>(
-    new Date().toISOString().split('T')[0]
-  );
+  const [selectedDate, setSelectedDate] = useState<string>(todayInNewYork());
   const [lastRun, setLastRun] = useState<Date | null>(null);
 
   const runValidation = async () => {
@@ -121,7 +126,7 @@ export function ValidationTab({ loading: parentLoading }: ValidationTabProps) {
                 type="date"
                 value={selectedDate}
                 onChange={(e) => setSelectedDate(e.target.value)}
-                max={new Date().toISOString().split('T')[0]}
+                max={todayInNewYork()}
                 className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
