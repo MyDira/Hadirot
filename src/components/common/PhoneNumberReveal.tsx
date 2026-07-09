@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Eye, EyeOff } from 'lucide-react';
-import { formatPhoneNumber } from '@/utils/formatters';
+import { formatPhoneForDisplay } from '@/utils/phone';
 import { trackPhoneDial } from '@/lib/analytics';
 
 interface PhoneNumberRevealProps {
@@ -68,7 +68,7 @@ export function PhoneNumberReveal({
     }
   };
 
-  const formattedPhone = formatPhoneNumber(phoneNumber);
+  const formattedPhone = formatPhoneForDisplay(phoneNumber);
   const maskedPhone = maskPhoneNumber(phoneNumber);
 
   return (
