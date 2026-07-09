@@ -2,6 +2,65 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders } from "../_shared/cors.ts";
 import { renderBrandEmail, sendViaZepto } from "../_shared/zepto.ts";
 
+// Sliding-window rate limiting (mirrors send-contact-message). Unthrottled,
+// this endpoint is an email-bomb + account-enumeration vector.
+const rateLimitMap = new Map<string, { count: number; windowStart: number }>();
+
+function checkRateLimit(
+  key: string,
+  windowMs: number,
+  max: number,
+): boolean {
+  const now = Date.now();
+  const entry = rateLimitMap.get(key);
+  if (!entry || now - entry.windowStart >= windowMs) {
+    rateLimitMap.set(key, { count: 1, windowStart: now });
+    if (rateLimitMap.size > 10_000) {
+      for (const [k, v] of rateLimitMap) {
+        if (now - v.windowStart >= windowMs) rateLimitMap.delete(k);
+      }
+    }
+    return true;
+  }
+  if (entry.count + 1 > max) return false;
+  entry.count += 1;
+  return true;
+}
+
+function getClientIp(req: Request): string | null {
+  const headers = ["x-forwarded-for", "x-real-ip", "cf-connecting-ip"];
+  for (const header of headers) {
+    const value = req.headers.get(header);
+    if (value) {
+      const ip = value.split(",")[0]?.trim();
+      if (ip) return ip;
+    }
+  }
+  return null;
+}
+
+async function sha256Hex(value: string): Promise<string> {
+  const data = new TextEncoder().encode(value);
+  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+  return Array.from(new Uint8Array(hashBuffer))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+const RATE_WINDOW_MS = 60 * 60 * 1000; // 1 hour
+
+// Identical generic response, whether or not the account exists — prevents
+// account enumeration.
+function genericSuccess(): Response {
+  return new Response(
+    JSON.stringify({
+      success: true,
+      message: "If an account exists for that email, a reset link has been sent.",
+    }),
+    { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+  );
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -45,6 +104,20 @@ Deno.serve(async (req) => {
 
     const to = candidate;
 
+    // Rate limit by IP and by target email (both fail into a generic success
+    // so an attacker can't distinguish throttling from a non-existent account).
+    const clientIp = getClientIp(req);
+    if (clientIp) {
+      const ipHash = await sha256Hex(clientIp);
+      if (!checkRateLimit(`pwreset-ip:${ipHash}`, RATE_WINDOW_MS, 5)) {
+        return genericSuccess();
+      }
+    }
+    const emailHash = await sha256Hex(to.toLowerCase());
+    if (!checkRateLimit(`pwreset-email:${emailHash}`, RATE_WINDOW_MS, 3)) {
+      return genericSuccess();
+    }
+
     const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
     const zeptoToken = Deno.env.get("ZEPTO_TOKEN");
@@ -84,16 +157,10 @@ Deno.serve(async (req) => {
     const actionLink = data?.properties?.action_link || data?.action_link;
 
     if (linkError || !actionLink) {
-      return new Response(
-        JSON.stringify({
-          error: linkError?.message || "Failed to generate reset link",
-          details: linkError,
-        }),
-        {
-          status: 500,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        },
-      );
+      // Do NOT echo the error: a non-existent account and a real failure must
+      // look identical to the caller. Log server-side only.
+      console.error("generateLink failed for password reset:", linkError?.message);
+      return genericSuccess();
     }
 
     const html = renderBrandEmail({
@@ -116,22 +183,13 @@ Deno.serve(async (req) => {
       to,
     });
 
-    return new Response(
-      JSON.stringify({
-        success: true,
-        id: zeptoData?.data?.message_id,
-        provider: "zeptomail",
-      }),
-      {
-        status: 200,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      },
-    );
+    return genericSuccess();
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
+    console.error("Password reset internal error:", message);
 
     return new Response(
-      JSON.stringify({ error: "Internal server error", details: message }),
+      JSON.stringify({ error: "Internal server error" }),
       {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
