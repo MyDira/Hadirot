@@ -93,6 +93,38 @@ Deno.serve(async (req) => {
       // Don't fail the redirect if analytics fails
     }
 
+    // Validate the destination against a host allowlist before redirecting.
+    // The redirector uses the service role and today only stores internal
+    // hadirot.com links, but without this check it becomes an open redirect the
+    // moment any client-reachable path can insert an arbitrary destination.
+    const allowedHosts = new Set(
+      (Deno.env.get("ALLOWED_REDIRECT_HOSTS") || "hadirot.com,www.hadirot.com")
+        .split(",")
+        .map((h) => h.trim().toLowerCase())
+        .filter(Boolean),
+    );
+
+    let destinationHost: string;
+    try {
+      const dest = new URL(shortUrl.original_url);
+      if (dest.protocol !== "https:" && dest.protocol !== "http:") {
+        throw new Error("Non-http(s) destination");
+      }
+      destinationHost = dest.hostname.toLowerCase();
+    } catch {
+      console.error("Invalid destination URL for short code:", shortCode);
+      return new Response("Invalid destination", { status: 400, headers: corsHeaders });
+    }
+
+    const hostAllowed =
+      allowedHosts.has(destinationHost) ||
+      [...allowedHosts].some((h) => destinationHost.endsWith(`.${h}`));
+
+    if (!hostAllowed) {
+      console.error("Blocked redirect to non-allowlisted host:", destinationHost);
+      return new Response("Destination not allowed", { status: 400, headers: corsHeaders });
+    }
+
     // Redirect to the original URL
     return new Response(null, {
       status: 302,
