@@ -1,5 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders } from "../_shared/cors.ts";
+import { requireCronSecret } from "../_shared/requireCronSecret.ts";
 
 interface ContactMetrics {
   contact_phone: string;
@@ -67,6 +68,9 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
+
+  const denied = requireCronSecret(req);
+  if (denied) return denied;
 
   try {
     console.log("Starting send-weekly-performance-reports job...");

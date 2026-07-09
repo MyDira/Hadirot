@@ -1,6 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders } from "../_shared/cors.ts";
 import { sendViaZepto } from "../_shared/zepto.ts";
+import { requireCronSecret } from "../_shared/requireCronSecret.ts";
 
 // A failed conversation insert means a later YES/NO reply has nothing to
 // match — alert the SMS admin instead of failing silently (this is how the
@@ -113,6 +114,9 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
+
+  const denied = requireCronSecret(req);
+  if (denied) return denied;
 
   try {
     console.log("Starting send-renewal-reminders job...");

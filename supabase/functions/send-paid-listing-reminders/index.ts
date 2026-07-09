@@ -17,6 +17,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders } from "../_shared/cors.ts";
 import { signListingPayToken } from "../_shared/sms-link-token.ts";
+import { requireCronSecret } from "../_shared/requireCronSecret.ts";
 
 const SOURCE_KEY = "paid_listing_reminder";
 
@@ -101,6 +102,9 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
+
+  const denied = requireCronSecret(req);
+  if (denied) return denied;
 
   try {
     const twilioAccountSid = Deno.env.get("TWILIO_ACCOUNT_SID");
