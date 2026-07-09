@@ -523,13 +523,27 @@ ${category.label.toUpperCase()} (${category.listings.length})
 
 `;
 
-  for (const listing of category.listings) {
-    const listingUrl = await createShortUrl(
-      listing.id,
-      `${siteUrl}/listing/${listing.id}`
+  // Build the short URLs in parallel batches instead of one sequential RPC
+  // round-trip per listing (was N+1). Chunked so a large category doesn't fire
+  // hundreds of concurrent requests at once. Mirrors the BATCH_SIZE pattern in
+  // send-weekly-performance-reports.
+  const BATCH_SIZE = 20;
+  const listingUrls: string[] = new Array(category.listings.length);
+  for (let i = 0; i < category.listings.length; i += BATCH_SIZE) {
+    const chunk = category.listings.slice(i, i + BATCH_SIZE);
+    const chunkUrls = await Promise.all(
+      chunk.map((listing) =>
+        createShortUrl(listing.id, `${siteUrl}/listing/${listing.id}`)
+      )
     );
-    section += renderListingCard(listing, listingUrl) + "\n";
+    for (let j = 0; j < chunk.length; j++) {
+      listingUrls[i + j] = chunkUrls[j];
+    }
   }
+
+  category.listings.forEach((listing, idx) => {
+    section += renderListingCard(listing, listingUrls[idx]) + "\n";
+  });
 
   return section;
 }

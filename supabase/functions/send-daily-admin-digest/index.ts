@@ -392,26 +392,43 @@ Deno.serve(async (req) => {
 
     let listingsTextContent = "";
 
-    for (const listing of newListings) {
-      let listingUrl = `${siteUrl}/listing/${listing.id}`;
-
-      try {
-        const { data: shortCode } = await supabaseAdmin.rpc(
-          "create_short_url",
-          {
-            p_listing_id: listing.id,
-            p_original_url: listingUrl,
-            p_source: "digest_email",
-            p_expires_days: 90
-          }
+    // Pre-build all short URLs in parallel batches (was one sequential RPC
+    // round-trip per listing — an N+1 that scaled linearly with inventory).
+    const SHORT_URL_BATCH = 20;
+    const buildShortUrls = async (
+      items: any[],
+      pathPrefix: string,
+    ): Promise<Map<string, string>> => {
+      const map = new Map<string, string>();
+      for (let i = 0; i < items.length; i += SHORT_URL_BATCH) {
+        const chunk = items.slice(i, i + SHORT_URL_BATCH);
+        const results = await Promise.all(
+          chunk.map(async (listing) => {
+            const original = `${siteUrl}${pathPrefix}/${listing.id}`;
+            try {
+              const { data: shortCode } = await supabaseAdmin.rpc("create_short_url", {
+                p_listing_id: listing.id,
+                p_original_url: original,
+                p_source: "digest_email",
+                p_expires_days: 90,
+              });
+              return { id: listing.id, url: shortCode ? `${siteUrl}/l/${shortCode}` : original };
+            } catch (shortUrlError) {
+              console.error("Error creating short URL:", shortUrlError);
+              return { id: listing.id, url: original };
+            }
+          })
         );
-
-        if (shortCode) {
-          listingUrl = `${siteUrl}/l/${shortCode}`;
-        }
-      } catch (shortUrlError) {
-        console.error("Error creating short URL:", shortUrlError);
+        for (const r of results) map.set(r.id, r.url);
       }
+      return map;
+    };
+
+    const residentialShortUrls = await buildShortUrls(newListings as any[], "/listing");
+
+    for (const listing of newListings) {
+      const listingUrl = residentialShortUrls.get(listing.id) ?? `${siteUrl}/listing/${listing.id}`;
+
       const ownerDisplay = listing.owner?.role === "agent" && listing.owner?.agency
         ? listing.owner.agency
         : "Owner";
@@ -455,19 +472,10 @@ Deno.serve(async (req) => {
 
       listingsTextContent += `--- COMMERCIAL ---\n\n`;
 
+      const commercialShortUrls = await buildShortUrls(newCommercial as any[], "/commercial-listing");
+
       for (const listing of newCommercial as any[]) {
-        let listingUrl = `${siteUrl}/commercial-listing/${listing.id}`;
-        try {
-          const { data: shortCode } = await supabaseAdmin.rpc("create_short_url", {
-            p_listing_id: listing.id,
-            p_original_url: listingUrl,
-            p_source: "digest_email",
-            p_expires_days: 90,
-          });
-          if (shortCode) listingUrl = `${siteUrl}/l/${shortCode}`;
-        } catch (shortUrlError) {
-          console.error("Error creating commercial short URL:", shortUrlError);
-        }
+        const listingUrl = commercialShortUrls.get(listing.id) ?? `${siteUrl}/commercial-listing/${listing.id}`;
 
         const isSale = listing.listing_type === "sale";
         const priceValue = isSale ? listing.asking_price : listing.price;
