@@ -1053,6 +1053,164 @@ async function handleChargeRefunded(charge: Stripe.Charge) {
   console.log(`Logged refund for payment ${payment.id}: ${charge.amount_refunded} cents (no auto day-reversal)`);
 }
 
+// ============================================================
+// Chargeback / dispute (charge.dispute.created) — REVOKE entitlement
+// ============================================================
+// A card dispute claws the money back, so unlike a refund (logged only) we
+// actively revoke whatever the charge paid for and alert admins. The lookup
+// spans all three money paths: individual paid days, featured placement, and
+// subscription coverage.
+async function handleChargeDispute(dispute: Stripe.Dispute) {
+  const supabaseAdmin = getSupabaseAdmin();
+  const now = new Date();
+  const nowIso = now.toISOString();
+
+  // Resolve the payment_intent and customer behind the disputed charge.
+  let paymentIntentId = (dispute.payment_intent as string) || null;
+  let customerId: string | null = null;
+  const chargeId = (dispute.charge as string) || null;
+  if (chargeId) {
+    try {
+      const charge = await stripe.charges.retrieve(chargeId);
+      paymentIntentId = paymentIntentId || (charge.payment_intent as string) || null;
+      customerId = (charge.customer as string) || null;
+    } catch (err) {
+      console.error('Failed to retrieve disputed charge:', err);
+    }
+  }
+
+  const revoked: string[] = [];
+
+  // (1) Individual-listing paid days.
+  if (paymentIntentId) {
+    const { data: payment } = await supabaseAdmin
+      .from('paid_listing_payments')
+      .select('id, listing_id, user_id')
+      .eq('stripe_payment_intent_id', paymentIntentId)
+      .maybeSingle();
+    if (payment) {
+      // Cap the paid balance to now and deactivate so the cron/enforcement
+      // treats it as expired immediately.
+      const { error: listErr } = await supabaseAdmin
+        .from('listings')
+        .update({
+          paid_until: nowIso,
+          expires_at: nowIso,
+          is_active: false,
+          updated_at: nowIso,
+        })
+        .eq('id', payment.listing_id);
+      if (listErr) {
+        throw new Error(`Dispute revoke (paid listing ${payment.listing_id}) failed: ${listErr.message}`);
+      }
+      // Record it in the refunds ledger too (money left the account).
+      await supabaseAdmin.from('paid_listing_refunds').insert({
+        payment_id: payment.id,
+        listing_id: payment.listing_id,
+        user_id: payment.user_id,
+        amount_cents: dispute.amount ?? 0,
+        stripe_charge_id: chargeId,
+        stripe_refund_id: null,
+        reason: `chargeback:${dispute.reason ?? 'unknown'}`,
+      });
+      revoked.push(`individual paid days on listing ${payment.listing_id}`);
+    }
+  }
+
+  // (2) Featured placement.
+  if (paymentIntentId) {
+    const { data: featured } = await supabaseAdmin
+      .from('featured_purchases')
+      .select('id, listing_id, is_commercial')
+      .eq('stripe_payment_intent_id', paymentIntentId)
+      .maybeSingle();
+    if (featured) {
+      const listingTable = featured.is_commercial ? 'commercial_listings' : 'listings';
+      const { error: fpErr } = await supabaseAdmin
+        .from('featured_purchases')
+        .update({ status: 'cancelled', featured_end: nowIso, updated_at: nowIso })
+        .eq('id', featured.id);
+      if (fpErr) {
+        throw new Error(`Dispute revoke (featured purchase ${featured.id}) failed: ${fpErr.message}`);
+      }
+      const { error: listErr } = await supabaseAdmin
+        .from(listingTable)
+        .update({
+          is_featured: false,
+          featured_expires_at: nowIso,
+          updated_at: nowIso,
+        })
+        .eq('id', featured.listing_id);
+      if (listErr) {
+        throw new Error(`Dispute revoke (featured ${listingTable} ${featured.listing_id}) failed: ${listErr.message}`);
+      }
+      revoked.push(`featured placement on ${listingTable} ${featured.listing_id}`);
+    }
+  }
+
+  // (3) Subscription coverage. A subscription invoice charge has no direct
+  // paid_listing/featured row; match by customer and expire the covering
+  // subscription, then cascade-deactivate the user's listings.
+  if (customerId && revoked.length === 0) {
+    const { data: subs } = await supabaseAdmin
+      .from('listing_subscriptions')
+      .select('id, user_id, status')
+      .eq('stripe_customer_id', customerId)
+      .in('status', ['active', 'admin_active', 'trial', 'past_due']);
+    for (const sub of (subs || []) as Array<{ id: string; user_id: string; status: string }>) {
+      const { error: subErr } = await supabaseAdmin
+        .from('listing_subscriptions')
+        .update({ status: 'expired', cancelled_at: nowIso, updated_at: nowIso })
+        .eq('id', sub.id);
+      if (subErr) {
+        throw new Error(`Dispute revoke (subscription ${sub.id}) failed: ${subErr.message}`);
+      }
+      try {
+        await fetch(
+          `${Deno.env.get('SUPABASE_URL')!}/functions/v1/cascade-deactivate-subscription`,
+          {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ user_id: sub.user_id, listing_subscription_id: sub.id }),
+          },
+        );
+      } catch (err) {
+        console.error('Dispute cascade-deactivate call failed (cron will catch up):', err);
+      }
+      revoked.push(`subscription ${sub.id}`);
+    }
+  }
+
+  // Always alert admins — even if nothing matched (manual reconciliation).
+  const adminEmails = await getAdminEmails(supabaseAdmin);
+  if (adminEmails.length > 0) {
+    const amountStr = ((dispute.amount ?? 0) / 100).toLocaleString('en-US', {
+      style: 'currency',
+      currency: (dispute.currency || 'usd').toUpperCase(),
+    });
+    const revokedHtml = revoked.length > 0
+      ? `<ul>${revoked.map((r) => `<li>${escapeHtml(r)}</li>`).join('')}</ul>`
+      : `<p><strong>No matching entitlement was found</strong> — please reconcile manually in Stripe.</p>`;
+    await sendEmail(
+      adminEmails,
+      `Chargeback opened — ${amountStr}`,
+      brandWrap(
+        'Chargeback / dispute opened',
+        `<p>A card dispute was opened for <strong>${amountStr}</strong> (reason: ${escapeHtml(dispute.reason ?? 'unknown')}).</p>
+         <p><strong>Dispute:</strong> ${escapeHtml(dispute.id)}<br/>
+            <strong>Charge:</strong> ${escapeHtml(chargeId ?? 'n/a')}</p>
+         <p>Revoked entitlements:</p>
+         ${revokedHtml}`,
+      ),
+    );
+  }
+
+  console.log(`Dispute ${dispute.id} processed; revoked: ${revoked.join('; ') || 'none'}`);
+}
+
 Deno.serve(async (req) => {
   try {
     const signature = req.headers.get('Stripe-Signature');
@@ -1129,6 +1287,11 @@ Deno.serve(async (req) => {
       if (event.type === 'charge.refunded') {
         const charge = event.data.object as Stripe.Charge;
         await handleChargeRefunded(charge);
+      }
+
+      if (event.type === 'charge.dispute.created') {
+        const dispute = event.data.object as Stripe.Dispute;
+        await handleChargeDispute(dispute);
       }
     } catch (handlerError) {
       // Record the failure for admin visibility and re-throw so the outer catch
