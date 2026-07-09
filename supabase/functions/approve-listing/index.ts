@@ -1,6 +1,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { corsHeaders } from '../_shared/cors.ts';
 import { sendViaZepto, renderBrandEmail } from '../_shared/zepto.ts';
+import { reportError } from '../_shared/reportError.ts';
 
 // Escape user-controlled strings (e.g. listing title) before interpolating into
 // email HTML. Prevents broken markup / link injection in notification emails.
@@ -336,6 +337,7 @@ Deno.serve(async (req) => {
     );
   } catch (error) {
     console.error('Unexpected error in approve-listing function:', error);
+    await reportError(error, { functionName: "approve-listing" });
     return new Response(
       JSON.stringify({ error: 'Internal server error' }),
       {

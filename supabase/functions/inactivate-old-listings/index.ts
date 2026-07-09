@@ -1,6 +1,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { corsHeaders } from "../_shared/cors.ts";
 import { requireCronSecret } from "../_shared/requireCronSecret.ts";
+import { reportError } from "../_shared/reportError.ts";
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -57,6 +58,7 @@ Deno.serve(async (req) => {
     );
   } catch (error) {
     console.error('Unexpected error in inactivate-old-listings function:', error);
+    await reportError(error, { functionName: "inactivate-old-listings" });
     return new Response(
       JSON.stringify({ error: 'Internal server error' }),
       {

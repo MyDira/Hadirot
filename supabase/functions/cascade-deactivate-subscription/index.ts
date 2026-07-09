@@ -19,6 +19,7 @@
 
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders } from "../_shared/cors.ts";
+import { reportError } from "../_shared/reportError.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -161,6 +162,7 @@ Deno.serve(async (req) => {
     });
   } catch (error) {
     console.error("cascade-deactivate-subscription error:", error);
+    await reportError(error, { functionName: "cascade-deactivate-subscription" });
     return new Response(JSON.stringify({ error: (error as Error).message }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },

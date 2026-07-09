@@ -2,6 +2,7 @@ import { corsHeaders } from "../_shared/cors.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { renderBrandEmail } from "../_shared/zepto.ts";
 import { requireCronSecret } from "../_shared/requireCronSecret.ts";
+import { reportError } from "../_shared/reportError.ts";
 
 interface DeactivatedListing {
   id: string;
@@ -249,6 +250,7 @@ Deno.serve(async (req) => {
 
   } catch (error) {
     console.error("Unexpected error in send-deactivation-emails function:", error);
+    await reportError(error, { functionName: "send-deactivation-emails" });
     return new Response(
       JSON.stringify({ error: "Internal server error", details: error.message }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },

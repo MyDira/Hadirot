@@ -2,6 +2,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import Stripe from "https://esm.sh/stripe@14?target=denonext";
 import { corsHeaders } from "../_shared/cors.ts";
 import { renderBrandEmail, sendViaZepto } from "../_shared/zepto.ts";
+import { reportError } from "../_shared/reportError.ts";
 
 const stripe = new Stripe(Deno.env.get("STRIPE_API_KEY") ?? "", {
   apiVersion: "2023-10-16",
@@ -346,6 +347,7 @@ Deno.serve(async (req) => {
     );
   } catch (error) {
     console.error("Unexpected error in delete-user function:", error);
+    await reportError(error, { functionName: "delete-user" });
 
     return new Response(JSON.stringify({ error: "Internal server error" }), {
       status: 500,

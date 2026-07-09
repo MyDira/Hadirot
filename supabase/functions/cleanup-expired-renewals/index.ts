@@ -1,6 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders } from "../_shared/cors.ts";
 import { requireCronSecret } from "../_shared/requireCronSecret.ts";
+import { reportError } from "../_shared/reportError.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -152,6 +153,7 @@ Deno.serve(async (req) => {
 
   } catch (error) {
     console.error("Unexpected error in cleanup-expired-renewals:", error);
+    await reportError(error, { functionName: "cleanup-expired-renewals" });
     return new Response(
       JSON.stringify({ error: "Internal server error", details: error.message }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
