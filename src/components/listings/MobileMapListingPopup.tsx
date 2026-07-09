@@ -7,7 +7,7 @@ import { listingsService } from "../../services/listings";
 import { useAuth } from "@/hooks/useAuth";
 import { computePrimaryListingImage, buildListingAlt } from "../../utils/stockImage";
 import { LISTING_IMAGE_FALLBACK_SRC } from "../../utils/listingImageFallback";
-import { capitalizeName } from "../../utils/formatters";
+import { capitalizeName, formatPrice } from "../../utils/formatters";
 import { gaEvent, gaListing } from "@/lib/ga";
 
 interface MobileMapListingPopupProps {
@@ -189,15 +189,6 @@ export function MobileMapListingPopup({
 
   const isSaleListing = listing.listing_type === "sale";
   const price = isSaleListing ? listing.asking_price : listing.price;
-
-  const formatPrice = (p: number) => {
-    return new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: "USD",
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(p);
-  };
 
   const priceDisplay = listing.call_for_price
     ? "Call for Price"

@@ -12,7 +12,7 @@ import {
 } from "../../config/supabase";
 import { commercialListingsService } from "../../services/commercialListings";
 import { useAuth } from "@/hooks/useAuth";
-import { capitalizeName } from "../../utils/formatters";
+import { capitalizeName, formatPrice } from "../../utils/formatters";
 import { gaListing } from "@/lib/ga";
 import NumericText from "@/components/common/NumericText";
 import { computePrimaryListingImage, buildListingAlt } from "../../utils/stockImage";
@@ -339,14 +339,6 @@ export function CommercialListingCard({
     }
     return "Owner";
   };
-
-  const formatPrice = (price: number) =>
-    new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: "USD",
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(price);
 
   const getPriceText = () => {
     if (listing.call_for_price) return "Contact for Price";

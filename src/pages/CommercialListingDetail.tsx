@@ -38,6 +38,7 @@ import {
   type LoginGateAction,
 } from '../lib/analytics';
 import { commercialLabels, triStateLabel } from '../utils/commercialLabels';
+import { formatPrice } from '../utils/formatters';
 import { SaleStatusBadge } from '../components/listings/SaleStatusBadge';
 import { CommercialReportRentedButton } from '../components/listing/CommercialReportRentedButton';
 import { CommercialSimilarListings } from '../components/listings/CommercialSimilarListings';
@@ -126,15 +127,6 @@ function getImageBadge(spaceType: CommercialSpaceType, subtype: CommercialSubtyp
     'industrial:freestanding': 'Freestanding',
   };
   return map[key] ?? null;
-}
-
-function formatPrice(amount: number): string {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(amount);
 }
 
 function formatPostedDate(value?: string | null): string | null {

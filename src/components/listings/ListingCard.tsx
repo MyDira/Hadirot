@@ -5,7 +5,7 @@ import * as Sentry from "@sentry/react";
 import { Listing } from "../../config/supabase";
 import { listingsService } from "../../services/listings";
 import { useAuth } from "@/hooks/useAuth";
-import { capitalizeName } from "../../utils/formatters";
+import { capitalizeName, formatPrice } from "../../utils/formatters";
 import { gaEvent, gaListing } from "@/lib/ga";
 void gaEvent;
 import NumericText from "@/components/common/NumericText";
@@ -105,15 +105,6 @@ export function ListingCard({
       return capitalizeName(listing.owner?.agency || "");
     }
     return "Owner";
-  };
-
-  const formatPrice = (price: number) => {
-    return new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: "USD",
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(price);
   };
 
   const hasParking =

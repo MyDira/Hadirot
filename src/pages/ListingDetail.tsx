@@ -48,7 +48,7 @@ import { ReportRentedButton } from "../components/listing/ReportRentedButton";
 import { ImageZoomModal } from "../components/listing/ImageZoomModal";
 import { ListingContactForm, type ListingContactFormData } from "../components/listing/ListingContactForm";
 import { AdminListingBanner } from "../components/listing/AdminListingBanner";
-import { formatLeaseLength } from "../utils/formatters";
+import { formatLeaseLength, formatPrice } from "../utils/formatters";
 import { ListingLocationMap } from "../components/listing/ListingLocationMapLazy";
 import { SaleStatusBadge } from "../components/listings/SaleStatusBadge";
 import { ContactProfileBubble } from "../components/common/ContactProfileBubble";
@@ -496,15 +496,6 @@ export function ListingDetail() {
       </div>
     );
   }
-
-  const formatPrice = (price: number) => {
-    return new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: "USD",
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(price);
-  };
 
   const getRoleLabel = () => {
     if (listing.owner?.role === "agent") {
