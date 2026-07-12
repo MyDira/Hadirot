@@ -143,3 +143,23 @@ Dashboard.tsx are wrong.
 
 No frontend changes are required to stop the bleeding — the wizard already does
 the right thing; the DB undoes it.
+
+---
+
+## Addendum — fixes built July 10 2026
+
+- **Migration written:** [20260711000000_agent_free_posting_guard_fix.sql](supabase/migrations/20260711000000_agent_free_posting_guard_fix.sql)
+  — `is_free_posting_agent()` helper, guard rewrite (server-derived
+  `legacy_free` for qualifying posters AND for admin inserts by assigned
+  owner), repair backfill + reactivation of the nightly-cron victims (the one
+  reported-rented timeout deactivation is correctly excluded).
+- **Frontend fixed:** B3 (agent-check failures now reported to Sentry),
+  B4 (exact 10-day lock math), B5 (comment accuracy). Build + lint green.
+- **Overnight update:** the July 11 midnight run killed the June 26 wave —
+  the deactivated count grew from 10 to **44** before the fix; the backfill
+  criteria capture them all dynamically.
+- **Prod apply status:** pending owner approval (direct prod write was gated).
+  Backup of all 162 affected rows saved before any write. Post-apply
+  verification script ready (mis-tag count, guard source, simulated
+  agent/landlord inserts in rolled-back transactions).
+- Full behavior reference: [MONETIZATION_SYSTEM_READOUT.md](MONETIZATION_SYSTEM_READOUT.md).
