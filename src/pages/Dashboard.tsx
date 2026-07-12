@@ -1091,8 +1091,8 @@ export default function Dashboard() {
                 // coverage (unexpired trial, banked paid days, subscription,
                 // admin grant, legacy). An exhausted trial/balance or an
                 // unpaid must-pay listing routes to payment instead — the
-                // cron would deactivate a free republish within the hour
-                // anyway, so don't offer a button that silently un-does itself.
+                // nightly deactivation job would kill a free republish at the
+                // next run anyway, so don't offer a button that un-does itself.
                 const lr = listing as Listing & {
                   trial_started_at?: string | null;
                   paused_paid_days?: number | null;
