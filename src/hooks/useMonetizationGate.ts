@@ -10,6 +10,7 @@
 // until a valid phone is entered.
 
 import { useEffect, useState } from 'react';
+import * as Sentry from '@sentry/react';
 import { supabase } from '../config/supabase';
 import { subscriptionsService } from '../services/subscriptions';
 import { paymentsService } from '../services/payments';
@@ -123,7 +124,11 @@ export function useMonetizationGate(opts: {
       } catch (err) {
         // If the agent-free check can't run (e.g. columns/RPC missing because
         // this migration hasn't been applied), fall through to the existing
-        // paywall rather than blocking the wizard.
+        // paywall rather than blocking the wizard — but report it, because a
+        // silent failure here mis-routes free agents into the paywall.
+        Sentry.captureException(err, {
+          tags: { area: 'monetization-gate', check: 'agent-free-eligibility' },
+        });
         console.warn('Agent-free eligibility check failed; using paywall:', err);
         if (cancelled) return;
       }
