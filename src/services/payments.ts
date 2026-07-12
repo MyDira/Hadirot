@@ -217,11 +217,14 @@ export const paymentsService = {
   ): ListingPaymentState {
     const now = new Date();
     const paymentKind = listing.payment_kind;
+    // Locked exactly 10 full days after creation — same boundary as the DB's
+    // is_listing_locked() and the edit wizard (a ceil() here used to flag the
+    // lock a day early).
     const isLocked =
       !opts.isAdmin &&
       listing.listing_type === 'rental' &&
       listing.created_at !== null &&
-      daysBetween(now, new Date(listing.created_at)) >= 10;
+      now.getTime() >= new Date(listing.created_at).getTime() + 10 * 86400000;
 
     // Default to "unknown" until we narrow.
     let label: PaymentStateLabel = 'unknown';
