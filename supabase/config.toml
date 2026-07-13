@@ -32,3 +32,9 @@ verify_jwt = true
 
 [functions.parse-bulk-listings]
 verify_jwt = true
+
+[functions.parse-pamphlet]
+verify_jwt = true
+
+[functions.scrape-luach-com]
+verify_jwt = true
