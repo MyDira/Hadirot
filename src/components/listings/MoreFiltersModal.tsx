@@ -158,7 +158,6 @@ export function MoreFiltersModal({
     listingType === "sale" ? SALE_PROPERTY_TYPES : RENTAL_PROPERTY_TYPES;
 
   const isCommercial = listingTypeFilter === "commercial";
-  const isAll = listingTypeFilter === "all";
   const showResidential = !isCommercial;
 
   return (
@@ -264,7 +263,7 @@ export function MoreFiltersModal({
               </>
             )}
 
-            {showResidential && !isAll && (
+            {showResidential && (
               <>
                 <div>
                   <IconSelectGrid
@@ -425,7 +424,7 @@ export function MoreFiltersModal({
               </div>
             )}
 
-            {showResidential && !isAll && listingType === "rental" && availableLeaseTerms.length > 0 && (
+            {showResidential && listingType === "rental" && availableLeaseTerms.length > 0 && (
               <div>
                 <h3 className="text-base font-semibold text-gray-900 mb-2">
                   Lease Length
@@ -469,7 +468,7 @@ export function MoreFiltersModal({
               </div>
             )}
 
-            {showResidential && !isAll && (
+            {showResidential && (
               <div>
                 <h3 className="text-base font-semibold text-gray-900 mb-4">
                   More Options
