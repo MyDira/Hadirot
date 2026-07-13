@@ -485,6 +485,7 @@ export interface ScrapedListing {
   floor: number | null;
   square_footage: number | null;
   source: string | null;
+  source_url: string | null;
   pdf_date: string | null;
   dedup_key: string | null;
   call_status: CallStatus;
@@ -502,7 +503,37 @@ export interface ScrapedListing {
   admin_listing_type_display: 'agent' | 'owner' | null;
   image_paths: IntakeImage[];
   intake_extra: IntakeExtra;
+  // Intake hub: cross-source dedup / new-vs-old tracking
+  source_history: SourceSighting[];
+  admin_reviewed_at: string | null;
 }
+
+/** One sighting of a real-world listing in any feed (append-only trail). */
+export interface SourceSighting {
+  source: string;
+  date: string | null;
+  run_id: string | null;
+  price: number | null;
+  seen_at: string;
+}
+
+/** Intake feed sources. Pamphlet uploads + website scrape + pasted text. */
+export type IntakeSource =
+  | 'luach_hatsibbur'
+  | 'kol_berama'
+  | 'heimish_agent'
+  | 'other_pamphlet'
+  | 'luach_com'
+  | 'admin_intake';
+
+export const INTAKE_SOURCE_LABELS: Record<string, string> = {
+  luach_hatsibbur: 'Luach HaTsibbur',
+  kol_berama: 'Kol Berama',
+  heimish_agent: 'Heimish Agent',
+  other_pamphlet: 'Other Pamphlet',
+  luach_com: 'luach.com',
+  admin_intake: 'Pasted Text',
+};
 
 export interface IntakeImage {
   filePath: string;

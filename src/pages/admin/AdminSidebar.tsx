@@ -7,7 +7,6 @@ import {
   DollarSign,
   Eye,
   FileText,
-  GitBranch,
   Home,
   Mail,
   Menu,
@@ -41,8 +40,7 @@ const NAV_GROUPS: NavGroup[] = [
       { to: '/admin/users', label: 'Users', icon: Users },
       { to: '/admin/listings', label: 'Listings', icon: Home },
       { to: '/admin/pending', label: 'Pending', icon: Eye },
-      { to: '/admin/pipeline', label: 'Pipeline', icon: GitBranch },
-      { to: '/admin/ai-intake', label: 'AI Intake', icon: Sparkles },
+      { to: '/admin/intake', label: 'Listing Intake', icon: Sparkles },
     ],
   },
   {

@@ -13,6 +13,66 @@ import { paymentsService } from './payments';
 
 export type IntakeReviewStatus = 'pending' | 'published' | 'discarded' | 'all';
 
+// ---------------------------------------------------------------------------
+// Unified review filters + call workflow (all intake sources)
+// ---------------------------------------------------------------------------
+export interface ReviewFilters {
+  source: string; // 'all' | one of the IntakeSource values
+  kind: 'all' | 'rental' | 'sale';
+  callStatus: 'active' | 'all' | CallStatus; // 'active' = everything not published/discarded
+  neighborhood: string; // 'all' or a neighborhood name
+  newOnly: boolean; // admin_reviewed_at IS NULL
+}
+
+/** Optimized call workflow — labels + allowed transitions for each status. */
+export const CALL_STATUS_LABELS: Record<CallStatus, string> = {
+  pending_call: 'New — to call',
+  called_no_answer: 'No answer',
+  called_declined: 'Declined',
+  approved: 'Permission — ready',
+  published: 'Published',
+  suppressed: 'Discarded',
+};
+
+const CALL_TRANSITIONS: Record<CallStatus, CallStatus[]> = {
+  pending_call: ['called_no_answer', 'called_declined', 'approved', 'suppressed'],
+  called_no_answer: ['called_declined', 'approved', 'suppressed'],
+  called_declined: ['pending_call', 'suppressed'],
+  approved: ['published', 'suppressed', 'pending_call'],
+  published: [],
+  suppressed: ['pending_call'],
+};
+
+export function getCallTransitions(current: CallStatus): CallStatus[] {
+  return CALL_TRANSITIONS[current] ?? [];
+}
+
+export interface PamphletFileRef {
+  path: string;
+  mime: string;
+  name: string;
+}
+
+export interface PamphletParseResult {
+  run_id: string;
+  source: string;
+  parsed: number;
+  inserted: number;
+  updated: number;
+  geocoded: number;
+  errors: Array<{ unit: number; error: string }>;
+}
+
+export interface ScrapeResult {
+  run_id: string;
+  pages_fetched: number;
+  parsed: number;
+  inserted: number;
+  updated: number;
+  geocoded: number;
+  errors: Array<{ slug: string; error: string }>;
+}
+
 export interface IntakeBlockInput {
   text: string;
   type_hint: 'auto' | 'rental' | 'sale';
@@ -26,6 +86,7 @@ export interface ParseBlocksResult {
   run_id: string;
   parsed: number;
   inserted: number;
+  updated?: number;
   geocoded: number;
   errors: Array<{ block: number; error: string }>;
 }
@@ -80,6 +141,141 @@ export const aiIntakeService = {
     if (error) throw new Error(error.message || 'Failed to parse listings');
     if (data?.error) throw new Error(data.error);
     return data as ParseBlocksResult;
+  },
+
+  // -------------------------------------------------------------------------
+  // Pamphlet upload → parse (Luach HaTsibbur / Kol Berama / Heimish booklet)
+  // -------------------------------------------------------------------------
+
+  /** Upload a source PDF/photo to storage; returns a ref the edge fn reads. */
+  async uploadPamphletFile(file: File, adminId: string): Promise<PamphletFileRef> {
+    const isImage = file.type.startsWith('image/');
+    // Images: shrink for OCR-friendly size. PDFs: upload as-is.
+    const toUpload = isImage ? await resizeImageForUpload(file) : file;
+    const ext = (toUpload.name.split('.').pop() || (isImage ? 'jpg' : 'pdf')).toLowerCase();
+    const path = `user_${adminId}/intake-sources/${Date.now()}_${Math.random()
+      .toString(36)
+      .slice(2, 8)}.${ext}`;
+
+    const { error } = await supabase.storage
+      .from('listing-images')
+      .upload(path, toUpload, { contentType: file.type || undefined });
+    if (error) throw error;
+
+    return { path, mime: file.type || (isImage ? 'image/jpeg' : 'application/pdf'), name: file.name };
+  },
+
+  async parsePamphlet(args: {
+    source: string;
+    type_hint: 'auto' | 'rental' | 'sale';
+    files: PamphletFileRef[];
+  }): Promise<PamphletParseResult> {
+    const { data, error } = await supabase.functions.invoke('parse-pamphlet', { body: args });
+    if (error) throw new Error(error.message || 'Failed to parse pamphlet');
+    if (data?.error) throw new Error(data.error);
+    return data as PamphletParseResult;
+  },
+
+  // -------------------------------------------------------------------------
+  // Website scrape (luach.com)
+  // -------------------------------------------------------------------------
+
+  async scrapeLuachCom(args: { pages: number; limit: number }): Promise<ScrapeResult> {
+    const { data, error } = await supabase.functions.invoke('scrape-luach-com', { body: args });
+    if (error) throw new Error(error.message || 'Failed to scrape luach.com');
+    if (data?.error) throw new Error(data.error);
+    return data as ScrapeResult;
+  },
+
+  // -------------------------------------------------------------------------
+  // Unified review (all sources) — filterable table + call workflow
+  // -------------------------------------------------------------------------
+
+  async getRuns(limit = 40): Promise<ScrapeRun[]> {
+    const { data, error } = await supabase
+      .from('scrape_runs')
+      .select('*')
+      .order('started_at', { ascending: false })
+      .limit(limit);
+    if (error) throw error;
+    return data ?? [];
+  },
+
+  async getReviewListings(filters: ReviewFilters): Promise<ScrapedListing[]> {
+    let query = supabase.from('scraped_listings').select('*');
+
+    if (filters.source !== 'all') query = query.eq('source', filters.source);
+    if (filters.kind !== 'all') query = query.eq('listing_kind', filters.kind);
+    if (filters.neighborhood !== 'all') query = query.eq('neighborhood', filters.neighborhood);
+    if (filters.newOnly) query = query.is('admin_reviewed_at', null);
+
+    if (filters.callStatus === 'active') {
+      query = query.not('call_status', 'in', '(published,suppressed)');
+    } else if (filters.callStatus !== 'all') {
+      query = query.eq('call_status', filters.callStatus);
+    }
+
+    // New leads first, then most-recently-seen.
+    const { data, error } = await query
+      .order('admin_reviewed_at', { ascending: true, nullsFirst: true })
+      .order('date_last_seen', { ascending: false })
+      .limit(500);
+    if (error) throw error;
+    return data ?? [];
+  },
+
+  /** Distinct neighborhoods present in the pipeline, for the filter dropdown. */
+  async getNeighborhoods(): Promise<string[]> {
+    const { data, error } = await supabase
+      .from('scraped_listings')
+      .select('neighborhood')
+      .not('neighborhood', 'is', null)
+      .limit(2000);
+    if (error) throw error;
+    const set = new Set<string>();
+    for (const r of data ?? []) if (r.neighborhood) set.add(r.neighborhood);
+    return [...set].sort();
+  },
+
+  /** Move a lead through the call workflow; acknowledging clears the New flag. */
+  async setCallStatus(id: string, status: CallStatus, notes?: string): Promise<void> {
+    const patch: Record<string, unknown> = {
+      call_status: status,
+      admin_reviewed_at: new Date().toISOString(),
+    };
+    if (notes !== undefined) patch.call_notes = notes;
+    const { error } = await supabase.from('scraped_listings').update(patch).eq('id', id);
+    if (error) throw error;
+  },
+
+  async setCallStatusBulk(ids: string[], status: CallStatus): Promise<void> {
+    if (ids.length === 0) return;
+    const { error } = await supabase
+      .from('scraped_listings')
+      .update({ call_status: status, admin_reviewed_at: new Date().toISOString() })
+      .in('id', ids);
+    if (error) throw error;
+  },
+
+  /** Acknowledge rows as seen (drops them from "New only") without changing status. */
+  async markReviewed(ids: string[]): Promise<void> {
+    if (ids.length === 0) return;
+    const { error } = await supabase
+      .from('scraped_listings')
+      .update({ admin_reviewed_at: new Date().toISOString() })
+      .in('id', ids)
+      .is('admin_reviewed_at', null);
+    if (error) throw error;
+  },
+
+  async countNew(): Promise<number> {
+    const { count, error } = await supabase
+      .from('scraped_listings')
+      .select('id', { count: 'exact', head: true })
+      .is('admin_reviewed_at', null)
+      .not('call_status', 'in', '(published,suppressed)');
+    if (error) throw error;
+    return count ?? 0;
   },
 
   // -------------------------------------------------------------------------
