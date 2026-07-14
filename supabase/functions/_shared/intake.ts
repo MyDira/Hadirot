@@ -146,16 +146,34 @@ export async function parseContent(
           ...(content as Anthropic.ContentBlockParam[]),
         ];
 
-  const response = await anthropic.messages.parse({
+  // Streaming is mandatory here: above ~16k max_tokens the SDK rejects
+  // non-streaming requests (10-minute rule), and a full booklet genuinely
+  // takes minutes. 64k output gives adaptive thinking + ~100 listings of JSON
+  // headroom (a 32k cap truncated a real Heimish booklet mid-array). The API
+  // still enforces the JSON schema (output_config); we accumulate the stream
+  // and zod-validate the final text.
+  const stream = anthropic.messages.stream({
     model,
-    max_tokens: 32000,
+    max_tokens: 64000,
     thinking: { type: 'adaptive' },
     system: SYSTEM_PROMPT,
     messages: [{ role: 'user', content: userContent }],
     output_config: { format: zodOutputFormat(ParseResultSchema) },
   });
+  const message = await stream.finalMessage();
 
-  return response.parsed_output?.listings ?? [];
+  if (message.stop_reason === 'max_tokens') {
+    throw new Error(
+      'Output hit the token limit before finishing — split the upload into smaller files (fewer pages per file) and retry.',
+    );
+  }
+
+  const text = message.content
+    .filter((b): b is Anthropic.TextBlock => b.type === 'text')
+    .map((b) => b.text)
+    .join('');
+  const parsed = ParseResultSchema.parse(JSON.parse(text));
+  return parsed.listings;
 }
 
 // ---------------------------------------------------------------------------
@@ -283,6 +301,11 @@ export async function upsertScrapedListing(
 
   if (existing) {
     const history = Array.isArray(existing.source_history) ? existing.source_history : [];
+    // Same listing seen twice within one run (page-chunk overlap, or repeated
+    // in the same booklet): not a new sighting — don't inflate times_seen.
+    if (ctx.runId && history.some((h: { run_id?: string | null }) => h.run_id === ctx.runId)) {
+      return 'updated';
+    }
     const patch: Record<string, unknown> = {
       date_last_seen: ctx.pdfDate,
       times_seen: (existing.times_seen ?? 1) + 1,

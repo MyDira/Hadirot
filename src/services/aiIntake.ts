@@ -165,15 +165,83 @@ export const aiIntakeService = {
     return { path, mime: file.type || (isImage ? 'image/jpeg' : 'application/pdf'), name: file.name };
   },
 
-  async parsePamphlet(args: {
-    source: string;
-    type_hint: 'auto' | 'rental' | 'sale';
-    files: PamphletFileRef[];
-  }): Promise<PamphletParseResult> {
-    const { data, error } = await supabase.functions.invoke('parse-pamphlet', { body: args });
-    if (error) throw new Error(error.message || 'Failed to parse pamphlet');
-    if (data?.error) throw new Error(data.error);
-    return data as PamphletParseResult;
+  /**
+   * Full pamphlet parse, client-driven: the edge function plans page chunks
+   * (booklets run 50+ pages — one Claude call per ~5 pages), the client fires
+   * the chunk calls with bounded concurrency and reports progress, then
+   * finalizes the run. Individual chunk failures don't sink the run.
+   */
+  async parsePamphlet(
+    args: {
+      source: string;
+      type_hint: 'auto' | 'rental' | 'sale';
+      files: PamphletFileRef[];
+    },
+    onProgress?: (done: number, total: number) => void,
+  ): Promise<PamphletParseResult> {
+    const invoke = async <T>(body: Record<string, unknown>): Promise<T> => {
+      const { data, error } = await supabase.functions.invoke('parse-pamphlet', { body });
+      if (error) throw new Error(error.message || 'Pamphlet parsing failed');
+      if (data?.error) throw new Error(data.error);
+      return data as T;
+    };
+
+    // 1. Plan chunks + create the run.
+    const start = await invoke<{ run_id: string; chunks: unknown[]; total_pages: number }>({
+      action: 'start',
+      source: args.source,
+      files: args.files,
+    });
+    const chunks = start.chunks;
+    onProgress?.(0, chunks.length);
+
+    // 2. Parse chunks with bounded concurrency (Claude calls are slow + heavy).
+    const totals = { parsed: 0, inserted: 0, updated: 0, geocoded: 0 };
+    const errors: Array<{ unit: number; error: string }> = [];
+    let done = 0;
+    let cursor = 0;
+    const CONCURRENCY = 2;
+
+    const worker = async () => {
+      while (cursor < chunks.length) {
+        const index = cursor++;
+        try {
+          const res = await invoke<{
+            parsed: number;
+            inserted: number;
+            updated: number;
+            geocoded: number;
+            errors: Array<{ error: string }>;
+          }>({
+            action: 'chunk',
+            source: args.source,
+            type_hint: args.type_hint,
+            run_id: start.run_id,
+            chunk: chunks[index],
+          });
+          totals.parsed += res.parsed;
+          totals.inserted += res.inserted;
+          totals.updated += res.updated;
+          totals.geocoded += res.geocoded;
+          for (const e of res.errors ?? []) errors.push({ unit: index, error: e.error });
+        } catch (err) {
+          errors.push({
+            unit: index,
+            error: err instanceof Error ? err.message : 'Chunk failed',
+          });
+        }
+        done++;
+        onProgress?.(done, chunks.length);
+      }
+    };
+    await Promise.all(
+      Array.from({ length: Math.min(CONCURRENCY, chunks.length) }, () => worker()),
+    );
+
+    // 3. Stamp the run.
+    await invoke({ action: 'finalize', run_id: start.run_id, totals, errors });
+
+    return { run_id: start.run_id, source: args.source, ...totals, errors };
   },
 
   // -------------------------------------------------------------------------

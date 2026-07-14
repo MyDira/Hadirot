@@ -49,8 +49,14 @@ export function IntakeUploadView({ onParsed }: IntakeUploadViewProps) {
         setStage(`Uploading file ${i + 1} of ${files.length}…`);
         refs.push(await aiIntakeService.uploadPamphletFile(files[i], user.id));
       }
-      setStage('Reading listings with AI — this can take a minute for a full booklet…');
-      const result = await aiIntakeService.parsePamphlet({ source, type_hint: typeHint, files: refs });
+      setStage('Planning the read — splitting pages into batches…');
+      const result = await aiIntakeService.parsePamphlet(
+        { source, type_hint: typeHint, files: refs },
+        (done, total) =>
+          setStage(
+            `Reading listings with AI — batch ${Math.min(done + 1, total)} of ${total} (each takes ~2-3 min; keep this tab open)…`,
+          ),
+      );
       setFiles([]);
       onParsed(result);
     } catch (err) {
