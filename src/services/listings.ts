@@ -126,6 +126,20 @@ interface AgencyListingsQueryOptions {
   listingType?: 'rental' | 'sale';
 }
 
+/**
+ * Extracts unique, sorted, non-empty agency names from a set of listing rows
+ * joined against `public_profiles` (aliased as `owner`). Centralizes the
+ * map/filter/dedup/sort logic that was previously duplicated across several
+ * `listingsService` methods.
+ */
+function extractAgencyNames(rows: { owner?: { agency?: string | null } | null }[]): string[] {
+  const names = (rows ?? [])
+    .map((r) => r?.owner?.agency)
+    .filter((x): x is string => typeof x === 'string' && x.trim().length > 0);
+
+  return Array.from(new Set(names)).sort((a, b) => a.localeCompare(b));
+}
+
 export const listingsService = {
   async getActiveAgencies(): Promise<string[]> {
     const { data, error } = await supabase
@@ -140,11 +154,7 @@ export const listingsService = {
       return [];
     }
 
-    const names = (data ?? [])
-      .map((r: any) => r?.owner?.agency)
-      .filter((x: any) => typeof x === 'string' && x.trim().length > 0);
-
-    return Array.from(new Set(names)).sort((a, b) => a.localeCompare(b));
+    return extractAgencyNames(data ?? []);
   },
 
   async getListings(
@@ -1484,11 +1494,7 @@ async getActiveSalesAgencies(): Promise<string[]> {
     return [];
   }
 
-  const names = (data ?? [])
-    .map((r: any) => r?.owner?.agency)
-    .filter((x: any) => typeof x === 'string' && x.trim().length > 0);
-
-  return Array.from(new Set(names)).sort((a, b) => a.localeCompare(b));
+  return extractAgencyNames(data ?? []);
 },
 
 async getActiveRentalNeighborhoods(): Promise<string[]> {
@@ -1533,11 +1539,7 @@ async getActiveRentalAgencies(): Promise<string[]> {
     return [];
   }
 
-  const names = (data ?? [])
-    .map((r: any) => r?.owner?.agency)
-    .filter((x: any) => typeof x === 'string' && x.trim().length > 0);
-
-  return Array.from(new Set(names)).sort((a, b) => a.localeCompare(b));
+  return extractAgencyNames(data ?? []);
 },
 
 async getInquiryCountsForUser(): Promise<Record<string, number>> {
