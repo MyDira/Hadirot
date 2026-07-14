@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useState } from "react";
 import { User } from "@supabase/supabase-js";
 import { supabase, Profile } from "../config/supabase";
 import { emailService } from "../services/email";
+import { profilesService } from "../services/profiles";
 import { queryClient, queryKeys, shareProfileAcrossCaches } from "@/services/queryClient";
 
 export const AUTH_CONTEXT_ID = "auth/v1";
@@ -231,13 +232,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (error) throw error;
 
     if (data.user) {
-      const { error: profileError } = await supabase.from("profiles").insert({
-        id: data.user.id,
+      await profilesService.createProfile(data.user.id, {
         email: email,
         ...profileData,
       });
-
-      if (profileError) throw profileError;
 
       applyProfileUpdate({
         id: data.user.id,

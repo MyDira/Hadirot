@@ -33,6 +33,27 @@ function mapProfileUniqueViolationError(error: PostgrestError): Error {
 }
 
 export const profilesService = {
+  async createProfile(
+    userId: string,
+    fields: {
+      email: string;
+      full_name: string;
+      role: string;
+      phone?: string;
+      agency?: string;
+    },
+  ): Promise<void> {
+    const { error } = await supabase.from('profiles').insert({
+      id: userId,
+      ...fields,
+    });
+
+    if (error) {
+      console.error('Error creating profile:', error);
+      throw error;
+    }
+  },
+
   async getProfile(userId: string): Promise<Profile | null> {
     const { data, error } = await supabase
       .from('profiles')
