@@ -19,7 +19,7 @@ export function Modal({ isOpen, onClose, children, title, size = 'lg' }: ModalPr
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black bg-opacity-50 p-4">
       <div className={`relative bg-white rounded-lg shadow-xl ${SIZE_CLASSES[size]} w-full mx-auto my-8 overflow-hidden`}>
         <div className="flex items-center justify-between p-4 border-b border-gray-200">
           <h3 className="text-lg font-semibold text-[#273140]">{title}</h3>
