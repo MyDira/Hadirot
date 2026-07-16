@@ -158,17 +158,16 @@ export function MoreFiltersModal({
     listingType === "sale" ? SALE_PROPERTY_TYPES : RENTAL_PROPERTY_TYPES;
 
   const isCommercial = listingTypeFilter === "commercial";
-  const isAll = listingTypeFilter === "all";
   const showResidential = !isCommercial;
 
   return (
     <>
       <div
-        className="fixed inset-0 bg-black/50 z-40"
+        className="fixed inset-0 bg-black/50 z-[100]"
         onClick={onClose}
       />
 
-      <div className="fixed inset-x-4 top-1/2 -translate-y-1/2 md:inset-x-auto md:left-1/2 md:-translate-x-1/2 md:w-full md:max-w-2xl max-h-[85vh] bg-white rounded-2xl shadow-2xl z-50 overflow-hidden flex flex-col">
+      <div className="fixed inset-x-4 top-1/2 -translate-y-1/2 md:inset-x-auto md:left-1/2 md:-translate-x-1/2 md:w-full md:max-w-2xl max-h-[85vh] bg-white rounded-2xl shadow-2xl z-[100] overflow-hidden flex flex-col">
         <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100">
           <h2 className="text-xl font-bold text-gray-900">All Filters</h2>
           <button
@@ -264,7 +263,7 @@ export function MoreFiltersModal({
               </>
             )}
 
-            {showResidential && !isAll && (
+            {showResidential && (
               <>
                 <div>
                   <IconSelectGrid
@@ -425,7 +424,7 @@ export function MoreFiltersModal({
               </div>
             )}
 
-            {showResidential && !isAll && listingType === "rental" && availableLeaseTerms.length > 0 && (
+            {showResidential && listingType === "rental" && availableLeaseTerms.length > 0 && (
               <div>
                 <h3 className="text-base font-semibold text-gray-900 mb-2">
                   Lease Length
@@ -469,7 +468,7 @@ export function MoreFiltersModal({
               </div>
             )}
 
-            {showResidential && !isAll && (
+            {showResidential && (
               <div>
                 <h3 className="text-base font-semibold text-gray-900 mb-4">
                   More Options

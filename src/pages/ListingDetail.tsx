@@ -699,6 +699,7 @@ export function ListingDetail() {
           isAdmin={profile?.is_admin}
           onUnpublish={handleUnpublish}
           onApprove={handleApprove}
+          onRefresh={loadListing}
         />
       )}
 

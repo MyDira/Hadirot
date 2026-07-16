@@ -879,10 +879,10 @@ export function AgencyPage() {
       {showFiltersMobile && (
         <>
           <div
-            className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden"
+            className="fixed inset-0 bg-black bg-opacity-50 z-[100] lg:hidden"
             onClick={() => setShowFiltersMobile(false)}
           />
-          <div className="fixed top-0 left-0 right-0 bottom-0 bg-white z-50 lg:hidden overflow-y-auto">
+          <div className="fixed top-0 left-0 right-0 bottom-0 bg-white z-[100] lg:hidden overflow-y-auto">
             <div className="flex items-center justify-between p-4 border-b border-gray-200 bg-white sticky top-0">
               <h2 className="text-lg font-semibold text-[#273140]">
                 Filter Listings
