@@ -26,6 +26,7 @@ export function useAdminUsers() {
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
   const [updatingAgencyAccessId, setUpdatingAgencyAccessId] = useState<string | null>(null);
   const [updatingSalesAccessId, setUpdatingSalesAccessId] = useState<string | null>(null);
+  const [updatingFreeAgentId, setUpdatingFreeAgentId] = useState<string | null>(null);
   const fetchSeq = useRef(0);
 
   useEffect(() => {
@@ -164,6 +165,37 @@ export function useAdminUsers() {
     [toast, updatingSalesAccessId],
   );
 
+  const toggleFreeAgent = useCallback(
+    async (targetUser: Profile) => {
+      if (updatingFreeAgentId === targetUser.id) return;
+      const previousValue = Boolean(targetUser.free_posting_agent);
+      const nextValue = !previousValue;
+
+      setUpdatingFreeAgentId(targetUser.id);
+      setRows((prev) =>
+        prev.map((u) => (u.id === targetUser.id ? { ...u, free_posting_agent: nextValue } : u)),
+      );
+
+      try {
+        const { error } = await supabase
+          .from('profiles')
+          .update({ free_posting_agent: nextValue })
+          .eq('id', targetUser.id);
+        if (error) throw error;
+        toast('Free posting (agent) updated');
+      } catch (error) {
+        console.error('Error updating free posting agent:', error);
+        setRows((prev) =>
+          prev.map((u) => (u.id === targetUser.id ? { ...u, free_posting_agent: previousValue } : u)),
+        );
+        toast("Couldn't update Free posting. Try again.", 'error');
+      } finally {
+        setUpdatingFreeAgentId(null);
+      }
+    },
+    [toast, updatingFreeAgentId],
+  );
+
   const removeUser = useCallback(
     async (userId: string) => {
       setActionLoadingId(userId);
@@ -204,9 +236,11 @@ export function useAdminUsers() {
     actionLoadingId,
     updatingAgencyAccessId,
     updatingSalesAccessId,
+    updatingFreeAgentId,
     updateRole,
     toggleAgencyAccess,
     toggleSalesAccess,
+    toggleFreeAgent,
     removeUser,
   };
 }

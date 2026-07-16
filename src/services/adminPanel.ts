@@ -8,6 +8,9 @@ import { supabase, Listing, Profile } from '../config/supabase';
 
 export interface AdminListingRow extends Listing {
   thumbnail_url?: string | null;
+  // Commercial listings are unioned into the same table and tagged so row
+  // actions route to commercial_listings and the correct detail/edit routes.
+  __commercial?: boolean;
 }
 
 export interface AdminListingsQuery {
@@ -48,7 +51,7 @@ export interface LifecycleSettings {
 }
 
 const USER_COLUMNS =
-  'id, full_name, email, role, phone, agency, is_admin, is_banned, created_at, can_manage_agency, can_post_sales';
+  'id, full_name, email, role, phone, agency, is_admin, is_banned, created_at, can_manage_agency, can_post_sales, free_posting_agent';
 
 // PostgREST .or() treats commas/parens as syntax — strip them from user input.
 const sanitizeOrTerm = (term: string) => term.replace(/[,()]/g, ' ').trim();
@@ -62,20 +65,38 @@ const isMissingFunctionError = (error: { code?: string; message?: string } | nul
 export const adminPanelService = {
   async getStats(): Promise<AdminStats> {
     const nowIso = new Date().toISOString();
-    const [usersRes, listingsRes, featuredRes] = await Promise.all([
-      supabase.from('profiles').select('id', { count: 'exact', head: true }),
-      supabase.from('listings').select('id', { count: 'exact', head: true }),
-      supabase
-        .from('listings')
-        .select('id', { count: 'exact', head: true })
-        .eq('is_featured', true)
-        .gt('featured_expires_at', nowIso),
-    ]);
+    // "Active Listings" must mean active — count is_active rows across both
+    // residential and commercial. "Featured" counts non-expired featured rows
+    // across both types.
+    const [usersRes, activeRes, commercialActiveRes, featuredRes, commercialFeaturedRes] =
+      await Promise.all([
+        supabase.from('profiles').select('id', { count: 'exact', head: true }),
+        supabase
+          .from('listings')
+          .select('id', { count: 'exact', head: true })
+          .eq('is_active', true),
+        supabase
+          .from('commercial_listings')
+          .select('id', { count: 'exact', head: true })
+          .eq('is_active', true),
+        supabase
+          .from('listings')
+          .select('id', { count: 'exact', head: true })
+          .eq('is_active', true)
+          .eq('is_featured', true)
+          .gt('featured_expires_at', nowIso),
+        supabase
+          .from('commercial_listings')
+          .select('id', { count: 'exact', head: true })
+          .eq('is_active', true)
+          .eq('is_featured', true)
+          .gt('featured_expires_at', nowIso),
+      ]);
 
     return {
       totalUsers: usersRes.count || 0,
-      totalListings: listingsRes.count || 0,
-      featuredListings: featuredRes.count || 0,
+      totalListings: (activeRes.count || 0) + (commercialActiveRes.count || 0),
+      featuredListings: (featuredRes.count || 0) + (commercialFeaturedRes.count || 0),
       // Parity with the old panel: "active users" is intentionally simplified.
       activeUsers: usersRes.count || 0,
     };
@@ -190,15 +211,26 @@ export const adminPanelService = {
     return (residential.count || 0) + (commercial.count || 0);
   },
 
+  // Bulk ops run against both tables by id. Ids are UUIDs unique to one table,
+  // so the non-matching table simply updates/deletes 0 rows — this lets a mixed
+  // residential + commercial selection be actioned in one shot.
   async bulkSetListingsActive(ids: string[], active: boolean): Promise<void> {
     if (ids.length === 0) return;
-    const { error } = await supabase.from('listings').update({ is_active: active }).in('id', ids);
-    if (error) throw error;
+    const [res, comm] = await Promise.all([
+      supabase.from('listings').update({ is_active: active }).in('id', ids),
+      supabase.from('commercial_listings').update({ is_active: active }).in('id', ids),
+    ]);
+    if (res.error) throw res.error;
+    if (comm.error) throw comm.error;
   },
 
   async bulkDeleteListings(ids: string[]): Promise<void> {
     if (ids.length === 0) return;
-    const { error } = await supabase.from('listings').delete().in('id', ids);
-    if (error) throw error;
+    const [res, comm] = await Promise.all([
+      supabase.from('listings').delete().in('id', ids),
+      supabase.from('commercial_listings').delete().in('id', ids),
+    ]);
+    if (res.error) throw res.error;
+    if (comm.error) throw comm.error;
   },
 };

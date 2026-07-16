@@ -132,10 +132,10 @@ export function useAdminListings() {
 
   // --- row + bulk actions ---
   const toggleActive = useCallback(
-    async (id: string, isActive: boolean) => {
+    async (id: string, isActive: boolean, isCommercial = false) => {
       try {
         const { error } = await supabase
-          .from('listings')
+          .from(isCommercial ? 'commercial_listings' : 'listings')
           .update({ is_active: !isActive })
           .eq('id', id);
         if (error) throw error;
@@ -150,9 +150,12 @@ export function useAdminListings() {
   );
 
   const remove = useCallback(
-    async (id: string) => {
+    async (id: string, isCommercial = false) => {
       try {
-        const { error } = await supabase.from('listings').delete().eq('id', id);
+        const { error } = await supabase
+          .from(isCommercial ? 'commercial_listings' : 'listings')
+          .delete()
+          .eq('id', id);
         if (error) throw error;
         toast('Listing deleted');
         await refresh();

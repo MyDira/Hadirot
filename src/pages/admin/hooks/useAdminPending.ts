@@ -56,10 +56,20 @@ export function useAdminPending() {
         listing: l,
       }));
 
+      // Sort the merged residential + commercial list by the chosen field.
+      // (Server-side ordering only covers residential and is clobbered once the
+      // two sources are concatenated, so the combined sort has to be honest.)
+      const dir = sort.direction === 'asc' ? 1 : -1;
       const combined = [...residentialItems, ...commercialItems].sort((a, b) => {
+        if (sort.field === 'title') {
+          return dir * (a.listing.title || '').localeCompare(b.listing.title || '');
+        }
+        if (sort.field === 'owner') {
+          return dir * (a.listing.owner?.full_name || '').localeCompare(b.listing.owner?.full_name || '');
+        }
         const aDate = new Date(a.listing.created_at).getTime();
         const bDate = new Date(b.listing.created_at).getTime();
-        return sort.direction === 'asc' ? aDate - bDate : bDate - aDate;
+        return dir * (aDate - bDate);
       });
 
       setItems(combined);

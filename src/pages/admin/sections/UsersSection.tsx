@@ -62,9 +62,11 @@ export function UsersSection() {
     actionLoadingId,
     updatingAgencyAccessId,
     updatingSalesAccessId,
+    updatingFreeAgentId,
     updateRole,
     toggleAgencyAccess,
     toggleSalesAccess,
+    toggleFreeAgent,
     removeUser,
   } = useAdminUsers();
 
@@ -187,6 +189,12 @@ export function UsersSection() {
                   >
                     Sales Access
                   </th>
+                  <th
+                    className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider"
+                    title="Marks the user as a free-posting agent (overrides the paywall while 'Charge agents' is off)."
+                  >
+                    Free Posting
+                  </th>
                   <SortableHeader label="Status" field="status" sort={query.sort} dir={query.dir} onSort={setSort} className="hidden lg:table-cell" />
                   <SortableHeader label="Joined" field="created_at" sort={query.sort} dir={query.dir} onSort={setSort} className="hidden xl:table-cell" />
                   <SortableHeader label="Contact" field="phone" sort={query.sort} dir={query.dir} onSort={setSort} className="hidden xl:table-cell" />
@@ -243,6 +251,14 @@ export function UsersSection() {
                         busy={updatingSalesAccessId === user.id}
                         label="Toggle sales access"
                         onToggle={() => toggleSalesAccess(user)}
+                      />
+                    </td>
+                    <td className="px-4 py-3 align-top">
+                      <AccessToggle
+                        checked={Boolean(user.free_posting_agent)}
+                        busy={updatingFreeAgentId === user.id}
+                        label="Toggle free posting (agent)"
+                        onToggle={() => toggleFreeAgent(user)}
                       />
                     </td>
                     <td className="hidden lg:table-cell px-4 py-3 align-top">

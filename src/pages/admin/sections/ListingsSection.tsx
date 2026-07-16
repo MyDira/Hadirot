@@ -127,7 +127,7 @@ export function ListingsSection() {
           <div className="text-sm text-amber-800">
             <p className="font-semibold">Listing search isn't installed in the database yet.</p>
             <p>
-              Run the SQL in <code className="font-mono text-xs bg-amber-100 px-1 py-0.5 rounded">supabase/migrations/20260611000000_admin_panel_search.sql</code>{' '}
+              Run the SQL in <code className="font-mono text-xs bg-amber-100 px-1 py-0.5 rounded">supabase/migrations/20260716000000_admin_panel_search.sql</code>{' '}
               in the Supabase SQL editor, then refresh this page.
             </p>
           </div>
@@ -329,7 +329,9 @@ export function ListingsSection() {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {rows.map((listing) => (
+                {rows.map((listing) => {
+                  const isCommercial = listing.__commercial === true;
+                  return (
                   <tr
                     key={listing.id}
                     className={`transition-colors hover:bg-gray-50 ${
@@ -360,8 +362,15 @@ export function ListingsSection() {
                           </div>
                         )}
                         <div className="min-w-0">
-                          <div className="font-medium text-gray-900 truncate max-w-[260px]">
-                            {listing.title}
+                          <div className="flex items-center gap-2">
+                            <div className="font-medium text-gray-900 truncate max-w-[260px]">
+                              {listing.title}
+                            </div>
+                            {isCommercial && (
+                              <span className="shrink-0 inline-flex items-center bg-cyan-50 text-cyan-700 border border-cyan-200 text-xs px-1.5 py-0.5 rounded">
+                                Commercial
+                              </span>
+                            )}
                           </div>
                           <div className="text-sm text-gray-500 truncate max-w-[260px]">
                             {listing.location}
@@ -418,14 +427,14 @@ export function ListingsSection() {
                     <td className={`${cellPad} whitespace-nowrap text-sm font-medium`}>
                       <div className="flex items-center gap-1">
                         <Link
-                          to={`/listing/${listing.id}`}
+                          to={isCommercial ? `/commercial-listing/${listing.id}` : `/listing/${listing.id}`}
                           className="p-1.5 rounded-lg text-blue-600 hover:bg-blue-50 hover:text-blue-800 transition-colors"
                           title="View Listing"
                         >
                           <Eye style={{ width: 18, height: 18 }} />
                         </Link>
                         <Link
-                          to={`/edit/${listing.id}`}
+                          to={isCommercial ? `/commercial/edit/${listing.id}` : `/edit/${listing.id}`}
                           className="p-1.5 rounded-lg text-green-600 hover:bg-green-50 hover:text-green-800 transition-colors"
                           title="Edit Listing"
                         >
@@ -446,7 +455,7 @@ export function ListingsSection() {
                           />
                         </button>
                         <button
-                          onClick={() => toggleActive(listing.id, listing.is_active)}
+                          onClick={() => toggleActive(listing.id, listing.is_active, isCommercial)}
                           className={`p-1.5 rounded-lg transition-colors ${
                             listing.is_active
                               ? 'text-red-500 hover:bg-red-50 hover:text-red-600'
@@ -456,7 +465,7 @@ export function ListingsSection() {
                         >
                           <Power style={{ width: 18, height: 18 }} />
                         </button>
-                        {listing.listing_type === 'rental' && (
+                        {!isCommercial && listing.listing_type === 'rental' && (
                           <button
                             onClick={() =>
                               setGrantDaysListing({ id: listing.id, label: listingLabel(listing) })
@@ -467,7 +476,7 @@ export function ListingsSection() {
                             <Clock style={{ width: 18, height: 18 }} />
                           </button>
                         )}
-                        {listing.listing_type === 'rental' && (
+                        {!isCommercial && listing.listing_type === 'rental' && (
                           <button
                             onClick={() =>
                               setChargeListing({ id: listing.id, label: listingLabel(listing) })
@@ -488,7 +497,8 @@ export function ListingsSection() {
                       </div>
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -539,7 +549,7 @@ export function ListingsSection() {
         isOpen={!!deleteTarget}
         onClose={() => setDeleteTarget(null)}
         onConfirm={() => {
-          if (deleteTarget) remove(deleteTarget.id);
+          if (deleteTarget) remove(deleteTarget.id, deleteTarget.__commercial === true);
           setDeleteTarget(null);
         }}
         title="Delete listing permanently?"
