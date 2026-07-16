@@ -1,8 +1,28 @@
-import React, { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Edit, EyeOff, Trash2, Eye, BarChart3, CheckCircle, XCircle } from 'lucide-react';
-import { Listing } from '@/config/supabase';
-import { listingsService } from '@/services/listings';
+import {
+  Pencil,
+  Eye,
+  MousePointerClick,
+  MessageSquare,
+  EyeOff,
+  RefreshCw,
+  Trash2,
+  CheckCircle,
+  XCircle,
+  ShieldCheck,
+  CreditCard,
+  CalendarClock,
+  Loader2,
+} from 'lucide-react';
+import { Listing, supabase } from '@/config/supabase';
+import { listingsService, getDaysUntilExpiration } from '@/services/listings';
+import { paymentsService, type MonetizationListingFields } from '@/services/payments';
+import { monetizationStatusService } from '@/services/monetizationStatus';
+import { subscriptionsService } from '@/services/subscriptions';
+import { agentFreePostingService } from '@/services/agentFreePosting';
+import { getRentalStatusLine } from '@/utils/listingStatusLine';
+import type { ListingSubscription, PaymentKind } from '@/types/monetization';
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog';
 
 interface AdminListingBannerProps {
@@ -11,9 +31,43 @@ interface AdminListingBannerProps {
   isAdmin?: boolean;
   onUnpublish?: () => void;
   onApprove?: () => void;
+  onRefresh?: () => void;
 }
 
-export function AdminListingBanner({ listing, userId, isAdmin = false, onUnpublish, onApprove }: AdminListingBannerProps) {
+// Map a Listing row to the fields the payment-state deriver needs. New
+// monetization columns may be absent on some fetched shapes; default to null.
+function toMonetizationFields(l: Listing): MonetizationListingFields {
+  const row = l as Listing & {
+    payment_kind?: PaymentKind | null;
+    trial_started_at?: string | null;
+    paid_until?: string | null;
+    paused_paid_days?: number | null;
+    deactivated_at?: string | null;
+  };
+  return {
+    id: row.id,
+    user_id: row.user_id,
+    listing_type: row.listing_type ?? 'rental',
+    is_active: row.is_active ?? false,
+    approved: row.approved ?? null,
+    payment_kind: row.payment_kind ?? null,
+    trial_started_at: row.trial_started_at ?? null,
+    paid_until: row.paid_until ?? null,
+    paused_paid_days: row.paused_paid_days ?? 0,
+    expires_at: row.expires_at ?? null,
+    deactivated_at: row.deactivated_at ?? null,
+    created_at: row.created_at ?? null,
+  };
+}
+
+export function AdminListingBanner({
+  listing,
+  userId,
+  isAdmin = false,
+  onUnpublish,
+  onApprove,
+  onRefresh,
+}: AdminListingBannerProps) {
   const navigate = useNavigate();
   const [showUnpublishDialog, setShowUnpublishDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
@@ -21,15 +75,134 @@ export function AdminListingBanner({ listing, userId, isAdmin = false, onUnpubli
   const [error, setError] = useState<string | null>(null);
   const [approveLoading, setApproveLoading] = useState(false);
   const [rejectLoading, setRejectLoading] = useState(false);
+  const [republishLoading, setRepublishLoading] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
+  // Live stats + monetization context (fetched for owner/admin only).
+  const [metrics, setMetrics] = useState<{ impressions: number; directViews: number }>({
+    impressions: listing.impressions ?? 0,
+    directViews: listing.direct_views ?? 0,
+  });
+  const [inquiries, setInquiries] = useState<number>(0);
+  const [monetizationEnabled, setMonetizationEnabled] = useState<boolean>(false);
+  const [subscription, setSubscription] = useState<ListingSubscription | null>(null);
+  const [isFreeAgent, setIsFreeAgent] = useState<boolean>(false);
+
   const isOwner = listing.user_id === userId;
-  if (!isOwner && !isAdmin) {
+  const canManage = isOwner || isAdmin;
+
+  useEffect(() => {
+    if (!canManage) return;
+    let cancelled = false;
+
+    (async () => {
+      // Stats: impressions/direct_views live in listing_metrics_v1 (the detail
+      // fetch doesn't join it), inquiries via the owner-scoped RPC.
+      try {
+        const { data } = await supabase
+          .from('listing_metrics_v1')
+          .select('impressions, direct_views')
+          .eq('listing_id', listing.id)
+          .maybeSingle();
+        if (!cancelled && data) {
+          setMetrics({
+            impressions: Number((data as { impressions?: number }).impressions ?? 0) || 0,
+            directViews: Number((data as { direct_views?: number }).direct_views ?? 0) || 0,
+          });
+        }
+      } catch (err) {
+        console.warn('[AdminListingBanner] metrics fetch failed:', err);
+      }
+
+      try {
+        const { data } = await supabase.rpc('get_owner_listing_inquiry_counts');
+        if (!cancelled && Array.isArray(data)) {
+          const row = (data as Array<{ listing_id: string; inquiry_count: number }>).find(
+            (r) => r.listing_id === listing.id,
+          );
+          setInquiries(row?.inquiry_count ?? 0);
+        }
+      } catch (err) {
+        console.warn('[AdminListingBanner] inquiry count fetch failed:', err);
+      }
+
+      try {
+        const status = await monetizationStatusService.get();
+        if (!cancelled) setMonetizationEnabled(status.enabled);
+      } catch (err) {
+        console.warn('[AdminListingBanner] monetization status fetch failed:', err);
+      }
+
+      // Subscription + free-agent status only meaningful for the owner viewing
+      // their own listing (both are caller-scoped).
+      if (isOwner) {
+        try {
+          const sub = await subscriptionsService.getMyActiveSubscription();
+          if (!cancelled) setSubscription(sub);
+        } catch (err) {
+          console.warn('[AdminListingBanner] subscription fetch failed:', err);
+        }
+        try {
+          const fa = await agentFreePostingService.isUserFreeAgent(listing.user_id);
+          if (!cancelled) setIsFreeAgent(fa);
+        } catch (err) {
+          console.warn('[AdminListingBanner] free-agent check failed:', err);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [listing.id, listing.user_id, isOwner, canManage]);
+
+  if (!canManage) {
     return null;
   }
 
-  const handleEdit = () => {
-    navigate(`/edit/${listing.id}`);
+  const isRental = (listing.listing_type ?? 'rental') === 'rental';
+  const daysUntilExpiration = getDaysUntilExpiration(listing.expires_at);
+  const payState =
+    monetizationEnabled && isRental
+      ? paymentsService.derivePaymentState(toMonetizationFields(listing), {
+          hasActiveSubscription: subscription !== null,
+          isAdmin,
+        })
+      : null;
+  const status = getRentalStatusLine(listing, payState, daysUntilExpiration, isFreeAgent);
+  const showPayAction =
+    !isFreeAgent &&
+    !!payState?.nextActionUrl &&
+    payState.nextActionUrl.includes('action=pay');
+
+  const expiryText = listing.expires_at
+    ? new Date(listing.expires_at).toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+      })
+    : null;
+
+  const handleEdit = () => navigate(`/edit/${listing.id}`);
+
+  const handleRepublish = async () => {
+    setRepublishLoading(true);
+    setError(null);
+    setSuccessMessage(null);
+    try {
+      await listingsService.renewListing(
+        listing.id,
+        (listing.listing_type ?? 'rental') as 'rental' | 'sale',
+        listing.sale_status ?? null,
+      );
+      setSuccessMessage('Listing is live again.');
+      onRefresh?.();
+    } catch (err) {
+      console.error('Error republishing listing:', err);
+      setError('Failed to republish listing. Please try again.');
+    } finally {
+      setRepublishLoading(false);
+    }
   };
 
   const handleUnpublish = async () => {
@@ -38,9 +211,7 @@ export function AdminListingBanner({ listing, userId, isAdmin = false, onUnpubli
     try {
       await listingsService.updateListing(listing.id, { is_active: false });
       setShowUnpublishDialog(false);
-      if (onUnpublish) {
-        onUnpublish();
-      }
+      onUnpublish?.();
     } catch (err) {
       console.error('Error unpublishing listing:', err);
       setError('Failed to unpublish listing. Please try again.');
@@ -68,14 +239,9 @@ export function AdminListingBanner({ listing, userId, isAdmin = false, onUnpubli
     setError(null);
     setSuccessMessage(null);
     try {
-      await listingsService.updateListing(listing.id, {
-        approved: true,
-        is_active: true,
-      });
+      await listingsService.updateListing(listing.id, { approved: true, is_active: true });
       setSuccessMessage('Listing approved successfully!');
-      if (onApprove) {
-        onApprove();
-      }
+      onApprove?.();
     } catch (err) {
       console.error('Error approving listing:', err);
       setError('Failed to approve listing. Please try again.');
@@ -88,7 +254,6 @@ export function AdminListingBanner({ listing, userId, isAdmin = false, onUnpubli
     if (!confirm('Are you sure you want to reject this listing? This will permanently delete it.')) {
       return;
     }
-
     setRejectLoading(true);
     setError(null);
     setSuccessMessage(null);
@@ -102,129 +267,203 @@ export function AdminListingBanner({ listing, userId, isAdmin = false, onUnpubli
     }
   };
 
-  const formatNumber = (num: number | undefined | null): string => {
-    if (num === undefined || num === null) return '0';
-    return num.toLocaleString();
+  // Contextual primary action (mirrors the dashboard card priority).
+  type Primary = {
+    label: string;
+    onClick: () => void;
+    cls: string;
+    icon: 'pay' | 'refresh';
+    busy?: boolean;
+  } | null;
+  let primary: Primary = null;
+  const lr = listing as Listing & {
+    trial_started_at?: string | null;
+    paused_paid_days?: number | null;
   };
+  if (showPayAction && payState?.nextActionUrl) {
+    primary = {
+      label: payState.label === 'paid_expired' ? 'Relist — add days' : 'Keep it active',
+      onClick: () => navigate(payState.nextActionUrl!),
+      cls: 'bg-emerald-600 hover:bg-emerald-700 text-white',
+      icon: 'pay',
+    };
+  } else if (!listing.is_active && listing.approved) {
+    const trialExpired =
+      payState?.paymentKind === 'individual_trial' &&
+      !!lr.trial_started_at &&
+      Date.now() > new Date(lr.trial_started_at).getTime() + 14 * 86400000;
+    const paidExhausted =
+      payState?.paymentKind === 'individual_paid' && (lr.paused_paid_days ?? 0) <= 0;
+    const unpaid = payState?.paymentKind === 'pending_payment';
+    const needsPaymentToRepublish =
+      !isFreeAgent && monetizationEnabled && isRental && (trialExpired || paidExhausted || unpaid);
+    primary = needsPaymentToRepublish
+      ? {
+          label: 'Add days to relist',
+          onClick: () => navigate(`/dashboard?listing=${listing.id}&action=pay`),
+          cls: 'bg-emerald-600 hover:bg-emerald-700 text-white',
+          icon: 'pay',
+        }
+      : {
+          label: 'Republish',
+          onClick: handleRepublish,
+          cls: 'bg-brand-600 hover:bg-brand-700 text-white',
+          icon: 'refresh',
+          busy: republishLoading,
+        };
+  } else if (listing.is_active && daysUntilExpiration != null && daysUntilExpiration <= 7) {
+    primary = {
+      label: 'Extend',
+      onClick: handleRepublish,
+      cls: 'bg-brand-600 hover:bg-brand-700 text-white',
+      icon: 'refresh',
+      busy: republishLoading,
+    };
+  }
 
-  const impressions = listing.impressions ?? 0;
-  const directViews = listing.direct_views ?? 0;
+  const stats: Array<{ icon: typeof Eye; label: string; value: number }> = [
+    { icon: Eye, label: 'Impressions', value: metrics.impressions },
+    { icon: MousePointerClick, label: 'Direct views', value: metrics.directViews },
+    { icon: MessageSquare, label: 'Inquiries', value: inquiries },
+  ];
+
+  const secondaryBtn =
+    'inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium text-gray-700 bg-white border border-gray-200 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-gray-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed';
 
   return (
     <>
-      <div className="bg-gray-50 border-b border-gray-200 px-3 py-3 mb-6 -mx-4 sm:-mx-6 lg:-mx-8">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          {/* Pending Approval Banner */}
-          {!listing.approved && (
-            <div className="mb-4 bg-yellow-50 border-l-4 border-yellow-400 px-4 py-3 rounded">
-              <div className="flex items-center">
-                <svg className="h-5 w-5 text-yellow-400 mr-2" viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                </svg>
-                <span className="text-sm font-medium text-yellow-700">
-                  This listing is pending approval
-                </span>
-              </div>
-            </div>
-          )}
+      <div className="mb-6 rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+        {/* Pending-approval notice */}
+        {!listing.approved && (
+          <div className="flex items-center gap-2 bg-amber-50 border-b border-amber-200 px-4 sm:px-5 py-2.5">
+            <CalendarClock className="w-4 h-4 text-amber-500 flex-shrink-0" />
+            <span className="text-sm font-medium text-amber-800">
+              This listing is pending approval
+            </span>
+          </div>
+        )}
 
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-            <div className="flex items-center gap-6">
-              <div className="flex items-center gap-2">
-                <BarChart3 className="w-4 h-4 text-gray-500" />
-                <div>
-                  <div className="text-xs text-gray-500">Impressions</div>
-                  <div className="text-base font-semibold text-gray-900">
-                    {formatNumber(impressions)}
+        <div className="p-4 sm:p-5 space-y-4">
+          {/* Header: ownership tag + friendly status */}
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-brand-50 text-brand-700 border border-brand-100 px-2.5 py-1 text-xs font-semibold">
+              <ShieldCheck className="w-3.5 h-3.5" />
+              {isOwner ? 'Your listing' : 'Admin controls'}
+            </span>
+            <span
+              className={`inline-flex items-center gap-1.5 text-sm font-medium ${
+                status.tone === 'good'
+                  ? 'text-emerald-700'
+                  : status.tone === 'warn'
+                    ? 'text-amber-700'
+                    : 'text-gray-500'
+              }`}
+            >
+              <span className={`w-2 h-2 rounded-full ${status.dot}`} />
+              {status.text}
+            </span>
+            {expiryText && (
+              <span className="inline-flex items-center gap-1 text-xs text-gray-400">
+                <CalendarClock className="w-3.5 h-3.5" />
+                Expires {expiryText}
+              </span>
+            )}
+          </div>
+
+          {/* Stats + actions */}
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+            <div className="grid grid-cols-3 gap-2 sm:flex sm:gap-2">
+              {stats.map(({ icon: Icon, label, value }) => (
+                <div
+                  key={label}
+                  className="flex items-center gap-2.5 rounded-xl bg-gray-50 border border-gray-100 px-3 py-2 min-w-0 sm:min-w-[104px]"
+                >
+                  <Icon className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                  <div className="leading-tight min-w-0">
+                    <div className="text-[10px] uppercase tracking-wide text-gray-400 font-semibold truncate">
+                      {label}
+                    </div>
+                    <div className="text-base font-bold text-gray-900 tabular-nums">
+                      {value.toLocaleString()}
+                    </div>
                   </div>
                 </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <Eye className="w-4 h-4 text-gray-500" />
-                <div>
-                  <div className="text-xs text-gray-500">Detail Views</div>
-                  <div className="text-base font-semibold text-gray-900">
-                    {formatNumber(directViews)}
-                  </div>
-                </div>
-              </div>
+              ))}
             </div>
 
-            <div className="flex flex-wrap gap-2">
-              {/* Show Approve/Reject buttons only for admins viewing pending listings */}
+            <div className="flex flex-wrap items-center gap-2">
+              {/* Admin approve/reject for pending listings */}
               {isAdmin && !listing.approved && (
                 <>
                   <button
                     onClick={handleApprove}
                     disabled={approveLoading || loading}
-                    className="inline-flex items-center px-3 py-1.5 border border-green-300 rounded-md text-sm font-medium text-green-700 bg-green-50 hover:bg-green-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-emerald-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    {approveLoading ? (
-                      <>
-                        <div className="w-4 h-4 mr-1.5 border-2 border-green-700 border-t-transparent rounded-full animate-spin" />
-                        Approving...
-                      </>
-                    ) : (
-                      <>
-                        <CheckCircle className="w-4 h-4 mr-1.5" />
-                        Approve
-                      </>
-                    )}
+                    {approveLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
+                    Approve
                   </button>
                   <button
                     onClick={handleReject}
                     disabled={rejectLoading || loading}
-                    className="inline-flex items-center px-3 py-1.5 border border-red-300 rounded-md text-sm font-medium text-red-700 bg-red-50 hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium text-red-700 bg-white border border-red-200 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-red-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    {rejectLoading ? (
-                      <>
-                        <div className="w-4 h-4 mr-1.5 border-2 border-red-700 border-t-transparent rounded-full animate-spin" />
-                        Rejecting...
-                      </>
-                    ) : (
-                      <>
-                        <XCircle className="w-4 h-4 mr-1.5" />
-                        Reject
-                      </>
-                    )}
+                    {rejectLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <XCircle className="w-4 h-4" />}
+                    Reject
                   </button>
                 </>
               )}
 
-              <button
-                onClick={handleEdit}
-                className="inline-flex items-center px-3 py-1.5 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-400 transition-colors"
-              >
-                <Edit className="w-4 h-4 mr-1.5" />
+              {/* Contextual primary action */}
+              {primary && (
+                <button
+                  onClick={primary.onClick}
+                  disabled={!!primary.busy}
+                  className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-semibold shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-brand-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${primary.cls}`}
+                >
+                  {primary.busy ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : primary.icon === 'pay' ? (
+                    <CreditCard className="w-4 h-4" />
+                  ) : (
+                    <RefreshCw className="w-4 h-4" />
+                  )}
+                  {primary.label}
+                </button>
+              )}
+
+              <button onClick={handleEdit} className={secondaryBtn}>
+                <Pencil className="w-4 h-4" />
                 Edit
               </button>
-              <button
-                onClick={() => setShowUnpublishDialog(true)}
-                className="inline-flex items-center px-3 py-1.5 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-400 transition-colors"
-              >
-                <EyeOff className="w-4 h-4 mr-1.5" />
-                Unpublish
-              </button>
+
+              {listing.is_active && (
+                <button onClick={() => setShowUnpublishDialog(true)} className={secondaryBtn}>
+                  <EyeOff className="w-4 h-4" />
+                  Pause
+                </button>
+              )}
+
+              {!listing.is_active && listing.approved && !primary && (
+                <button onClick={handleRepublish} disabled={republishLoading} className={secondaryBtn}>
+                  {republishLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+                  Republish
+                </button>
+              )}
+
               <button
                 onClick={() => setShowDeleteDialog(true)}
-                className="inline-flex items-center px-3 py-1.5 border border-gray-300 rounded-md text-sm font-medium text-red-600 bg-white hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors"
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium text-red-600 bg-white border border-gray-200 hover:bg-red-50 hover:border-red-200 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-red-400 transition-colors"
               >
-                <Trash2 className="w-4 h-4 mr-1.5" />
+                <Trash2 className="w-4 h-4" />
                 Delete
               </button>
             </div>
           </div>
 
-          {error && (
-            <div className="mt-3 text-sm text-red-600">
-              {error}
-            </div>
-          )}
-
+          {error && <div className="text-sm text-red-600">{error}</div>}
           {successMessage && (
-            <div className="mt-3 text-sm text-green-600 font-medium">
-              {successMessage}
-            </div>
+            <div className="text-sm text-emerald-600 font-medium">{successMessage}</div>
           )}
         </div>
       </div>

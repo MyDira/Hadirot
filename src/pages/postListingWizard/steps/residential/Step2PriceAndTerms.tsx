@@ -163,7 +163,7 @@ export function Step2PriceAndTerms({ formData, updateFormData, onNext, onBack }:
 
       {/* Broker Fee Warning Modal */}
       {showBrokerModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black bg-opacity-50 p-4">
           <div className="bg-white rounded-xl shadow-2xl max-w-md w-full mx-auto overflow-hidden">
             <div className="flex items-start justify-between p-5 border-b border-gray-200">
               <div className="flex items-center gap-2">
