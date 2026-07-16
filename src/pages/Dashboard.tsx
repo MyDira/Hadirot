@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { CreditCard as Edit, Eye, MousePointerClick, MessageSquare, Star, Trash2, Zap, RefreshCw, Plus, EyeOff, AlertTriangle, Clock, Home, DollarSign, Info, CheckCircle, XCircle, Briefcase, X, Building2, Gift, ArrowUpRight, MoreVertical, Pencil, Crown, ShieldCheck, Phone, MapPin } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { Listing, SaleStatus, CommercialListing, supabase } from "../config/supabase";
@@ -27,6 +27,8 @@ import { MonetizationModal, type MonetizationModalListingOption } from "../compo
 import { QuickPayDaysModal } from "../components/dashboard/QuickPayDaysModal";
 import { paymentsService } from "../services/payments";
 import type { MonetizationListingFields } from "../services/payments";
+import { agentFreePostingService } from "../services/agentFreePosting";
+import { getRentalStatusLine } from "../utils/listingStatusLine";
 
 type DashboardTab = 'rentals' | 'sales';
 
@@ -60,6 +62,7 @@ const METRIC_EXPLAINERS: Record<
 
 export default function Dashboard() {
   const { user, profile, loading: authLoading, refreshProfile } = useAuth();
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [listings, setListings] = useState<Listing[]>([]);
   const [commercialListings, setCommercialListings] = useState<CommercialListing[]>([]);
@@ -96,6 +99,9 @@ export default function Dashboard() {
   const [openCardMenu, setOpenCardMenu] = useState<string | null>(null);
   // Phase J: master switch. When false, dashboard hides monetization UI.
   const [monetizationEnabled, setMonetizationEnabled] = useState<boolean>(false);
+  // Agent-free posting: when the current user posts for free (agent), suppress
+  // all trial / "keep it active" / pay messaging on their listings.
+  const [isFreeAgent, setIsFreeAgent] = useState<boolean>(false);
 
   // Read the master switch + the user's listing subscription once on mount.
   useEffect(() => {
@@ -112,6 +118,14 @@ export default function Dashboard() {
         if (!cancelled) setListingSubscription(sub);
       } catch (err) {
         console.warn('Failed to load listing subscription:', err);
+      }
+      if (user) {
+        try {
+          const freeAgent = await agentFreePostingService.isUserFreeAgent(user.id);
+          if (!cancelled) setIsFreeAgent(freeAgent);
+        } catch (err) {
+          console.warn('Failed to resolve free-agent status (assuming not):', err);
+        }
       }
     })();
     return () => {
@@ -178,49 +192,8 @@ export default function Dashboard() {
     setQuickPayListing({ id: listingId, label: l ? buildListingLabel(l) : 'This listing' });
   };
 
-  // One friendly, reassuring status line for a rental card. Avoids scary money
-  // language ("Permanently inactive", "Pay") in favor of plain, calm copy.
-  const getRentalStatusLine = (
-    listing: any,
-    payState: ReturnType<typeof paymentsService.derivePaymentState> | null,
-    daysUntilExpiration: number | null,
-  ): { dot: string; text: string; tone: 'good' | 'warn' | 'muted' } => {
-    if (!listing.approved) {
-      return { dot: 'bg-amber-400', text: "In review — we'll publish it soon", tone: 'warn' };
-    }
-    if (!listing.is_active) {
-      return { dot: 'bg-gray-400', text: 'Paused — not visible to renters', tone: 'muted' };
-    }
-    if (payState) {
-      switch (payState.label) {
-        case 'paid_expired':
-          return { dot: 'bg-amber-400', text: 'Time’s up — add days to keep it live', tone: 'warn' };
-        case 'paid_renewal_due':
-          return { dot: 'bg-amber-400', text: 'Renewal coming up soon', tone: 'warn' };
-        case 'trial_ending':
-          return { dot: 'bg-amber-400', text: `Free trial ending${payState.trialDaysRemaining != null ? ` · ${payState.trialDaysRemaining}d left` : ''}`, tone: 'warn' };
-        case 'trial_active':
-          return { dot: 'bg-emerald-500', text: `Live · free trial${payState.trialDaysRemaining != null ? ` · ${payState.trialDaysRemaining}d left` : ''}`, tone: 'good' };
-        case 'paid_active':
-          return { dot: 'bg-emerald-500', text: `Live${payState.paidDaysRemaining != null ? ` · ${payState.paidDaysRemaining} days left` : ''}`, tone: 'good' };
-        case 'subscription_active':
-          return { dot: 'bg-emerald-500', text: 'Live · covered by your plan', tone: 'good' };
-        case 'admin_granted':
-          return { dot: 'bg-emerald-500', text: 'Live · complimentary', tone: 'good' };
-        case 'payment_required':
-          return { dot: 'bg-amber-400', text: 'Finish payment to publish', tone: 'warn' };
-        case 'legacy_free':
-          return { dot: 'bg-emerald-500', text: 'Live', tone: 'good' };
-      }
-    }
-    if (daysUntilExpiration != null) {
-      if (daysUntilExpiration <= 0) {
-        return { dot: 'bg-amber-400', text: 'Expired — extend to keep it live', tone: 'warn' };
-      }
-      return { dot: 'bg-emerald-500', text: `Live · ${daysUntilExpiration} day${daysUntilExpiration === 1 ? '' : 's'} left`, tone: 'good' };
-    }
-    return { dot: 'bg-emerald-500', text: 'Live', tone: 'good' };
-  };
+  // Friendly per-listing status line lives in ../utils/listingStatusLine
+  // (shared with the listing-detail owner/admin banner).
 
   // Listings the modal's "pay per listing" tab should offer. Residential rentals
   // owned by the current user, sorted newest first.
@@ -661,11 +634,11 @@ export default function Dashboard() {
     try {
       const listing = commercialListings.find((l) => l.id === listingId);
       const listingType = listing?.listing_type ?? 'rental';
-      await commercialListingsService.renewCommercialListing(listingId, listingType);
+      await commercialListingsService.renewCommercialListing(listingId, listingType, listing?.sale_status);
       await loadUserListings();
     } catch (error) {
       console.error("Error renewing commercial listing:", error);
-      alert("Failed to renew listing. Please try again.");
+      alert(error instanceof Error ? error.message : "Failed to renew listing. Please try again.");
     } finally {
       setActionLoading(null);
     }
@@ -1096,11 +1069,13 @@ export default function Dashboard() {
                     isAdmin: profile?.is_admin === true,
                   })
                 : null;
-              const showPayAction = !!payState
+              // Free-posting agents never pay: suppress every pay CTA.
+              const showPayAction = !isFreeAgent
+                && !!payState
                 && !!payState.nextActionUrl
                 && payState.nextActionUrl.includes('action=pay');
 
-              const status = getRentalStatusLine(listing, payState, daysUntilExpiration);
+              const status = getRentalStatusLine(listing, payState, daysUntilExpiration, isFreeAgent);
 
               const priceText = isCommercial
                 ? ((listing as CommercialListing).call_for_price
@@ -1117,10 +1092,15 @@ export default function Dashboard() {
                 : null;
 
               const featuredStatus = !isCommercial ? getListingFeaturedStatus(listing as Listing) : null;
-              const canGetFeatured = !isCommercial
-                && listing.is_active
+              const commercialCurrentlyFeatured = isCommercial
+                && !!listing.is_featured
+                && !!listing.featured_expires_at
+                && new Date(listing.featured_expires_at) > new Date();
+              const canGetFeatured = listing.is_active
                 && listing.approved
-                && !isListingCurrentlyFeatured(listing as Listing);
+                && (isCommercial
+                  ? !commercialCurrentlyFeatured
+                  : !isListingCurrentlyFeatured(listing as Listing));
 
               const expiringSoon = listing.is_active
                 && daysUntilExpiration != null
@@ -1140,8 +1120,8 @@ export default function Dashboard() {
                 // coverage (unexpired trial, banked paid days, subscription,
                 // admin grant, legacy). An exhausted trial/balance or an
                 // unpaid must-pay listing routes to payment instead — the
-                // cron would deactivate a free republish within the hour
-                // anyway, so don't offer a button that silently un-does itself.
+                // nightly deactivation job would kill a free republish at the
+                // next run anyway, so don't offer a button that un-does itself.
                 const lr = listing as Listing & {
                   trial_started_at?: string | null;
                   paused_paid_days?: number | null;
@@ -1155,7 +1135,7 @@ export default function Dashboard() {
                   (lr.paused_paid_days ?? 0) <= 0;
                 const unpaid = payState?.paymentKind === 'pending_payment';
                 const needsPaymentToRepublish =
-                  monetizationEnabled && !isCommercial && (trialExpired || paidExhausted || unpaid);
+                  !isFreeAgent && monetizationEnabled && !isCommercial && (trialExpired || paidExhausted || unpaid);
                 primary = needsPaymentToRepublish
                   ? {
                       label: 'Add days to relist',
@@ -1176,7 +1156,9 @@ export default function Dashboard() {
               } else if (canGetFeatured) {
                 primary = {
                   label: 'Get Featured',
-                  onClick: () => { setFeatureModalListing(listing as Listing); setShowSuccessBanner(false); },
+                  onClick: () => isCommercial
+                    ? navigate(`/boost/${listing.id}`)
+                    : (() => { setFeatureModalListing(listing as Listing); setShowSuccessBanner(false); })(),
                   cls: 'bg-accent-500 hover:bg-accent-600 text-white',
                 };
               }
@@ -1333,6 +1315,15 @@ export default function Dashboard() {
                           <MousePointerClick className="w-3.5 h-3.5 opacity-70" />
                           <span className="hover:underline">{(listing.direct_views ?? 0).toLocaleString()}</span>
                         </button>
+                        <button
+                          type="button"
+                          onClick={() => handleOpenInquiries(listing.id, listing.title)}
+                          className="flex items-center gap-1 hover:text-accent-600 transition-colors"
+                          title="View inquiries"
+                        >
+                          <MessageSquare className="w-3.5 h-3.5 opacity-70" />
+                          <span className="hover:underline">{inquiryCounts[listing.id] ?? 0}</span>
+                        </button>
                         {!isCommercial && (
                           <>
                             <button
@@ -1343,15 +1334,6 @@ export default function Dashboard() {
                             >
                               <MapPin className="w-3.5 h-3.5 opacity-70" />
                               <span className="hover:underline">{(listing.map_pin_clicks ?? 0).toLocaleString()}</span>
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleOpenInquiries(listing.id, listing.title)}
-                              className="flex items-center gap-1 hover:text-accent-600 transition-colors"
-                              title="View inquiries"
-                            >
-                              <MessageSquare className="w-3.5 h-3.5 opacity-70" />
-                              <span className="hover:underline">{inquiryCounts[listing.id] ?? 0}</span>
                             </button>
                             <button
                               type="button"
@@ -1428,10 +1410,15 @@ export default function Dashboard() {
                 : null;
 
               const featuredStatus = !isCommercial ? getListingFeaturedStatus(listing as Listing) : null;
-              const canGetFeatured = !isCommercial
-                && listing.is_active
+              const commercialCurrentlyFeatured = isCommercial
+                && !!listing.is_featured
+                && !!listing.featured_expires_at
+                && new Date(listing.featured_expires_at) > new Date();
+              const canGetFeatured = listing.is_active
                 && listing.approved
-                && !isListingCurrentlyFeatured(listing as Listing);
+                && (isCommercial
+                  ? !commercialCurrentlyFeatured
+                  : !isListingCurrentlyFeatured(listing as Listing));
 
               // Pick the single most useful primary action for a sale listing.
               type Primary = { label: string; onClick: () => void; cls: string; disabled?: boolean; title?: string } | null;
@@ -1452,7 +1439,9 @@ export default function Dashboard() {
               } else if (canGetFeatured) {
                 primary = {
                   label: 'Get Featured',
-                  onClick: () => { setFeatureModalListing(listing as Listing); setShowSuccessBanner(false); },
+                  onClick: () => isCommercial
+                    ? navigate(`/boost/${listing.id}`)
+                    : (() => { setFeatureModalListing(listing as Listing); setShowSuccessBanner(false); })(),
                   cls: 'bg-accent-500 hover:bg-accent-600 text-white',
                 };
               }
@@ -1636,6 +1625,15 @@ export default function Dashboard() {
                           <MousePointerClick className="w-3.5 h-3.5 opacity-70" />
                           <span className="hover:underline">{(listing.direct_views ?? 0).toLocaleString()}</span>
                         </button>
+                        <button
+                          type="button"
+                          onClick={() => handleOpenInquiries(listing.id, listing.title)}
+                          className="flex items-center gap-1 hover:text-accent-600 transition-colors"
+                          title="View inquiries"
+                        >
+                          <MessageSquare className="w-3.5 h-3.5 opacity-70" />
+                          <span className="hover:underline">{inquiryCounts[listing.id] ?? 0}</span>
+                        </button>
                         {!isCommercial && (
                           <>
                             <button
@@ -1646,15 +1644,6 @@ export default function Dashboard() {
                             >
                               <MapPin className="w-3.5 h-3.5 opacity-70" />
                               <span className="hover:underline">{(listing.map_pin_clicks ?? 0).toLocaleString()}</span>
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleOpenInquiries(listing.id, listing.title)}
-                              className="flex items-center gap-1 hover:text-accent-600 transition-colors"
-                              title="View inquiries"
-                            >
-                              <MessageSquare className="w-3.5 h-3.5 opacity-70" />
-                              <span className="hover:underline">{inquiryCounts[listing.id] ?? 0}</span>
                             </button>
                             <button
                               type="button"

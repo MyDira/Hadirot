@@ -1,18 +1,22 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Heart } from 'lucide-react';
 import { ListingCard } from '../components/listings/ListingCard';
-import { Listing } from '../config/supabase';
+import { CommercialListingCard } from '../components/listings/CommercialListingCard';
+import { Listing, CommercialListing } from '../config/supabase';
 import { listingsService } from '../services/listings';
+import { commercialListingsService } from '../services/commercialListings';
 import { useAuth } from '@/hooks/useAuth';
 import { useListingImpressions } from '../hooks/useListingImpressions';
 
 export function Favorites() {
   const { user } = useAuth();
   const [favoriteListings, setFavoriteListings] = useState<Listing[]>([]);
+  const [commercialFavorites, setCommercialFavorites] = useState<CommercialListing[]>([]);
   const [loading, setLoading] = useState(true);
-  
-  // Set up impression tracking for favorite listings
-  const { observeElement, unobserveElement } = useListingImpressions({
+
+  // Impression tracking covers residential favorites (commercial impressions are
+  // intentionally not tracked from card lists — see CommercialSimilarListings).
+  const { observeElement } = useListingImpressions({
     listingIds: favoriteListings.map(l => l.id),
   });
 
@@ -24,12 +28,17 @@ export function Favorites() {
 
   const loadFavorites = async () => {
     if (!user) return;
-    
+
     try {
-      console.log('🔄 Loading favorites for user:', user.id);
-      const data = await listingsService.getFavorites(user.id);
-      console.log('✅ Loaded favorites:', data);
-      setFavoriteListings(data);
+      const [residential, commercial] = await Promise.all([
+        listingsService.getFavorites(user.id),
+        commercialListingsService.getCommercialFavorites(user.id).catch((err) => {
+          console.error('Error loading commercial favorites:', err);
+          return [] as CommercialListing[];
+        }),
+      ]);
+      setFavoriteListings(residential);
+      setCommercialFavorites(commercial);
     } catch (error) {
       console.error('Error loading favorites:', error);
       alert('Failed to load favorites. Please try again.');
@@ -37,6 +46,8 @@ export function Favorites() {
       setLoading(false);
     }
   };
+
+  const totalCount = favoriteListings.length + commercialFavorites.length;
 
   if (!user) {
     return (
@@ -54,7 +65,7 @@ export function Favorites() {
           My Favorites
         </h1>
         <p className="text-gray-600">
-          {loading ? 'Loading...' : `${favoriteListings.length} saved listings`}
+          {loading ? 'Loading...' : `${totalCount} saved listings`}
         </p>
       </div>
 
@@ -71,7 +82,7 @@ export function Favorites() {
             </div>
           ))}
         </div>
-      ) : favoriteListings.length === 0 ? (
+      ) : totalCount === 0 ? (
         <div className="text-center py-12">
           <Heart className="w-16 h-16 text-gray-300 mx-auto mb-4" />
           <h3 className="text-xl font-semibold text-gray-900 mb-2">No favorites yet</h3>
@@ -82,7 +93,7 @@ export function Favorites() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           {favoriteListings.map((listing) => (
-            <div 
+            <div
               key={listing.id}
               ref={(el) => {
                 if (el) {
@@ -91,6 +102,15 @@ export function Favorites() {
               }}
             >
               <ListingCard
+                listing={listing}
+                isFavorited={true}
+                onFavoriteChange={loadFavorites}
+              />
+            </div>
+          ))}
+          {commercialFavorites.map((listing) => (
+            <div key={listing.id}>
+              <CommercialListingCard
                 listing={listing}
                 isFavorited={true}
                 onFavoriteChange={loadFavorites}

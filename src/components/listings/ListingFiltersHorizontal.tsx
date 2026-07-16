@@ -138,14 +138,15 @@ const SORT_OPTIONS = [
   { value: "bedrooms_desc", label: "Bedrooms: High to Low" },
 ];
 
+// Values MUST match the commercial_space_type DB enum written by the wizard.
 const COMMERCIAL_SPACE_TYPES = [
-  { value: "retail", label: "Retail" },
+  { value: "storefront", label: "Retail" },
   { value: "restaurant", label: "Restaurant" },
   { value: "office", label: "Office" },
   { value: "warehouse", label: "Warehouse" },
   { value: "industrial", label: "Industrial" },
   { value: "mixed_use", label: "Mixed Use" },
-  { value: "community", label: "Community" },
+  { value: "community_facility", label: "Community" },
   { value: "basement_commercial", label: "Basement Commercial" },
 ];
 

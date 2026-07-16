@@ -28,7 +28,7 @@ Deno.serve(async (req) => {
 
     const { data: expiredConversations, error: queryError } = await supabaseAdmin
       .from("listing_renewal_conversations")
-      .select("id, listing_id, state")
+      .select("id, listing_id, state, is_commercial")
       .in("state", ["pending", "awaiting_availability", "awaiting_hadirot_question", "awaiting_listing_selection", "awaiting_report_response", "callback_sent", "awaiting_disambiguation"])
       .lt("expires_at", now);
 
@@ -54,25 +54,43 @@ Deno.serve(async (req) => {
       );
 
       if (reportResponseConversations.length > 0) {
-        const listingIdsToDeactivate = reportResponseConversations
+        // Report timeouts deactivate from the correct table (residential vs commercial).
+        const residentialIdsToDeactivate = reportResponseConversations
+          .filter((c) => c.is_commercial !== true)
+          .map((c) => c.listing_id)
+          .filter((id): id is string => id !== null);
+        const commercialIdsToDeactivate = reportResponseConversations
+          .filter((c) => c.is_commercial === true)
           .map((c) => c.listing_id)
           .filter((id): id is string => id !== null);
 
-        if (listingIdsToDeactivate.length > 0) {
+        const deactivation = { is_active: false, deactivated_at: now, updated_at: now };
+
+        if (residentialIdsToDeactivate.length > 0) {
           const { error: deactivateError } = await supabaseAdmin
             .from("listings")
-            .update({
-              is_active: false,
-              deactivated_at: now,
-              updated_at: now,
-            })
-            .in("id", listingIdsToDeactivate);
+            .update(deactivation)
+            .in("id", residentialIdsToDeactivate);
 
           if (deactivateError) {
             console.error("Error auto-deactivating listings:", deactivateError);
           } else {
-            autoDeactivatedCount = listingIdsToDeactivate.length;
-            console.log(`Auto-deactivated ${autoDeactivatedCount} listings after report timeout`);
+            autoDeactivatedCount += residentialIdsToDeactivate.length;
+            console.log(`Auto-deactivated ${residentialIdsToDeactivate.length} listings after report timeout`);
+          }
+        }
+
+        if (commercialIdsToDeactivate.length > 0) {
+          const { error: deactivateError } = await supabaseAdmin
+            .from("commercial_listings")
+            .update(deactivation)
+            .in("id", commercialIdsToDeactivate);
+
+          if (deactivateError) {
+            console.error("Error auto-deactivating commercial listings:", deactivateError);
+          } else {
+            autoDeactivatedCount += commercialIdsToDeactivate.length;
+            console.log(`Auto-deactivated ${commercialIdsToDeactivate.length} commercial listings after report timeout`);
           }
         }
 

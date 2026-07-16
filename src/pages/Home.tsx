@@ -6,8 +6,10 @@ import {
   Sparkles,
 } from "lucide-react";
 import { ListingCard } from "../components/listings/ListingCard";
-import { Listing, HeroBanner } from "../config/supabase";
+import { CommercialListingCard } from "../components/listings/CommercialListingCard";
+import { Listing, CommercialListing, HeroBanner } from "../config/supabase";
 import { listingsService } from "../services/listings";
+import { commercialListingsService } from "../services/commercialListings";
 import { bannersService } from "../services/banners";
 import { useAuth } from "@/hooks/useAuth";
 import { useListingImpressions } from "../hooks/useListingImpressions";
@@ -16,6 +18,7 @@ import { BannerCarousel } from "../components/shared/BannerCarousel";
 export function Home() {
   const [recentListings, setRecentListings] = useState<Listing[]>([]);
   const [featuredListings, setFeaturedListings] = useState<Listing[]>([]);
+  const [featuredCommercial, setFeaturedCommercial] = useState<CommercialListing[]>([]);
   const [twoBedroomListings, setTwoBedroomListings] = useState<Listing[]>([]);
   const [threeBedroomListings, setThreeBedroomListings] = useState<Listing[]>(
     [],
@@ -83,6 +86,18 @@ export function Home() {
         console.error("Error loading featured listings:", e);
       }
 
+      // Featured commercial (boosted) listings share the home featured strip.
+      let featuredCom: CommercialListing[] = [];
+      try {
+        const [comRentals, comSales] = await Promise.all([
+          commercialListingsService.getCommercialFeaturedListingsForSearch({}, 'rental', user?.id),
+          commercialListingsService.getCommercialFeaturedListingsForSearch({}, 'sale', user?.id),
+        ]);
+        featuredCom = [...comRentals, ...comSales];
+      } catch (e) {
+        console.error("Error loading featured commercial listings:", e);
+      }
+
       const twoBedroomResult = await listingsService.getListings(
         { bedrooms: [2] },
         4,
@@ -97,6 +112,7 @@ export function Home() {
 
       setRecentListings(recentResult.data);
       setFeaturedListings(featured);
+      setFeaturedCommercial(featuredCom);
       setTwoBedroomListings(twoBedroomResult.data);
       setThreeBedroomListings(threeBedroomResult.data);
     } catch (error) {
@@ -173,7 +189,7 @@ export function Home() {
       </div>
 
       {/* Featured Listings */}
-      {featuredListings.length > 0 && (
+      {(featuredListings.length > 0 || featuredCommercial.length > 0) && (
         <section className="py-16 bg-[var(--bg-soft)]">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="mb-8">
@@ -201,6 +217,15 @@ export function Home() {
                       listing={listing}
                       isFavorited={userFavorites.includes(listing.id)}
                       onFavoriteChange={handleFavoriteChange}
+                      showFeaturedBadge={true}
+                    />
+                  </div>
+                ))}
+                {featuredCommercial.map((listing) => (
+                  <div key={`commercial-${listing.id}`} className="flex-shrink-0 w-80">
+                    <CommercialListingCard
+                      listing={listing}
+                      isFavorited={!!listing.is_favorited}
                       showFeaturedBadge={true}
                     />
                   </div>

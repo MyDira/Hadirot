@@ -739,9 +739,15 @@ export const commercialListingsService = {
     if (dbError) throw dbError;
 
     try {
+      // image_url is a full public URL (…/object/public/listing-images/commercial/{id}/{file});
+      // storage.remove() expects the object path, not the URL.
+      const marker = '/listing-images/';
+      const idx = imageUrl.indexOf(marker);
+      const storagePath = idx >= 0 ? imageUrl.slice(idx + marker.length) : imageUrl;
+
       const { error: storageError } = await supabase.storage
         .from('listing-images')
-        .remove([imageUrl]);
+        .remove([storagePath]);
 
       if (storageError) {
         console.error('Error deleting commercial image from storage:', storageError);
@@ -824,6 +830,11 @@ export const commercialListingsService = {
     listingType: 'rental' | 'sale',
     saleStatus?: string | null,
   ): Promise<CommercialListing> {
+    // Mirrors residential: a sold sale listing cannot be republished/renewed.
+    if (listingType === 'sale' && saleStatus === 'sold') {
+      throw new Error('Cannot renew a sold listing. Update its status first.');
+    }
+
     const { rentalDays, saleDays } = await getAdminActiveDays();
     const newExpiresAt = getExpirationDate(
       listingType,

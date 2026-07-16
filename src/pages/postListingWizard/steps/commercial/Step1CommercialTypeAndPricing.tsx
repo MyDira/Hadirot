@@ -17,7 +17,9 @@ import { StepShell, type CommercialStepProps, type StepTipsData } from './_StepS
 const TIPS: StepTipsData = {
   heading: 'Type & Pricing',
   bullets: [
-    'Tips will appear here.',
+    'Pick the space type that best matches the unit — it drives the spec fields shown later.',
+    'Rentals are usually quoted per SF/year; enter the monthly asking rent if that is how you list.',
+    'For sales, enter the asking price. Not ready to show a number? Toggle “Call for price”.',
   ],
 };
 

@@ -1,6 +1,7 @@
 import React from 'react';
 import { Home, Building2, Store, Star, Clock } from 'lucide-react';
 import type { WizardPath } from './useWizardState';
+import { COMMERCIAL_POSTING_LIVE } from '../../config/launchFlags';
 
 interface PathCard {
   path: WizardPath;
@@ -31,14 +32,14 @@ const CARDS: PathCard[] = [
     icon: <Store className="w-9 h-9" />,
     title: 'Commercial Rental',
     description: 'Office, retail & industrial spaces',
-    active: false,
+    active: COMMERCIAL_POSTING_LIVE,
   },
   {
     path: 'commercial_sale',
     icon: <Store className="w-9 h-9" />,
     title: 'Commercial Sale',
     description: 'Investment & owner-occupied properties',
-    active: false,
+    active: COMMERCIAL_POSTING_LIVE,
   },
   {
     path: 'concierge',

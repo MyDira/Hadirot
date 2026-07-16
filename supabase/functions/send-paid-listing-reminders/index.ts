@@ -157,6 +157,7 @@ Deno.serve(async (req) => {
 
     const twilioUrl = `https://api.twilio.com/2010-04-01/Accounts/${twilioAccountSid}/Messages.json`;
     const twilioAuth = btoa(`${twilioAccountSid}:${twilioAuthToken}`);
+    const statusCallbackUrl = `${supabaseUrl}/functions/v1/sms-status-webhook`;
 
     const reminders: Array<{ listing: ListingRow; message: string; kind: string }> = [];
 
@@ -316,6 +317,7 @@ Deno.serve(async (req) => {
             To: phone,
             From: twilioPhoneNumber,
             Body: r.message,
+            StatusCallback: statusCallbackUrl,
           }),
         });
         const data: TwilioResponse = await resp.json();

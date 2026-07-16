@@ -27,6 +27,7 @@ export interface CommercialMapPin {
   listing_type: string | null;
   commercial_space_type: string;
   neighborhood: string | null;
+  call_for_price?: boolean | null;
   is_featured?: boolean | null;
   featured_expires_at?: string | null;
 }

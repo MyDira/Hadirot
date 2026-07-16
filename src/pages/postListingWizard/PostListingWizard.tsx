@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import * as Sentry from '@sentry/react';
+import { COMMERCIAL_POSTING_LIVE } from '../../config/launchFlags';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/config/supabase';
 import { Modal } from '../../components/shared/Modal';
@@ -109,8 +110,8 @@ const COMMERCIAL_STEP_LABELS = [
 const LISTING_TYPE_OPTIONS: { path: WizardPath; label: string; sub: string; comingSoon?: boolean }[] = [
   { path: 'residential_rent', label: 'Residential Rental', sub: 'Apartment, room, house for rent' },
   { path: 'residential_sale', label: 'Residential Sale',   sub: 'House, condo, co-op for sale'   },
-  { path: 'commercial_lease', label: 'Commercial Rental',  sub: 'Office, retail, industrial', comingSoon: true },
-  { path: 'commercial_sale',  label: 'Commercial Sale',    sub: 'Office, retail, industrial', comingSoon: true },
+  { path: 'commercial_lease', label: 'Commercial Rental',  sub: 'Office, retail, industrial', comingSoon: !COMMERCIAL_POSTING_LIVE },
+  { path: 'commercial_sale',  label: 'Commercial Sale',    sub: 'Office, retail, industrial', comingSoon: !COMMERCIAL_POSTING_LIVE },
 ];
 
 function ChangeListingTypeButton({
@@ -568,8 +569,10 @@ export function PostListingWizard() {
       const listing = await commercialListingsService.createCommercialListing(payload as any);
       trackPostSuccess(listing.id);
 
-      // Upload images
+      // Upload images — count failures so the user isn't silently left with a
+      // photo-less listing in the approval queue.
       const imageFiles = commercialMediaFiles.filter(m => m.type === 'image' && m.file);
+      let failedUploads = 0;
       for (let i = 0; i < imageFiles.length; i++) {
         const mf = imageFiles[i];
         if (!mf.file) continue;
@@ -577,9 +580,30 @@ export function PostListingWizard() {
           const url = await commercialListingsService.uploadCommercialListingImage(mf.file, listing.id);
           await commercialListingsService.addCommercialListingImage(listing.id, url, mf.is_featured, i);
         } catch (err) {
+          failedUploads++;
           console.error('Failed to upload commercial image:', err);
           Sentry.captureException(err);
         }
+      }
+      if (failedUploads > 0) {
+        alert(failedUploads === imageFiles.length
+          ? 'Your listing was submitted, but ALL photos failed to upload. Please open the listing from your dashboard and re-add photos.'
+          : `Your listing was submitted, but ${failedUploads} photo(s) failed to upload. You can re-add them from Edit Listing.`);
+      }
+
+      // Notify admins that a commercial listing is awaiting approval (parity with
+      // the legacy /post-commercial page and the residential flow).
+      try {
+        const typeLabel = (fd.commercial_space_type || 'Commercial')
+          .replace(/_/g, ' ')
+          .replace(/\b\w/g, (l: string) => l.toUpperCase());
+        const locationDisplay = fd.full_address || [cross_street_a, cross_street_b].filter(Boolean).join(' & ');
+        await emailService.sendAdminNotification(
+          'New Commercial Listing Pending Approval',
+          `A new commercial listing has been submitted and requires approval.\n\nType: ${typeLabel}\nLocation: ${locationDisplay || 'Not specified'}\nNeighborhood: ${wizard.resolvedNeighborhood || fd.neighborhood || 'Not specified'}\nListing ID: ${listing.id}\n\nPlease review it in the admin panel.`,
+        );
+      } catch (adminErr) {
+        console.warn('Failed to send admin notification for commercial listing', adminErr);
       }
 
       wizard.clearDraft();
@@ -803,13 +827,17 @@ export function PostListingWizard() {
         // when it is posted. approve-listing stamps trial_started_at = now and
         // re-anchors paid_until from the payment ledger at approval time.
         // -----------------------------------------------------------------
+        //   agent_free           → 'legacy_free' (free-posting agent; normal
+        //                          admin-controlled expiration, no payment clock)
         ...(isSalePath || !paymentChoice
           ? {}
           : paymentChoice === 'subscription_covered'
             ? { payment_kind: 'subscription' }
             : paymentChoice === 'must_pay'
               ? { payment_kind: 'pending_payment' }
-              : { payment_kind: 'individual_trial' }),
+              : paymentChoice === 'agent_free'
+                ? { payment_kind: 'legacy_free' }
+                : { payment_kind: 'individual_trial' }),
       } as any;
 
       const listing = await listingsService.createListing(payload);

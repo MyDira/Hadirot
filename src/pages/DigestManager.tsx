@@ -326,8 +326,14 @@ export function DigestManager() {
           );
           console.log(`✅ Group ${index + 1} ensured short URLs for ${listingsWithShortUrls.length} listings`);
 
-          // Format each listing
+          // Format each listing (commercial groups use the commercial formatter)
           const formattedGroupListings = listingsWithShortUrls.map((listing) => {
+            if (listing.__kind === 'commercial') {
+              return WhatsAppFormatter.formatCommercialListingData(
+                listing,
+                listing.short_code
+              );
+            }
             return WhatsAppFormatter.formatListingData(
               listing,
               listing.short_code,
@@ -530,12 +536,14 @@ export function DigestManager() {
     filterConfig: Record<string, any>
   ): Promise<Listing[]> => {
     try {
+      // NOTE: the short_urls FK embed was removed — that FK was dropped by the
+      // polymorphic-refs migration (20260630010000) and the embed errored.
+      // Short codes are created on demand by ensureListingsHaveShortUrls.
       let query = supabase
         .from('listings')
         .select(`
           *,
-          owner:profiles!listings_user_id_fkey(full_name, agency),
-          short_url:short_urls!short_urls_listing_id_fkey(short_code)
+          owner:profiles!listings_user_id_fkey(full_name, agency)
         `)
         .eq('approved', true)
         .eq('is_active', true);

@@ -28,6 +28,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { subscriptionsService } from '../services/subscriptions';
 import { paymentsService } from '../services/payments';
 import { monetizationStatusService, type MonetizationStatus } from '../services/monetizationStatus';
+import { agentFreePostingService } from '../services/agentFreePosting';
 import { GrantDaysModal } from '../components/admin/GrantDaysModal';
 import {
   formatCents,
@@ -502,6 +503,10 @@ export function AdminSubscriptions() {
   const [monetization, setMonetization] = useState<MonetizationStatus>({ enabled: false, enabledAt: null });
   const [activating, setActivating] = useState(false);
   const [activationResult, setActivationResult] = useState<string | null>(null);
+  // "Charge agents" switch. When OFF (default), agents post free; when ON they
+  // fall back into the existing paid subscription/trial/pay flow.
+  const [chargeAgents, setChargeAgents] = useState(false);
+  const [chargeAgentsSaving, setChargeAgentsSaving] = useState(false);
 
   // Admin guard
   useEffect(() => {
@@ -523,14 +528,16 @@ export function AdminSubscriptions() {
     setLoading(true);
     setErr(null);
     try {
-      const [subs, paid, status] = await Promise.all([
+      const [subs, paid, status, chargeAgentsOn] = await Promise.all([
         subscriptionsService.listAll(),
         paymentsService.adminListPaidListings(),
         monetizationStatusService.get(),
+        agentFreePostingService.getChargeAgents(),
       ]);
       setSubscribers(subs);
       setPaidListings(paid as PaidListingRow[]);
       setMonetization(status);
+      setChargeAgents(chargeAgentsOn);
     } catch (e) {
       setErr((e as Error).message);
     } finally {
@@ -581,6 +588,26 @@ export function AdminSubscriptions() {
       setErr((e as Error).message);
     } finally {
       setActivating(false);
+    }
+  };
+
+  const handleToggleChargeAgents = async () => {
+    const next = !chargeAgents;
+    const confirmed = window.confirm(
+      next
+        ? 'Turn ON "Charge agents"?\n\nAgents (role=agent, admin-flagged, or 3+ lifetime listings) will stop posting for free and fall back into the normal subscription / trial / $25 flow — the same as landlords. Continue?'
+        : 'Turn OFF "Charge agents"?\n\nAgents will go back to posting for free with the standard listing duration. Landlords still pay. Continue?',
+    );
+    if (!confirmed) return;
+    setChargeAgentsSaving(true);
+    setErr(null);
+    try {
+      await agentFreePostingService.setChargeAgents(next);
+      setChargeAgents(next);
+    } catch (e) {
+      setErr((e as Error).message);
+    } finally {
+      setChargeAgentsSaving(false);
     }
   };
 
@@ -722,6 +749,35 @@ export function AdminSubscriptions() {
               Activate monetization
             </button>
           )}
+        </div>
+
+        {/* Charge agents switch */}
+        <div className="mb-4 rounded-xl border border-gray-200 bg-white p-4 flex items-start gap-3">
+          <div className="flex-1 min-w-0">
+            <div className="font-semibold text-gray-900">
+              Charge agents {chargeAgents ? '(ON)' : '(OFF — agents post free)'}
+            </div>
+            <p className="text-sm mt-0.5 leading-relaxed text-gray-600">
+              {chargeAgents
+                ? 'Agents are billed like landlords: they go through the normal subscription / trial / $25 flow.'
+                : 'Agents (role = agent, admin-flagged, or 3+ lifetime listings) post residential rentals for free with the standard listing duration. Landlords still pay. Flip this on when you\'re ready to start charging agents — all the paid-plan code stays ready.'}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={handleToggleChargeAgents}
+            disabled={chargeAgentsSaving}
+            className={`flex-shrink-0 px-4 py-2 rounded-lg text-sm font-semibold disabled:opacity-50 inline-flex items-center gap-2 ${
+              chargeAgents
+                ? 'text-gray-600 hover:text-gray-900 border border-gray-300'
+                : 'bg-accent-600 hover:bg-accent-700 text-white'
+            }`}
+          >
+            {chargeAgentsSaving && (
+              <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+            )}
+            {chargeAgents ? 'Turn off (agents free)' : 'Turn on (charge agents)'}
+          </button>
         </div>
 
         {/* Tabs */}
