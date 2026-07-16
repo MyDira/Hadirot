@@ -334,7 +334,7 @@ export function Step1CommercialTypeAndPricing({
 
       {/* Type-change confirmation dialog */}
       {showResetConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-40">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black bg-opacity-40">
           <div className="bg-white rounded-xl shadow-xl max-w-sm w-full p-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-2">Change Space Type?</h3>
             <p className="text-sm text-gray-600 mb-6">
