@@ -67,8 +67,8 @@ BEGIN
           LIMIT 1)
       ) AS payload,
       l.id                                        AS id,
-      o.role                                      AS owner_role,
-      l.listing_type                              AS listing_type,
+      o.role::text                                AS owner_role,
+      l.listing_type::text                        AS listing_type,
       (l.is_featured AND coalesce(l.featured_expires_at > now(), false)) AS is_currently_featured,
       l.is_active                                 AS is_active,
       l.created_at                                AS created_at,
@@ -105,8 +105,8 @@ BEGIN
         'thumbnail_url', NULL
       ) AS payload,
       c.id                                        AS id,
-      co.role                                     AS owner_role,
-      c.listing_type                              AS listing_type,
+      co.role::text                               AS owner_role,
+      c.listing_type::text                        AS listing_type,
       (c.is_featured AND coalesce(c.featured_expires_at > now(), false)) AS is_currently_featured,
       c.is_active                                 AS is_active,
       c.created_at                                AS created_at,
