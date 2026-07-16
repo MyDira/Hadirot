@@ -91,7 +91,7 @@ export function AdminFeatureModal({ isOpen, onClose, listing, adminId, onSuccess
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black bg-opacity-50 p-4">
       <div className="relative bg-white rounded-xl shadow-2xl max-w-md w-full mx-auto overflow-hidden">
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
           <div className="flex items-center gap-2">
