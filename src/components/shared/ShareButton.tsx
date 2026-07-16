@@ -122,7 +122,7 @@ export function ShareButton({
 
         {/* Share Modal */}
         {showModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50" onClick={(e) => closeModal(e)}>
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black bg-opacity-50" onClick={(e) => closeModal(e)}>
             <div className="bg-white rounded-lg shadow-xl max-w-sm w-full p-6" onClick={(e) => e.stopPropagation()}>
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-semibold text-[#273140]">Share Listing</h3>
@@ -220,7 +220,7 @@ export function ShareButton({
 
       {/* Share Modal (same as card variant) */}
       {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50" onClick={(e) => closeModal(e)}>
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black bg-opacity-50" onClick={(e) => closeModal(e)}>
           <div className="bg-white rounded-lg shadow-xl max-w-sm w-full p-6" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold text-[#273140]">Share Listing</h3>

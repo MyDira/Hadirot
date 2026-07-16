@@ -114,10 +114,10 @@ export function ListingDrilldown({ listingId, onClose, daysBack = 14 }: ListingD
   return (
     <>
       <div
-        className="fixed inset-0 bg-black/30 z-40 transition-opacity"
+        className="fixed inset-0 bg-black/30 z-[100] transition-opacity"
         onClick={onClose}
       />
-      <div className="fixed right-0 top-0 h-full w-full max-w-md bg-white shadow-2xl z-50 overflow-y-auto">
+      <div className="fixed right-0 top-0 h-full w-full max-w-md bg-white shadow-2xl z-[100] overflow-y-auto">
         <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between z-10">
           <h2 className="text-lg font-semibold text-gray-900">Listing Details</h2>
           <button

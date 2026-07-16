@@ -68,7 +68,7 @@ export function CustomModal({ modal, isOpen, onClose, onButtonClick }: CustomMod
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4 animate-fade-in"
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-black bg-opacity-50 p-4 animate-fade-in"
       onClick={handleBackdropClick}
     >
       <div className="relative bg-white rounded-lg shadow-xl max-w-lg w-full mx-auto overflow-hidden animate-slide-up">
