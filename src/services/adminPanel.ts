@@ -8,20 +8,28 @@ import { supabase, Listing, Profile } from '../config/supabase';
 
 export interface AdminListingRow extends Listing {
   thumbnail_url?: string | null;
+  // Per-listing inquiry count (residential; commercial defaults to 0). Surfaced
+  // as the 5th card stat alongside the metrics carried on `Listing`.
+  inquiries?: number;
   // Commercial listings are unioned into the same table and tagged so row
   // actions route to commercial_listings and the correct detail/edit routes.
   __commercial?: boolean;
 }
 
+// Multi-select listing status values used by the redesigned dashboard.
+export type AdminListingStatus = 'active' | 'deactivated' | 'pending' | 'featured';
+
 export interface AdminListingsQuery {
   search: string;
   ownerRole: string;
   listingType: string;
-  status: string;
-  active: string;
+  statuses: AdminListingStatus[];
+  ownerId: string;
+  minBedrooms: string;
+  contactPhone: string;
   dateFrom: string;
   dateTo: string;
-  sort: 'title' | 'owner' | 'price' | 'created_at' | 'is_active' | 'featured';
+  sort: 'title' | 'owner' | 'price' | 'created_at' | 'is_active' | 'featured' | 'bedrooms';
   dir: 'asc' | 'desc';
   page: number;
   perPage: number;
@@ -134,10 +142,12 @@ export const adminPanelService = {
       p_search: q.search.trim() || undefined,
       p_owner_role: q.ownerRole || undefined,
       p_listing_type: q.listingType || undefined,
-      p_status: q.status || undefined,
-      p_active: q.active || undefined,
+      p_statuses: q.statuses.length > 0 ? q.statuses : undefined,
       p_date_from: q.dateFrom || undefined,
       p_date_to: q.dateTo || undefined,
+      p_owner_id: q.ownerId || undefined,
+      p_min_bedrooms: q.minBedrooms ? Number(q.minBedrooms) : undefined,
+      p_contact_phone: q.contactPhone.trim() || undefined,
       p_sort: q.sort,
       p_dir: q.dir,
       p_limit: q.perPage,

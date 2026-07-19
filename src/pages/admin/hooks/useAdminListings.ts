@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { supabase } from '@/config/supabase';
+import { supabase, Profile } from '@/config/supabase';
 import { adminPanelService, AdminListingRow, AdminListingsQuery } from '@/services/adminPanel';
 import { useAdminToast } from '../adminToast';
 
@@ -7,8 +7,10 @@ const DEFAULT_QUERY: AdminListingsQuery = {
   search: '',
   ownerRole: '',
   listingType: '',
-  status: '',
-  active: '',
+  statuses: [],
+  ownerId: '',
+  minBedrooms: '',
+  contactPhone: '',
   dateFrom: '',
   dateTo: '',
   sort: 'created_at',
@@ -17,12 +19,13 @@ const DEFAULT_QUERY: AdminListingsQuery = {
   perPage: 25,
 };
 
-// Fields where a fresh sort should start descending (newest/highest/yes first).
+// Fields where a fresh sort should start descending (newest/highest/most first).
 const DESC_FIRST_FIELDS: AdminListingsQuery['sort'][] = [
   'created_at',
   'price',
   'is_active',
   'featured',
+  'bedrooms',
 ];
 
 export function useAdminListings() {
@@ -63,7 +66,15 @@ export function useAdminListings() {
       patch: Partial<
         Pick<
           AdminListingsQuery,
-          'search' | 'ownerRole' | 'listingType' | 'status' | 'active' | 'dateFrom' | 'dateTo'
+          | 'search'
+          | 'ownerRole'
+          | 'listingType'
+          | 'statuses'
+          | 'ownerId'
+          | 'minBedrooms'
+          | 'contactPhone'
+          | 'dateFrom'
+          | 'dateTo'
         >
       >,
     ) => {
@@ -97,6 +108,15 @@ export function useAdminListings() {
     }));
   }, []);
 
+  // Direct sort setter for the redesign's sort dropdown (setSort only toggles
+  // direction on the already-active field).
+  const applySort = useCallback(
+    (sort: AdminListingsQuery['sort'], dir: AdminListingsQuery['dir']) => {
+      setQuery((prev) => ({ ...prev, sort, dir, page: 1 }));
+    },
+    [],
+  );
+
   const setPage = useCallback((page: number) => {
     setQuery((prev) => ({ ...prev, page }));
   }, []);
@@ -104,7 +124,10 @@ export function useAdminListings() {
   const refresh = useCallback(() => fetchListings(query), [fetchListings, query]);
 
   const activeFilterCount =
-    [query.ownerRole, query.listingType, query.status, query.active].filter(Boolean).length +
+    [query.ownerRole, query.listingType, query.ownerId, query.minBedrooms, query.contactPhone.trim()].filter(
+      Boolean,
+    ).length +
+    (query.statuses.length > 0 ? 1 : 0) +
     (query.search.trim() ? 1 : 0) +
     (query.dateFrom || query.dateTo ? 1 : 0);
 
@@ -144,6 +167,61 @@ export function useAdminListings() {
       } catch (error) {
         console.error('Error updating listing active status:', error);
         toast('Failed to update listing. Please try again.', 'error');
+      }
+    },
+    [toast],
+  );
+
+  // Inline "quick edit" — patch a handful of fields (location, bed/bath, price,
+  // property type) directly on the underlying table with an optimistic row update.
+  const updateListingFields = useCallback(
+    async (id: string, isCommercial: boolean, patch: Record<string, unknown>) => {
+      try {
+        const { error } = await supabase
+          .from(isCommercial ? 'commercial_listings' : 'listings')
+          .update(patch)
+          .eq('id', id);
+        if (error) throw error;
+        setRows((prev) =>
+          prev.map((r) => (r.id === id ? ({ ...r, ...patch } as AdminListingRow) : r)),
+        );
+        toast('Listing updated');
+        return true;
+      } catch (error) {
+        console.error('Error updating listing:', error);
+        toast('Failed to save changes. Please try again.', 'error');
+        return false;
+      }
+    },
+    [toast],
+  );
+
+  // Reassign owner (owner = a profile) or archive (owner = null → detach owner).
+  const reassignOwner = useCallback(
+    async (id: string, isCommercial: boolean, owner: Profile | null) => {
+      try {
+        const { error } = await supabase
+          .from(isCommercial ? 'commercial_listings' : 'listings')
+          .update({ user_id: owner?.id ?? null })
+          .eq('id', id);
+        if (error) throw error;
+        setRows((prev) =>
+          prev.map((r) =>
+            r.id === id
+              ? ({
+                  ...r,
+                  user_id: owner?.id ?? null,
+                  owner: owner ?? undefined,
+                } as AdminListingRow)
+              : r,
+          ),
+        );
+        toast(owner ? 'Listing reassigned' : 'Listing archived');
+        return true;
+      } catch (error) {
+        console.error('Error reassigning listing owner:', error);
+        toast(owner ? 'Failed to reassign listing.' : 'Failed to archive listing.', 'error');
+        return false;
       }
     },
     [toast],
@@ -212,6 +290,7 @@ export function useAdminListings() {
     setFilter,
     clearFilters,
     setSort,
+    applySort,
     setPage,
     refresh,
     activeFilterCount,
@@ -221,6 +300,8 @@ export function useAdminListings() {
     clearSelection,
     bulkBusy,
     toggleActive,
+    updateListingFields,
+    reassignOwner,
     remove,
     bulkSetActive,
     bulkDelete,
