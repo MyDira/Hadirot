@@ -212,10 +212,13 @@ export function ListingsSection() {
     if (draft.location !== currentLocation(listing)) {
       patch[locationField(listing)] = draft.location.trim() || null;
     }
-    const beds = draft.bedrooms === '' ? null : Number(draft.bedrooms);
-    if (beds !== (listing.bedrooms ?? null)) patch.bedrooms = beds;
-    const baths = draft.bathrooms === '' ? null : Number(draft.bathrooms);
-    if (baths !== (listing.bathrooms ?? null)) patch.bathrooms = baths;
+    // Commercial listings have no bedrooms/bathrooms columns.
+    if (!listing.__commercial) {
+      const beds = draft.bedrooms === '' ? null : Number(draft.bedrooms);
+      if (beds !== (listing.bedrooms ?? null)) patch.bedrooms = beds;
+      const baths = draft.bathrooms === '' ? null : Number(draft.bathrooms);
+      if (baths !== (listing.bathrooms ?? null)) patch.bathrooms = baths;
+    }
     const price = draft.price === '' ? null : Number(draft.price);
     if (price !== currentPrice(listing)) patch[priceField(listing)] = price;
     if (
@@ -672,27 +675,31 @@ export function ListingsSection() {
                               className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-[#4E4B43] focus:border-[#4E4B43]"
                             />
                           </div>
-                          <div>
-                            <label className="block text-xs font-medium text-gray-500 mb-1">Bedrooms</label>
-                            <input
-                              type="number"
-                              min={0}
-                              value={draft.bedrooms}
-                              onChange={(e) => setDraft({ ...draft, bedrooms: e.target.value })}
-                              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-[#4E4B43] focus:border-[#4E4B43]"
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-xs font-medium text-gray-500 mb-1">Bathrooms</label>
-                            <input
-                              type="number"
-                              min={0}
-                              step="0.5"
-                              value={draft.bathrooms}
-                              onChange={(e) => setDraft({ ...draft, bathrooms: e.target.value })}
-                              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-[#4E4B43] focus:border-[#4E4B43]"
-                            />
-                          </div>
+                          {!isCommercial && (
+                            <div>
+                              <label className="block text-xs font-medium text-gray-500 mb-1">Bedrooms</label>
+                              <input
+                                type="number"
+                                min={0}
+                                value={draft.bedrooms}
+                                onChange={(e) => setDraft({ ...draft, bedrooms: e.target.value })}
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-[#4E4B43] focus:border-[#4E4B43]"
+                              />
+                            </div>
+                          )}
+                          {!isCommercial && (
+                            <div>
+                              <label className="block text-xs font-medium text-gray-500 mb-1">Bathrooms</label>
+                              <input
+                                type="number"
+                                min={0}
+                                step="0.5"
+                                value={draft.bathrooms}
+                                onChange={(e) => setDraft({ ...draft, bathrooms: e.target.value })}
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-[#4E4B43] focus:border-[#4E4B43]"
+                              />
+                            </div>
+                          )}
                           <div>
                             <label className="block text-xs font-medium text-gray-500 mb-1">
                               {listing.listing_type === 'sale' ? 'Asking price' : 'Price'}

@@ -147,7 +147,7 @@ BEGIN
       co.role::text                               AS owner_role,
       c.listing_type::text                        AS listing_type,
       c.approved                                  AS is_approved,
-      c.bedrooms                                  AS bedrooms,
+      NULL::int                                   AS bedrooms,  -- commercial has no bed count
       (c.is_featured AND coalesce(c.featured_expires_at > now(), false)) AS is_currently_featured,
       c.is_active                                 AS is_active,
       c.created_at                                AS created_at,
