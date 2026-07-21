@@ -9,7 +9,6 @@ import { AuthForm } from './components/auth/AuthForm';
 import PasswordRecoveryGate from './components/auth/PasswordRecoveryGate';
 import { ListingDetail } from './pages/ListingDetail';
 import { CommercialListingDetail } from './pages/CommercialListingDetail';
-import { AgencyPage } from './pages/AgencyPage';
 import { ShortUrlRedirect } from './pages/ShortUrlRedirect';
 import { NotFound } from './pages/NotFound';
 import { useAuth } from '@/hooks/useAuth';
@@ -141,7 +140,11 @@ function App() {
                   <Route path="/help" element={<HelpCenter />} />
                   <Route path="/help/:categorySlug" element={<HelpCategory />} />
                   <Route path="/help/:categorySlug/:articleSlug" element={<HelpArticle />} />
-                  <Route path="/agencies/:slug" element={<AgencyPage />} />
+                  {/* Agency public pages retired — show a "no longer available" notice. */}
+                  <Route
+                    path="/agencies/:slug"
+                    element={<NotFound message="This page is no longer available." />}
+                  />
                   <Route path="/boost/success" element={<BoostSuccessPage />} />
                   <Route path="/boost/:listingId" element={<BoostListingPage />} />
                   <Route path="/concierge" element={<Concierge />} />
