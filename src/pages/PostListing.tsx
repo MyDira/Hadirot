@@ -21,6 +21,7 @@ import { LocationPicker } from "../components/listing/LocationPicker";
 import { GoogleAddressAutocomplete, GooglePlaceResult } from "../components/listing/GoogleAddressAutocomplete";
 import { GoogleStreetAutocomplete, GoogleStreetFeature } from "../components/listing/GoogleStreetAutocomplete";
 import type { Profile, RentRollUnit } from "../config/supabase";
+import { supabase } from "../config/supabase";
 import { gaEvent } from "@/lib/ga";
 import {
   ensurePostAttempt,
@@ -793,32 +794,30 @@ export function PostListing() {
       setAiParserError(null);
       setAiParserSuccess(false);
 
-      // Create timeout controller
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+      // Reuses the admin AI Intake backend (parse-listing edge function →
+      // _shared/intake.ts). Pure text → structured-fields parse; nothing is
+      // written to the intake pipeline. Replaces the decommissioned n8n webhook.
+      const typeHint =
+        formData.listing_type === 'rental' || formData.listing_type === 'sale'
+          ? formData.listing_type
+          : 'auto';
 
-      const response = await fetch('https://n8n.srv1283324.hstgr.cloud/webhook/parse-listing', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ text: aiParserText }),
-        signal: controller.signal,
-      });
+      const { data: parsedData, error: parseError } = await supabase.functions.invoke(
+        'parse-listing',
+        { body: { text: aiParserText, type_hint: typeHint } }
+      );
 
-      clearTimeout(timeoutId);
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+      if (parseError) {
+        throw new Error(parseError.message || 'Failed to reach the AI parser');
+      }
+      if (parsedData?.error) {
+        throw new Error(parsedData.error);
       }
 
-      const parsedData = await response.json();
-
-      console.log('========== N8N WEBHOOK RESPONSE ==========');
+      console.log('========== PARSE-LISTING RESPONSE ==========');
       console.log('Full Response:', JSON.stringify(parsedData, null, 2));
-      console.log('Response Type:', typeof parsedData);
-      console.log('Response Keys:', Object.keys(parsedData));
-      console.log('==========================================');
+      console.log('Listing count:', parsedData?.count);
+      console.log('============================================');
 
       const { updatedFormData, crossStreetA, crossStreetB } = mapAIParsedDataToFormFields(
         parsedData,
@@ -848,11 +847,11 @@ export function PostListing() {
       console.error('AI Parse Error:', error);
       Sentry.captureException(error, { tags: { flow: "ai_parser" } });
 
-      if (error instanceof Error && error.name === 'AbortError') {
-        setAiParserError('Request timed out. Please try again or check your connection.');
-      } else {
-        setAiParserError("Couldn't parse the listing. Please try again.");
-      }
+      setAiParserError(
+        error instanceof Error && error.message
+          ? error.message
+          : "Couldn't parse the listing. Please try again."
+      );
     } finally {
       setAiParserLoading(false);
     }
