@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { X, AlertCircle, Star, Trash2, ImagePlus, MapPin, Loader2, User, Building2 } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { X, AlertCircle, MapPin, Loader2, User, Building2 } from 'lucide-react';
 import type {
   ScrapedListing,
   IntakeImage,
@@ -13,6 +13,7 @@ import { aiIntakeService } from '@/services/aiIntake';
 import { geocodeCrossStreets } from '@/services/geocoding';
 import { UserSearchSelect } from '@/components/admin/UserSearchSelect';
 import { useAuth } from '@/hooks/useAuth';
+import { IntakeMediaField } from './IntakeMediaField';
 
 interface IntakeEditModalProps {
   listing: ScrapedListing | null;
@@ -159,7 +160,6 @@ export function IntakeEditModal({
   const [uploading, setUploading] = useState(false);
   const [geocoding, setGeocoding] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!listing) {
@@ -234,37 +234,6 @@ export function IntakeEditModal({
       onClose();
       onPublish(saved);
     }
-  };
-
-  const handleAddImages = async (files: FileList | null) => {
-    if (!files || files.length === 0 || !user?.id) return;
-    setUploading(true);
-    setError(null);
-    try {
-      const uploaded: IntakeImage[] = [];
-      for (const file of Array.from(files)) {
-        uploaded.push(await aiIntakeService.uploadIntakeImage(file, user.id));
-      }
-      update('image_paths', [...form.image_paths, ...uploaded]);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Image upload failed.');
-    } finally {
-      setUploading(false);
-      if (fileInputRef.current) fileInputRef.current.value = '';
-    }
-  };
-
-  // Images can be shared by several listings from the same block, so removal
-  // only detaches them from this listing — the storage file stays.
-  const handleRemoveImage = (index: number) => {
-    update('image_paths', form.image_paths.filter((_, i) => i !== index));
-  };
-
-  const handleSetFeatured = (index: number) => {
-    update(
-      'image_paths',
-      form.image_paths.map((img, i) => ({ ...img, is_featured: i === index })),
-    );
   };
 
   const handleRegeocode = async () => {
@@ -346,61 +315,21 @@ export function IntakeEditModal({
               ))}
             </div>
 
-            {/* Photos */}
+            {/* Photos & video */}
             <div className="p-4 bg-gray-50 border border-gray-200 rounded-md">
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-sm font-medium text-gray-700">Photos</p>
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={uploading}
-                  className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 transition-colors"
-                >
-                  {uploading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ImagePlus className="w-3.5 h-3.5" />}
-                  Add Photos
-                </button>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/*"
-                  multiple
-                  className="hidden"
-                  onChange={(e) => handleAddImages(e.target.files)}
-                />
-              </div>
-              {form.image_paths.length === 0 ? (
-                <p className="text-xs text-gray-500">No photos attached.</p>
-              ) : (
-                <div className="flex flex-wrap gap-2">
-                  {form.image_paths.map((img, i) => (
-                    <div key={`${img.filePath}-${i}`} className="relative group w-20 h-20">
-                      <img
-                        src={img.publicUrl}
-                        alt=""
-                        className="w-full h-full object-cover rounded-md border border-gray-200"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => handleSetFeatured(i)}
-                        title={img.is_featured ? 'Featured photo' : 'Make featured'}
-                        className={`absolute top-1 left-1 p-0.5 rounded ${
-                          img.is_featured ? 'bg-yellow-400 text-white' : 'bg-black/40 text-white opacity-0 group-hover:opacity-100'
-                        } transition-opacity`}
-                      >
-                        <Star className="w-3 h-3" fill={img.is_featured ? 'currentColor' : 'none'} />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveImage(i)}
-                        title="Remove photo"
-                        className="absolute top-1 right-1 p-0.5 rounded bg-black/40 text-white opacity-0 group-hover:opacity-100 transition-opacity"
-                      >
-                        <Trash2 className="w-3 h-3" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
+              <IntakeMediaField
+                adminId={user?.id}
+                images={form.image_paths}
+                onChange={(images) => update('image_paths', images)}
+                label="Photos & video"
+                maxFiles={isSale ? 21 : 11}
+                onUploadingChange={setUploading}
+                deleteOnRemove={false}
+              />
+              <p className="text-xs text-gray-500 mt-2">
+                Media can be shared with sibling listings parsed from the same block — removing it
+                here only detaches it from this listing.
+              </p>
             </div>
 
             {/* Assignment */}

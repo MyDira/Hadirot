@@ -1,17 +1,16 @@
-import React, { useState, useRef } from 'react';
+import React, { useState } from 'react';
 import {
   Plus,
   Trash2,
-  ImagePlus,
   Loader2,
   Sparkles,
   AlertCircle,
-  Star,
 } from 'lucide-react';
 import type { Profile, IntakeImage } from '@/config/supabase';
 import { aiIntakeService, type IntakeBlockInput, type ParseBlocksResult } from '@/services/aiIntake';
 import { UserSearchSelect } from '@/components/admin/UserSearchSelect';
 import { useAuth } from '@/hooks/useAuth';
+import { IntakeMediaField } from './IntakeMediaField';
 
 interface IntakeInputViewProps {
   onParsed: (result: ParseBlocksResult) => void;
@@ -46,7 +45,6 @@ export function IntakeInputView({ onParsed }: IntakeInputViewProps) {
   const [blocks, setBlocks] = useState<BlockState[]>([newBlock()]);
   const [parsing, setParsing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
   const updateBlock = (uid: string, patch: Partial<BlockState>) => {
     setBlocks((prev) => prev.map((b) => (b.uid === uid ? { ...b, ...patch } : b)));
@@ -56,61 +54,6 @@ export function IntakeInputView({ onParsed }: IntakeInputViewProps) {
     setBlocks((prev) => (prev.length > 1 ? prev.filter((b) => b.uid !== uid) : prev));
   };
 
-  const handleUploadImages = async (uid: string, files: FileList | null) => {
-    if (!files || files.length === 0 || !user?.id) return;
-    updateBlock(uid, { uploading: true });
-    setError(null);
-    try {
-      const uploaded: IntakeImage[] = [];
-      for (const file of Array.from(files)) {
-        uploaded.push(await aiIntakeService.uploadIntakeImage(file, user.id));
-      }
-      setBlocks((prev) =>
-        prev.map((b) => {
-          if (b.uid !== uid) return b;
-          const images = [...b.images, ...uploaded];
-          // Default the first photo to featured.
-          if (images.length > 0 && !images.some((i) => i.is_featured)) {
-            images[0] = { ...images[0], is_featured: true };
-          }
-          return { ...b, images, uploading: false };
-        }),
-      );
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Image upload failed.');
-      updateBlock(uid, { uploading: false });
-    } finally {
-      const input = fileInputRefs.current[uid];
-      if (input) input.value = '';
-    }
-  };
-
-  const handleRemoveImage = (uid: string, index: number) => {
-    setBlocks((prev) =>
-      prev.map((b) => {
-        if (b.uid !== uid) return b;
-        const removed = b.images[index];
-        // Input-stage uploads aren't referenced anywhere else yet — clean up.
-        if (removed) void aiIntakeService.deleteIntakeImage(removed.filePath);
-        const images = b.images.filter((_, i) => i !== index);
-        if (images.length > 0 && !images.some((i) => i.is_featured)) {
-          images[0] = { ...images[0], is_featured: true };
-        }
-        return { ...b, images };
-      }),
-    );
-  };
-
-  const handleSetFeatured = (uid: string, index: number) => {
-    setBlocks((prev) =>
-      prev.map((b) =>
-        b.uid === uid
-          ? { ...b, images: b.images.map((img, i) => ({ ...img, is_featured: i === index })) }
-          : b,
-      ),
-    );
-  };
-
   const handleParse = async () => {
     const filled = blocks.filter((b) => b.text.trim().length > 0);
     if (filled.length === 0) {
@@ -118,7 +61,7 @@ export function IntakeInputView({ onParsed }: IntakeInputViewProps) {
       return;
     }
     if (blocks.some((b) => b.uploading)) {
-      setError('Wait for photo uploads to finish.');
+      setError('Wait for media uploads to finish.');
       return;
     }
 
@@ -206,72 +149,16 @@ export function IntakeInputView({ onParsed }: IntakeInputViewProps) {
           />
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Photos */}
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <label className="text-xs font-medium text-gray-600">
-                  Photos (applied to every listing in this block)
-                </label>
-                <button
-                  type="button"
-                  onClick={() => fileInputRefs.current[block.uid]?.click()}
-                  disabled={block.uploading || parsing}
-                  className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 transition-colors"
-                >
-                  {block.uploading ? (
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  ) : (
-                    <ImagePlus className="w-3.5 h-3.5" />
-                  )}
-                  Add
-                </button>
-                <input
-                  ref={(el) => {
-                    fileInputRefs.current[block.uid] = el;
-                  }}
-                  type="file"
-                  accept="image/*"
-                  multiple
-                  className="hidden"
-                  onChange={(e) => handleUploadImages(block.uid, e.target.files)}
-                />
-              </div>
-              {block.images.length === 0 ? (
-                <p className="text-xs text-gray-400">No photos</p>
-              ) : (
-                <div className="flex flex-wrap gap-2">
-                  {block.images.map((img, i) => (
-                    <div key={`${img.filePath}-${i}`} className="relative group w-16 h-16">
-                      <img
-                        src={img.publicUrl}
-                        alt=""
-                        className="w-full h-full object-cover rounded-md border border-gray-200"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => handleSetFeatured(block.uid, i)}
-                        title={img.is_featured ? 'Featured photo' : 'Make featured'}
-                        className={`absolute top-0.5 left-0.5 p-0.5 rounded ${
-                          img.is_featured
-                            ? 'bg-yellow-400 text-white'
-                            : 'bg-black/40 text-white opacity-0 group-hover:opacity-100'
-                        } transition-opacity`}
-                      >
-                        <Star className="w-3 h-3" fill={img.is_featured ? 'currentColor' : 'none'} />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveImage(block.uid, i)}
-                        title="Remove photo"
-                        className="absolute top-0.5 right-0.5 p-0.5 rounded bg-black/40 text-white opacity-0 group-hover:opacity-100 transition-opacity"
-                      >
-                        <Trash2 className="w-3 h-3" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
+            {/* Photos & video */}
+            <IntakeMediaField
+              adminId={user?.id}
+              images={block.images}
+              onChange={(images) => updateBlock(block.uid, { images })}
+              label="Photos & video (applied to every listing in this block)"
+              maxFiles={block.typeHint === 'sale' ? 21 : 11}
+              disabled={parsing}
+              onUploadingChange={(uploading) => updateBlock(block.uid, { uploading })}
+            />
 
             {/* Assignment */}
             <div className="space-y-2">

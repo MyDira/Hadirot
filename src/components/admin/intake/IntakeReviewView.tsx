@@ -484,9 +484,10 @@ export function IntakeReviewView({ initialSource, refreshKey }: IntakeReviewView
 
             {visible.map((listing) => {
               const extra = listing.intake_extra || {};
-              const firstImage =
-                (listing.image_paths || []).find((i) => i.is_featured) ||
-                (listing.image_paths || [])[0];
+              const photoItems = (listing.image_paths || []).filter((i) => i.type !== 'video');
+              const videoItem = (listing.image_paths || []).find((i) => i.type === 'video');
+              const firstImage = photoItems.find((i) => i.is_featured) || photoItems[0];
+              const thumbnailSrc = firstImage?.publicUrl || videoItem?.thumbnailUrl;
               const assigned = listing.assigned_user_id
                 ? profiles.get(listing.assigned_user_id)
                 : null;
@@ -519,8 +520,8 @@ export function IntakeReviewView({ initialSource, refreshKey }: IntakeReviewView
 
                   {/* Thumbnail */}
                   <div className="w-12 h-12 flex-shrink-0 rounded-md overflow-hidden bg-gray-100 flex items-center justify-center">
-                    {firstImage ? (
-                      <img src={firstImage.publicUrl} alt="" className="w-full h-full object-cover" />
+                    {thumbnailSrc ? (
+                      <img src={thumbnailSrc} alt="" className="w-full h-full object-cover" />
                     ) : (
                       <ImageOff className="w-4 h-4 text-gray-300" />
                     )}
