@@ -11,7 +11,20 @@ export function mapAIParsedDataToFormFields(
   parsedData: any,
   currentListingType: string
 ): AIParseMappingResult {
-  const data = parsedData.listing || parsedData.data || parsedData;
+  // Shallow copy so we can normalize field-name aliases without mutating the
+  // caller's object.
+  const data = { ...(parsedData.listing || parsedData.data || parsedData) };
+
+  // The new AI Intake backend (parse-listing → _shared/intake.ts) returns the
+  // ParsedListing schema, which names a few fields differently from the old
+  // n8n webhook this mapper was written against. Bridge those aliases here so
+  // the rest of the mapping logic is unchanged.
+  if (data.listing_kind && !data.listing_type) data.listing_type = data.listing_kind;
+  if (data.cross_street_1 && !data.cross_street_a) data.cross_street_a = data.cross_street_1;
+  if (data.cross_street_2 && !data.cross_street_b) data.cross_street_b = data.cross_street_2;
+  if (data.contact_phone_display && !data.contact_phone) {
+    data.contact_phone = data.contact_phone_display;
+  }
 
   console.log('========== EXTRACTED DATA ==========');
   console.log('Data to map:', JSON.stringify(data, null, 2));
