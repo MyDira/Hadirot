@@ -621,8 +621,13 @@ export function IntakeWorkspaceDrawer({
               <SectionCard
                 icon={<AlertTriangle className="w-4 h-4 text-amber-600" />}
                 title="Possible live duplicates"
+                action={
+                  <span className="text-xs text-gray-400">
+                    {duplicates.length} match{duplicates.length === 1 ? '' : 'es'}
+                  </span>
+                }
               >
-                <div className="space-y-2">
+                <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
                   {duplicates.map((dup) => (
                     <div
                       key={dup.id}
