@@ -23,7 +23,16 @@ export type AnalyticsEventName =
   | 'login_gate_auth_success'
   | 'login_gate_action_completed'
   | 'wizard_step_viewed'
-  | 'wizard_step_completed';
+  | 'wizard_step_completed'
+  | 'listing_favorite'
+  | 'listing_unfavorite'
+  | 'listing_share'
+  | 'listing_click'
+  | 'listing_image_zoom'
+  | 'listing_scroll'
+  | 'contact_click'
+  | 'contact_submitted'
+  | 'listing_reported_rented';
 
 export interface AnalyticsEventPayload {
   session_id: string;

@@ -2,6 +2,8 @@
 // SMS to a listing's owner. Used by ListingContactForm and by the parent
 // listing-detail page when restoring a pending callback after login.
 
+import { getAnalyticsSessionId, trackContactSubmitted } from "../lib/analytics";
+
 interface BaseArgs {
   userName: string;
   userPhone: string;
@@ -16,15 +18,6 @@ interface CommercialArgs extends BaseArgs {
   commercialListingId: string;
 }
 
-function getSessionId(): string {
-  let sessionId = sessionStorage.getItem("analytics_session_id");
-  if (!sessionId) {
-    sessionId = `${Date.now()}-${Math.random().toString(36).substring(7)}`;
-    sessionStorage.setItem("analytics_session_id", sessionId);
-  }
-  return sessionId;
-}
-
 async function post(body: Record<string, unknown>): Promise<void> {
   const functionUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-listing-contact-sms`;
   const response = await fetch(functionUrl, {
@@ -35,7 +28,9 @@ async function post(body: Record<string, unknown>): Promise<void> {
     },
     body: JSON.stringify({
       ...body,
-      sessionId: getSessionId(),
+      // Real analytics session id so submissions join to analytics_events /
+      // analytics_sessions (historic rows used a homemade id and can't).
+      sessionId: getAnalyticsSessionId(),
       userAgent: navigator.userAgent,
     }),
   });
@@ -52,6 +47,7 @@ export async function sendListingContactSms(args: RentalArgs): Promise<void> {
     userPhone: args.userPhone,
     consentToFollowup: args.consentToFollowup,
   });
+  trackContactSubmitted(args.listingId, "rental");
 }
 
 export async function sendCommercialContactSms(
@@ -64,4 +60,5 @@ export async function sendCommercialContactSms(
     userPhone: args.userPhone,
     consentToFollowup: args.consentToFollowup,
   });
+  trackContactSubmitted(args.commercialListingId, "commercial");
 }

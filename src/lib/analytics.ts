@@ -303,8 +303,31 @@ function stopFlushTimer(): void {
   }
 }
 
+// First-touch attribution captured on session_start so the dashboard can
+// answer "where did this visitor come from" without Google Analytics.
+function getAttributionProps(): Record<string, unknown> {
+  if (!isBrowser()) return {};
+  const props: Record<string, unknown> = {};
+  try {
+    const referrer = document.referrer;
+    if (referrer && !referrer.includes(window.location.hostname)) {
+      props.referrer = referrer.slice(0, 500);
+    }
+    props.landing_path = window.location.pathname;
+    const params = new URLSearchParams(window.location.search);
+    for (const key of ['utm_source', 'utm_medium', 'utm_campaign'] as const) {
+      const value = params.get(key);
+      if (value) props[key] = value.slice(0, 200);
+    }
+  } catch {
+    // attribution is best-effort; never block session tracking
+  }
+  return props;
+}
+
 function emitSessionBoundary(eventName: 'session_start' | 'session_end', sessionId: string, timestampMs: number): void {
-  enqueueEvent(sessionId, eventName, {}, new Date(timestampMs).toISOString());
+  const props = eventName === 'session_start' ? getAttributionProps() : {};
+  enqueueEvent(sessionId, eventName, props, new Date(timestampMs).toISOString());
 }
 
 function ensureSession(nowMs: number = Date.now()): string {
@@ -457,7 +480,7 @@ export function trackAgencyPageView(agencyId: string, slug?: string): void {
   track('agency_page_view', props);
 }
 
-export function trackListingImpressionBatch(listingIds: string[]): void {
+export function trackListingImpressionBatch(listingIds: string[], extraProps: Record<string, unknown> = {}): void {
   if (!listingIds.length) return;
   const sessionId = ensureSession(Date.now());
   const freshIds = listingIds.filter((id) => {
@@ -472,7 +495,21 @@ export function trackListingImpressionBatch(listingIds: string[]): void {
   if (!freshIds.length) return;
 
   // Send batch event with array of listing IDs (view expects 'listing_ids' or 'ids')
-  track('listing_impression_batch', { listing_ids: freshIds });
+  track('listing_impression_batch', { listing_ids: freshIds, ...extraProps });
+}
+
+/**
+ * Session id for joining non-event records (e.g. contact submissions) to
+ * analytics sessions. Always use this instead of minting a separate id —
+ * see the dual-metrics migration note on the historic session_id mismatch.
+ */
+export function getAnalyticsSessionId(): string {
+  return ensureSession(Date.now());
+}
+
+export function trackContactSubmitted(listingId: string, listingType: 'rental' | 'commercial'): void {
+  if (!listingId) return;
+  track('contact_submitted', { listing_id: listingId, listing_type: listingType });
 }
 
 export function trackFilterApply(filters: Record<string, any>): void {
