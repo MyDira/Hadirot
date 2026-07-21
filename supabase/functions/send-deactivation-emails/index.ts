@@ -56,6 +56,15 @@ Deno.serve(async (req) => {
       },
     );
 
+    // PostgREST can't compare two columns in a filter value — the old
+    // `last_deactivation_email_sent_at.lt.deactivated_at` made Postgres try to
+    // cast the literal string "deactivated_at" to timestamptz (22007), 500ing the
+    // whole run so no emails were ever sent. Fetch the deactivated rows and do the
+    // "email is stale / never sent" comparison here in JS instead.
+    const needsDeactivationEmail = (l: any) =>
+      l.last_deactivation_email_sent_at == null ||
+      new Date(l.last_deactivation_email_sent_at) < new Date(l.deactivated_at);
+
     const { data: residentialListings, error: residentialError } = await supabaseAdmin
       .from("listings")
       .select(`
@@ -71,8 +80,7 @@ Deno.serve(async (req) => {
         )
       `)
       .eq("is_active", false)
-      .not("deactivated_at", "is", null)
-      .or("last_deactivation_email_sent_at.is.null,last_deactivation_email_sent_at.lt.deactivated_at");
+      .not("deactivated_at", "is", null);
 
     if (residentialError) {
       console.error("Error querying deactivated residential listings:", residentialError);
@@ -86,14 +94,15 @@ Deno.serve(async (req) => {
       .from("commercial_listings")
       .select("id, title, user_id, deactivated_at, last_published_at, last_deactivation_email_sent_at, commercial_space_type, full_address")
       .eq("is_active", false)
-      .not("deactivated_at", "is", null)
-      .or("last_deactivation_email_sent_at.is.null,last_deactivation_email_sent_at.lt.deactivated_at");
+      .not("deactivated_at", "is", null);
 
     if (commercialError) {
       console.error("Error querying deactivated commercial listings:", commercialError);
     }
 
-    const residentialMapped: DeactivatedListing[] = (residentialListings ?? []).map((listing: any) => ({
+    const residentialMapped: DeactivatedListing[] = (residentialListings ?? [])
+      .filter(needsDeactivationEmail)
+      .map((listing: any) => ({
       id: listing.id,
       title: listing.title,
       user_id: listing.user_id,
@@ -105,7 +114,7 @@ Deno.serve(async (req) => {
       is_commercial: false,
     }));
 
-    const commercialRaw = commercialListings ?? [];
+    const commercialRaw = (commercialListings ?? []).filter(needsDeactivationEmail);
     const commercialUserIds = [...new Set(commercialRaw.map((l: any) => l.user_id))];
 
     const profileMap: Record<string, { email: string; full_name: string }> = {};
