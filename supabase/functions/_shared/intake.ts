@@ -17,7 +17,11 @@ import { zodOutputFormat } from 'npm:@anthropic-ai/sdk/helpers/zod';
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2';
 import { createHash } from 'node:crypto';
 
-export const DEFAULT_MODEL = 'claude-opus-4-7';
+// Sonnet on extracted TEXT matches Opus-on-vision on the metrics that matter
+// (July 20 2026 bake-off: vague-street decoding 15/15 = Opus on all three
+// pamphlets; Haiku failed 0/15 even at temperature 0 — do NOT downgrade below
+// Sonnet). Override via the ANTHROPIC_MODEL secret.
+export const DEFAULT_MODEL = 'claude-sonnet-5';
 
 // ---------------------------------------------------------------------------
 // Structured output schema — mirrors the listing form's field set
@@ -152,11 +156,15 @@ export async function parseContent(
   // headroom (a 32k cap truncated a real Heimish booklet mid-array). The API
   // still enforces the JSON schema (output_config); we accumulate the stream
   // and zod-validate the final text.
+  //
+  // cache_control on the system prompt: the ~2.5k-token rulebook is identical
+  // across every chunk of a run (and across runs), so all calls after the
+  // first read it from cache at ~10% of the input price.
   const stream = anthropic.messages.stream({
     model,
     max_tokens: 64000,
     thinking: { type: 'adaptive' },
-    system: SYSTEM_PROMPT,
+    system: [{ type: 'text', text: SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } }],
     messages: [{ role: 'user', content: userContent }],
     output_config: { format: zodOutputFormat(ParseResultSchema) },
   });
