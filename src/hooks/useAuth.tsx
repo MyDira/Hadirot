@@ -239,11 +239,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (error) throw error;
 
     if (data.user) {
-      const { error: profileError } = await supabase.from("profiles").insert({
-        id: data.user.id,
-        email: email,
-        ...profileData,
-      });
+      // Idempotent: a double-submitted signup can race two inserts with the same
+      // auth-user id (= profiles PK). Upsert-ignore avoids the 23505 duplicate-key
+      // error (and the spurious error surfaced to the user) when the row already exists.
+      const { error: profileError } = await supabase.from("profiles").upsert(
+        {
+          id: data.user.id,
+          email: email,
+          ...profileData,
+        },
+        { onConflict: "id", ignoreDuplicates: true },
+      );
 
       if (profileError) throw profileError;
 
