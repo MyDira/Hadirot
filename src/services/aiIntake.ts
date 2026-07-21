@@ -8,6 +8,7 @@ import {
 } from '@/config/supabase';
 import { getAdminActiveDays, getExpirationDate } from './listings';
 import { resizeImageForUpload } from '../utils/imageResize';
+import { generateVideoThumbnail } from '../utils/videoUtils';
 import { emailService, renderBrandEmail } from './email';
 import { paymentsService } from './payments';
 
@@ -126,12 +127,50 @@ export const aiIntakeService = {
       data: { publicUrl },
     } = supabase.storage.from('listing-images').getPublicUrl(fileName);
 
-    return { filePath: fileName, publicUrl, is_featured: false };
+    return { filePath: fileName, publicUrl, is_featured: false, type: 'image' };
   },
 
-  async deleteIntakeImage(filePath: string): Promise<void> {
+  async uploadIntakeVideo(file: File, adminId: string): Promise<IntakeImage> {
+    const fileExt = file.name.split('.').pop() || 'mp4';
+    const base = `user_${adminId}/intake/${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const fileName = `${base}.${fileExt}`;
+
+    const { error } = await supabase.storage.from('listing-videos').upload(fileName, file);
+    if (error) throw error;
+
+    const {
+      data: { publicUrl },
+    } = supabase.storage.from('listing-videos').getPublicUrl(fileName);
+
+    let thumbnailPath: string | undefined;
+    let thumbnailUrl: string | undefined;
+    try {
+      const thumbBlob = await generateVideoThumbnail(file);
+      const thumbFile = new File([thumbBlob], `${base}_thumb.jpg`, { type: 'image/jpeg' });
+      const resizedThumb = await resizeImageForUpload(thumbFile);
+      const thumbExt = resizedThumb.name.split('.').pop() || 'jpg';
+      const path = `${base}_thumb.${thumbExt}`;
+      const { error: thumbError } = await supabase.storage
+        .from('listing-images')
+        .upload(path, resizedThumb);
+      if (thumbError) throw thumbError;
+      thumbnailPath = path;
+      thumbnailUrl = supabase.storage.from('listing-images').getPublicUrl(path).data.publicUrl;
+    } catch (err) {
+      // Thumbnail is a nice-to-have — the video itself still uploaded fine.
+      console.error('Video thumbnail generation failed:', err);
+    }
+
+    return { filePath: fileName, publicUrl, is_featured: false, type: 'video', thumbnailPath, thumbnailUrl };
+  },
+
+  async deleteIntakeMedia(item: IntakeImage): Promise<void> {
     // Best-effort: a leftover file in the intake folder is harmless.
-    await supabase.storage.from('listing-images').remove([filePath]);
+    const bucket = item.type === 'video' ? 'listing-videos' : 'listing-images';
+    await supabase.storage.from(bucket).remove([item.filePath]);
+    if (item.thumbnailPath) {
+      await supabase.storage.from('listing-images').remove([item.thumbnailPath]);
+    }
   },
 
   async parseBlocks(blocks: IntakeBlockInput[]): Promise<ParseBlocksResult> {
@@ -553,7 +592,10 @@ export const aiIntakeService = {
     if (insertError) throw insertError;
 
     // --- Photos: copy block images into the listing's own storage folder ----
-    const images = Array.isArray(scraped.image_paths) ? scraped.image_paths : [];
+    const allMedia = Array.isArray(scraped.image_paths) ? scraped.image_paths : [];
+    const images = allMedia.filter((img) => img.type !== 'video');
+    const video = allMedia.find((img) => img.type === 'video');
+
     if (images.length > 0) {
       const hasFeatured = images.some((img) => img.is_featured);
       for (let i = 0; i < images.length; i++) {
@@ -578,6 +620,42 @@ export const aiIntakeService = {
           sort_order: i,
         });
         if (imgError) console.error('Failed to attach image:', imgError);
+      }
+    }
+
+    // --- Video: copy into the listing's own storage folder + stamp the row --
+    if (video) {
+      try {
+        const ext = video.filePath.split('.').pop() || 'mp4';
+        const destPath = `${listing.id}/video_${Date.now()}.${ext}`;
+        const { error: copyError } = await supabase.storage
+          .from('listing-videos')
+          .copy(video.filePath, destPath);
+        const videoUrl = copyError
+          ? video.publicUrl
+          : supabase.storage.from('listing-videos').getPublicUrl(destPath).data.publicUrl;
+
+        let videoThumbnailUrl: string | null = video.thumbnailUrl ?? null;
+        if (video.thumbnailPath) {
+          const thumbExt = video.thumbnailPath.split('.').pop() || 'jpg';
+          const thumbDest = `${listing.id}/video_thumb_${Date.now()}.${thumbExt}`;
+          const { error: thumbCopyError } = await supabase.storage
+            .from('listing-images')
+            .copy(video.thumbnailPath, thumbDest);
+          if (!thumbCopyError) {
+            videoThumbnailUrl = supabase.storage
+              .from('listing-images')
+              .getPublicUrl(thumbDest).data.publicUrl;
+          }
+        }
+
+        const { error: videoUpdateError } = await supabase
+          .from('listings')
+          .update({ video_url: videoUrl, video_thumbnail_url: videoThumbnailUrl })
+          .eq('id', listing.id);
+        if (videoUpdateError) console.error('Failed to attach video:', videoUpdateError);
+      } catch (err) {
+        console.error('Failed to attach video:', err);
       }
     }
 

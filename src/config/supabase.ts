@@ -541,6 +541,11 @@ export interface IntakeImage {
   filePath: string;
   publicUrl: string;
   is_featured: boolean;
+  /** Absent on older rows — treat as 'image' for back-compat. */
+  type?: 'image' | 'video';
+  /** Video only: generated poster frame, stored in the listing-images bucket. */
+  thumbnailPath?: string;
+  thumbnailUrl?: string;
 }
 
 /** Listing-form fields with no dedicated scraped_listings column. */
