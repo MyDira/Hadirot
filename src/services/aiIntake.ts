@@ -11,6 +11,7 @@ import { resizeImageForUpload } from '../utils/imageResize';
 import { generateVideoThumbnail } from '../utils/videoUtils';
 import { emailService, renderBrandEmail } from './email';
 import { paymentsService } from './payments';
+import { scoreMatch, type LiveListingCandidate, type MatchCandidate } from '../utils/intakeMatch';
 
 export type IntakeReviewStatus = 'pending' | 'published' | 'discarded' | 'all';
 
@@ -438,6 +439,49 @@ export const aiIntakeService = {
       .update({ call_status: 'approved' as CallStatus })
       .eq('id', id);
     if (error) throw error;
+  },
+
+  /**
+   * Permanently removes an intake row and its uploaded media (photos/video +
+   * thumbnail). Unlike discard (call_status = 'suppressed'), this cannot be
+   * undone — callers must confirm with the admin first. Never call this on a
+   * published row (published_listing_id set); it would orphan the live
+   * listing's provenance without touching the listing itself.
+   */
+  async deleteIntakeListing(scraped: ScrapedListing): Promise<void> {
+    const media = Array.isArray(scraped.image_paths) ? scraped.image_paths : [];
+    await Promise.all(media.map((item) => this.deleteIntakeMedia(item)));
+
+    const { error } = await supabase.from('scraped_listings').delete().eq('id', scraped.id);
+    if (error) throw error;
+  },
+
+  // -------------------------------------------------------------------------
+  // Live-duplicate detection — advisory match against already-published
+  // listings, computed at review time (a draft can be created before its
+  // real-world twin goes live, so ingest-time dedup can't catch this; only
+  // the intra-staging dedup_key in _shared/intake.ts runs at ingest).
+  // -------------------------------------------------------------------------
+
+  /** Minimal snapshot of every active listing, for client-side match scoring. */
+  async buildLiveMatchIndex(): Promise<LiveListingCandidate[]> {
+    const { data, error } = await supabase
+      .from('listings')
+      .select(
+        'id, title, listing_type, bedrooms, contact_phone, cross_street_a, cross_street_b, neighborhood, price, asking_price, created_at',
+      )
+      .eq('is_active', true)
+      .limit(3000);
+    if (error) throw error;
+    return (data ?? []) as LiveListingCandidate[];
+  },
+
+  /** Scores one intake draft against the live index; strong matches first. */
+  findLiveDuplicates(scraped: ScrapedListing, index: LiveListingCandidate[]): MatchCandidate[] {
+    return index
+      .map((live) => scoreMatch(scraped, live))
+      .filter((m): m is MatchCandidate => m !== null)
+      .sort((a, b) => (a.strength === b.strength ? 0 : a.strength === 'strong' ? -1 : 1));
   },
 
   async assignIntakeListings(ids: string[], assignedUserId: string | null): Promise<void> {

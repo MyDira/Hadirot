@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
   X,
   AlertCircle,
+  AlertTriangle,
   MapPin,
   Loader2,
   User,
@@ -15,6 +16,7 @@ import {
   Check,
   ExternalLink,
   Sparkles,
+  Trash2,
 } from 'lucide-react';
 import type {
   ScrapedListing,
@@ -28,6 +30,7 @@ import type {
 } from '@/config/supabase';
 import { INTAKE_SOURCE_LABELS } from '@/config/supabase';
 import { aiIntakeService, CALL_STATUS_LABELS } from '@/services/aiIntake';
+import type { MatchCandidate } from '@/utils/intakeMatch';
 import { geocodeCrossStreets } from '@/services/geocoding';
 import { UserSearchSelect } from '@/components/admin/UserSearchSelect';
 import { useAuth } from '@/hooks/useAuth';
@@ -37,9 +40,13 @@ import { IntakeLocationMap } from './IntakeLocationMap';
 interface IntakeWorkspaceDrawerProps {
   listing: ScrapedListing | null;
   assignedProfile: Profile | null;
+  /** Possible live-listing duplicates for this row (advisory, strongest first). */
+  duplicates: MatchCandidate[];
   onClose: () => void;
   onSaved: () => void;
   onPublish: (listing: ScrapedListing) => void;
+  /** Fired after a successful permanent delete — parent closes + reloads. */
+  onDeleted: () => void;
 }
 
 const PROPERTY_TYPES: { value: PropertyType; label: string }[] = [
@@ -255,9 +262,11 @@ function Field({
 export function IntakeWorkspaceDrawer({
   listing,
   assignedProfile,
+  duplicates,
   onClose,
   onSaved,
   onPublish,
+  onDeleted,
 }: IntakeWorkspaceDrawerProps) {
   const { user } = useAuth();
   const [form, setForm] = useState<IntakeForm | null>(null);
@@ -267,6 +276,7 @@ export function IntakeWorkspaceDrawer({
   const [uploading, setUploading] = useState(false);
   const [geocoding, setGeocoding] = useState(false);
   const [statusBusy, setStatusBusy] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [entered, setEntered] = useState(false);
 
@@ -375,6 +385,15 @@ export function IntakeWorkspaceDrawer({
   };
 
   const handleSaveAndPublish = async () => {
+    const strongMatch = duplicates.find((d) => d.strength === 'strong');
+    if (
+      strongMatch &&
+      !confirm(
+        `This looks like it may already be live as "${strongMatch.title || 'Untitled'}" (${strongMatch.reason}). Publish this as a separate listing anyway?`,
+      )
+    ) {
+      return;
+    }
     const saved = await persist(true);
     if (saved) {
       // Publishing implies the owner gave permission — approve so the publish
@@ -402,6 +421,22 @@ export function IntakeWorkspaceDrawer({
       setError('Failed to update status.');
     } finally {
       setStatusBusy(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    const mediaCount = Array.isArray(listing.image_paths) ? listing.image_paths.length : 0;
+    const mediaNote = mediaCount > 0 ? ` and its ${mediaCount} photo/video file${mediaCount === 1 ? '' : 's'}` : '';
+    if (!confirm(`Permanently delete this listing${mediaNote}? This cannot be undone.`)) return;
+    setDeleting(true);
+    setError(null);
+    try {
+      await aiIntakeService.deleteIntakeListing(listing);
+      onDeleted();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to delete listing.');
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -580,6 +615,64 @@ export function IntakeWorkspaceDrawer({
                 </>
               )}
             </SectionCard>
+
+            {/* Possible live duplicates */}
+            {duplicates.length > 0 && (
+              <SectionCard
+                icon={<AlertTriangle className="w-4 h-4 text-amber-600" />}
+                title="Possible live duplicates"
+              >
+                <div className="space-y-2">
+                  {duplicates.map((dup) => (
+                    <div
+                      key={dup.id}
+                      className={`p-2.5 rounded-md border text-xs ${
+                        dup.strength === 'strong'
+                          ? 'bg-red-50 border-red-200'
+                          : 'bg-amber-50 border-amber-200'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="font-medium text-gray-900 truncate">
+                            {dup.title || 'Untitled'}
+                          </p>
+                          <p className="text-gray-500 mt-0.5">
+                            {[
+                              dup.bedrooms != null ? `${dup.bedrooms}BR` : null,
+                              dup.price != null
+                                ? `$${dup.price.toLocaleString()}`
+                                : dup.asking_price != null
+                                  ? `$${dup.asking_price.toLocaleString()}`
+                                  : null,
+                              [dup.cross_street_a, dup.cross_street_b].filter(Boolean).join(' & ') ||
+                                dup.neighborhood,
+                            ]
+                              .filter(Boolean)
+                              .join(' · ')}
+                          </p>
+                          <p
+                            className={`mt-1 font-medium ${
+                              dup.strength === 'strong' ? 'text-red-700' : 'text-amber-700'
+                            }`}
+                          >
+                            {dup.reason}
+                          </p>
+                        </div>
+                        <a
+                          href={`/listing/${dup.id}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="flex-shrink-0 inline-flex items-center gap-1 font-medium text-blue-600 hover:text-blue-800"
+                        >
+                          Compare <ExternalLink className="w-3 h-3" />
+                        </a>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </SectionCard>
+            )}
 
             {/* Original blurb */}
             <SectionCard icon={<FileText className="w-4 h-4" />} title="Original blurb">
@@ -1023,14 +1116,28 @@ export function IntakeWorkspaceDrawer({
 
         {/* Footer */}
         <div className="flex-shrink-0 bg-white border-t border-gray-200 px-6 py-4 flex items-center justify-between gap-3">
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={saving}
-            className="flex-shrink-0 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 transition-colors"
-          >
-            Cancel
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={saving}
+              className="flex-shrink-0 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 transition-colors"
+            >
+              Cancel
+            </button>
+            {status !== 'published' && (
+              <button
+                type="button"
+                onClick={handleDelete}
+                disabled={saving || deleting}
+                className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-red-600 bg-white border border-red-200 rounded-md hover:bg-red-50 disabled:opacity-50 transition-colors"
+                title="Permanently delete this row and its uploaded media"
+              >
+                <Trash2 className="w-4 h-4" />
+                {deleting ? 'Deleting…' : 'Delete permanently'}
+              </button>
+            )}
+          </div>
           {error && (
             <p className="flex items-center gap-1.5 text-sm text-red-600 min-w-0 flex-1 justify-end">
               <AlertCircle className="w-4 h-4 flex-shrink-0" />

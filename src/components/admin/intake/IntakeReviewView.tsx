@@ -25,6 +25,7 @@ import {
   CALL_STATUS_LABELS,
   type ReviewFilters,
 } from '@/services/aiIntake';
+import type { LiveListingCandidate, MatchCandidate } from '@/utils/intakeMatch';
 import { IntakeWorkspaceDrawer } from './IntakeWorkspaceDrawer';
 import { UserSearchSelect } from '@/components/admin/UserSearchSelect';
 import { Toast } from '@/components/shared/Toast';
@@ -111,6 +112,7 @@ export function IntakeReviewView({ initialSource, refreshKey }: IntakeReviewView
   const [listings, setListings] = useState<ScrapedListing[]>([]);
   const [profiles, setProfiles] = useState<Map<string, Profile>>(new Map());
   const [trialFlags, setTrialFlags] = useState<Map<string, boolean>>(new Map());
+  const [liveMatchIndex, setLiveMatchIndex] = useState<LiveListingCandidate[]>([]);
   const [monetizationEnabled, setMonetizationEnabled] = useState(false);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -132,14 +134,16 @@ export function IntakeReviewView({ initialSource, refreshKey }: IntakeReviewView
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const [rows, monetization, hoods] = await Promise.all([
+      const [rows, monetization, hoods, matchIndex] = await Promise.all([
         aiIntakeService.getReviewListings(filters),
         aiIntakeService.getMonetizationEnabled(),
         aiIntakeService.getNeighborhoods(),
+        aiIntakeService.buildLiveMatchIndex(),
       ]);
       setListings(rows);
       setMonetizationEnabled(monetization);
       setNeighborhoods(hoods);
+      setLiveMatchIndex(matchIndex);
       setSelected(new Set());
 
       const assignedIds = rows.map((r) => r.assigned_user_id).filter((id): id is string => !!id);
@@ -257,6 +261,16 @@ export function IntakeReviewView({ initialSource, refreshKey }: IntakeReviewView
       setToast('Failed to update assignment');
     }
   };
+
+  const duplicateMatches = useMemo(() => {
+    const map = new Map<string, MatchCandidate[]>();
+    if (liveMatchIndex.length === 0) return map;
+    for (const listing of listings) {
+      const matches = aiIntakeService.findLiveDuplicates(listing, liveMatchIndex);
+      if (matches.length > 0) map.set(listing.id, matches);
+    }
+    return map;
+  }, [listings, liveMatchIndex]);
 
   const trialUsed = (listing: ScrapedListing): boolean => {
     if (!monetizationEnabled || listing.listing_kind !== 'rental') return false;
@@ -565,6 +579,21 @@ export function IntakeReviewView({ initialSource, refreshKey }: IntakeReviewView
                           <AlertTriangle className="w-3 h-3" /> Trial used
                         </span>
                       )}
+                      {(() => {
+                        const matches = duplicateMatches.get(listing.id);
+                        if (!matches || matches.length === 0) return null;
+                        const strong = matches.some((m) => m.strength === 'strong');
+                        return (
+                          <span
+                            className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 text-xs font-medium rounded ${
+                              strong ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'
+                            }`}
+                            title={`Matches ${matches.length} live listing${matches.length === 1 ? '' : 's'} — ${matches[0].reason}. Open to compare.`}
+                          >
+                            <AlertTriangle className="w-3 h-3" /> Possible duplicate
+                          </span>
+                        );
+                      })()}
                     </div>
                     <p className="text-xs text-gray-500 truncate">
                       {[
@@ -649,9 +678,14 @@ export function IntakeReviewView({ initialSource, refreshKey }: IntakeReviewView
         assignedProfile={
           editListing?.assigned_user_id ? profiles.get(editListing.assigned_user_id) ?? null : null
         }
+        duplicates={editListing ? duplicateMatches.get(editListing.id) ?? [] : []}
         onClose={() => setEditListing(null)}
         onSaved={fetchData}
         onPublish={(saved) => handlePublish([saved])}
+        onDeleted={() => {
+          setEditListing(null);
+          fetchData();
+        }}
       />
 
       {toast && <Toast message={toast} onClose={() => setToast(null)} />}
