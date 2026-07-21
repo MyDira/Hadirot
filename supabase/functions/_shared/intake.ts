@@ -303,7 +303,9 @@ export async function upsertScrapedListing(
   // --- Does this real-world listing already exist? ------------------------
   const { data: existing } = await supabase
     .from('scraped_listings')
-    .select('id, times_seen, source_history, price, call_status')
+    .select(
+      'id, times_seen, source_history, price, call_status, image_paths, assigned_user_id, admin_custom_agency_name, admin_listing_type_display',
+    )
     .eq('dedup_key', dedupKey)
     .maybeSingle();
 
@@ -322,6 +324,25 @@ export async function upsertScrapedListing(
     // Only fill a price we didn't already have — never overwrite an admin edit.
     if ((existing.price == null || existing.price === 0) && price != null) {
       patch.price = price;
+    }
+    // Carry this block's media + account assignment onto the existing draft,
+    // but only when it doesn't already have them — never clobber an earlier
+    // admin choice (same rule as price above).
+    const existingImages = Array.isArray(existing.image_paths) ? existing.image_paths : [];
+    if (existingImages.length === 0 && Array.isArray(ctx.images) && ctx.images.length > 0) {
+      patch.image_paths = ctx.images;
+    }
+    if (!existing.assigned_user_id && ctx.assignedUserId) {
+      patch.assigned_user_id = ctx.assignedUserId;
+      patch.admin_custom_agency_name = null;
+      patch.admin_listing_type_display = null;
+    } else if (!existing.assigned_user_id && !ctx.assignedUserId) {
+      if (!existing.admin_custom_agency_name && ctx.adminCustomAgencyName) {
+        patch.admin_custom_agency_name = ctx.adminCustomAgencyName;
+      }
+      if (!existing.admin_listing_type_display && ctx.adminListingTypeDisplay) {
+        patch.admin_listing_type_display = ctx.adminListingTypeDisplay;
+      }
     }
     // A re-sighting of a previously suppressed row is worth resurfacing.
     if (existing.call_status === 'suppressed') {

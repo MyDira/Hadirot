@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Loader2,
-  Pencil,
   Trash2,
   Upload,
   RotateCcw,
@@ -11,9 +10,8 @@ import {
   UserPlus,
   X,
   Check,
-  History,
   Search,
-  CheckCheck,
+  ChevronRight,
 } from 'lucide-react';
 import {
   type ScrapedListing,
@@ -24,11 +22,10 @@ import {
 import {
   aiIntakeService,
   toE164,
-  getCallTransitions,
   CALL_STATUS_LABELS,
   type ReviewFilters,
 } from '@/services/aiIntake';
-import { IntakeEditModal } from './IntakeEditModal';
+import { IntakeWorkspaceDrawer } from './IntakeWorkspaceDrawer';
 import { UserSearchSelect } from '@/components/admin/UserSearchSelect';
 import { Toast } from '@/components/shared/Toast';
 import { useAuth } from '@/hooks/useAuth';
@@ -123,7 +120,6 @@ export function IntakeReviewView({ initialSource, refreshKey }: IntakeReviewView
   const [publishErrors, setPublishErrors] = useState<Array<{ title: string; error: string }>>([]);
   const [assignOpen, setAssignOpen] = useState(false);
   const [assignUser, setAssignUser] = useState<Profile | null>(null);
-  const [historyOpen, setHistoryOpen] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
 
   // Preselect the source of a just-completed ingest and jump to its new leads.
@@ -234,15 +230,6 @@ export function IntakeReviewView({ initialSource, refreshKey }: IntakeReviewView
     }
   };
 
-  const changeStatus = async (id: string, status: CallStatus) => {
-    try {
-      await aiIntakeService.setCallStatus(id, status);
-      fetchData();
-    } catch {
-      setToast('Failed to update status');
-    }
-  };
-
   const bulkStatus = async (status: CallStatus) => {
     if (selected.size === 0) return;
     try {
@@ -253,8 +240,6 @@ export function IntakeReviewView({ initialSource, refreshKey }: IntakeReviewView
       setToast('Failed to update leads');
     }
   };
-
-  const handleRestore = (id: string) => changeStatus(id, 'pending_call');
 
   const handleBulkAssign = async (userToAssign: Profile | null) => {
     if (selected.size === 0) return;
@@ -477,9 +462,9 @@ export function IntakeReviewView({ initialSource, refreshKey }: IntakeReviewView
               <input type="checkbox" checked={allSelected} onChange={toggleSelectAll} className="rounded" />
               <span className="w-12 text-center">Photo</span>
               <span className="flex-1">Listing</span>
-              <span className="w-32">Contact</span>
-              <span className="w-40">Status</span>
-              <span className="w-44 text-right">Actions</span>
+              <span className="w-40">Contact</span>
+              <span className="w-32">Status</span>
+              <span className="w-28 text-right">Actions</span>
             </div>
 
             {visible.map((listing) => {
@@ -505,16 +490,27 @@ export function IntakeReviewView({ initialSource, refreshKey }: IntakeReviewView
                     ? `$${listing.price.toLocaleString()}/mo`
                     : '-';
               const isNew = !listing.admin_reviewed_at;
-              const history = Array.isArray(listing.source_history) ? listing.source_history : [];
-              const transitions = getCallTransitions(listing.call_status);
               const status = listing.call_status;
 
               return (
-                <div key={listing.id} className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 text-sm">
+                <div
+                  key={listing.id}
+                  onClick={() => setEditListing(listing)}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      setEditListing(listing);
+                    }
+                  }}
+                  className="group flex items-center gap-3 px-4 py-3 text-sm cursor-pointer hover:bg-blue-50/50 transition-colors focus:outline-none focus:bg-blue-50/50"
+                >
                   <input
                     type="checkbox"
                     checked={selected.has(listing.id)}
                     onChange={() => toggleSelect(listing.id)}
+                    onClick={(e) => e.stopPropagation()}
                     className="rounded"
                   />
 
@@ -546,6 +542,7 @@ export function IntakeReviewView({ initialSource, refreshKey }: IntakeReviewView
                           href={listing.source_url}
                           target="_blank"
                           rel="noreferrer"
+                          onClick={(e) => e.stopPropagation()}
                           className="text-gray-400 hover:text-blue-600"
                           title="Open original listing"
                         >
@@ -555,7 +552,7 @@ export function IntakeReviewView({ initialSource, refreshKey }: IntakeReviewView
                       {listing.geocode_status !== 'success' && (
                         <span
                           className="inline-flex items-center gap-0.5 px-1.5 py-0.5 text-xs font-medium rounded bg-amber-100 text-amber-700"
-                          title="No map coordinates — re-geocode in the editor"
+                          title="No map coordinates — open to re-geocode"
                         >
                           <AlertTriangle className="w-3 h-3" /> No geo
                         </span>
@@ -579,40 +576,13 @@ export function IntakeReviewView({ initialSource, refreshKey }: IntakeReviewView
                         .filter(Boolean)
                         .join(' · ')}
                     </p>
-                    {/* Seen / history */}
-                    <div className="relative mt-0.5">
-                      <button
-                        onClick={() => setHistoryOpen(historyOpen === listing.id ? null : listing.id)}
-                        className="inline-flex items-center gap-1 text-[11px] text-gray-400 hover:text-gray-700"
-                        title="Sighting history"
-                      >
-                        <History className="w-3 h-3" />
-                        Seen {listing.times_seen}× · last {listing.date_last_seen}
-                      </button>
-                      {historyOpen === listing.id && history.length > 0 && (
-                        <div className="absolute z-10 mt-1 w-64 bg-white border border-gray-200 rounded-lg shadow-lg p-2 text-xs">
-                          <p className="font-medium text-gray-700 mb-1">Where this listing appeared</p>
-                          <ul className="space-y-1 max-h-48 overflow-auto">
-                            {history
-                              .slice()
-                              .reverse()
-                              .map((h, i) => (
-                                <li key={i} className="flex items-center justify-between gap-2">
-                                  <SourceBadge source={h.source} />
-                                  <span className="text-gray-500">{h.date || '—'}</span>
-                                  <span className="text-gray-400">
-                                    {h.price ? `$${h.price.toLocaleString()}` : ''}
-                                  </span>
-                                </li>
-                              ))}
-                          </ul>
-                        </div>
-                      )}
-                    </div>
+                    <p className="text-[11px] text-gray-400 mt-0.5">
+                      Seen {listing.times_seen}× · last {listing.date_last_seen}
+                    </p>
                   </div>
 
                   {/* Contact */}
-                  <div className="w-32 flex-shrink-0 min-w-0">
+                  <div className="w-40 flex-shrink-0 min-w-0">
                     <p className="text-gray-900 truncate">
                       {listing.contact_name || listing.agency_name || '-'}
                     </p>
@@ -630,45 +600,34 @@ export function IntakeReviewView({ initialSource, refreshKey }: IntakeReviewView
                     ) : null}
                   </div>
 
-                  {/* Status — call workflow */}
-                  <div className="w-40 flex-shrink-0">
+                  {/* Status */}
+                  <div className="w-32 flex-shrink-0">
                     <span
                       className={`inline-block px-2 py-0.5 text-[11px] font-medium rounded ${STATUS_PILL[status]}`}
                     >
                       {CALL_STATUS_LABELS[status]}
                     </span>
-                    {transitions.length > 0 && (
-                      <select
-                        value=""
-                        onChange={(e) => {
-                          if (e.target.value) changeStatus(listing.id, e.target.value as CallStatus);
-                        }}
-                        className="mt-1 block w-full px-1.5 py-1 text-[11px] border border-gray-200 rounded text-gray-600 focus:ring-1 focus:ring-blue-500"
+                    {status === 'published' && listing.published_listing_id && (
+                      <a
+                        href={`/listing/${listing.published_listing_id}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        onClick={(e) => e.stopPropagation()}
+                        className="mt-1 inline-flex items-center gap-1 text-[11px] font-medium text-blue-600 hover:text-blue-800"
                       >
-                        <option value="">Set status…</option>
-                        {transitions.map((t) => (
-                          <option key={t} value={t}>
-                            {CALL_STATUS_LABELS[t]}
-                          </option>
-                        ))}
-                      </select>
+                        View live <ExternalLink className="w-3 h-3" />
+                      </a>
                     )}
                   </div>
 
-                  {/* Actions */}
-                  <div className="w-44 flex-shrink-0 flex items-center justify-end gap-1">
-                    {status !== 'published' && status !== 'suppressed' && (
-                      <button
-                        onClick={() => setEditListing(listing)}
-                        className="p-1.5 text-gray-400 hover:text-blue-600 rounded transition-colors"
-                        title="Edit"
-                      >
-                        <Pencil className="w-4 h-4" />
-                      </button>
-                    )}
+                  {/* Quick action + open affordance */}
+                  <div className="w-28 flex-shrink-0 flex items-center justify-end gap-2">
                     {status === 'approved' && (
                       <button
-                        onClick={() => handlePublish([listing])}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handlePublish([listing]);
+                        }}
                         disabled={publishing}
                         className="px-2.5 py-1 text-xs font-medium text-white bg-blue-600 rounded hover:bg-blue-700 disabled:opacity-50 transition-colors"
                         title="Publish live now"
@@ -676,44 +635,7 @@ export function IntakeReviewView({ initialSource, refreshKey }: IntakeReviewView
                         Publish
                       </button>
                     )}
-                    {status !== 'approved' && status !== 'published' && status !== 'suppressed' && (
-                      <button
-                        onClick={() => changeStatus(listing.id, 'approved')}
-                        className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-green-700 border border-green-200 rounded hover:bg-green-50 transition-colors"
-                        title="Owner gave permission — ready to publish"
-                      >
-                        <CheckCheck className="w-3.5 h-3.5" /> Permission
-                      </button>
-                    )}
-                    {status === 'published' && listing.published_listing_id && (
-                      <a
-                        href={`/listing/${listing.published_listing_id}`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-blue-600 border border-blue-200 rounded hover:bg-blue-50 transition-colors"
-                      >
-                        View <ExternalLink className="w-3 h-3" />
-                      </a>
-                    )}
-                    {status === 'suppressed' ? (
-                      <button
-                        onClick={() => handleRestore(listing.id)}
-                        className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-gray-600 border border-gray-300 rounded hover:bg-gray-50 transition-colors"
-                      >
-                        <RotateCcw className="w-3 h-3" /> Restore
-                      </button>
-                    ) : (
-                      status !== 'published' && (
-                        <button
-                          onClick={() => changeStatus(listing.id, 'suppressed')}
-                          disabled={publishing}
-                          className="p-1.5 text-gray-400 hover:text-red-600 rounded transition-colors"
-                          title="Discard"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      )
-                    )}
+                    <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-gray-500 transition-colors" />
                   </div>
                 </div>
               );
@@ -722,7 +644,7 @@ export function IntakeReviewView({ initialSource, refreshKey }: IntakeReviewView
         )}
       </div>
 
-      <IntakeEditModal
+      <IntakeWorkspaceDrawer
         listing={editListing}
         assignedProfile={
           editListing?.assigned_user_id ? profiles.get(editListing.assigned_user_id) ?? null : null
