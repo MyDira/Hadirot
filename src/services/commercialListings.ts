@@ -3,6 +3,7 @@ import { supabase, CommercialListing, CommercialListingImage } from '../config/s
 import { capitalizeName } from '../utils/formatters';
 import { getExpirationDate, getAdminActiveDays, MapBounds } from './listings';
 import { resizeImageForUpload } from '../utils/imageResize';
+import { isTrackingSuppressed } from '../lib/analytics';
 
 export type CommercialSortOption = 'newest' | 'oldest' | 'price_asc' | 'price_desc' | 'sf_asc' | 'sf_desc';
 
@@ -865,6 +866,11 @@ export const commercialListingsService = {
   },
 
   async incrementCommercialListingView(id: string): Promise<void> {
+    // Admin / sign-in-as-user browsing must not inflate owner-facing stats.
+    // Checked here because the fallback below writes the table directly and
+    // so would sidestep the RPC's own admin guard.
+    if (isTrackingSuppressed()) return;
+
     try {
       await supabase.rpc('increment_commercial_listing_views', { listing_id: id });
     } catch {

@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
 import * as Sentry from '@sentry/react';
 import { supabase } from '@/config/supabase';
-import { initAnalytics, setSuppressAnalytics, setUserId, track } from '@/lib/analytics';
+import { initAnalytics, isImpersonating, setSuppressAnalytics, setUserId, track } from '@/lib/analytics';
 import { setGADisabled } from '@/lib/ga';
 import { useAuth } from './useAuth';
 
@@ -39,8 +39,9 @@ export function useAnalyticsInit(): void {
     if (loading) {
       return;
     }
-    setSuppressAnalytics(profile?.is_admin === true);
-    setGADisabled(profile?.is_admin === true);
+    const suppress = profile?.is_admin === true || isImpersonating();
+    setSuppressAnalytics(suppress);
+    setGADisabled(suppress);
   }, [loading, profile?.is_admin]);
 
   useEffect(() => {

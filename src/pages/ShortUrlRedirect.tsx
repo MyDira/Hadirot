@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/config/supabase';
-import { track } from '@/lib/analytics';
+import { isTrackingSuppressed, track } from '@/lib/analytics';
 
 export function ShortUrlRedirect() {
   const { code } = useParams<{ code: string }>();
@@ -50,12 +50,16 @@ export function ShortUrlRedirect() {
           return;
         }
 
-        // Increment click count in the background (don't wait for it)
-        supabase.rpc('increment_short_url_clicks', { p_short_code: code }).then(() => {
-          console.log('[ShortUrlRedirect] Click count incremented');
-        }).catch((error: any) => {
-          console.error('[ShortUrlRedirect] Error incrementing click count:', error);
-        });
+        // Increment click count in the background (don't wait for it).
+        // Skipped for admins so staff clicking digest links doesn't inflate
+        // digest link performance.
+        if (!isTrackingSuppressed()) {
+          supabase.rpc('increment_short_url_clicks', { p_short_code: code }).then(() => {
+            console.log('[ShortUrlRedirect] Click count incremented');
+          }).catch((error: any) => {
+            console.error('[ShortUrlRedirect] Error incrementing click count:', error);
+          });
+        }
 
         // Track the click through the /track edge function. Routing through
         // track() means session/anon IDs come from the analytics session store

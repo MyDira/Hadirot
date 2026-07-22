@@ -1,4 +1,5 @@
 import { supabase } from '../config/supabase';
+import { isTrackingSuppressed } from '../lib/analytics';
 
 export interface KnowledgeBaseCategory {
   id: string;
@@ -117,6 +118,8 @@ export const knowledgeBaseService = {
 
   // Increment view count for an article
   async incrementViewCount(articleId: string): Promise<void> {
+    if (isTrackingSuppressed()) return;
+
     const { error } = await supabase.rpc('increment_article_views', {
       article_id: articleId,
     });

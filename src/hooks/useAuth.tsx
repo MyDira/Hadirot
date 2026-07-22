@@ -3,6 +3,7 @@ import { User } from "@supabase/supabase-js";
 import { supabase, Profile } from "../config/supabase";
 import { emailService } from "../services/email";
 import { queryClient, queryKeys, shareProfileAcrossCaches } from "@/services/queryClient";
+import { setImpersonating } from "@/lib/analytics";
 
 export const AUTH_CONTEXT_ID = "auth/v1";
 
@@ -295,6 +296,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signOut = async () => {
     const { error } = await supabase.auth.signOut();
     if (error) throw error;
+    // Ends any admin sign-in-as-user session, so tracking resumes normally.
+    setImpersonating(false);
   };
 
   const value: AuthContextValue = {

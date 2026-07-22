@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { supabase } from '../config/supabase';
+import { setImpersonating } from '../lib/analytics';
 
 /**
  * Simplified admin sign-in-as-user hook.
@@ -41,6 +42,10 @@ export function useAdminSignInAsUser() {
         throw new Error('Invalid access token format received from server');
       }
 
+      // Flag before swapping sessions: the new session looks like a normal
+      // user, so analytics must be suppressed for the whole support session.
+      setImpersonating(true);
+
       // Set the session using the validated tokens
       const { error: sessionError } = await supabase.auth.setSession({
         access_token: data.access_token,
@@ -55,6 +60,8 @@ export function useAdminSignInAsUser() {
       // No state tracking needed - it's a normal session
 
     } catch (err: any) {
+      // Sign-in-as failed — the admin stays themselves, so clear the flag.
+      setImpersonating(false);
       const errorMessage = err.message || 'An unexpected error occurred';
       setError(errorMessage);
       console.error('Sign in as user error:', errorMessage);

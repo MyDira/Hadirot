@@ -2,6 +2,7 @@ import * as Sentry from '@sentry/react';
 import { supabase, Listing, SaleStatus } from '../config/supabase';
 import { capitalizeName } from '../utils/formatters';
 import { resizeImageForUpload } from '../utils/imageResize';
+import { isTrackingSuppressed } from '../lib/analytics';
 
 export const LISTING_DURATION_DAYS = {
   RENTAL: 30,
@@ -1371,23 +1372,20 @@ export const listingsService = {
   },
 
   async incrementListingView(listingId: string) {
-    const { data: listing, error } = await supabase
-      .from('listings')
-      .select('views')
-      .eq('id', listingId)
-      .maybeSingle();
+    // Admin / sign-in-as-user browsing must not inflate the view count that
+    // listing owners see on their dashboard and weekly performance email.
+    if (isTrackingSuppressed()) return;
 
-    if (error || !listing) {
-      console.error("❌ Error fetching listing to increment view:", error);
-      return;
+    // Atomic server-side increment. The previous read-modify-write here
+    // both lost counts under concurrent views and bypassed the function's
+    // admin guard.
+    const { error } = await supabase.rpc('increment_listing_views', {
+      listing_id: listingId,
+    });
+
+    if (error) {
+      console.error("❌ Error incrementing listing view:", error);
     }
-
-    const newViews = listing.views + 1;
-
-    await supabase
-      .from('listings')
-      .update({ views: newViews })
-      .eq('id', listingId);
   },
 
   async deleteListingImage(imageId: string, imageUrl: string) {

@@ -24,6 +24,11 @@ const LAST_ACTIVITY_KEY = 'ha_session_last_activity';
 const SESSION_FLAG_PREFIX = 'ha_flag:';
 const POST_ATTEMPT_KEY = 'ha_post_attempt';
 const POST_ATTEMPT_SESSION_KEY = 'ha_post_attempt_session';
+// Set while an admin is signed in as another user. That session looks like
+// a normal user to both the client profile check and the DB's
+// is_admin_cached(), so without this flag admin support sessions would be
+// counted as real traffic.
+const IMPERSONATION_KEY = 'ha_impersonating';
 
 const IDLE_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
 const FLUSH_INTERVAL_MS = 3000; // 3 seconds
@@ -430,7 +435,38 @@ export function setUserId(userId?: string | null): void {
  * resolved. Call once auth + profile have loaded, and again on changes
  * (e.g., admin signs out).
  */
+export function isImpersonating(): boolean {
+  return safeSessionGet(IMPERSONATION_KEY) === '1';
+}
+
+/**
+ * Mark/unmark an admin "sign in as user" session. While set, all analytics
+ * is suppressed even though the active profile is a non-admin user.
+ */
+export function setImpersonating(active: boolean): void {
+  if (active) {
+    safeSessionSet(IMPERSONATION_KEY, '1');
+    setSuppressAnalytics(true);
+  } else {
+    safeSessionRemove(IMPERSONATION_KEY);
+  }
+}
+
+/**
+ * True when tracking must not be recorded for the current user — an admin,
+ * or an admin impersonating a user. Used to gate the direct row-counter
+ * RPCs, which bypass the event pipeline entirely.
+ */
+export function isTrackingSuppressed(): boolean {
+  return suppressEvents === true || isImpersonating();
+}
+
 export function setSuppressAnalytics(suppress: boolean | null): void {
+  // An impersonated session reports a non-admin profile; never let that
+  // downgrade suppression back to "allow".
+  if (suppress === false && isImpersonating()) {
+    suppress = true;
+  }
   const previous = suppressEvents;
   suppressEvents = suppress;
 

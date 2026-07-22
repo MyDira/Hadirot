@@ -1,6 +1,6 @@
 import { useRef, useCallback, useEffect } from 'react';
 import { supabase } from '../config/supabase';
-import { trackListingImpressionBatch } from '../lib/analytics';
+import { isTrackingSuppressed, trackListingImpressionBatch } from '../lib/analytics';
 
 // Commercial impressions live on the row (commercial_listings.impressions is
 // the source of truth — see migration 20260630000000), so cards report them
@@ -37,6 +37,8 @@ export function useCommercialImpressions() {
     const ids = [...pendingRef.current];
     pendingRef.current.clear();
     if (ids.length === 0) return;
+    // Admin / sign-in-as-user browsing must not inflate impression counts.
+    if (isTrackingSuppressed()) return;
     markSeen(ids);
     // Also emit analytics events so commercial impressions get the same
     // time-series/session treatment as residential (the row counter stays
