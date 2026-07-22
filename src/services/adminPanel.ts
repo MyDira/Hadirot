@@ -45,9 +45,17 @@ export interface AdminUsersQuery {
   perPage: number;
 }
 
+export interface ListingBreakdown {
+  residentialRentals: number;
+  residentialSales: number;
+  commercialRentals: number;
+  commercialSales: number;
+}
+
 export interface AdminStats {
   totalUsers: number;
   totalListings: number;
+  listingBreakdown: ListingBreakdown;
   featuredListings: number;
   activeUsers: number;
 }
@@ -74,36 +82,68 @@ export const adminPanelService = {
   async getStats(): Promise<AdminStats> {
     const nowIso = new Date().toISOString();
     // "Active Listings" must mean active — count is_active rows across both
-    // residential and commercial. "Featured" counts non-expired featured rows
-    // across both types.
-    const [usersRes, activeRes, commercialActiveRes, featuredRes, commercialFeaturedRes] =
-      await Promise.all([
-        supabase.from('profiles').select('id', { count: 'exact', head: true }),
-        supabase
-          .from('listings')
-          .select('id', { count: 'exact', head: true })
-          .eq('is_active', true),
-        supabase
-          .from('commercial_listings')
-          .select('id', { count: 'exact', head: true })
-          .eq('is_active', true),
-        supabase
-          .from('listings')
-          .select('id', { count: 'exact', head: true })
-          .eq('is_active', true)
-          .eq('is_featured', true)
-          .gt('featured_expires_at', nowIso),
-        supabase
-          .from('commercial_listings')
-          .select('id', { count: 'exact', head: true })
-          .eq('is_active', true)
-          .eq('is_featured', true)
-          .gt('featured_expires_at', nowIso),
-      ]);
+    // residential and commercial, split by rental/sale for the overview
+    // card's breakdown. "Featured" counts non-expired featured rows across
+    // both types.
+    const [
+      usersRes,
+      residentialRentalRes,
+      residentialSaleRes,
+      commercialRentalRes,
+      commercialSaleRes,
+      featuredRes,
+      commercialFeaturedRes,
+    ] = await Promise.all([
+      supabase.from('profiles').select('id', { count: 'exact', head: true }),
+      supabase
+        .from('listings')
+        .select('id', { count: 'exact', head: true })
+        .eq('is_active', true)
+        .eq('listing_type', 'rental'),
+      supabase
+        .from('listings')
+        .select('id', { count: 'exact', head: true })
+        .eq('is_active', true)
+        .eq('listing_type', 'sale'),
+      supabase
+        .from('commercial_listings')
+        .select('id', { count: 'exact', head: true })
+        .eq('is_active', true)
+        .eq('listing_type', 'rental'),
+      supabase
+        .from('commercial_listings')
+        .select('id', { count: 'exact', head: true })
+        .eq('is_active', true)
+        .eq('listing_type', 'sale'),
+      supabase
+        .from('listings')
+        .select('id', { count: 'exact', head: true })
+        .eq('is_active', true)
+        .eq('is_featured', true)
+        .gt('featured_expires_at', nowIso),
+      supabase
+        .from('commercial_listings')
+        .select('id', { count: 'exact', head: true })
+        .eq('is_active', true)
+        .eq('is_featured', true)
+        .gt('featured_expires_at', nowIso),
+    ]);
+
+    const listingBreakdown: ListingBreakdown = {
+      residentialRentals: residentialRentalRes.count || 0,
+      residentialSales: residentialSaleRes.count || 0,
+      commercialRentals: commercialRentalRes.count || 0,
+      commercialSales: commercialSaleRes.count || 0,
+    };
 
     return {
       totalUsers: usersRes.count || 0,
-      totalListings: (activeRes.count || 0) + (commercialActiveRes.count || 0),
+      totalListings:
+        listingBreakdown.residentialRentals +
+        listingBreakdown.residentialSales +
+        listingBreakdown.commercialRentals +
+        listingBreakdown.commercialSales,
+      listingBreakdown,
       featuredListings: (featuredRes.count || 0) + (commercialFeaturedRes.count || 0),
       // Parity with the old panel: "active users" is intentionally simplified.
       activeUsers: usersRes.count || 0,

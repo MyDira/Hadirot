@@ -15,6 +15,51 @@ import {
 } from 'lucide-react';
 import { useAdminStats } from '../hooks/useAdminStats';
 
+function ActiveListingsCard({
+  total,
+  breakdown,
+  loading,
+}: {
+  total: number;
+  breakdown: { label: string; value: number }[];
+  loading: boolean;
+}) {
+  return (
+    <div className="relative overflow-hidden rounded-2xl p-6 bg-emerald-50 border border-white/20 shadow-sm">
+      <div className="flex items-start justify-between">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-widest text-emerald-900 opacity-70 mb-1">
+            Active Listings
+          </p>
+          {loading ? (
+            <div className="h-12 w-20 mt-2 rounded-lg bg-white/50 animate-pulse" />
+          ) : (
+            <p className="text-5xl font-bold text-emerald-900 leading-none mt-2">
+              {total.toLocaleString()}
+            </p>
+          )}
+        </div>
+        <div className="p-3 rounded-xl bg-emerald-500 shadow-sm">
+          <Home className="w-5 h-5 text-white" />
+        </div>
+      </div>
+      <div className="relative mt-4 pt-3 border-t border-emerald-900/10 space-y-1.5">
+        {breakdown.map(({ label, value }) => (
+          <div key={label} className="flex items-center justify-between text-xs">
+            <span className="text-emerald-900/70">{label}</span>
+            {loading ? (
+              <div className="h-3 w-6 rounded bg-white/50 animate-pulse" />
+            ) : (
+              <span className="font-semibold text-emerald-900">{value.toLocaleString()}</span>
+            )}
+          </div>
+        ))}
+      </div>
+      <div className="absolute -bottom-4 -right-4 w-24 h-24 rounded-full bg-emerald-500 opacity-10" />
+    </div>
+  );
+}
+
 function StatCard({
   icon: Icon,
   title,
@@ -91,13 +136,14 @@ export function OverviewSection() {
           textColor="text-blue-900"
           loading={loading}
         />
-        <StatCard
-          icon={Home}
-          title="Active Listings"
-          value={stats.totalListings}
-          color="bg-emerald-500"
-          bgColor="bg-emerald-50"
-          textColor="text-emerald-900"
+        <ActiveListingsCard
+          total={stats.totalListings}
+          breakdown={[
+            { label: 'Residential · Rentals', value: stats.listingBreakdown.residentialRentals },
+            { label: 'Residential · Sales', value: stats.listingBreakdown.residentialSales },
+            { label: 'Commercial · Rentals', value: stats.listingBreakdown.commercialRentals },
+            { label: 'Commercial · Sales', value: stats.listingBreakdown.commercialSales },
+          ]}
           loading={loading}
         />
         <StatCard

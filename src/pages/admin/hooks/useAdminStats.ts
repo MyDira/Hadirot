@@ -7,6 +7,12 @@ export function useAdminStats() {
   const [stats, setStats] = useState<AdminStats>({
     totalUsers: 0,
     totalListings: 0,
+    listingBreakdown: {
+      residentialRentals: 0,
+      residentialSales: 0,
+      commercialRentals: 0,
+      commercialSales: 0,
+    },
     featuredListings: 0,
     activeUsers: 0,
   });
