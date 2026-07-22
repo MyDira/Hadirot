@@ -25,7 +25,7 @@ import {
   CALL_STATUS_LABELS,
   type ReviewFilters,
 } from '@/services/aiIntake';
-import type { LiveListingCandidate, MatchCandidate } from '@/utils/intakeMatch';
+import { describeMatch, type LiveListingCandidate, type MatchCandidate } from '@/utils/intakeMatch';
 import { IntakeWorkspaceDrawer } from './IntakeWorkspaceDrawer';
 import { UserSearchSelect } from '@/components/admin/UserSearchSelect';
 import { Toast } from '@/components/shared/Toast';
@@ -588,7 +588,7 @@ export function IntakeReviewView({ initialSource, refreshKey }: IntakeReviewView
                             className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 text-xs font-medium rounded ${
                               strong ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'
                             }`}
-                            title={`Matches ${matches.length} live listing${matches.length === 1 ? '' : 's'} — ${matches[0].reason}. Open to compare.`}
+                            title={`Matches ${matches.length} live listing${matches.length === 1 ? '' : 's'} — ${describeMatch(matches[0])}. Open to compare.`}
                           >
                             <AlertTriangle className="w-3 h-3" /> Possible duplicate
                           </span>

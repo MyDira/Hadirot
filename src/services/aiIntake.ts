@@ -468,12 +468,25 @@ export const aiIntakeService = {
     const { data, error } = await supabase
       .from('listings')
       .select(
-        'id, title, listing_type, bedrooms, contact_phone, cross_street_a, cross_street_b, neighborhood, price, asking_price, created_at',
+        `id, listing_type, bedrooms, contact_name, contact_phone, cross_street_a, cross_street_b,
+         property_type, price, asking_price, call_for_price, admin_custom_agency_name,
+         owner:profiles!listings_user_id_fkey(full_name)`,
       )
       .eq('is_active', true)
       .limit(3000);
     if (error) throw error;
-    return (data ?? []) as LiveListingCandidate[];
+
+    // An admin-posted listing displays under a custom agency name; everything
+    // else sits under the owning account.
+    return ((data ?? []) as unknown as Array<
+      Omit<LiveListingCandidate, 'account_name'> & {
+        admin_custom_agency_name: string | null;
+        owner: { full_name: string | null } | null;
+      }
+    >).map(({ admin_custom_agency_name, owner, ...rest }) => ({
+      ...rest,
+      account_name: admin_custom_agency_name || owner?.full_name || null,
+    }));
   },
 
   /** Scores one intake draft against the live index; strong matches first. */

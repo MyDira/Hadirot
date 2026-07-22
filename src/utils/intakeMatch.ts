@@ -1,28 +1,35 @@
-import type { ScrapedListing } from '@/config/supabase';
+import type { ScrapedListing, PropertyType } from '@/config/supabase';
 
-/** Minimal shape of a live `listings` row needed to score a match. */
+/** Minimal shape of a live `listings` row needed to score + display a match. */
 export interface LiveListingCandidate {
   id: string;
-  title: string | null;
   listing_type: 'rental' | 'sale';
   bedrooms: number | null;
+  contact_name: string | null;
   contact_phone: string | null;
   cross_street_a: string | null;
   cross_street_b: string | null;
-  neighborhood: string | null;
+  property_type: PropertyType | null;
   price: number | null;
   asking_price: number | null;
-  created_at: string;
+  call_for_price: boolean | null;
+  /** Display name of the account this listing sits under. */
+  account_name: string | null;
 }
 
 export type MatchStrength = 'strong' | 'partial';
 
 export interface MatchCandidate extends LiveListingCandidate {
   strength: MatchStrength;
-  reason: string;
+  /** Which of the three signals fully matched — drives the compare view. */
+  matched: { phone: boolean; bedrooms: boolean; streets: boolean };
 }
 
-/** Digits-only, last-10 (drops a leading country code). Same shape either side needs to match. */
+/**
+ * Digits only, dropping a leading US country code so "1-718-555-1234" and
+ * "718-555-1234" compare equal. Returns null for anything that isn't a
+ * recognizable 10-digit US number, so malformed numbers never match.
+ */
 export function normalizePhone(raw: string | null | undefined): string | null {
   const digits = (raw || '').replace(/\D/g, '');
   if (digits.length === 11 && digits.startsWith('1')) return digits.slice(1);
@@ -43,14 +50,28 @@ export function normalizeStreet(name: string | null | undefined): string {
     .trim();
 }
 
-function streetSet(a: string | null | undefined, b: string | null | undefined): string {
-  return [normalizeStreet(a), normalizeStreet(b)].filter(Boolean).sort().join('|');
+function streetTokens(a: string | null | undefined, b: string | null | undefined): string[] {
+  return [normalizeStreet(a), normalizeStreet(b)].filter(Boolean);
+}
+
+/** Short human summary of which signals matched, e.g. "same phone + streets". */
+export function describeMatch(candidate: MatchCandidate): string {
+  const parts = [
+    candidate.matched.phone ? 'phone' : null,
+    candidate.matched.bedrooms ? 'bedrooms' : null,
+    candidate.matched.streets ? 'streets' : null,
+  ].filter(Boolean);
+  return parts.length > 0 ? `same ${parts.join(' + ')}` : 'partial match';
 }
 
 /**
- * Scores a scraped intake draft against one live listing. Advisory only —
- * never blocks publishing, just flags a likely duplicate for the admin to
- * eyeball. Only compares within the same rental/sale kind.
+ * Scores a scraped intake draft against one live listing on three signals:
+ * phone, bedroom count, and cross streets. Streets count as matching when at
+ * least ONE of the two sides matches — parsers frequently get one cross street
+ * right and the other vague, so requiring both misses real duplicates.
+ *
+ * Advisory only — never blocks publishing, just flags a likely duplicate for
+ * the admin to eyeball. Only compares within the same rental/sale kind.
  */
 export function scoreMatch(
   scraped: ScrapedListing,
@@ -60,29 +81,23 @@ export function scoreMatch(
 
   const scrapedPhone = normalizePhone(scraped.contact_phone || scraped.contact_phone_display);
   const livePhone = normalizePhone(live.contact_phone);
-  const phoneMatch = !!scrapedPhone && !!livePhone && scrapedPhone === livePhone;
+  const phone = !!scrapedPhone && !!livePhone && scrapedPhone === livePhone;
 
-  const scrapedStreets = streetSet(scraped.cross_street_1, scraped.cross_street_2);
-  const liveStreets = streetSet(live.cross_street_a, live.cross_street_b);
-  const streetsMatch = !!scrapedStreets && scrapedStreets === liveStreets;
+  const scrapedStreets = streetTokens(scraped.cross_street_1, scraped.cross_street_2);
+  const liveStreets = streetTokens(live.cross_street_a, live.cross_street_b);
+  const shared = scrapedStreets.filter((s) => liveStreets.includes(s));
+  const streets = shared.length > 0;
 
-  const bedsMatch =
+  const bedrooms =
     scraped.bedrooms != null && live.bedrooms != null && scraped.bedrooms === live.bedrooms;
 
-  if (phoneMatch && (bedsMatch || streetsMatch)) {
-    const parts = ['Same phone'];
-    if (bedsMatch) parts.push(`${live.bedrooms}BR`);
-    if (streetsMatch) parts.push('same cross streets');
-    return { ...live, strength: 'strong', reason: parts.join(' + ') };
-  }
+  const matched = { phone, bedrooms, streets };
 
-  if (phoneMatch) {
-    return { ...live, strength: 'partial', reason: 'Same phone number' };
-  }
-
-  if (streetsMatch && bedsMatch) {
-    return { ...live, strength: 'partial', reason: `Same cross streets + ${live.bedrooms}BR` };
-  }
+  // A phone hit alongside either corroborating signal is as close to certain
+  // as this gets; streets + beds without a phone is a strong hint, not proof.
+  if (phone && (bedrooms || streets)) return { ...live, strength: 'strong', matched };
+  if (phone) return { ...live, strength: 'partial', matched };
+  if (streets && bedrooms) return { ...live, strength: 'partial', matched };
 
   return null;
 }

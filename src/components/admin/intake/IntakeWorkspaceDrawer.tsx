@@ -30,7 +30,7 @@ import type {
 } from '@/config/supabase';
 import { INTAKE_SOURCE_LABELS } from '@/config/supabase';
 import { aiIntakeService, CALL_STATUS_LABELS } from '@/services/aiIntake';
-import type { MatchCandidate } from '@/utils/intakeMatch';
+import { describeMatch, type MatchCandidate } from '@/utils/intakeMatch';
 import { geocodeCrossStreets } from '@/services/geocoding';
 import { UserSearchSelect } from '@/components/admin/UserSearchSelect';
 import { useAuth } from '@/hooks/useAuth';
@@ -65,6 +65,36 @@ const PROPERTY_TYPES: { value: PropertyType; label: string }[] = [
   { value: 'three_family', label: 'Three Family' },
   { value: 'four_family', label: 'Four Family' },
 ];
+
+/** value -> label lookup for rendering a live listing's property type. */
+const PROPERTY_TYPE_LABELS: Record<string, string> = Object.fromEntries(
+  PROPERTY_TYPES.map((pt) => [pt.value, pt.label]),
+);
+
+/** One compared signal in a duplicate card; bolded when it fully matches. */
+function MatchRow({
+  label,
+  value,
+  matched,
+}: {
+  label: string;
+  value: string | null;
+  matched: boolean;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-2">
+      <dt className="text-gray-400">{label}</dt>
+      <dd
+        className={`truncate text-right ${
+          matched ? 'font-semibold text-gray-900' : 'text-gray-500'
+        }`}
+      >
+        {value || '—'}
+        {matched && <Check className="inline-block w-3 h-3 ml-1 text-green-600 align-text-top" />}
+      </dd>
+    </div>
+  );
+}
 
 const STATUS_PILL: Record<CallStatus, string> = {
   pending_call: 'bg-blue-100 text-blue-700',
@@ -389,7 +419,7 @@ export function IntakeWorkspaceDrawer({
     if (
       strongMatch &&
       !confirm(
-        `This looks like it may already be live as "${strongMatch.title || 'Untitled'}" (${strongMatch.reason}). Publish this as a separate listing anyway?`,
+        `This looks like it may already be live under ${strongMatch.account_name || 'another account'} (${describeMatch(strongMatch)}). Publish this as a separate listing anyway?`,
       )
     ) {
       return;
@@ -637,32 +667,12 @@ export function IntakeWorkspaceDrawer({
                           : 'bg-amber-50 border-amber-200'
                       }`}
                     >
-                      <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-start justify-between gap-2 mb-2">
                         <div className="min-w-0">
                           <p className="font-medium text-gray-900 truncate">
-                            {dup.title || 'Untitled'}
+                            {dup.account_name || 'No account'}
                           </p>
-                          <p className="text-gray-500 mt-0.5">
-                            {[
-                              dup.bedrooms != null ? `${dup.bedrooms}BR` : null,
-                              dup.price != null
-                                ? `$${dup.price.toLocaleString()}`
-                                : dup.asking_price != null
-                                  ? `$${dup.asking_price.toLocaleString()}`
-                                  : null,
-                              [dup.cross_street_a, dup.cross_street_b].filter(Boolean).join(' & ') ||
-                                dup.neighborhood,
-                            ]
-                              .filter(Boolean)
-                              .join(' · ')}
-                          </p>
-                          <p
-                            className={`mt-1 font-medium ${
-                              dup.strength === 'strong' ? 'text-red-700' : 'text-amber-700'
-                            }`}
-                          >
-                            {dup.reason}
-                          </p>
+                          <p className="text-gray-500 truncate">{dup.contact_name || '—'}</p>
                         </div>
                         <a
                           href={`/listing/${dup.id}`}
@@ -673,6 +683,41 @@ export function IntakeWorkspaceDrawer({
                           Compare <ExternalLink className="w-3 h-3" />
                         </a>
                       </div>
+
+                      <dl className="space-y-0.5">
+                        <MatchRow
+                          label="Phone"
+                          value={dup.contact_phone}
+                          matched={dup.matched.phone}
+                        />
+                        <MatchRow
+                          label="Bedrooms"
+                          value={dup.bedrooms != null ? `${dup.bedrooms}BR` : null}
+                          matched={dup.matched.bedrooms}
+                        />
+                        <MatchRow
+                          label="Streets"
+                          value={
+                            [dup.cross_street_a, dup.cross_street_b].filter(Boolean).join(' & ') ||
+                            null
+                          }
+                          matched={dup.matched.streets}
+                        />
+                      </dl>
+
+                      <p className="mt-2 pt-2 border-t border-gray-900/10 text-gray-600">
+                        {dup.call_for_price
+                          ? 'Call for price'
+                          : dup.listing_type === 'sale'
+                            ? dup.asking_price != null
+                              ? `$${dup.asking_price.toLocaleString()}`
+                              : 'Call for price'
+                            : dup.price != null
+                              ? `$${dup.price.toLocaleString()}`
+                              : 'Call for price'}
+                        {' · '}
+                        {PROPERTY_TYPE_LABELS[dup.property_type ?? ''] ?? dup.property_type ?? '—'}
+                      </p>
                     </div>
                   ))}
                 </div>

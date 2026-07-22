@@ -200,6 +200,21 @@ function normalizeStreet(name: string | null | undefined): string {
 }
 
 /**
+ * Digits only, dropping a leading US country code so "1-718-555-1234" and
+ * "718-555-1234" collapse onto the same key. Anything that isn't a 10- or
+ * 11-digit US number keeps its raw digits, so odd/partial numbers still
+ * contribute to the key instead of silently dropping out of it.
+ *
+ * Back-compatible with the historical keys: a plain 10-digit number is
+ * returned unchanged, so existing dedup_keys still line up.
+ */
+export function normalizePhoneDigits(raw: string | null | undefined): string {
+  const digits = (raw || '').replace(/\D/g, '');
+  if (digits.length === 11 && digits.startsWith('1')) return digits.slice(1);
+  return digits;
+}
+
+/**
  * Dedup key from normalized phone + sorted cross streets + bedrooms.
  * Returns null when the listing is too sparse to safely dedup (no phone AND no
  * streets) — the caller then assigns a unique key so distinct-but-empty
@@ -214,7 +229,7 @@ export function generateDedupKey(listing: {
   cross_street_2?: string | null;
   bedrooms?: number | null;
 }): string | null {
-  const phone = (listing.contact_phone || '').replace(/\D/g, '');
+  const phone = normalizePhoneDigits(listing.contact_phone);
   const s1 = normalizeStreet(listing.cross_street_1);
   const s2 = normalizeStreet(listing.cross_street_2);
   if (!phone && !s1 && !s2) return null;
@@ -287,7 +302,7 @@ export async function upsertScrapedListing(
   geo: { latitude: number | null; longitude: number | null; status: string },
   ctx: UpsertContext,
 ): Promise<'inserted' | 'updated'> {
-  const phoneDigits = (listing.contact_phone || '').replace(/\D/g, '');
+  const phoneDigits = normalizePhoneDigits(listing.contact_phone);
   const dedupKey = generateDedupKey(listing) ?? `nokey_${crypto.randomUUID()}`;
   const seenAt = new Date().toISOString();
   const price = listing.listing_kind === 'rental' ? listing.price : null;
