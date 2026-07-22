@@ -56,6 +56,9 @@ export function InternalAnalytics() {
 
   const [sessionQuality, setSessionQuality] = useState<any>(null);
   const [dauSparkline, setDauSparkline] = useState<number[]>([]);
+  const [trafficSources, setTrafficSources] = useState<any[]>([]);
+  const [longtermTrends, setLongtermTrends] = useState<any[]>([]);
+  const [engagementExtras, setEngagementExtras] = useState<Record<string, number>>({});
   const [engagementFunnel, setEngagementFunnel] = useState<any>(null);
   const [topFilters, setTopFilters] = useState<any[]>([]);
   const [supplyStats, setSupplyStats] = useState<any>(null);
@@ -133,6 +136,9 @@ export function InternalAnalytics() {
         supabase.rpc('analytics_abuse_signals', { days_back: dateRange, tz, mild_threshold: 6, extreme_threshold: 15 }),
         supabase.rpc('analytics_login_gate_funnel', { days_back: dateRange, tz }),
         supabase.rpc('analytics_wizard_funnel', { days_back: dateRange, tz }),
+        supabase.rpc('analytics_traffic_sources', { days_back: dateRange, tz }),
+        supabase.rpc('analytics_engagement_extras', { days_back: dateRange, tz }),
+        supabase.rpc('analytics_longterm_trends', { days_back: 180 }),
       ]);
 
       const firstError = results.find(r => r.error);
@@ -168,6 +174,9 @@ export function InternalAnalytics() {
         abuseResult,
         loginGateFunnelResult,
         wizardFunnelResult,
+        trafficSourcesResult,
+        engagementExtrasResult,
+        longtermTrendsResult,
       ] = results;
 
       if (sessionQualityResult.data?.[0]) {
@@ -276,6 +285,14 @@ export function InternalAnalytics() {
 
       setWizardFunnel(wizardFunnelResult.data ?? null);
 
+      setTrafficSources(trafficSourcesResult.data || []);
+      setLongtermTrends(longtermTrendsResult.data || []);
+      setEngagementExtras(
+        Object.fromEntries(
+          (engagementExtrasResult.data || []).map((row: any) => [row.metric, row.total]),
+        ),
+      );
+
     } catch (err) {
       console.error('Error loading analytics:', err);
       setError('Failed to load analytics data. Please try again.');
@@ -375,6 +392,8 @@ export function InternalAnalytics() {
         <TrafficTab
           sessionQuality={sessionQuality}
           sparklineData={dauSparkline}
+          sources={trafficSources}
+          longterm={longtermTrends}
           loading={dataLoading}
         />
       )}
@@ -383,6 +402,7 @@ export function InternalAnalytics() {
         <EngagementTab
           funnelData={engagementFunnel}
           topFilters={topFilters}
+          extras={engagementExtras}
           loading={dataLoading}
         />
       )}

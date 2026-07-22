@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { X, Eye, MousePointer, Phone, MessageSquare, Clock, ExternalLink, Star } from 'lucide-react';
+import { X, Eye, MousePointer, Phone, MessageSquare, Clock, ExternalLink, Star, Heart, Share2, ZoomIn, Send } from 'lucide-react';
 import { supabase } from '../../config/supabase';
 
 interface DrilldownData {
@@ -52,14 +52,25 @@ function MiniSparkline({ data }: { data: number[] }) {
   );
 }
 
+interface EngagementData {
+  favorites: number;
+  shares: number;
+  image_zooms: number;
+  listing_clicks: number;
+  contact_clicks: number;
+  contact_submissions: number;
+}
+
 export function ListingDrilldown({ listingId, onClose, daysBack = 14 }: ListingDrilldownProps) {
   const [data, setData] = useState<DrilldownData | null>(null);
+  const [engagement, setEngagement] = useState<EngagementData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!listingId) {
       setData(null);
+      setEngagement(null);
       return;
     }
 
@@ -67,18 +78,27 @@ export function ListingDrilldown({ listingId, onClose, daysBack = 14 }: ListingD
       setLoading(true);
       setError(null);
       try {
-        const { data: result, error: err } = await supabase.rpc('analytics_listing_drilldown', {
-          p_listing_id: listingId,
-          days_back: daysBack,
-          tz: 'America/New_York',
-        });
+        const [drilldown, engagementResult] = await Promise.all([
+          supabase.rpc('analytics_listing_drilldown', {
+            p_listing_id: listingId,
+            days_back: daysBack,
+            tz: 'America/New_York',
+          }),
+          supabase.rpc('analytics_listing_engagement', {
+            p_listing_id: listingId,
+            days_back: daysBack,
+            tz: 'America/New_York',
+          }),
+        ]);
 
-        if (err) throw err;
-        if (result && result.length > 0) {
-          setData(result[0]);
+        if (drilldown.error) throw drilldown.error;
+        if (drilldown.data && drilldown.data.length > 0) {
+          setData(drilldown.data[0]);
         } else {
           setError('Listing not found');
         }
+        // Engagement stats are additive — don't fail the panel if missing
+        setEngagement(engagementResult.data?.[0] ?? null);
       } catch (err) {
         console.error('Error fetching drilldown:', err);
         setError('Failed to load listing details');
@@ -222,6 +242,42 @@ export function ListingDrilldown({ listingId, onClose, daysBack = 14 }: ListingD
                   </div>
                 </div>
               </div>
+
+              {engagement && (
+                <div className="bg-gray-50 rounded-lg p-4">
+                  <h4 className="text-sm font-medium text-gray-700 mb-3">Intent Signals</h4>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="flex items-center">
+                      <Heart className="w-4 h-4 text-rose-500 mr-2" />
+                      <div>
+                        <div className="text-lg font-semibold">{engagement.favorites}</div>
+                        <div className="text-xs text-gray-500">Favorites</div>
+                      </div>
+                    </div>
+                    <div className="flex items-center">
+                      <Share2 className="w-4 h-4 text-blue-600 mr-2" />
+                      <div>
+                        <div className="text-lg font-semibold">{engagement.shares}</div>
+                        <div className="text-xs text-gray-500">Shares</div>
+                      </div>
+                    </div>
+                    <div className="flex items-center">
+                      <ZoomIn className="w-4 h-4 text-violet-600 mr-2" />
+                      <div>
+                        <div className="text-lg font-semibold">{engagement.image_zooms}</div>
+                        <div className="text-xs text-gray-500">Photo Zooms</div>
+                      </div>
+                    </div>
+                    <div className="flex items-center">
+                      <Send className="w-4 h-4 text-teal-600 mr-2" />
+                      <div>
+                        <div className="text-lg font-semibold">{engagement.contact_submissions}</div>
+                        <div className="text-xs text-gray-500">Callback Requests</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {data.views_by_day && data.views_by_day.length > 0 && (
                 <div>

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Users, Eye, FileText, MessageSquare, ArrowRight, Filter, MapPin, PhoneCall, Phone } from 'lucide-react';
+import { Users, Eye, FileText, MessageSquare, ArrowRight, Filter, MapPin, PhoneCall, Phone, Heart, Share2, Search, ZoomIn, MousePointerClick, Send } from 'lucide-react';
 
 interface FunnelData {
   sessions: number;
@@ -22,8 +22,19 @@ interface TopFilter {
 interface EngagementTabProps {
   funnelData: FunnelData | null;
   topFilters: TopFilter[];
+  extras?: Record<string, number>;
   loading?: boolean;
 }
+
+// Intent signals that used to live only in Google Analytics.
+const EXTRA_CARDS: { key: string; label: string; icon: React.ElementType; color: string }[] = [
+  { key: 'favorites', label: 'Favorites', icon: Heart, color: 'text-rose-500' },
+  { key: 'shares', label: 'Shares', icon: Share2, color: 'text-blue-600' },
+  { key: 'searches', label: 'Searches', icon: Search, color: 'text-violet-600' },
+  { key: 'image_zooms', label: 'Photo Zooms', icon: ZoomIn, color: 'text-amber-600' },
+  { key: 'listing_clicks', label: 'Card Clicks', icon: MousePointerClick, color: 'text-teal-600' },
+  { key: 'contact_submissions', label: 'Callback Requests', icon: Send, color: 'text-green-600' },
+];
 
 function FunnelStep({
   icon: Icon,
@@ -61,7 +72,7 @@ function FunnelStep({
   );
 }
 
-export function EngagementTab({ funnelData, topFilters, loading }: EngagementTabProps) {
+export function EngagementTab({ funnelData, topFilters, extras, loading }: EngagementTabProps) {
   if (loading) {
     return (
       <div className="space-y-6">
@@ -179,6 +190,29 @@ export function EngagementTab({ funnelData, topFilters, loading }: EngagementTab
           {(funnel.phone_dial_rate ?? 0) > 0 && (
             <div className="text-xs text-gray-500 mt-1">{funnel.phone_dial_rate?.toFixed(1)}% of reveals</div>
           )}
+        </div>
+      </div>
+
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+        <div className="flex items-center mb-1">
+          <Heart className="w-5 h-5 text-rose-500 mr-2" />
+          <h3 className="text-lg font-semibold text-gray-900">Intent Signals</h3>
+        </div>
+        <p className="text-sm text-gray-500 mb-4">
+          Saves, shares and searches — tracked internally since July 20, 2026.
+        </p>
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+          {EXTRA_CARDS.map(({ key, label, icon: Icon, color }) => (
+            <div key={key} className="border border-gray-100 rounded-lg p-4">
+              <div className="flex items-center mb-2">
+                <Icon className={`w-4 h-4 ${color} mr-2`} />
+                <span className="text-sm font-medium text-gray-600">{label}</span>
+              </div>
+              <div className="text-2xl font-bold text-gray-900">
+                {(extras?.[key] ?? 0).toLocaleString()}
+              </div>
+            </div>
+          ))}
         </div>
       </div>
 

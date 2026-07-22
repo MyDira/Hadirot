@@ -1,5 +1,5 @@
 import React from 'react';
-import { Users, Clock, FileText, TrendingDown } from 'lucide-react';
+import { Users, Clock, FileText, TrendingDown, Globe, TrendingUp } from 'lucide-react';
 
 interface SessionQuality {
   pages_per_session: number;
@@ -9,11 +9,39 @@ interface SessionQuality {
   returning_visitor_rate: number;
 }
 
+interface TrafficSource {
+  source: string;
+  sessions: number;
+  pct: number;
+}
+
+interface LongtermTrendPoint {
+  day: string;
+  visitors: number;
+  sessions_count: number;
+  listing_views: number;
+  inquiries: number;
+  post_success: number;
+}
+
 interface TrafficTabProps {
   sessionQuality: SessionQuality | null;
   sparklineData: number[];
+  sources?: TrafficSource[];
+  longterm?: LongtermTrendPoint[];
   loading?: boolean;
 }
+
+const SOURCE_LABELS: Record<string, string> = {
+  direct: 'Direct / typed in',
+  google: 'Google',
+  whatsapp: 'WhatsApp',
+  facebook: 'Facebook',
+  instagram: 'Instagram',
+  bing: 'Bing',
+  duckduckgo: 'DuckDuckGo',
+  x: 'X (Twitter)',
+};
 
 function Sparkline({ data, className = '' }: { data: number[]; className?: string }) {
   if (!data || data.length === 0) {
@@ -72,7 +100,7 @@ function MetricCard({
   );
 }
 
-export function TrafficTab({ sessionQuality, sparklineData, loading }: TrafficTabProps) {
+export function TrafficTab({ sessionQuality, sparklineData, sources = [], longterm = [], loading }: TrafficTabProps) {
   if (loading) {
     return (
       <div className="space-y-6">
@@ -140,6 +168,71 @@ export function TrafficTab({ sessionQuality, sparklineData, loading }: TrafficTa
           <div className="flex justify-between text-xs text-gray-500 mt-2">
             <span>{sparklineData.length} days ago</span>
             <span>Today</span>
+          </div>
+        )}
+      </div>
+
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+        <div className="flex items-center mb-4">
+          <Globe className="w-5 h-5 text-blue-600 mr-2" />
+          <h3 className="text-lg font-semibold text-gray-900">Where Visitors Come From</h3>
+        </div>
+        {sources.length === 0 ? (
+          <p className="text-sm text-gray-500">
+            No attribution data yet — source tracking started July 20, 2026, so this fills in as new
+            visitors arrive.
+          </p>
+        ) : (
+          <div className="space-y-2">
+            {sources.map((s) => (
+              <div key={s.source} className="flex items-center gap-3">
+                <div className="w-36 shrink-0 text-sm text-gray-700 capitalize truncate">
+                  {SOURCE_LABELS[s.source] ?? s.source}
+                </div>
+                <div className="flex-1 bg-gray-100 rounded-full h-3 overflow-hidden">
+                  <div
+                    className="h-full rounded-full bg-blue-500"
+                    style={{ width: `${Math.min(s.pct, 100)}%` }}
+                  />
+                </div>
+                <div className="w-24 shrink-0 text-right text-sm text-gray-900">
+                  {s.sessions.toLocaleString()}
+                  <span className="text-gray-400 ml-1">({s.pct}%)</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+        <div className="flex items-center mb-1">
+          <TrendingUp className="w-5 h-5 text-green-600 mr-2" />
+          <h3 className="text-lg font-semibold text-gray-900">Long-Term Trends</h3>
+        </div>
+        <p className="text-sm text-gray-500 mb-4">
+          From permanent daily aggregates — unaffected by the 90-day raw data retention.
+        </p>
+        {longterm.length === 0 ? (
+          <p className="text-sm text-gray-500">Daily aggregates are still accruing.</p>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {([
+              ['Visitors / day', longterm.map((d) => d.visitors), 'text-blue-600'],
+              ['Listing views / day', longterm.map((d) => d.listing_views), 'text-orange-600'],
+              ['Inquiries / day', longterm.map((d) => d.inquiries), 'text-teal-600'],
+            ] as const).map(([label, series, color]) => (
+              <div key={label} className="border border-gray-100 rounded-lg p-4">
+                <div className="text-sm font-medium text-gray-600 mb-2">{label}</div>
+                <div className={`h-16 ${color}`}>
+                  <Sparkline data={series as unknown as number[]} className="h-full" />
+                </div>
+                <div className="flex justify-between text-xs text-gray-400 mt-2">
+                  <span>{longterm[0]?.day?.slice(0, 10)}</span>
+                  <span>{longterm[longterm.length - 1]?.day?.slice(0, 10)}</span>
+                </div>
+              </div>
+            ))}
           </div>
         )}
       </div>

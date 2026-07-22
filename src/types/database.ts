@@ -3838,6 +3838,36 @@ export type Database = {
           successes: number
         }[]
       }
+      analytics_engagement_extras: {
+        Args: { days_back?: number; tz?: string }
+        Returns: { metric: string; total: number }[]
+      }
+      analytics_listing_engagement: {
+        Args: { p_listing_id: string; days_back?: number; tz?: string }
+        Returns: {
+          favorites: number
+          shares: number
+          image_zooms: number
+          listing_clicks: number
+          contact_clicks: number
+          contact_submissions: number
+        }[]
+      }
+      analytics_longterm_trends: {
+        Args: { days_back?: number }
+        Returns: {
+          day: string
+          visitors: number
+          sessions_count: number
+          listing_views: number
+          inquiries: number
+          post_success: number
+        }[]
+      }
+      analytics_traffic_sources: {
+        Args: { days_back?: number; tz?: string }
+        Returns: { source: string; sessions: number; pct: number }[]
+      }
       analytics_session_quality: {
         Args: { days_back?: number; tz?: string }
         Returns: {
