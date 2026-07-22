@@ -10,20 +10,30 @@ every **write** to prod, so the two migrations need you to paste them.
 
 ---
 
-## Step 1 — Apply the two migrations (required)
+## Step 1 — Migrations: DONE (already applied to production)
 
-In the Supabase dashboard → **SQL Editor**, run these two files **in order**.
-Open each file, copy the whole thing, paste, Run.
+All three migrations are applied and verified in production:
 
-1. `supabase/migrations/20260720120000_analytics_rollup_v2_and_retention.sql`
-2. `supabase/migrations/20260720120100_analytics_new_dashboard_rpcs.sql`
+1. `20260720120000_analytics_rollup_v2_and_retention.sql` ✅
+2. `20260720120100_analytics_new_dashboard_rpcs.sql` ✅
+3. `20260722100000_admin_excluded_from_all_counters.sql` ✅
 
-Migration 1 ends with a 90-day backfill loop, so it may take 30–90 seconds.
-That's expected. Both are safe to re-run.
+Verified after applying:
 
-**Why you have to do this and not me:** the sandbox lets me run `SELECT`s
-against prod but refuses writes, regardless of the permission you granted in
-chat. It's a harness-level block, not a project rule.
+- `daily_analytics` now holds **324 days**, newest 2026-07-21, with the new
+  columns populated (e.g. 2026-07-21: 192 visitors / 253 sessions / 215 listing
+  views / 1,365 impressions / 47 returners).
+- All 5 new functions exist (`analytics_traffic_sources`,
+  `analytics_engagement_extras`, `analytics_longterm_trends`,
+  `analytics_listing_engagement`, `rollup_analytics_for_date`).
+- All 5 `increment_*` counters carry the admin guard and a `search_path`.
+- `analytics_events` shrank from **132 MB → 103 MB** (index cleanup).
+
+⚠️ **One caveat on the backfill:** it rebuilt the last 90 days correctly. Rows
+older than that (Sept 2025 → ~Apr 2026) still hold the *old, wrong* numbers,
+because the raw events they'd be recomputed from were already deleted by the
+90-day retention. Nothing can recover those. Treat `daily_analytics` before
+~April 22, 2026 as unreliable.
 
 ### De-risking: what I verified first
 
@@ -43,7 +53,39 @@ production data. All six passed:
 That last table is also the proof the old rollup was broken: for the same day it
 had been recording `returners = dau = 3` and a posting funnel of all zeros.
 
-## Step 2 — Verify (paste after Step 1)
+## Admin activity is now excluded everywhere
+
+Events were already excluded twice (client suppression + a server-side filter
+in the track function). The **row counters had no guard at all**, so admin
+browsing was inflating:
+
+| Counter | Who saw the inflated number |
+|---|---|
+| `listings.views` | listing owners, on their dashboard + weekly performance email |
+| `commercial_listings.views` / `direct_views` | commercial owners |
+| `commercial_listings.impressions` | source of truth for commercial impressions |
+| `short_urls.click_count` | digest link performance |
+| `knowledge_base_articles.view_count` | help-center reporting |
+
+Fixed at three layers:
+
+1. **Database** — `is_admin_cached()` guard inside all five `increment_*`
+   functions, so the exclusion holds no matter which client path calls them.
+2. **Client** — `isTrackingSuppressed()` check at each call site.
+3. **Impersonation** — "sign in as user" sessions look like a normal user to
+   *both* the client profile check and `is_admin_cached()`, so they were being
+   counted as real traffic. A flag now suppresses analytics (and GA) for the
+   whole support session, cleared on sign-out.
+
+Also fixed along the way: `incrementListingView` was doing a read-modify-write
+directly on the `listings` table — it bypassed the RPC guard **and** lost view
+counts when two people opened a listing at the same time. It now calls the
+atomic guarded RPC.
+
+**Remaining limit:** an admin browsing while logged out is indistinguishable
+from a real visitor. Nothing can detect that; log in to be excluded.
+
+## Step 2 — Verify (optional; already confirmed)
 
 ```sql
 -- Rollup should now show real numbers in the new columns
@@ -64,7 +106,7 @@ SELECT proname FROM pg_proc WHERE proname IN
 Expected: 5 recent rows with non-zero `sessions_count`/`impressions`, ~90
 backfilled days, and all 5 function names listed.
 
-## Step 3 — Test on localhost, then open the PR
+## Step 3 — Test on localhost, then open the PR (only remaining step)
 
 ```bash
 npm run dev
@@ -162,3 +204,6 @@ listings get real time-series data instead of a lifetime integer.
    a one-line change.
 4. **`analytics_sessions.duration_seconds`** is only populated for sessions
    closed by the new cleanup job going forward; historic rows stay NULL.
+5. **Pre-April-2026 `daily_analytics` rows keep the old wrong values** — the
+   raw events needed to recompute them were already deleted. Unrecoverable.
+6. **Admins browsing logged out** can't be excluded from anything. Inherent.
