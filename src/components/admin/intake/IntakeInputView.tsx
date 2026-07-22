@@ -44,7 +44,9 @@ export function IntakeInputView({ onParsed }: IntakeInputViewProps) {
   const { user } = useAuth();
   const [blocks, setBlocks] = useState<BlockState[]>([newBlock()]);
   const [parsing, setParsing] = useState(false);
+  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [partial, setPartial] = useState<ParseBlocksResult | null>(null);
 
   const updateBlock = (uid: string, patch: Partial<BlockState>) => {
     setBlocks((prev) => prev.map((b) => (b.uid === uid ? { ...b, ...patch } : b)));
@@ -76,14 +78,29 @@ export function IntakeInputView({ onParsed }: IntakeInputViewProps) {
 
     setParsing(true);
     setError(null);
+    setPartial(null);
+    setProgress({ done: 0, total: 0 });
     try {
-      const result = await aiIntakeService.parseBlocks(payload);
-      setBlocks([newBlock()]);
-      onParsed(result);
+      const result = await aiIntakeService.parseBlocks(payload, (done, total) =>
+        setProgress({ done, total }),
+      );
+      if (result.errors.length === 0) {
+        setBlocks([newBlock()]);
+        onParsed(result);
+        return;
+      }
+      // Partial run: keep the pasted text on screen so nothing has to be
+      // re-typed, and let the admin decide whether to review or retry.
+      if (result.inserted === 0 && (result.updated ?? 0) === 0) {
+        setError(result.errors[0].error);
+      } else {
+        setPartial(result);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Parsing failed. Please try again.');
     } finally {
       setParsing(false);
+      setProgress(null);
     }
   };
 
@@ -103,6 +120,38 @@ export function IntakeInputView({ onParsed }: IntakeInputViewProps) {
         <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-md text-sm text-red-700">
           <AlertCircle className="w-4 h-4 flex-shrink-0" />
           {error}
+        </div>
+      )}
+
+      {partial && (
+        <div className="p-3 bg-amber-50 border border-amber-200 rounded-md text-sm text-amber-900 space-y-2">
+          <div className="flex items-start gap-2">
+            <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="font-medium">
+                Parsed {partial.parsed} listing{partial.parsed === 1 ? '' : 's'} —{' '}
+                {partial.inserted} new, {partial.updated ?? 0} merged. {partial.errors.length}{' '}
+                group{partial.errors.length === 1 ? '' : 's'} failed:
+              </p>
+              <ul className="mt-1 list-disc list-inside space-y-0.5 text-amber-800">
+                {partial.errors.slice(0, 4).map((e, i) => (
+                  <li key={i}>
+                    Block {e.block + 1}: {e.error}
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-1 text-amber-800">
+                The text above is untouched — you can re-run it, or open the review screen for
+                what did land.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => onParsed(partial)}
+            className="px-3 py-1.5 text-xs font-semibold text-white bg-amber-600 rounded-md hover:bg-amber-700 transition-colors"
+          >
+            Open review
+          </button>
         </div>
       )}
 
@@ -219,7 +268,9 @@ export function IntakeInputView({ onParsed }: IntakeInputViewProps) {
           {parsing ? (
             <>
               <Loader2 className="w-4 h-4 animate-spin" />
-              Parsing with AI... this can take a minute
+              {progress && progress.total > 0
+                ? `Parsing group ${Math.min(progress.done + 1, progress.total)} of ${progress.total}...`
+                : 'Parsing with AI...'}
             </>
           ) : (
             <>

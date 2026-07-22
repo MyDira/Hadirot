@@ -12,6 +12,7 @@ import { generateVideoThumbnail } from '../utils/videoUtils';
 import { emailService, renderBrandEmail } from './email';
 import { paymentsService } from './payments';
 import { scoreMatch, type LiveListingCandidate, type MatchCandidate } from '../utils/intakeMatch';
+import { splitBlocksIntoUnits, type IntakeUnitInput } from '../utils/intakeSplit';
 
 export type IntakeReviewStatus = 'pending' | 'published' | 'discarded' | 'all';
 
@@ -92,6 +93,10 @@ export interface ParseBlocksResult {
   geocoded: number;
   errors: Array<{ block: number; error: string }>;
 }
+
+const TRANSIENT_ERROR = /429|rate.?limit|overloaded|529|503|504|timeout|timed out|Failed to send/i;
+
+const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 export interface PublishResult {
   succeeded: Array<{ scrapedId: string; listingId: string }>;
@@ -174,13 +179,94 @@ export const aiIntakeService = {
     }
   },
 
-  async parseBlocks(blocks: IntakeBlockInput[]): Promise<ParseBlocksResult> {
-    const { data, error } = await supabase.functions.invoke('parse-bulk-listings', {
-      body: { blocks },
-    });
-    if (error) throw new Error(error.message || 'Failed to parse listings');
-    if (data?.error) throw new Error(data.error);
-    return data as ParseBlocksResult;
+  /**
+   * Parse pasted blocks, client-driven: split the blocks into units, fire the
+   * unit calls with bounded concurrency and report progress, then finalize the
+   * run. One unit failing costs that unit only — the rest still land.
+   */
+  async parseBlocks(
+    blocks: IntakeBlockInput[],
+    onProgress?: (done: number, total: number) => void,
+  ): Promise<ParseBlocksResult> {
+    const invoke = async <T>(body: Record<string, unknown>): Promise<T> => {
+      const { data, error } = await supabase.functions.invoke('parse-bulk-listings', { body });
+      if (error) throw new Error(error.message || 'Failed to parse listings');
+      if (data?.error) throw new Error(data.error);
+      return data as T;
+    };
+
+    const units = splitBlocksIntoUnits(blocks);
+    if (units.length === 0) throw new Error('No listing text to parse.');
+
+    const start = await invoke<{ run_id: string }>({ action: 'start' });
+    onProgress?.(0, units.length);
+
+    const totals = { parsed: 0, inserted: 0, updated: 0, geocoded: 0 };
+    const errors: Array<{ block: number; error: string }> = [];
+    let done = 0;
+
+    const runUnit = async (unit: IntakeUnitInput) => {
+      // One retry, transient errors only. Retrying a single unit costs that
+      // unit's tokens; the old all-or-nothing request meant re-paying for the
+      // entire paste.
+      for (let attempt = 0; ; attempt++) {
+        try {
+          const res = await invoke<{
+            parsed: number;
+            inserted: number;
+            updated: number;
+            geocoded: number;
+            errors: Array<{ error: string }>;
+          }>({ action: 'unit', run_id: start.run_id, unit });
+          totals.parsed += res.parsed;
+          totals.inserted += res.inserted;
+          totals.updated += res.updated;
+          totals.geocoded += res.geocoded;
+          for (const e of res.errors ?? []) errors.push({ block: unit.block_index, error: e.error });
+          return;
+        } catch (err) {
+          const message = err instanceof Error ? err.message : 'Parsing failed';
+          if (attempt === 0 && TRANSIENT_ERROR.test(message)) {
+            await delay(2000);
+            continue;
+          }
+          errors.push({ block: unit.block_index, error: message });
+          return;
+        }
+      }
+    };
+
+    const step = async (unit: IntakeUnitInput) => {
+      await runUnit(unit);
+      done++;
+      onProgress?.(done, units.length);
+    };
+
+    // The first unit runs alone on purpose: it writes the ~2.5k-token system
+    // prompt into the prompt cache, so every later call reads it at ~10% of the
+    // input price instead of two cold calls racing to write the same entry.
+    await step(units[0]);
+
+    let cursor = 1;
+    const CONCURRENCY = 2;
+    const worker = async () => {
+      while (cursor < units.length) {
+        await step(units[cursor++]);
+      }
+    };
+    await Promise.all(
+      Array.from({ length: Math.min(CONCURRENCY, Math.max(0, units.length - 1)) }, () => worker()),
+    );
+
+    // Always stamp the run — an unfinalized run shows as a phantom "running"
+    // batch on the review screen forever.
+    try {
+      await invoke({ action: 'finalize', run_id: start.run_id, totals, errors });
+    } catch (err) {
+      console.error('Failed to finalize intake run:', err);
+    }
+
+    return { run_id: start.run_id, ...totals, errors };
   },
 
   // -------------------------------------------------------------------------

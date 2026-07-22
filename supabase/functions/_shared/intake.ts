@@ -141,6 +141,8 @@ export async function parseContent(
   content: string | Anthropic.MessageParam['content'],
   typeHint: string,
   extraContext?: string,
+  /** Caller-specific remedy shown if the model runs out of output budget. */
+  overflowHint = 'split the upload into smaller files (fewer pages per file) and retry.',
 ): Promise<ParsedListing[]> {
   const userContent =
     typeof content === 'string'
@@ -171,9 +173,7 @@ export async function parseContent(
   const message = await stream.finalMessage();
 
   if (message.stop_reason === 'max_tokens') {
-    throw new Error(
-      'Output hit the token limit before finishing — split the upload into smaller files (fewer pages per file) and retry.',
-    );
+    throw new Error(`Output hit the token limit before finishing — ${overflowHint}`);
   }
 
   const text = message.content
