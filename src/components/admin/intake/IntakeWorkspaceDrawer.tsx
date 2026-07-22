@@ -512,7 +512,7 @@ export function IntakeWorkspaceDrawer({
   const formatDate = (d: string | null) => (d ? new Date(d).toLocaleDateString() : '—');
 
   return (
-    <div className="fixed inset-0 z-50">
+    <div className="fixed inset-x-0 bottom-0 top-14 md:top-16 z-50">
       {/* Backdrop */}
       <div
         className={`absolute inset-0 bg-gray-900/50 transition-opacity duration-300 ${
