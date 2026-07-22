@@ -207,11 +207,10 @@ export function IntakeReviewView({ initialSource, refreshKey }: IntakeReviewView
 
   const handlePublish = async (rows: ScrapedListing[]) => {
     if (!user?.id || rows.length === 0 || publishing) return;
-    const publishable = rows.filter((r) => r.call_status === 'approved');
-    if (publishable.length === 0) {
-      setToast('Only approved leads can be published. Mark permission granted first.');
-      return;
-    }
+    // Call status is an internal notation only — it never gates or is
+    // touched by publishing. An admin clicking Publish always publishes.
+    const publishable = rows.filter((r) => r.call_status !== 'published');
+    if (publishable.length === 0) return;
     setPublishing(true);
     setPublishErrors([]);
     setPublishProgress({ done: 0, total: publishable.length });
@@ -651,7 +650,7 @@ export function IntakeReviewView({ initialSource, refreshKey }: IntakeReviewView
 
                   {/* Quick action + open affordance */}
                   <div className="w-28 flex-shrink-0 flex items-center justify-end gap-2">
-                    {status === 'approved' && (
+                    {status !== 'published' && (
                       <button
                         onClick={(e) => {
                           e.stopPropagation();

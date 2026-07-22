@@ -349,6 +349,9 @@ export function IntakeWorkspaceDrawer({
   if (!listing || !form) return null;
 
   const isSale = form.listing_kind === 'sale';
+  // Pasted-text leads were typed in by an admin directly — there's no owner
+  // to call, so the calling/permission workflow doesn't apply to them.
+  const isPastedText = listing.source === 'admin_intake';
   const crossStreets = [form.cross_street_1, form.cross_street_2].filter(Boolean).join(' & ');
   const sourceLabel = listing.source
     ? INTAKE_SOURCE_LABELS[listing.source] ?? listing.source
@@ -426,18 +429,10 @@ export function IntakeWorkspaceDrawer({
     }
     const saved = await persist(true);
     if (saved) {
-      // Publishing implies the owner gave permission — approve so the publish
-      // guard passes even if the lead wasn't marked "Permission granted" yet.
-      if (status !== 'approved') {
-        try {
-          await aiIntakeService.setCallStatus(listing.id, 'approved');
-        } catch {
-          setError('Could not mark permission before publishing.');
-          return;
-        }
-      }
+      // Call status is an internal notation only — publishing never reads it
+      // as a gate or writes it as a side effect. Clicking Publish publishes.
       onClose();
-      onPublish({ ...saved, call_status: 'approved' });
+      onPublish({ ...saved, call_status: status });
     }
   };
 
@@ -597,54 +592,87 @@ export function IntakeWorkspaceDrawer({
         <div className="flex-1 min-h-0 flex flex-col lg:flex-row">
           {/* Reference column */}
           <div className="lg:w-2/5 lg:border-r border-gray-200 bg-gray-50 overflow-y-auto p-4 space-y-4">
-            {/* Call workflow */}
-            <SectionCard icon={<Phone className="w-4 h-4" />} title="Status & permission">
-              {status === 'published' ? (
-                <div className="flex items-center gap-2">
-                  <span
-                    className={`inline-block px-2.5 py-1 text-xs font-medium rounded ${STATUS_ACTIVE.published}`}
-                  >
-                    Published — live
-                  </span>
-                  {listing.published_listing_id && (
-                    <a
-                      href={`/listing/${listing.published_listing_id}`}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="inline-flex items-center gap-1 text-xs font-medium text-blue-600 hover:text-blue-800"
+            {/* Call workflow — not applicable to text pasted directly by an
+                admin; there was never anyone to call, so the whole section
+                is skipped for that source. It's tracking only elsewhere: it
+                never blocks or is changed by Publish. */}
+            {isPastedText ? (
+              <SectionCard icon={<Phone className="w-4 h-4" />} title="Status">
+                {status === 'published' ? (
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={`inline-block px-2.5 py-1 text-xs font-medium rounded ${STATUS_ACTIVE.published}`}
                     >
-                      View live <ExternalLink className="w-3 h-3" />
-                    </a>
-                  )}
-                </div>
-              ) : (
-                <>
-                  <p className="text-xs text-gray-500 mb-2">
-                    Set where this lead stands. Mark <strong>Permission granted</strong> once the owner
-                    okays it — you can change it back anytime.
-                  </p>
-                  <div className="flex flex-wrap gap-2">
-                    {WORKFLOW_STEPS.map((s) => {
-                      const active = status === s;
-                      return (
-                        <button
-                          key={s}
-                          onClick={() => handleStatus(s)}
-                          disabled={statusBusy}
-                          className={`px-3 py-1.5 text-xs font-medium rounded-md border transition-colors disabled:opacity-50 ${
-                            active
-                              ? STATUS_ACTIVE[s]
-                              : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
-                          }`}
-                        >
-                          {WORKFLOW_LABELS[s]}
-                        </button>
-                      );
-                    })}
+                      Published — live
+                    </span>
+                    {listing.published_listing_id && (
+                      <a
+                        href={`/listing/${listing.published_listing_id}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1 text-xs font-medium text-blue-600 hover:text-blue-800"
+                      >
+                        View live <ExternalLink className="w-3 h-3" />
+                      </a>
+                    )}
                   </div>
-                </>
-              )}
-            </SectionCard>
+                ) : (
+                  <p className="text-xs text-gray-500">
+                    Pasted directly by an admin — no permission call needed. Ready to publish whenever
+                    you are.
+                  </p>
+                )}
+              </SectionCard>
+            ) : (
+              <SectionCard icon={<Phone className="w-4 h-4" />} title="Status & permission">
+                {status === 'published' ? (
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={`inline-block px-2.5 py-1 text-xs font-medium rounded ${STATUS_ACTIVE.published}`}
+                    >
+                      Published — live
+                    </span>
+                    {listing.published_listing_id && (
+                      <a
+                        href={`/listing/${listing.published_listing_id}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1 text-xs font-medium text-blue-600 hover:text-blue-800"
+                      >
+                        View live <ExternalLink className="w-3 h-3" />
+                      </a>
+                    )}
+                  </div>
+                ) : (
+                  <>
+                    <p className="text-xs text-gray-500 mb-2">
+                      Set where this lead stands — this is a tracking note only and never blocks
+                      publishing. Mark <strong>Permission granted</strong> once the owner okays it, or
+                      just click Publish whenever it's ready.
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {WORKFLOW_STEPS.map((s) => {
+                        const active = status === s;
+                        return (
+                          <button
+                            key={s}
+                            onClick={() => handleStatus(s)}
+                            disabled={statusBusy}
+                            className={`px-3 py-1.5 text-xs font-medium rounded-md border transition-colors disabled:opacity-50 ${
+                              active
+                                ? STATUS_ACTIVE[s]
+                                : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
+                            }`}
+                          >
+                            {WORKFLOW_LABELS[s]}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </>
+                )}
+              </SectionCard>
+            )}
 
             {/* Possible live duplicates */}
             {duplicates.length > 0 && (
