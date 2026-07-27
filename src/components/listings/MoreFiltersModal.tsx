@@ -6,7 +6,6 @@ import {
   SALE_PROPERTY_TYPES,
   BUILDING_TYPES,
 } from "./IconSelectGrid";
-import { NeighborhoodPicker } from "./NeighborhoodPicker";
 import type { FilterState, SortOption } from "../../hooks/useBrowseFilters";
 
 interface MoreFiltersModalProps {
@@ -15,8 +14,6 @@ interface MoreFiltersModalProps {
   filters: FilterState;
   onFiltersChange: (filters: FilterState) => void;
   agencies?: string[];
-  allNeighborhoods?: string[];
-  neighborhoodCounts?: Record<string, number>;
   availableLeaseTerms?: string[];
   listingType?: "rental" | "sale";
   listingTypeFilter?: "all" | "residential" | "commercial";
@@ -118,8 +115,6 @@ export function MoreFiltersModal({
   filters,
   onFiltersChange,
   agencies = [],
-  allNeighborhoods = [],
-  neighborhoodCounts,
   availableLeaseTerms = [],
   listingType = "rental",
   listingTypeFilter = "all",
@@ -302,19 +297,7 @@ export function MoreFiltersModal({
               </>
             )}
 
-            <div>
-              <h3 className="text-base font-semibold text-gray-900 mb-4">
-                Neighborhoods
-              </h3>
-              <NeighborhoodPicker
-                allNeighborhoods={allNeighborhoods}
-                neighborhoodCounts={neighborhoodCounts}
-                selected={localFilters.neighborhoods || []}
-                onChange={(next) =>
-                  handleLocalFilterChange("neighborhoods", next)
-                }
-              />
-            </div>
+            {/* Neighborhoods live in their own filter-bar dropdown. */}
 
             {!isCommercial && (
               <div>

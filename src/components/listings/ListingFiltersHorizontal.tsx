@@ -476,11 +476,12 @@ export function ListingFiltersHorizontal({
 
   const hasSearchAreaFilter = !!filters.searchBounds;
 
+  // Neighborhoods deliberately excluded — they have their own dropdown, which
+  // shows its own active state.
   const hasOtherActiveFilters = !!(
     filters.property_type ||
     filters.property_types?.length ||
     filters.building_types?.length ||
-    (filters.neighborhoods && filters.neighborhoods.length > 0) ||
     filters.lease_terms?.length ||
     filters.poster_type ||
     filters.parking_included ||
@@ -1474,8 +1475,6 @@ export function ListingFiltersHorizontal({
         filters={filters}
         onFiltersChange={onFiltersChange}
         agencies={agencies}
-        allNeighborhoods={allNeighborhoods}
-        neighborhoodCounts={neighborhoodCounts}
         availableLeaseTerms={availableLeaseTerms}
         listingType={listingType}
         listingTypeFilter={listingTypeFilterValue}

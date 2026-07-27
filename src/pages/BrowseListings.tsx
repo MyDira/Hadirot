@@ -979,8 +979,12 @@ export function BrowseListings() {
       <div className="bg-white border-b border-gray-200 px-4 py-3 flex-shrink-0">
         <div className="max-w-[1800px] mx-auto">
           {/* Top row: Search, Filters, and View Toggle */}
-          <div className="hidden md:flex items-center gap-4 mb-3">
-            <div className="w-[400px] flex-shrink-0">
+          {/* Below lg the search bar gets its own row. Kept inline, the fixed
+              400px search plus the view toggle leave the filter pills ~70px on
+              a tablet, so they stack into a single narrow column and the
+              toggle overflows the viewport. */}
+          <div className="hidden md:flex flex-col lg:flex-row lg:items-center gap-3 lg:gap-4 mb-3">
+            <div className="w-full lg:w-[280px] xl:w-[400px] lg:flex-shrink-0">
               <SmartSearchBar
                 ref={searchBarDesktopRef}
                 onSearch={handleSmartSearch}
@@ -988,22 +992,24 @@ export function BrowseListings() {
                 placeholder="Try: Williamsburg 2 bed under 3k"
               />
             </div>
-            <div className="flex-1">
-              <ListingFiltersHorizontal
-                filters={filters}
-                onFiltersChange={handleFiltersChange}
-                onSearchClear={() => {
-                  searchBarDesktopRef.current?.clearSearch();
-                  searchBarMobileRef.current?.clearSearch();
-                }}
-                agencies={agencies}
-                allNeighborhoods={allNeighborhoods}
-                neighborhoodCounts={neighborhoodCounts}
-                availableLeaseTerms={availableLeaseTerms}
-              />
-            </div>
-            <div className="flex-shrink-0">
-              {renderViewModeToggle(true)}
+            <div className="flex items-center gap-3 lg:gap-4 lg:flex-1 min-w-0">
+              <div className="flex-1 min-w-0">
+                <ListingFiltersHorizontal
+                  filters={filters}
+                  onFiltersChange={handleFiltersChange}
+                  onSearchClear={() => {
+                    searchBarDesktopRef.current?.clearSearch();
+                    searchBarMobileRef.current?.clearSearch();
+                  }}
+                  agencies={agencies}
+                  allNeighborhoods={allNeighborhoods}
+                  neighborhoodCounts={neighborhoodCounts}
+                  availableLeaseTerms={availableLeaseTerms}
+                />
+              </div>
+              <div className="flex-shrink-0">
+                {renderViewModeToggle(true)}
+              </div>
             </div>
           </div>
 
