@@ -26,16 +26,16 @@ export interface NeighborhoodArea {
 
 /**
  * Canonical display name -> alternate spellings seen in listing data.
- * Matching is case/punctuation insensitive, so only real variants belong here.
+ * Matching ignores case and punctuation, so only genuinely different wordings
+ * belong here ("GEORGETOWN" and "George Town" already collapse on their own).
  */
 const NEIGHBORHOOD_ALIASES: Record<string, string[]> = {
-  "Boro Park": ["Borough Park", "Boro-Park", "BoroPark", "B.P."],
+  "Boro Park": ["Borough Park", "BoroPark", "B.P."],
   Midwood: ["Mid Wood"],
   "Ditmas Park": ["Ditmas"],
   "East Flatbush": ["E Flatbush", "E. Flatbush"],
   "Prospect Park South": ["Prospect Pk South", "PPS"],
   "Marine Park": ["Marine Pk"],
-  "Mill Basin": ["Millbasin"],
   "Bergen Beach": ["Bergen Bch"],
   "Gerritsen Beach": ["Gerritsen Bch"],
   "Sheepshead Bay": ["Sheepshead"],
@@ -43,11 +43,14 @@ const NEIGHBORHOOD_ALIASES: Record<string, string[]> = {
   "Fiske Terrace": ["Fiske Terr"],
   "Manhattan Beach": ["Man Beach"],
   "Brighton Beach": ["Brighton"],
+  // Misspellings seen in posted listings.
+  Kensington: ["Kengsinton", "Kensingtn"],
 };
 
 /**
- * Areas are allowed to overlap — Kensington genuinely reads as both Boro Park
- * and Flatbush depending on who you ask, so it lives in both.
+ * Areas MUST NOT overlap. A neighborhood in two areas makes selecting one area
+ * silently drop listings out of the other when it is cleared, and lights up an
+ * area the user never touched — so each neighborhood belongs to exactly one.
  */
 export const NEIGHBORHOOD_AREAS: NeighborhoodArea[] = [
   {
@@ -60,6 +63,7 @@ export const NEIGHBORHOOD_AREAS: NeighborhoodArea[] = [
       "Bensonhurst",
       "Sunset Park",
       "Dyker Heights",
+      "Windsor Terrace",
     ],
   },
   {
@@ -69,13 +73,13 @@ export const NEIGHBORHOOD_AREAS: NeighborhoodArea[] = [
       "Flatbush",
       "Midwood",
       "Ditmas Park",
-      "Kensington",
       "Madison",
+      "Homecrest",
+      "Gravesend",
+      "Sheepshead Bay",
       "East Flatbush",
       "Prospect Park South",
       "Fiske Terrace",
-      "Homecrest",
-      "Flatlands",
     ],
   },
   {
@@ -88,6 +92,7 @@ export const NEIGHBORHOOD_AREAS: NeighborhoodArea[] = [
       "Georgetown",
       "Flatlands",
       "Gerritsen Beach",
+      "Farragut",
     ],
   },
 ];
@@ -98,6 +103,13 @@ export function normalizeNeighborhood(value: string): string {
 }
 
 const CANONICAL_BY_KEY = new Map<string, string>();
+// Every area member is a canonical name in its own right, so a listing saved as
+// "GEORGETOWN" still resolves to the "Georgetown" that the area references.
+for (const area of NEIGHBORHOOD_AREAS) {
+  for (const member of area.members) {
+    CANONICAL_BY_KEY.set(normalizeNeighborhood(member), member);
+  }
+}
 for (const [canonical, aliases] of Object.entries(NEIGHBORHOOD_ALIASES)) {
   CANONICAL_BY_KEY.set(normalizeNeighborhood(canonical), canonical);
   for (const alias of aliases) {
@@ -159,23 +171,33 @@ export function buildNeighborhoodOptions(
 ): NeighborhoodOptionTree {
   if (!rawNeighborhoods || rawNeighborhoods.length === 0) return EMPTY_TREE;
 
-  // Collapse spelling variants into one option per canonical name.
-  const byCanonical = new Map<string, { values: string[]; count: number }>();
+  // Collapse spelling variants into one option per canonical name. Grouping on
+  // the normalized key (rather than the resolved name) means casing variants of
+  // an unknown neighborhood merge too, instead of listing twice.
+  const byCanonical = new Map<
+    string,
+    { name: string; values: string[]; count: number }
+  >();
   for (const raw of rawNeighborhoods) {
     const trimmed = (raw || "").trim();
     if (!trimmed) continue;
     const canonical = canonicalNeighborhoodName(trimmed);
-    const entry = byCanonical.get(canonical) || { values: [], count: 0 };
+    const key = normalizeNeighborhood(canonical);
+    const entry = byCanonical.get(key) || {
+      name: canonical,
+      values: [],
+      count: 0,
+    };
     if (!entry.values.includes(trimmed)) {
       entry.values.push(trimmed);
       entry.count += counts[trimmed] ?? 0;
     }
-    byCanonical.set(canonical, entry);
+    byCanonical.set(key, entry);
   }
 
-  const optionByCanonical = new Map<string, NeighborhoodOption>();
-  for (const [name, { values, count }] of byCanonical) {
-    optionByCanonical.set(name, {
+  const optionByKey = new Map<string, NeighborhoodOption>();
+  for (const [key, { name, values, count }] of byCanonical) {
+    optionByKey.set(key, {
       name,
       values,
       count,
@@ -189,7 +211,7 @@ export function buildNeighborhoodOptions(
   for (const area of NEIGHBORHOOD_AREAS) {
     const options: NeighborhoodOption[] = [];
     for (const member of area.members) {
-      const option = optionByCanonical.get(member);
+      const option = optionByKey.get(normalizeNeighborhood(member));
       if (option) options.push(option);
     }
     if (options.length === 0) continue;
@@ -208,14 +230,14 @@ export function buildNeighborhoodOptions(
 
   areas.sort((a, b) => b.count - a.count || a.label.localeCompare(b.label));
 
-  const others = [...optionByCanonical.values()]
+  const others = [...optionByKey.values()]
     .filter((o) => !grouped.has(o.name))
     .sort((a, b) => a.name.localeCompare(b.name));
 
   return {
     areas,
     others,
-    allOptions: [...optionByCanonical.values()],
+    allOptions: [...optionByKey.values()],
   };
 }
 
