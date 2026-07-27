@@ -1,7 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Users,
   Home,
   Star,
   Clock,
@@ -12,15 +11,20 @@ import {
   Briefcase,
   Crown,
   ArrowRight,
+  Activity,
+  Eye,
+  MessageSquare,
 } from 'lucide-react';
 import { useAdminStats } from '../hooks/useAdminStats';
 
 function ActiveListingsCard({
   total,
+  newToday,
   breakdown,
   loading,
 }: {
   total: number;
+  newToday: number;
   breakdown: { label: string; value: number }[];
   loading: boolean;
 }) {
@@ -32,11 +36,16 @@ function ActiveListingsCard({
             Active Listings
           </p>
           {loading ? (
-            <div className="h-12 w-20 mt-2 rounded-lg bg-white/50 animate-pulse" />
+            <div className="h-12 w-24 mt-2 rounded-lg bg-white/50 animate-pulse" />
           ) : (
-            <p className="text-5xl font-bold text-emerald-900 leading-none mt-2">
-              {total.toLocaleString()}
-            </p>
+            <div className="flex items-baseline gap-2 mt-2">
+              <p className="text-5xl font-bold text-emerald-900 leading-none">
+                {total.toLocaleString()}
+              </p>
+              <span className="text-xs font-semibold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full whitespace-nowrap">
+                +{newToday.toLocaleString()} today
+              </span>
+            </div>
           )}
         </div>
         <div className="p-3 rounded-xl bg-emerald-500 shadow-sm">
@@ -56,6 +65,56 @@ function ActiveListingsCard({
         ))}
       </div>
       <div className="absolute -bottom-4 -right-4 w-24 h-24 rounded-full bg-emerald-500 opacity-10" />
+    </div>
+  );
+}
+
+function TodayActivityCard({
+  uniqueVisitors,
+  inquiries,
+  loading,
+}: {
+  uniqueVisitors: number;
+  inquiries: number;
+  loading: boolean;
+}) {
+  return (
+    <div className="relative overflow-hidden rounded-2xl p-6 bg-blue-50 border border-white/20 shadow-sm">
+      <div className="flex items-start justify-between mb-4">
+        <p className="text-xs font-semibold uppercase tracking-widest text-blue-900 opacity-70">
+          Today
+        </p>
+        <div className="p-3 rounded-xl bg-blue-500 shadow-sm">
+          <Activity className="w-5 h-5 text-white" />
+        </div>
+      </div>
+      <div className="relative grid grid-cols-2 gap-4">
+        <div>
+          {loading ? (
+            <div className="h-9 w-14 rounded-lg bg-white/50 animate-pulse" />
+          ) : (
+            <p className="text-3xl font-bold text-blue-900 leading-none">
+              {uniqueVisitors.toLocaleString()}
+            </p>
+          )}
+          <p className="flex items-center gap-1 text-xs text-blue-900/70 mt-2">
+            <Eye className="w-3 h-3" /> Unique visitors
+          </p>
+        </div>
+        <div>
+          {loading ? (
+            <div className="h-9 w-14 rounded-lg bg-white/50 animate-pulse" />
+          ) : (
+            <p className="text-3xl font-bold text-blue-900 leading-none">
+              {inquiries.toLocaleString()}
+            </p>
+          )}
+          <p className="flex items-center gap-1 text-xs text-blue-900/70 mt-2">
+            <MessageSquare className="w-3 h-3" /> Inquiries
+          </p>
+        </div>
+      </div>
+      <div className="absolute -bottom-4 -right-4 w-24 h-24 rounded-full bg-blue-500 opacity-10" />
     </div>
   );
 }
@@ -127,17 +186,19 @@ export function OverviewSection() {
   return (
     <div className="space-y-8">
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
-        <StatCard
-          icon={Users}
-          title="Total Users"
-          value={stats.totalUsers}
-          color="bg-blue-500"
-          bgColor="bg-blue-50"
-          textColor="text-blue-900"
+        <TodayActivityCard
+          uniqueVisitors={stats.uniqueVisitorsToday}
+          inquiries={stats.inquiriesToday}
           loading={loading}
         />
         <ActiveListingsCard
           total={stats.totalListings}
+          newToday={
+            stats.newListingsToday.residentialRentals +
+            stats.newListingsToday.residentialSales +
+            stats.newListingsToday.commercialRentals +
+            stats.newListingsToday.commercialSales
+          }
           breakdown={[
             { label: 'Residential · Rentals', value: stats.listingBreakdown.residentialRentals },
             { label: 'Residential · Sales', value: stats.listingBreakdown.residentialSales },

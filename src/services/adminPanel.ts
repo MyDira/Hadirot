@@ -56,8 +56,11 @@ export interface AdminStats {
   totalUsers: number;
   totalListings: number;
   listingBreakdown: ListingBreakdown;
+  newListingsToday: ListingBreakdown;
   featuredListings: number;
   activeUsers: number;
+  uniqueVisitorsToday: number;
+  inquiriesToday: number;
 }
 
 export interface LifecycleSettings {
@@ -93,6 +96,7 @@ export const adminPanelService = {
       commercialSaleRes,
       featuredRes,
       commercialFeaturedRes,
+      todayRes,
     ] = await Promise.all([
       supabase.from('profiles').select('id', { count: 'exact', head: true }),
       supabase
@@ -127,6 +131,10 @@ export const adminPanelService = {
         .eq('is_active', true)
         .eq('is_featured', true)
         .gt('featured_expires_at', nowIso),
+      // Unique visitors / inquiries / new listings for "today" (calendar day
+      // in the business timezone) — one admin-gated RPC, see migration
+      // 20260722000000_admin_overview_today_stats.
+      supabase.rpc('admin_overview_today_stats', { tz: 'America/New_York' }).maybeSingle(),
     ]);
 
     const listingBreakdown: ListingBreakdown = {
@@ -136,6 +144,18 @@ export const adminPanelService = {
       commercialSales: commercialSaleRes.count || 0,
     };
 
+    if (todayRes.error) {
+      console.error('[adminPanel] admin_overview_today_stats error', todayRes.error);
+    }
+    const today = todayRes.data as {
+      unique_visitors_today: number | null;
+      inquiries_today: number | null;
+      new_residential_rentals: number | null;
+      new_residential_sales: number | null;
+      new_commercial_rentals: number | null;
+      new_commercial_sales: number | null;
+    } | null;
+
     return {
       totalUsers: usersRes.count || 0,
       totalListings:
@@ -144,9 +164,17 @@ export const adminPanelService = {
         listingBreakdown.commercialRentals +
         listingBreakdown.commercialSales,
       listingBreakdown,
+      newListingsToday: {
+        residentialRentals: today?.new_residential_rentals || 0,
+        residentialSales: today?.new_residential_sales || 0,
+        commercialRentals: today?.new_commercial_rentals || 0,
+        commercialSales: today?.new_commercial_sales || 0,
+      },
       featuredListings: (featuredRes.count || 0) + (commercialFeaturedRes.count || 0),
       // Parity with the old panel: "active users" is intentionally simplified.
       activeUsers: usersRes.count || 0,
+      uniqueVisitorsToday: today?.unique_visitors_today || 0,
+      inquiriesToday: today?.inquiries_today || 0,
     };
   },
 

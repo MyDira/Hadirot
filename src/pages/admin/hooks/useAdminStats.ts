@@ -13,8 +13,16 @@ export function useAdminStats() {
       commercialRentals: 0,
       commercialSales: 0,
     },
+    newListingsToday: {
+      residentialRentals: 0,
+      residentialSales: 0,
+      commercialRentals: 0,
+      commercialSales: 0,
+    },
     featuredListings: 0,
     activeUsers: 0,
+    uniqueVisitorsToday: 0,
+    inquiriesToday: 0,
   });
   const [loading, setLoading] = useState(true);
   const [settings, setSettings] = useState<LifecycleSettings | null>(null);
