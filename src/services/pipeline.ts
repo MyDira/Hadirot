@@ -34,6 +34,9 @@ export const pipelineService = {
     const { data, error } = await supabase
       .from('scrape_runs')
       .select('*')
+      // Admin AI Intake batches live in the same table; keep them out of the
+      // Luach pipeline view.
+      .neq('source', 'admin_intake')
       .order('started_at', { ascending: false })
       .limit(1)
       .maybeSingle();
@@ -49,7 +52,9 @@ export const pipelineService = {
   ): Promise<{ data: ScrapedListing[]; count: number }> {
     let query = supabase
       .from('scraped_listings')
-      .select('*', { count: 'exact' });
+      .select('*', { count: 'exact' })
+      // Admin AI Intake rows have their own review screen (/admin/ai-intake).
+      .neq('source', 'admin_intake');
 
     if (filters.callStatus !== 'all') {
       query = query.eq('call_status', filters.callStatus);

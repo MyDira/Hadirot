@@ -30,6 +30,15 @@ verify_jwt = false
 [functions.update-concierge-subscription]
 verify_jwt = true
 
+[functions.parse-bulk-listings]
+verify_jwt = true
+
+[functions.parse-pamphlet]
+verify_jwt = true
+
+[functions.scrape-luach-com]
+verify_jwt = true
+
 [functions.handle-renewal-sms-webhook]
 # Twilio posts inbound SMS unauthenticated — a redeploy without this pin
 # defaults to verify_jwt=true and 401s every webhook (inbound dead Apr 16 2026).

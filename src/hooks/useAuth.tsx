@@ -33,7 +33,12 @@ const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  const [session, setSession] = useState<any>(null);
+  // `undefined` = session not yet initialized (getSession in flight). This is
+  // distinct from `null` = confirmed logged out. Without this distinction the
+  // initial `null` would fire refreshProfile immediately, flipping loading to
+  // false with profile=null before the real session resolves — which bounced
+  // admins off /admin/* on a hard reload.
+  const [session, setSession] = useState<any>(undefined);
   const [profile, setProfile] = useState<Profile | null | undefined>(undefined);
   const [loading, setLoading] = useState(true);
 
@@ -147,6 +152,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   useEffect(() => {
+    // Wait for session initialization to resolve before touching the profile,
+    // so `loading` doesn't drop to false with a premature null profile.
+    if (session === undefined) return;
     refreshProfile();
   }, [session]);
 

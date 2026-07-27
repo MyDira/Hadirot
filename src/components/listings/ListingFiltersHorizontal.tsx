@@ -1,7 +1,12 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { ChevronDown, X, SlidersHorizontal } from "lucide-react";
 import { listingsService } from "../../services/listings";
 import { MoreFiltersModal } from "./MoreFiltersModal";
+import { NeighborhoodPicker } from "./NeighborhoodPicker";
+import {
+  buildNeighborhoodOptions,
+  neighborhoodFilterLabel,
+} from "../../config/neighborhoodAreas";
 import type { FilterState, SortOption } from "../../hooks/useBrowseFilters";
 
 interface ListingFiltersHorizontalProps {
@@ -10,6 +15,7 @@ interface ListingFiltersHorizontalProps {
   onSearchClear?: () => void;
   agencies?: string[];
   allNeighborhoods?: string[];
+  neighborhoodCounts?: Record<string, number>;
   availableLeaseTerms?: string[];
   isMobile?: boolean;
   listingType?: "rental" | "sale";
@@ -164,6 +170,7 @@ export function ListingFiltersHorizontal({
   onSearchClear,
   agencies = [],
   allNeighborhoods = [],
+  neighborhoodCounts,
   availableLeaseTerms = [],
   isMobile = false,
   listingType = "rental",
@@ -186,6 +193,11 @@ export function ListingFiltersHorizontal({
   const maxInputRef = useRef<HTMLInputElement>(null);
 
   const [localFilters, setLocalFilters] = useState<FilterState>(filters);
+
+  const neighborhoodTree = useMemo(
+    () => buildNeighborhoodOptions(allNeighborhoods, neighborhoodCounts),
+    [allNeighborhoods, neighborhoodCounts],
+  );
 
   useEffect(() => {
     if (isMobile) {
@@ -464,11 +476,12 @@ export function ListingFiltersHorizontal({
 
   const hasSearchAreaFilter = !!filters.searchBounds;
 
+  // Neighborhoods deliberately excluded — they have their own dropdown, which
+  // shows its own active state.
   const hasOtherActiveFilters = !!(
     filters.property_type ||
     filters.property_types?.length ||
     filters.building_types?.length ||
-    (filters.neighborhoods && filters.neighborhoods.length > 0) ||
     filters.lease_terms?.length ||
     filters.poster_type ||
     filters.parking_included ||
@@ -684,35 +697,14 @@ export function ListingFiltersHorizontal({
           <h3 className="text-base font-semibold text-gray-900 mb-4">
             Neighborhoods
           </h3>
-          <div className="max-h-48 overflow-y-auto border border-gray-200 rounded-xl">
-            {allNeighborhoods.map((neighborhood) => {
-              const isSelected =
-                localFilters.neighborhoods?.includes(neighborhood) || false;
-              return (
-                <label
-                  key={neighborhood}
-                  className="flex items-center px-4 py-3 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-b-0"
-                >
-                  <input
-                    type="checkbox"
-                    checked={isSelected}
-                    onChange={() => {
-                      const current = localFilters.neighborhoods || [];
-                      const newNeighborhoods = isSelected
-                        ? current.filter((n) => n !== neighborhood)
-                        : [...current, neighborhood];
-                      setLocalFilters(prev => ({
-                        ...prev,
-                        neighborhoods: newNeighborhoods.length > 0 ? newNeighborhoods : undefined,
-                      }));
-                    }}
-                    className="h-5 w-5 text-green-600 focus:ring-green-500 border-gray-300 rounded"
-                  />
-                  <span className="ml-3 text-sm text-gray-700">{neighborhood}</span>
-                </label>
-              );
-            })}
-          </div>
+          <NeighborhoodPicker
+            allNeighborhoods={allNeighborhoods}
+            neighborhoodCounts={neighborhoodCounts}
+            selected={localFilters.neighborhoods || []}
+            onChange={(next) =>
+              setLocalFilters((prev) => ({ ...prev, neighborhoods: next }))
+            }
+          />
         </div>
 
         {listingType === "rental" && availableLeaseTerms.length > 0 && (
@@ -1315,6 +1307,37 @@ export function ListingFiltersHorizontal({
           </FilterDropdown>
         )}
 
+        <FilterDropdown
+          label="Neighborhood"
+          value={neighborhoodFilterLabel(filters.neighborhoods, neighborhoodTree)}
+          isActive={!!(filters.neighborhoods && filters.neighborhoods.length > 0)}
+          isOpen={openDropdown === "neighborhoods"}
+          onToggle={() => toggleDropdown("neighborhoods")}
+        >
+          <div className="p-5">
+            <div className="text-base font-semibold text-gray-900 mb-4">
+              Neighborhood
+            </div>
+            <NeighborhoodPicker
+              variant="dropdown"
+              allNeighborhoods={allNeighborhoods}
+              neighborhoodCounts={neighborhoodCounts}
+              selected={filters.neighborhoods || []}
+              onChange={(next) => handleFilterChange("neighborhoods", next)}
+            />
+            <div className="flex items-center pt-4 mt-2 border-t border-gray-100">
+              <div className="flex-1" />
+              <button
+                type="button"
+                onClick={() => setOpenDropdown(null)}
+                className="px-6 py-2.5 bg-green-600 text-white rounded-lg text-sm font-semibold hover:bg-green-700 transition-colors"
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        </FilterDropdown>
+
         {showResidentialFilters && <FilterDropdown
           label="Beds & Baths"
           value={getBedroomsLabel()}
@@ -1452,7 +1475,6 @@ export function ListingFiltersHorizontal({
         filters={filters}
         onFiltersChange={onFiltersChange}
         agencies={agencies}
-        allNeighborhoods={allNeighborhoods}
         availableLeaseTerms={availableLeaseTerms}
         listingType={listingType}
         listingTypeFilter={listingTypeFilterValue}

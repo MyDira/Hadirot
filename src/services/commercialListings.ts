@@ -799,6 +799,36 @@ export const commercialListingsService = {
     ].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
   },
 
+  /** Active commercial listing counts keyed by raw neighborhood string. */
+  async getActiveCommercialNeighborhoodCounts(
+    listingType?: 'rental' | 'sale',
+  ): Promise<Record<string, number>> {
+    let query = supabase
+      .from('commercial_listings')
+      .select('neighborhood')
+      .eq('is_active', true)
+      .eq('approved', true);
+
+    if (listingType) {
+      query = query.eq('listing_type', listingType);
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      console.error('Error fetching commercial neighborhood counts:', error);
+      return {};
+    }
+
+    const counts: Record<string, number> = {};
+    for (const item of (data || []) as any[]) {
+      const name = (item.neighborhood || '').trim();
+      if (!name || name === '-') continue;
+      counts[name] = (counts[name] || 0) + 1;
+    }
+    return counts;
+  },
+
   async getActiveCommercialAgencies(listingType?: 'rental' | 'sale'): Promise<string[]> {
     let query = supabase
       .from('commercial_listings')

@@ -141,6 +141,8 @@ export async function parseContent(
   content: string | Anthropic.MessageParam['content'],
   typeHint: string,
   extraContext?: string,
+  /** Caller-specific remedy shown if the model runs out of output budget. */
+  overflowHint = 'split the upload into smaller files (fewer pages per file) and retry.',
 ): Promise<ParsedListing[]> {
   const userContent =
     typeof content === 'string'
@@ -171,9 +173,7 @@ export async function parseContent(
   const message = await stream.finalMessage();
 
   if (message.stop_reason === 'max_tokens') {
-    throw new Error(
-      'Output hit the token limit before finishing — split the upload into smaller files (fewer pages per file) and retry.',
-    );
+    throw new Error(`Output hit the token limit before finishing — ${overflowHint}`);
   }
 
   const text = message.content
@@ -200,6 +200,21 @@ function normalizeStreet(name: string | null | undefined): string {
 }
 
 /**
+ * Digits only, dropping a leading US country code so "1-718-555-1234" and
+ * "718-555-1234" collapse onto the same key. Anything that isn't a 10- or
+ * 11-digit US number keeps its raw digits, so odd/partial numbers still
+ * contribute to the key instead of silently dropping out of it.
+ *
+ * Back-compatible with the historical keys: a plain 10-digit number is
+ * returned unchanged, so existing dedup_keys still line up.
+ */
+export function normalizePhoneDigits(raw: string | null | undefined): string {
+  const digits = (raw || '').replace(/\D/g, '');
+  if (digits.length === 11 && digits.startsWith('1')) return digits.slice(1);
+  return digits;
+}
+
+/**
  * Dedup key from normalized phone + sorted cross streets + bedrooms.
  * Returns null when the listing is too sparse to safely dedup (no phone AND no
  * streets) — the caller then assigns a unique key so distinct-but-empty
@@ -214,7 +229,7 @@ export function generateDedupKey(listing: {
   cross_street_2?: string | null;
   bedrooms?: number | null;
 }): string | null {
-  const phone = (listing.contact_phone || '').replace(/\D/g, '');
+  const phone = normalizePhoneDigits(listing.contact_phone);
   const s1 = normalizeStreet(listing.cross_street_1);
   const s2 = normalizeStreet(listing.cross_street_2);
   if (!phone && !s1 && !s2) return null;
@@ -287,7 +302,7 @@ export async function upsertScrapedListing(
   geo: { latitude: number | null; longitude: number | null; status: string },
   ctx: UpsertContext,
 ): Promise<'inserted' | 'updated'> {
-  const phoneDigits = (listing.contact_phone || '').replace(/\D/g, '');
+  const phoneDigits = normalizePhoneDigits(listing.contact_phone);
   const dedupKey = generateDedupKey(listing) ?? `nokey_${crypto.randomUUID()}`;
   const seenAt = new Date().toISOString();
   const price = listing.listing_kind === 'rental' ? listing.price : null;
@@ -303,7 +318,9 @@ export async function upsertScrapedListing(
   // --- Does this real-world listing already exist? ------------------------
   const { data: existing } = await supabase
     .from('scraped_listings')
-    .select('id, times_seen, source_history, price, call_status')
+    .select(
+      'id, times_seen, source_history, price, call_status, image_paths, assigned_user_id, admin_custom_agency_name, admin_listing_type_display',
+    )
     .eq('dedup_key', dedupKey)
     .maybeSingle();
 
@@ -322,6 +339,25 @@ export async function upsertScrapedListing(
     // Only fill a price we didn't already have — never overwrite an admin edit.
     if ((existing.price == null || existing.price === 0) && price != null) {
       patch.price = price;
+    }
+    // Carry this block's media + account assignment onto the existing draft,
+    // but only when it doesn't already have them — never clobber an earlier
+    // admin choice (same rule as price above).
+    const existingImages = Array.isArray(existing.image_paths) ? existing.image_paths : [];
+    if (existingImages.length === 0 && Array.isArray(ctx.images) && ctx.images.length > 0) {
+      patch.image_paths = ctx.images;
+    }
+    if (!existing.assigned_user_id && ctx.assignedUserId) {
+      patch.assigned_user_id = ctx.assignedUserId;
+      patch.admin_custom_agency_name = null;
+      patch.admin_listing_type_display = null;
+    } else if (!existing.assigned_user_id && !ctx.assignedUserId) {
+      if (!existing.admin_custom_agency_name && ctx.adminCustomAgencyName) {
+        patch.admin_custom_agency_name = ctx.adminCustomAgencyName;
+      }
+      if (!existing.admin_listing_type_display && ctx.adminListingTypeDisplay) {
+        patch.admin_listing_type_display = ctx.adminListingTypeDisplay;
+      }
     }
     // A re-sighting of a previously suppressed row is worth resurfacing.
     if (existing.call_status === 'suppressed') {

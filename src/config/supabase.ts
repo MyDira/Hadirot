@@ -106,6 +106,8 @@ export interface Listing {
   posted_at?: string | null;
   impressions?: number;
   direct_views?: number;
+  phone_reveals?: number;
+  map_pin_clicks?: number;
   created_at: string;
   updated_at: string;
   last_published_at: string;
@@ -485,6 +487,7 @@ export interface ScrapedListing {
   floor: number | null;
   square_footage: number | null;
   source: string | null;
+  source_url: string | null;
   pdf_date: string | null;
   dedup_key: string | null;
   call_status: CallStatus;
@@ -492,6 +495,69 @@ export interface ScrapedListing {
   published_listing_id: string | null;
   created_at: string;
   updated_at: string;
+  // Admin AI Intake fields (source = 'admin_intake' rows only)
+  intake_batch_id: string | null;
+  intake_block_index: number | null;
+  listing_kind: 'rental' | 'sale';
+  description: string | null;
+  assigned_user_id: string | null;
+  admin_custom_agency_name: string | null;
+  admin_listing_type_display: 'agent' | 'owner' | null;
+  image_paths: IntakeImage[];
+  intake_extra: IntakeExtra;
+  // Intake hub: cross-source dedup / new-vs-old tracking
+  source_history: SourceSighting[];
+  admin_reviewed_at: string | null;
+}
+
+/** One sighting of a real-world listing in any feed (append-only trail). */
+export interface SourceSighting {
+  source: string;
+  date: string | null;
+  run_id: string | null;
+  price: number | null;
+  seen_at: string;
+}
+
+/** Intake feed sources. Pamphlet uploads + website scrape + pasted text. */
+export type IntakeSource =
+  | 'luach_hatsibbur'
+  | 'kol_berama'
+  | 'heimish_agent'
+  | 'other_pamphlet'
+  | 'luach_com'
+  | 'admin_intake';
+
+export const INTAKE_SOURCE_LABELS: Record<string, string> = {
+  luach_hatsibbur: 'Luach HaTsibbur',
+  kol_berama: 'Kol Berama',
+  heimish_agent: 'Heimish Agent',
+  other_pamphlet: 'Other Pamphlet',
+  luach_com: 'luach.com',
+  admin_intake: 'Pasted Text',
+};
+
+export interface IntakeImage {
+  filePath: string;
+  publicUrl: string;
+  is_featured: boolean;
+  /** Absent on older rows — treat as 'image' for back-compat. */
+  type?: 'image' | 'video';
+  /** Video only: generated poster frame, stored in the listing-images bucket. */
+  thumbnailPath?: string;
+  thumbnailUrl?: string;
+}
+
+/** Listing-form fields with no dedicated scraped_listings column. */
+export interface IntakeExtra {
+  property_type?: PropertyType;
+  parking?: ParkingType;
+  heat?: HeatType;
+  washer_dryer_hookup?: boolean;
+  lease_length?: LeaseLength | null;
+  call_for_price?: boolean;
+  asking_price?: number | null;
+  broker_fee?: boolean;
 }
 
 export interface ScrapeRun {
@@ -509,6 +575,7 @@ export interface ScrapeRun {
   started_at: string;
   completed_at: string | null;
   status: string;
+  created_by: string | null;
 }
 
 export type ConciergeTier = 'tier1_quick' | 'tier2_forward' | 'tier3_vip';

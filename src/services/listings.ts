@@ -1305,7 +1305,7 @@ export const listingsService = {
 
     const metricsById = new Map<
       string,
-      { impressions: number; direct_views: number }
+      { impressions: number; direct_views: number; phone_reveals: number; map_pin_clicks: number }
     >();
 
     const chunkSize = 900;
@@ -1316,7 +1316,7 @@ export const listingsService = {
       try {
         const { data: metricsRows, error: chunkError } = await supabase
           .from('listing_metrics_v1')
-          .select('listing_id, impressions, direct_views')
+          .select('listing_id, impressions, direct_views, phone_reveals, map_pin_clicks')
           .in('listing_id', chunk);
 
         if (chunkError) {
@@ -1332,10 +1332,14 @@ export const listingsService = {
 
           const impressions = Number(row?.impressions ?? 0);
           const directViews = Number(row?.direct_views ?? 0);
+          const phoneReveals = Number(row?.phone_reveals ?? 0);
+          const mapPinClicks = Number(row?.map_pin_clicks ?? 0);
 
           metricsById.set(listingId, {
             impressions: Number.isFinite(impressions) ? impressions : 0,
             direct_views: Number.isFinite(directViews) ? directViews : 0,
+            phone_reveals: Number.isFinite(phoneReveals) ? phoneReveals : 0,
+            map_pin_clicks: Number.isFinite(mapPinClicks) ? mapPinClicks : 0,
           });
         });
       } catch (err) {
@@ -1355,6 +1359,8 @@ export const listingsService = {
         ...listing,
         impressions: metrics?.impressions ?? listing.impressions ?? 0,
         direct_views: metrics?.direct_views ?? listing.direct_views ?? 0,
+        phone_reveals: metrics?.phone_reveals ?? listing.phone_reveals ?? 0,
+        map_pin_clicks: metrics?.map_pin_clicks ?? listing.map_pin_clicks ?? 0,
       };
     });
 
@@ -1509,6 +1515,40 @@ async getActiveSalesAgencies(): Promise<string[]> {
     .filter((x: any) => typeof x === 'string' && x.trim().length > 0);
 
   return Array.from(new Set(names)).sort((a, b) => a.localeCompare(b));
+},
+
+/**
+ * Active listing counts keyed by the raw neighborhood string, used by the
+ * browse neighborhood picker to show how big each neighborhood/area is.
+ */
+async getActiveNeighborhoodCounts(
+  scope: 'rental' | 'sale',
+): Promise<Record<string, number>> {
+  let query = supabase
+    .from('listings')
+    .select('neighborhood')
+    .eq('is_active', true)
+    .eq('approved', true);
+
+  query =
+    scope === 'sale'
+      ? query.eq('listing_type', 'sale')
+      : query.or('listing_type.eq.rental,listing_type.is.null');
+
+  const { data, error } = await query;
+
+  if (error) {
+    console.error('Error fetching neighborhood counts:', error);
+    return {};
+  }
+
+  const counts: Record<string, number> = {};
+  for (const item of data || []) {
+    const name = (item.neighborhood || '').trim();
+    if (!name || name === '-') continue;
+    counts[name] = (counts[name] || 0) + 1;
+  }
+  return counts;
 },
 
 async getActiveRentalNeighborhoods(): Promise<string[]> {
