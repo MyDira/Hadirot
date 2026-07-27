@@ -561,17 +561,20 @@ export function ListingsSection() {
                           <UserCog className="w-4 h-4 text-gray-400" />
                           {listing.owner?.full_name || (listing.user_id ? 'Unknown' : 'No account')}
                         </span>
-                        <span className="inline-flex items-center gap-1">
+                        <span className="inline-flex items-center gap-1" title="Listing contact">
                           <Phone className="w-4 h-4 text-gray-400" />
                           {listing.contact_phone ? formatPhoneForDisplay(listing.contact_phone) : '—'}
+                          {listing.contact_name?.trim() && (
+                            <span className="text-gray-500">· {listing.contact_name.trim()}</span>
+                          )}
                         </span>
-                      </div>
-
-                      {/* status pills */}
-                      <div className="flex items-center flex-wrap gap-2 mt-2">
-                        <StatusPill tone={status.tone}>{status.label}</StatusPill>
-                        {featured && <StatusPill tone="amber">Featured</StatusPill>}
-                        {!listing.user_id && <StatusPill tone="gray">Archived</StatusPill>}
+                        {/* Status pills ride the end of the meta row rather than
+                            taking a line of their own. */}
+                        <span className="inline-flex items-center gap-2">
+                          <StatusPill tone={status.tone}>{status.label}</StatusPill>
+                          {featured && <StatusPill tone="amber">Featured</StatusPill>}
+                          {!listing.user_id && <StatusPill tone="gray">Archived</StatusPill>}
+                        </span>
                       </div>
 
                       {/* 5 stats */}

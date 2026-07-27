@@ -1517,6 +1517,40 @@ async getActiveSalesAgencies(): Promise<string[]> {
   return Array.from(new Set(names)).sort((a, b) => a.localeCompare(b));
 },
 
+/**
+ * Active listing counts keyed by the raw neighborhood string, used by the
+ * browse neighborhood picker to show how big each neighborhood/area is.
+ */
+async getActiveNeighborhoodCounts(
+  scope: 'rental' | 'sale',
+): Promise<Record<string, number>> {
+  let query = supabase
+    .from('listings')
+    .select('neighborhood')
+    .eq('is_active', true)
+    .eq('approved', true);
+
+  query =
+    scope === 'sale'
+      ? query.eq('listing_type', 'sale')
+      : query.or('listing_type.eq.rental,listing_type.is.null');
+
+  const { data, error } = await query;
+
+  if (error) {
+    console.error('Error fetching neighborhood counts:', error);
+    return {};
+  }
+
+  const counts: Record<string, number> = {};
+  for (const item of data || []) {
+    const name = (item.neighborhood || '').trim();
+    if (!name || name === '-') continue;
+    counts[name] = (counts[name] || 0) + 1;
+  }
+  return counts;
+},
+
 async getActiveRentalNeighborhoods(): Promise<string[]> {
   const { data, error } = await supabase
     .from('listings')

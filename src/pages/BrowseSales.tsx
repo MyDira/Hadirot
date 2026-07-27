@@ -19,7 +19,7 @@ import { ParsedSearchQuery } from "../utils/searchQueryParser";
 import { LocationResult } from "../services/locationSearch";
 import { calculateGeographicCenter } from "../utils/geoUtils";
 import { isElementFullyVisible, scrollElementIntoView } from "../utils/viewportUtils";
-import { MapPin, CommercialMapPin, applyFilters } from "../utils/filterUtils";
+import { MapPin, CommercialMapPin, applyFilters, hasNarrowingFilters } from "../utils/filterUtils";
 import {
   computeInjectionPositions,
   selectFeaturedForPage,
@@ -71,6 +71,7 @@ export function BrowseSales() {
   const [totalCount, setTotalCount] = useState(0);
   const [agencies, setAgencies] = useState<string[]>([]);
   const [allNeighborhoods, setAllNeighborhoods] = useState<string[]>([]);
+  const [neighborhoodCounts, setNeighborhoodCounts] = useState<Record<string, number>>({});
   const [showFiltersMobile, setShowFiltersMobile] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>(() => isMobileDevice() ? 'list' : 'split');
   const [hoveredListingId, setHoveredListingId] = useState<string | null>(null);
@@ -356,7 +357,10 @@ export function BrowseSales() {
         // Map data is viewport-bounded so it scales independently of total
         // listing count. Card list stays unbounded (featured-listing injection
         // needs the full set).
-        const mapFetchBounds = filters.searchBounds || mapBounds || DEFAULT_MAP_BOUNDS;
+        const mapFetchBounds =
+          filters.searchBounds ||
+          (hasNarrowingFilters(filters) ? DEFAULT_MAP_BOUNDS : mapBounds) ||
+          DEFAULT_MAP_BOUNDS;
         const { data: mapData, totalCount: mapTotalCount } = await listingsService.getSaleListings(
           { ...serviceFilters, bounds: mapFetchBounds },
           undefined,
@@ -404,8 +408,9 @@ export function BrowseSales() {
 
   const loadNeighborhoods = async () => {
     try {
-      const neighborhoods = await listingsService.getActiveSalesNeighborhoods();
-      setAllNeighborhoods(neighborhoods);
+      const counts = await listingsService.getActiveNeighborhoodCounts("sale");
+      setNeighborhoodCounts(counts);
+      setAllNeighborhoods(Object.keys(counts).sort());
     } catch (error) {
       console.error("Error loading neighborhoods:", error);
     }
@@ -922,8 +927,12 @@ export function BrowseSales() {
       <div className="bg-white border-b border-gray-200 px-4 py-3 flex-shrink-0">
         <div className="max-w-[1800px] mx-auto">
           {/* Top row: Search, Filters, and View Toggle */}
-          <div className="hidden md:flex items-center gap-4 mb-3">
-            <div className="w-[400px] flex-shrink-0">
+          {/* Below lg the search bar gets its own row. Kept inline, the fixed
+              400px search plus the view toggle leave the filter pills ~70px on
+              a tablet, so they stack into a single narrow column and the
+              toggle overflows the viewport. */}
+          <div className="hidden md:flex flex-col lg:flex-row lg:items-center gap-3 lg:gap-4 mb-3">
+            <div className="w-full lg:w-[280px] xl:w-[400px] lg:flex-shrink-0">
               <SmartSearchBar
                 ref={searchBarDesktopRef}
                 onSearch={handleSmartSearch}
@@ -931,21 +940,24 @@ export function BrowseSales() {
                 placeholder="Try: Park Slope 3 bed under 1M"
               />
             </div>
-            <div className="flex-1">
-              <ListingFiltersHorizontal
-                filters={filters}
-                onFiltersChange={handleFiltersChange}
-                onSearchClear={() => {
-                  searchBarDesktopRef.current?.clearSearch();
-                  searchBarMobileRef.current?.clearSearch();
-                }}
-                agencies={agencies}
-                allNeighborhoods={allNeighborhoods}
-                listingType="sale"
-              />
-            </div>
-            <div className="flex-shrink-0">
-              {renderViewModeToggle(true)}
+            <div className="flex items-center gap-3 lg:gap-4 lg:flex-1 min-w-0">
+              <div className="flex-1 min-w-0">
+                <ListingFiltersHorizontal
+                  filters={filters}
+                  onFiltersChange={handleFiltersChange}
+                  onSearchClear={() => {
+                    searchBarDesktopRef.current?.clearSearch();
+                    searchBarMobileRef.current?.clearSearch();
+                  }}
+                  agencies={agencies}
+                  allNeighborhoods={allNeighborhoods}
+                  neighborhoodCounts={neighborhoodCounts}
+                  listingType="sale"
+                />
+              </div>
+              <div className="flex-shrink-0">
+                {renderViewModeToggle(true)}
+              </div>
             </div>
           </div>
 
@@ -1029,6 +1041,7 @@ export function BrowseSales() {
                 }}
                 agencies={agencies}
                 allNeighborhoods={allNeighborhoods}
+                neighborhoodCounts={neighborhoodCounts}
                 isMobile={true}
                 listingType="sale"
               />
