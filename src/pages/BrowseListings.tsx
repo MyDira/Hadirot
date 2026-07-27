@@ -19,7 +19,7 @@ import { ParsedSearchQuery } from "../utils/searchQueryParser";
 import { LocationResult } from "../services/locationSearch";
 import { calculateGeographicCenter } from "../utils/geoUtils";
 import { isElementFullyVisible, scrollElementIntoView } from "../utils/viewportUtils";
-import { MapPin, CommercialMapPin, applyFilters } from "../utils/filterUtils";
+import { MapPin, CommercialMapPin, applyFilters, hasNarrowingFilters } from "../utils/filterUtils";
 import {
   computeInjectionPositions,
   selectFeaturedForPage,
@@ -391,7 +391,10 @@ export function BrowseListings() {
         // listing count. Uses searchBounds if user clicked "Search this area",
         // otherwise the current map viewport, otherwise a default city bbox
         // for first paint before the map has reported its bounds.
-        const mapFetchBounds = filters.searchBounds || mapBounds || DEFAULT_MAP_BOUNDS;
+        const mapFetchBounds =
+          filters.searchBounds ||
+          (hasNarrowingFilters(filters) ? DEFAULT_MAP_BOUNDS : mapBounds) ||
+          DEFAULT_MAP_BOUNDS;
         const { data: mapData, totalCount: mapTotalCount } = await listingsService.getListings(
           { ...serviceFilters, bounds: mapFetchBounds },
           undefined,

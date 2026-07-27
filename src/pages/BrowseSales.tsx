@@ -19,7 +19,7 @@ import { ParsedSearchQuery } from "../utils/searchQueryParser";
 import { LocationResult } from "../services/locationSearch";
 import { calculateGeographicCenter } from "../utils/geoUtils";
 import { isElementFullyVisible, scrollElementIntoView } from "../utils/viewportUtils";
-import { MapPin, CommercialMapPin, applyFilters } from "../utils/filterUtils";
+import { MapPin, CommercialMapPin, applyFilters, hasNarrowingFilters } from "../utils/filterUtils";
 import {
   computeInjectionPositions,
   selectFeaturedForPage,
@@ -357,7 +357,10 @@ export function BrowseSales() {
         // Map data is viewport-bounded so it scales independently of total
         // listing count. Card list stays unbounded (featured-listing injection
         // needs the full set).
-        const mapFetchBounds = filters.searchBounds || mapBounds || DEFAULT_MAP_BOUNDS;
+        const mapFetchBounds =
+          filters.searchBounds ||
+          (hasNarrowingFilters(filters) ? DEFAULT_MAP_BOUNDS : mapBounds) ||
+          DEFAULT_MAP_BOUNDS;
         const { data: mapData, totalCount: mapTotalCount } = await listingsService.getSaleListings(
           { ...serviceFilters, bounds: mapFetchBounds },
           undefined,

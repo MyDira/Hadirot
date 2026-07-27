@@ -54,6 +54,35 @@ export interface FilterableListing {
   owner?: { role: string; agency?: string | null } | null;
 }
 
+/**
+ * Filter keys that describe *where the map is looking* or how results are
+ * ordered, rather than narrowing which listings match.
+ */
+const NON_NARROWING_FILTER_KEYS = new Set<keyof FilterState>([
+  'searchBounds',
+  'searchLocationName',
+  'sort',
+]);
+
+/**
+ * True when the user has applied a filter that reduces the result set.
+ *
+ * The map fetch clips to the current viewport to cap how much it loads on an
+ * unfiltered browse. That clip must be dropped once a filter is active: the
+ * viewport is left over from the *previous* filter, so it silently discards
+ * matching listings, and the map then fits itself to that truncated set —
+ * which moves the viewport again and compounds the loss on the next change.
+ * A filter bounds the result size on its own, so no viewport clip is needed.
+ */
+export function hasNarrowingFilters(filters: FilterState): boolean {
+  return Object.entries(filters).some(([key, value]) => {
+    if (NON_NARROWING_FILTER_KEYS.has(key as keyof FilterState)) return false;
+    if (value === undefined || value === null || value === false) return false;
+    if (Array.isArray(value)) return value.length > 0;
+    return true;
+  });
+}
+
 export function normalizePropertyTypes(filters: FilterState): string[] {
   if (filters.property_types && filters.property_types.length > 0) {
     return filters.property_types;
