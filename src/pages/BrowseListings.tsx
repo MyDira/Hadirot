@@ -91,6 +91,7 @@ export function BrowseListings() {
   const [totalCount, setTotalCount] = useState(0);
   const [agencies, setAgencies] = useState<string[]>([]);
   const [allNeighborhoods, setAllNeighborhoods] = useState<string[]>([]);
+  const [neighborhoodCounts, setNeighborhoodCounts] = useState<Record<string, number>>({});
   const [showFiltersMobile, setShowFiltersMobile] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>(() => isMobileDevice() ? 'list' : 'split');
   const [hoveredListingId, setHoveredListingId] = useState<string | null>(null);
@@ -439,11 +440,17 @@ export function BrowseListings() {
   const loadNeighborhoods = async () => {
     try {
       const [residential, commercial] = await Promise.all([
-        listingsService.getActiveRentalNeighborhoods(),
-        commercialListingsService.getActiveCommercialNeighborhoods().catch(() => [] as string[]),
+        listingsService.getActiveNeighborhoodCounts("rental"),
+        commercialListingsService
+          .getActiveCommercialNeighborhoodCounts()
+          .catch(() => ({} as Record<string, number>)),
       ]);
-      const merged = Array.from(new Set([...residential, ...commercial])).sort();
-      setAllNeighborhoods(merged);
+      const merged: Record<string, number> = { ...residential };
+      for (const [name, count] of Object.entries(commercial)) {
+        merged[name] = (merged[name] || 0) + count;
+      }
+      setNeighborhoodCounts(merged);
+      setAllNeighborhoods(Object.keys(merged).sort());
     } catch (error) {
       console.error("Error loading neighborhoods:", error);
     }
@@ -988,6 +995,7 @@ export function BrowseListings() {
                 }}
                 agencies={agencies}
                 allNeighborhoods={allNeighborhoods}
+                neighborhoodCounts={neighborhoodCounts}
                 availableLeaseTerms={availableLeaseTerms}
               />
             </div>
@@ -1084,6 +1092,7 @@ export function BrowseListings() {
                 }}
                 agencies={agencies}
                 allNeighborhoods={allNeighborhoods}
+                neighborhoodCounts={neighborhoodCounts}
                 availableLeaseTerms={availableLeaseTerms}
                 isMobile={true}
               />

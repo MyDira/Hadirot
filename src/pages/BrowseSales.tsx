@@ -71,6 +71,7 @@ export function BrowseSales() {
   const [totalCount, setTotalCount] = useState(0);
   const [agencies, setAgencies] = useState<string[]>([]);
   const [allNeighborhoods, setAllNeighborhoods] = useState<string[]>([]);
+  const [neighborhoodCounts, setNeighborhoodCounts] = useState<Record<string, number>>({});
   const [showFiltersMobile, setShowFiltersMobile] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>(() => isMobileDevice() ? 'list' : 'split');
   const [hoveredListingId, setHoveredListingId] = useState<string | null>(null);
@@ -404,8 +405,9 @@ export function BrowseSales() {
 
   const loadNeighborhoods = async () => {
     try {
-      const neighborhoods = await listingsService.getActiveSalesNeighborhoods();
-      setAllNeighborhoods(neighborhoods);
+      const counts = await listingsService.getActiveNeighborhoodCounts("sale");
+      setNeighborhoodCounts(counts);
+      setAllNeighborhoods(Object.keys(counts).sort());
     } catch (error) {
       console.error("Error loading neighborhoods:", error);
     }
@@ -941,6 +943,7 @@ export function BrowseSales() {
                 }}
                 agencies={agencies}
                 allNeighborhoods={allNeighborhoods}
+                neighborhoodCounts={neighborhoodCounts}
                 listingType="sale"
               />
             </div>
@@ -1029,6 +1032,7 @@ export function BrowseSales() {
                 }}
                 agencies={agencies}
                 allNeighborhoods={allNeighborhoods}
+                neighborhoodCounts={neighborhoodCounts}
                 isMobile={true}
                 listingType="sale"
               />

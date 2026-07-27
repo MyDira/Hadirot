@@ -6,6 +6,7 @@ import {
   SALE_PROPERTY_TYPES,
   BUILDING_TYPES,
 } from "./IconSelectGrid";
+import { NeighborhoodPicker } from "./NeighborhoodPicker";
 import type { FilterState, SortOption } from "../../hooks/useBrowseFilters";
 
 interface MoreFiltersModalProps {
@@ -15,6 +16,7 @@ interface MoreFiltersModalProps {
   onFiltersChange: (filters: FilterState) => void;
   agencies?: string[];
   allNeighborhoods?: string[];
+  neighborhoodCounts?: Record<string, number>;
   availableLeaseTerms?: string[];
   listingType?: "rental" | "sale";
   listingTypeFilter?: "all" | "residential" | "commercial";
@@ -117,6 +119,7 @@ export function MoreFiltersModal({
   onFiltersChange,
   agencies = [],
   allNeighborhoods = [],
+  neighborhoodCounts,
   availableLeaseTerms = [],
   listingType = "rental",
   listingTypeFilter = "all",
@@ -303,46 +306,14 @@ export function MoreFiltersModal({
               <h3 className="text-base font-semibold text-gray-900 mb-4">
                 Neighborhoods
               </h3>
-              <div className="max-h-56 overflow-y-auto border border-gray-200 rounded-xl">
-                {allNeighborhoods.length === 0 ? (
-                  <div className="px-4 py-3 text-sm text-gray-500">
-                    No neighborhoods available
-                  </div>
-                ) : (
-                  allNeighborhoods.map((neighborhood) => {
-                    const isSelected =
-                      localFilters.neighborhoods?.includes(neighborhood) ||
-                      false;
-                    return (
-                      <label
-                        key={neighborhood}
-                        className="flex items-center px-4 py-3 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-b-0"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={isSelected}
-                          onChange={() => {
-                            const current = localFilters.neighborhoods || [];
-                            const newNeighborhoods = isSelected
-                              ? current.filter((n) => n !== neighborhood)
-                              : [...current, neighborhood];
-                            handleLocalFilterChange(
-                              "neighborhoods",
-                              newNeighborhoods.length > 0
-                                ? newNeighborhoods
-                                : undefined
-                            );
-                          }}
-                          className="h-5 w-5 text-green-600 focus:ring-green-500 border-gray-300 rounded"
-                        />
-                        <span className="ml-3 text-sm text-gray-700">
-                          {neighborhood}
-                        </span>
-                      </label>
-                    );
-                  })
-                )}
-              </div>
+              <NeighborhoodPicker
+                allNeighborhoods={allNeighborhoods}
+                neighborhoodCounts={neighborhoodCounts}
+                selected={localFilters.neighborhoods || []}
+                onChange={(next) =>
+                  handleLocalFilterChange("neighborhoods", next)
+                }
+              />
             </div>
 
             {!isCommercial && (
