@@ -180,6 +180,7 @@ export function IntakeReviewView({ initialSource, refreshKey }: IntakeReviewView
         l.contact_phone_display,
         l.cross_street_1,
         l.cross_street_2,
+        l.intake_extra?.full_address,
         l.neighborhood,
       ]
         .filter(Boolean)
@@ -492,6 +493,8 @@ export function IntakeReviewView({ initialSource, refreshKey }: IntakeReviewView
               const crossStreets = [listing.cross_street_1, listing.cross_street_2]
                 .filter(Boolean)
                 .join(' & ');
+              // An exact address is the more specific of the two — show it.
+              const locationLine = extra.full_address || crossStreets || listing.neighborhood;
               const isSale = listing.listing_kind === 'sale';
               const priceDisplay = extra.call_for_price
                 ? 'Call for price'
@@ -599,7 +602,7 @@ export function IntakeReviewView({ initialSource, refreshKey }: IntakeReviewView
                         listing.bedrooms != null ? `${listing.bedrooms}BR` : null,
                         listing.bathrooms ? `${listing.bathrooms}BA` : null,
                         priceDisplay,
-                        crossStreets || listing.neighborhood,
+                        locationLine,
                       ]
                         .filter(Boolean)
                         .join(' · ')}

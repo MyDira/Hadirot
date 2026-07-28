@@ -18,9 +18,16 @@ function isInNYC(lat: number, lng: number): boolean {
          lng >= NYC_LNG_MIN && lng <= NYC_LNG_MAX;
 }
 
-function buildCacheKey(crossStreets: string, neighborhood?: string): string {
+function buildCacheKey(
+  crossStreets: string,
+  neighborhood?: string,
+  opts?: { address?: boolean; detectNeighborhood?: boolean },
+): string {
   const norm = (s: string) => s.trim().toLowerCase().replace(/\s+/g, ' ');
-  return `${norm(crossStreets)}|${norm(neighborhood ?? '')}`;
+  // The mode flags change what comes back for the same query text, so they
+  // have to be part of the key or the two modes poison each other's cache.
+  const suffix = `${opts?.address ? '|addr' : ''}${opts?.detectNeighborhood ? '|nb' : ''}`;
+  return `${norm(crossStreets)}|${norm(neighborhood ?? '')}${suffix}`;
 }
 
 async function lookupCache(
@@ -68,8 +75,19 @@ async function writeCache(
 }
 
 interface GeocodeRequest {
-  crossStreets: string;
+  crossStreets?: string;
+  /**
+   * Exact street address ("1438 53rd Street"). Mutually exclusive with
+   * crossStreets — geocoded as a plain address, with no intersection check.
+   */
+  address?: string;
   neighborhood?: string;
+  /**
+   * Force the neighborhood to be reverse-geocoded from the resolved pin even
+   * when the caller passed one in. Callers that only have a guessed
+   * neighborhood (the AI intake parser) use this to get the real one back.
+   */
+  detectNeighborhood?: boolean;
 }
 
 interface GeocodeResult {
@@ -294,23 +312,34 @@ Deno.serve(async (req: Request) => {
     }
 
     const body: GeocodeRequest = await req.json();
-    const { crossStreets, neighborhood } = body;
+    const { neighborhood, detectNeighborhood } = body;
+    const isAddressMode = typeof body.address === 'string' && body.address.trim().length > 0;
+    // One query string drives both modes; only the resolution strategy differs.
+    const query = (isAddressMode ? body.address : body.crossStreets) ?? '';
 
-    if (!crossStreets || typeof crossStreets !== 'string' || crossStreets.trim().length < 2 || crossStreets.length > 200) {
+    if (typeof query !== 'string' || query.trim().length < 2 || query.length > 200) {
       return new Response(
-        JSON.stringify({ success: false, error: 'Invalid cross streets input', originalQuery: crossStreets || '' } as GeocodeResult),
+        JSON.stringify({
+          success: false,
+          error: isAddressMode ? 'Invalid address input' : 'Invalid cross streets input',
+          originalQuery: query || '',
+        } as GeocodeResult),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
       );
     }
 
     if (neighborhood !== undefined && (typeof neighborhood !== 'string' || neighborhood.length > 200)) {
       return new Response(
-        JSON.stringify({ success: false, error: 'Invalid neighborhood input', originalQuery: crossStreets } as GeocodeResult),
+        JSON.stringify({ success: false, error: 'Invalid neighborhood input', originalQuery: query } as GeocodeResult),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
       );
     }
 
-    console.log(`Geocoding request: "${crossStreets}" (neighborhood: ${neighborhood || 'not specified'})`);
+    const crossStreets = query;
+
+    console.log(
+      `Geocoding request (${isAddressMode ? 'address' : 'cross streets'}): "${query}" (neighborhood: ${neighborhood || 'not specified'})`,
+    );
 
     // Cache lookup
     const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
@@ -321,7 +350,10 @@ Deno.serve(async (req: Request) => {
         })
       : null;
 
-    const cacheKey = buildCacheKey(crossStreets, neighborhood);
+    const cacheKey = buildCacheKey(crossStreets, neighborhood, {
+      address: isAddressMode,
+      detectNeighborhood: !!detectNeighborhood,
+    });
     if (cacheClient) {
       const cached = await lookupCache(cacheClient, cacheKey);
       if (cached) {
@@ -333,25 +365,52 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    const parsed = parseCrossStreets(crossStreets);
-    console.log('Parsed cross streets:', JSON.stringify(parsed));
-
     const corrections: string[] = [];
-    if (parsed.street1.original !== parsed.street1.normalized) {
-      corrections.push(`"${parsed.street1.original}" -> "${parsed.street1.normalized}"`);
-    }
-    if (parsed.street2 && parsed.street2.original !== parsed.street2.normalized) {
-      corrections.push(`"${parsed.street2.original}" -> "${parsed.street2.normalized}"`);
-    }
+    let coords: GoogleCoords | null = null;
+    let resolvedQuery = crossStreets;
+    let fallback = 'none';
+    let normalizedForError = crossStreets;
 
-    const { coords, query, fallback } = await tryGeocodingWithFallbacks(parsed, neighborhood, googleApiKey);
+    if (isAddressMode) {
+      // A house-numbered address is a plain forward geocode — no intersection
+      // parsing, no street normalization, no intersection result_type. The
+      // neighborhood hint is deliberately left out: number + street is already
+      // unique inside a borough, and a wrong hint (the parser's guess often is)
+      // would only drag the result off the real building.
+      for (const suffix of ['Brooklyn, NY', 'New York, NY']) {
+        const candidate = `${crossStreets}, ${suffix}`;
+        coords = await geocodeWithGoogle(candidate, googleApiKey);
+        if (coords) {
+          resolvedQuery = candidate;
+          break;
+        }
+      }
+    } else {
+      const parsed = parseCrossStreets(crossStreets);
+      console.log('Parsed cross streets:', JSON.stringify(parsed));
+
+      if (parsed.street1.original !== parsed.street1.normalized) {
+        corrections.push(`"${parsed.street1.original}" -> "${parsed.street1.normalized}"`);
+      }
+      if (parsed.street2 && parsed.street2.original !== parsed.street2.normalized) {
+        corrections.push(`"${parsed.street2.original}" -> "${parsed.street2.normalized}"`);
+      }
+
+      const attempt = await tryGeocodingWithFallbacks(parsed, neighborhood, googleApiKey);
+      coords = attempt.coords;
+      resolvedQuery = attempt.query;
+      fallback = attempt.fallback;
+      normalizedForError = parsed.formattedQuery;
+    }
 
     if (!coords) {
       const notFoundResult: GeocodeResult = {
         success: false,
-        error: 'Location not found. Try a different format (e.g., "Avenue J & East 15th Street")',
+        error: isAddressMode
+          ? 'Address not found. Check the house number and street, or switch to cross streets.'
+          : 'Location not found. Try a different format (e.g., "Avenue J & East 15th Street")',
         originalQuery: crossStreets,
-        normalizedQuery: parsed.formattedQuery,
+        normalizedQuery: normalizedForError,
         corrections: corrections.length > 0 ? corrections : undefined,
       };
       if (cacheClient) {
@@ -365,16 +424,19 @@ Deno.serve(async (req: Request) => {
 
     const { lat, lng } = coords;
 
-    let detectedNeighborhood = neighborhood;
+    // The caller's neighborhood is only a hint when detectNeighborhood is set —
+    // the pin is the source of truth, exactly as the listing form treats it.
+    let detectedNeighborhood = detectNeighborhood ? undefined : neighborhood;
     if (!detectedNeighborhood) {
-      detectedNeighborhood = await reverseGeocode(lat, lng, googleApiKey) || undefined;
+      detectedNeighborhood =
+        (await reverseGeocode(lat, lng, googleApiKey)) || neighborhood || undefined;
     }
 
     const result: GeocodeResult = {
       success: true,
       coordinates: { latitude: lat, longitude: lng },
       originalQuery: crossStreets,
-      normalizedQuery: query,
+      normalizedQuery: resolvedQuery,
       neighborhood: detectedNeighborhood,
       fallbackUsed: fallback !== 'none' ? fallback : undefined,
       corrections: corrections.length > 0 ? corrections : undefined,
