@@ -9,7 +9,7 @@
 //
 // Admin-only. Non-admins redirected to /.
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   ArrowLeft,
@@ -23,6 +23,8 @@ import {
   Check,
   Trash2,
   Pencil,
+  History,
+  ChevronDown,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { subscriptionsService } from '../services/subscriptions';
@@ -51,8 +53,16 @@ interface PaidListingRow {
   location: string | null;
   price: number | null;
   payment_kind: PaymentKind;
+  is_active: boolean;
+  deactivated_at: string | null;
+  paused_paid_days: number | null;
   user?: { full_name: string; email: string };
 }
+
+/** Subscription statuses that mean "this person is done paying". Everything
+ *  else (including 'pending' — a checkout that was started but never finished)
+ *  stays in the live list rather than being filed away as history. */
+const PAST_SUB_STATUSES: ReadonlyArray<ListingSubscription['status']> = ['cancelled', 'expired'];
 
 function daysFromNow(iso: string | null | undefined): number | null {
   if (!iso) return null;
@@ -62,6 +72,73 @@ function daysFromNow(iso: string | null | undefined): number | null {
 function fmtDate(iso: string | null | undefined): string {
   if (!iso) return '—';
   return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+/** When a subscription stopped. cancelled_at is only set when an admin or
+ *  Stripe cancelled it; rows that simply lapsed ('expired') fall back to the
+ *  last period end. */
+function subEndedAt(s: SubscriberRow): string | null {
+  return s.cancelled_at ?? s.current_period_end ?? null;
+}
+
+/** When a paid listing stopped being live. deactivated_at is set by the
+ *  lifecycle trigger on the is_active flip; paid_until covers older rows
+ *  deactivated before that trigger existed. */
+function paidEndedAt(l: PaidListingRow): string | null {
+  return l.deactivated_at ?? l.paid_until ?? null;
+}
+
+function timeOf(iso: string | null): number {
+  return iso ? new Date(iso).getTime() : 0;
+}
+
+/** Why a paid listing is no longer live. A listing pulled while it still had
+ *  paid days keeps them banked in paused_paid_days and gets them back on
+ *  reactivation — that's "paused", not "ran out". */
+function pastPaidReason(l: PaidListingRow): { label: string; cls: string } {
+  const banked = l.paused_paid_days ?? 0;
+  return banked > 0
+    ? { label: `Paused · ${banked}d banked`, cls: 'bg-blue-50 text-blue-800 border-blue-200' }
+    : { label: 'Paid days ran out', cls: 'bg-gray-100 text-gray-700 border-gray-200' };
+}
+
+/** Collapsible history drawer shown under each tab's live list. Collapsed by
+ *  default so the live list stays the focus, but the count is always visible.
+ *  Renders nothing when there's no history yet. */
+function PastSection({
+  title,
+  count,
+  open,
+  onToggle,
+  children,
+}: {
+  title: string;
+  count: number;
+  open: boolean;
+  onToggle: () => void;
+  children: ReactNode;
+}) {
+  if (count === 0) return null;
+  return (
+    <div className="mt-4 bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={open}
+        className="w-full flex items-center gap-2 px-4 py-3 text-left hover:bg-gray-50 transition-colors"
+      >
+        <History className="w-4 h-4 text-gray-400 flex-shrink-0" />
+        <span className="text-sm font-semibold text-gray-700">{title}</span>
+        <span className="text-xs font-medium text-gray-600 bg-gray-100 border border-gray-200 rounded-full px-2 py-0.5">
+          {count}
+        </span>
+        <ChevronDown
+          className={`w-4 h-4 text-gray-400 ml-auto flex-shrink-0 transition-transform ${open ? 'rotate-180' : ''}`}
+        />
+      </button>
+      {open && <div className="border-t border-gray-200 overflow-x-auto">{children}</div>}
+    </div>
+  );
 }
 
 function StatusPill({ status }: { status: ListingSubscription['status'] }) {
@@ -499,6 +576,9 @@ export function AdminSubscriptions() {
   const [grantListingId, setGrantListingId] = useState<string | null>(null);
   const [editingDayId, setEditingDayId] = useState<string | null>(null);
   const [editingDayValue, setEditingDayValue] = useState<number>(1);
+  // History drawers, one per tab. Collapsed by default.
+  const [pastSubsOpen, setPastSubsOpen] = useState(false);
+  const [pastPaidOpen, setPastPaidOpen] = useState(false);
   // Phase J: master switch.
   const [monetization, setMonetization] = useState<MonetizationStatus>({ enabled: false, enabledAt: null });
   const [activating, setActivating] = useState(false);
@@ -643,8 +723,17 @@ export function AdminSubscriptions() {
 
   // ------ Sorted views ------
 
-  const sortedSubscribers = useMemo(() => {
-    return [...subscribers].sort((a, b) => {
+  // Subscribers split into "still paying" and history. Cancelled/expired rows
+  // used to sit at the bottom of the same table and count toward the tab
+  // total, which overstated how many live subscribers there are.
+  const { currentSubscribers, pastSubscribers } = useMemo(() => {
+    const current: SubscriberRow[] = [];
+    const past: SubscriberRow[] = [];
+    for (const s of subscribers) {
+      (PAST_SUB_STATUSES.includes(s.status) ? past : current).push(s);
+    }
+
+    current.sort((a, b) => {
       // Active first (including trial), then by next renewal / trial end.
       const aActive = ['active', 'admin_active', 'past_due', 'trial'].includes(a.status);
       const bActive = ['active', 'admin_active', 'past_due', 'trial'].includes(b.status);
@@ -658,7 +747,24 @@ export function AdminSubscriptions() {
         : b.current_period_end ? new Date(b.current_period_end).getTime() : Infinity;
       return aEnd - bEnd;
     });
+
+    // History reads newest-first — the person who left most recently matters most.
+    past.sort((a, b) => timeOf(subEndedAt(b)) - timeOf(subEndedAt(a)));
+
+    return { currentSubscribers: current, pastSubscribers: past };
   }, [subscribers]);
+
+  // Paid listings split the same way. The service now returns lapsed rows too;
+  // previously they were filtered out server-side and vanished silently.
+  const { currentPaid, pastPaid } = useMemo(() => {
+    const current: PaidListingRow[] = [];
+    const past: PaidListingRow[] = [];
+    for (const l of paidListings) {
+      (l.is_active ? current : past).push(l);
+    }
+    past.sort((a, b) => timeOf(paidEndedAt(b)) - timeOf(paidEndedAt(a)));
+    return { currentPaid: current, pastPaid: past };
+  }, [paidListings]);
 
   if (profile === undefined) return null;
   if (!profile?.is_admin) return null;
@@ -791,7 +897,7 @@ export function AdminSubscriptions() {
                 : 'text-gray-600 hover:bg-gray-100 border border-transparent'
             }`}
           >
-            Subscribers ({subscribers.length})
+            Subscribers ({currentSubscribers.length})
           </button>
           <button
             type="button"
@@ -802,7 +908,7 @@ export function AdminSubscriptions() {
                 : 'text-gray-600 hover:bg-gray-100 border border-transparent'
             }`}
           >
-            Paid Listings ({paidListings.length})
+            Paid Listings ({currentPaid.length})
           </button>
         </div>
 
@@ -818,9 +924,11 @@ export function AdminSubscriptions() {
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
             {loading ? (
               <div className="p-8 text-center text-sm text-gray-500">Loading…</div>
-            ) : sortedSubscribers.length === 0 ? (
+            ) : currentSubscribers.length === 0 ? (
               <div className="p-8 text-center text-sm text-gray-500">
-                No subscriptions yet. Click "Add subscriber" to grant one manually, or wait for Stripe checkouts.
+                {pastSubscribers.length > 0
+                  ? 'Nobody is subscribed right now. Past subscribers are listed below.'
+                  : 'No subscriptions yet. Click "Add subscriber" to grant one manually, or wait for Stripe checkouts.'}
               </div>
             ) : (
               <table className="min-w-full divide-y divide-gray-200">
@@ -836,7 +944,7 @@ export function AdminSubscriptions() {
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-100">
-                  {sortedSubscribers.map((s) => {
+                  {currentSubscribers.map((s) => {
                     const isTrial = s.status === 'trial';
                     const trialInfo = isTrial ? trialEndsIn(s) : null;
                     const daysToRenewal = isTrial
@@ -943,14 +1051,63 @@ export function AdminSubscriptions() {
           </div>
         )}
 
+        {/* Past subscribers — cancelled / expired, kept out of the live count. */}
+        {tab === 'subscribers' && !loading && (
+          <PastSection
+            title="Past subscribers"
+            count={pastSubscribers.length}
+            open={pastSubsOpen}
+            onToggle={() => setPastSubsOpen((v) => !v)}
+          >
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">User</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Plan</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Status</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Billing</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Ended</th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-100">
+                {pastSubscribers.map((s) => {
+                  const ended = subEndedAt(s);
+                  const daysAgo = ended ? -(daysFromNow(ended) ?? 0) : null;
+                  return (
+                    <tr key={s.id} className="text-gray-600">
+                      <td className="px-4 py-3">
+                        <div className="text-sm font-medium text-gray-900">{s.user?.full_name || '(unknown)'}</div>
+                        <div className="text-xs text-gray-500">{s.user?.email || ''}</div>
+                      </td>
+                      <td className="px-4 py-3"><PlanBadge plan={s.plan} /></td>
+                      <td className="px-4 py-3"><StatusPill status={s.status} /></td>
+                      <td className="px-4 py-3 text-xs text-gray-600">
+                        {s.is_admin_granted ? 'Admin' : 'Stripe'}
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="text-sm text-gray-900">{fmtDate(ended)}</div>
+                        {daysAgo !== null && daysAgo > 0 && (
+                          <div className="text-xs text-gray-500">{daysAgo}d ago</div>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </PastSection>
+        )}
+
         {/* Paid Listings tab */}
         {tab === 'paid' && (
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
             {loading ? (
               <div className="p-8 text-center text-sm text-gray-500">Loading…</div>
-            ) : paidListings.length === 0 ? (
+            ) : currentPaid.length === 0 ? (
               <div className="p-8 text-center text-sm text-gray-500">
-                No individually-paid listings right now.
+                {pastPaid.length > 0
+                  ? 'No individually-paid listings are live right now. Past ones are listed below.'
+                  : 'No individually-paid listings right now.'}
               </div>
             ) : (
               <table className="min-w-full divide-y divide-gray-200">
@@ -964,7 +1121,7 @@ export function AdminSubscriptions() {
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-100">
-                  {paidListings.map((l) => {
+                  {currentPaid.map((l) => {
                     const daysLeft = daysFromNow(l.paid_until);
                     const isUrgent = daysLeft !== null && daysLeft <= 3;
                     return (
@@ -1008,6 +1165,69 @@ export function AdminSubscriptions() {
               </table>
             )}
           </div>
+        )}
+
+        {/* Past paid listings — the ones that used to vanish from this page
+            entirely once the cron deactivated them. */}
+        {tab === 'paid' && !loading && (
+          <PastSection
+            title="Past paid listings"
+            count={pastPaid.length}
+            open={pastPaidOpen}
+            onToggle={() => setPastPaidOpen((v) => !v)}
+          >
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Listing</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Owner</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Ended</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Reason</th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-100">
+                {pastPaid.map((l) => {
+                  const ended = paidEndedAt(l);
+                  const daysAgo = ended ? -(daysFromNow(ended) ?? 0) : null;
+                  const reason = pastPaidReason(l);
+                  return (
+                    <tr key={l.id}>
+                      <td className="px-4 py-3">
+                        <Link
+                          to={`/listing/${l.id}`}
+                          className="text-sm font-medium text-gray-900 hover:text-accent-600"
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          {l.neighborhood || l.location || 'Listing'}
+                        </Link>
+                        <div className="text-xs text-gray-500">
+                          {l.price ? `$${l.price.toLocaleString()}/mo` : 'Call for price'}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="text-sm text-gray-900">{l.user?.full_name || '(unknown)'}</div>
+                        <div className="text-xs text-gray-500">{l.user?.email || ''}</div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="text-sm text-gray-900">{fmtDate(ended)}</div>
+                        {daysAgo !== null && daysAgo > 0 && (
+                          <div className="text-xs text-gray-500">{daysAgo}d ago</div>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        <span
+                          className={`inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full border ${reason.cls}`}
+                        >
+                          {reason.label}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </PastSection>
         )}
 
         <div className="text-xs text-gray-400 mt-6 text-center">

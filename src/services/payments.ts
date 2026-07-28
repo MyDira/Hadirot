@@ -480,7 +480,19 @@ export const paymentsService = {
     if (error) throw error;
   },
 
-  /** Admin: list paid listings sorted by days-remaining ascending (closest to expiry first). */
+  /**
+   * Admin: every residential rental that was ever paid for individually — the
+   * live ones and the lapsed ones alike, sorted by days-remaining ascending
+   * (closest to expiry first).
+   *
+   * Deliberately NOT filtered on is_active. When a paid listing's days run out
+   * the hourly cron only flips is_active=false — it leaves payment_kind
+   * ('individual_paid') and paid_until untouched — so an is_active filter made
+   * past payers disappear from the admin panel with no trace. The caller
+   * partitions on `is_active`: true = still live, false = past. Among the past
+   * rows, paused_paid_days > 0 means the listing was pulled early with days
+   * banked (restored on reactivation) rather than genuinely running out.
+   */
   async adminListPaidListings(): Promise<
     Array<{
       id: string;
@@ -490,18 +502,20 @@ export const paymentsService = {
       location: string | null;
       price: number | null;
       payment_kind: PaymentKind;
+      is_active: boolean;
+      deactivated_at: string | null;
+      paused_paid_days: number | null;
       user?: { full_name: string; email: string };
     }>
   > {
     const { data, error } = await sb
       .from('listings')
       .select(
-        'id, user_id, paid_until, neighborhood, location, price, payment_kind, user:profiles(full_name, email)',
+        'id, user_id, paid_until, neighborhood, location, price, payment_kind, is_active, deactivated_at, paused_paid_days, user:profiles(full_name, email)',
       )
       .eq('listing_type', 'rental')
-      .eq('is_active', true)
       .eq('payment_kind', 'individual_paid')
-      .order('paid_until', { ascending: true });
+      .order('paid_until', { ascending: true, nullsFirst: false });
     if (error) throw error;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return (data || []) as any[];
