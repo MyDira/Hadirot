@@ -3083,6 +3083,9 @@ export type Database = {
           longitude: number | null
           match_status: string | null
           neighborhood: string | null
+          outreach_conversation_id: string | null
+          outreach_sent_at: string | null
+          outreach_status: string | null
           parking: boolean | null
           parse_confidence: number | null
           pdf_date: string
@@ -3143,6 +3146,9 @@ export type Database = {
           longitude?: number | null
           match_status?: string | null
           neighborhood?: string | null
+          outreach_conversation_id?: string | null
+          outreach_sent_at?: string | null
+          outreach_status?: string | null
           parking?: boolean | null
           parse_confidence?: number | null
           pdf_date: string
@@ -3203,6 +3209,9 @@ export type Database = {
           longitude?: number | null
           match_status?: string | null
           neighborhood?: string | null
+          outreach_conversation_id?: string | null
+          outreach_sent_at?: string | null
+          outreach_status?: string | null
           parking?: boolean | null
           parse_confidence?: number | null
           pdf_date?: string
@@ -3371,6 +3380,7 @@ export type Database = {
           message_source: string | null
           metadata: Json | null
           phone_number: string
+          read_by_admin_at: string | null
           status: string | null
         }
         Insert: {
@@ -3384,6 +3394,7 @@ export type Database = {
           message_source?: string | null
           metadata?: Json | null
           phone_number: string
+          read_by_admin_at?: string | null
           status?: string | null
         }
         Update: {
@@ -3397,6 +3408,7 @@ export type Database = {
           message_source?: string | null
           metadata?: Json | null
           phone_number?: string
+          read_by_admin_at?: string | null
           status?: string | null
         }
         Relationships: [
@@ -3558,6 +3570,18 @@ export type Database = {
         Returns: {
           listing: Json
           total_count: number
+        }[]
+      }
+      admin_sms_threads: {
+        Args: { p_limit?: number; p_offset?: number; p_search?: string }
+        Returns: {
+          contact_name: string
+          last_direction: string
+          last_message_at: string
+          last_message_body: string
+          message_count: number
+          phone_number: string
+          unread_count: number
         }[]
       }
       analytics_abuse_signals: {
