@@ -1,6 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { sendViaZepto } from "../_shared/zepto.ts";
 import { corsHeaders } from "../_shared/cors.ts";
+import { publishScrapedListing, resolveHouseAccountId } from "../_shared/publish-intake.ts";
 
 interface ListingMetadata {
   id: string;
@@ -440,6 +441,157 @@ Deno.serve(async (req) => {
     function listingTypeWord(listingType: string | null, isCommercial: boolean): string {
       if (listingType === 'sale') return 'buyer';
       return isCommercial ? 'tenant' : 'tenant';
+    }
+
+    // ============================================
+    // OUTREACH (intake posting offer) HANDLING
+    // ============================================
+    // conversation_type = 'outreach': listing_id holds a scraped_listings id,
+    // NOT a live listing — never route these through fetchListingForConv &co.
+    // YES auto-publishes the vetted lead to the house account; NO declines;
+    // anything else keeps the offer open and surfaces the thread to the admin
+    // (Messages inbox + email alert). A later YES still publishes.
+
+    async function handleOutreachReply(
+      conv: RenewalConversation,
+      replyBody: string,
+      phone: string,
+    ): Promise<void> {
+      const normalized = replyBody.toLowerCase().trim();
+
+      const stampConv = (patch: Record<string, unknown>) =>
+        supabaseAdmin
+          .from("listing_renewal_conversations")
+          .update({
+            reply_received_at: new Date().toISOString(),
+            reply_text: replyBody,
+            updated_at: new Date().toISOString(),
+            ...patch,
+          })
+          .eq("id", conv.id);
+
+      const { data: scraped } = await supabaseAdmin
+        .from("scraped_listings")
+        .select("*")
+        .eq("id", conv.listing_id)
+        .maybeSingle();
+
+      if (!scraped) {
+        await stampConv({ state: "error", action_taken: "lead_missing" });
+        await notifyAdmin(
+          "Outreach reply for a missing intake lead",
+          `Phone: ${phone}\nReply: "${replyBody}"\nConversation: ${conv.id}\nThe intake lead (${conv.listing_id}) no longer exists — answer them from Admin > Messages.`,
+        );
+        return;
+      }
+
+      const affirmativeExact = ["yes", "y", "yeah", "yup", "yep", "sure", "ok", "okay",
+        "yes please", "sounds good", "go ahead", "post it", "post", "go for it"];
+      const negativeExact = ["no", "n", "nope", "nah", "no thanks", "no thank you"];
+      const isAffirmative = affirmativeExact.includes(normalized) || normalized.startsWith("yes");
+      const isNegative =
+        negativeExact.includes(normalized) ||
+        normalized.includes("not interested") ||
+        normalized.includes("don't post") ||
+        normalized.includes("dont post");
+
+      if (isAffirmative) {
+        // Already live (double YES, or the admin published it manually).
+        if (scraped.call_status === "published" && scraped.published_listing_id) {
+          await stampConv({ state: "completed", action_taken: "published" });
+          await sendSMS(
+            phone,
+            `Hadirot: Your listing is already live — hadirot.com/listing/${scraped.published_listing_id}. Reply here with any questions.`,
+            "outreach_response", scraped.id, conv.id,
+          );
+          return;
+        }
+
+        const houseAccountId = await resolveHouseAccountId(supabaseAdmin);
+        if (!houseAccountId) {
+          await stampConv({ state: "error", action_taken: "house_account_missing" });
+          await supabaseAdmin.from("scraped_listings")
+            .update({ outreach_status: "error" }).eq("id", scraped.id);
+          await notifyAdmin(
+            "Outreach YES could not publish — house account missing",
+            `Phone: ${phone}\nLead: ${scraped.title ?? scraped.id}\nNo profile found for the house account email (HOUSE_ACCOUNT_EMAIL, default l@hadirot.com). Publish this lead manually from the Intake hub.`,
+          );
+          await sendSMS(
+            phone,
+            "Hadirot: Thanks! Our team is setting up your listing and will confirm shortly.",
+            "outreach_response", scraped.id, conv.id,
+          );
+          return;
+        }
+
+        try {
+          const listingId = await publishScrapedListing(supabaseAdmin, scraped, houseAccountId);
+          await stampConv({ state: "completed", action_taken: "published" });
+          await supabaseAdmin.from("scraped_listings")
+            .update({ outreach_status: "confirmed" }).eq("id", scraped.id);
+          await sendSMS(
+            phone,
+            `Hadirot: Great — your listing is live! See it at hadirot.com/listing/${listingId}. Your 2-week free posting has started. Reply here with any questions.`,
+            "outreach_response", scraped.id, conv.id,
+          );
+          // Informational heads-up, gated by the "unrecognized" toggle so it
+          // can be muted without muting real errors.
+          await notifyAdmin(
+            "Outreach YES — listing auto-published",
+            `Phone: ${phone}\nLead: ${scraped.title ?? "Untitled"}\nLive at: hadirot.com/listing/${listingId} (house account).`,
+            "unrecognized",
+          );
+        } catch (err) {
+          console.error("Outreach publish failed:", err);
+          await stampConv({ state: "error", action_taken: "publish_failed" });
+          await supabaseAdmin.from("scraped_listings")
+            .update({ outreach_status: "error" }).eq("id", scraped.id);
+          await notifyAdmin(
+            "Outreach YES — auto-publish FAILED",
+            `Phone: ${phone}\nLead: ${scraped.title ?? scraped.id}\nError: ${err instanceof Error ? err.message : String(err)}\n\nPublish manually from the Intake hub — the landlord was told we'll confirm shortly.`,
+          );
+          await sendSMS(
+            phone,
+            "Hadirot: Thanks! Our team is setting up your listing and will confirm shortly.",
+            "outreach_response", scraped.id, conv.id,
+          );
+        }
+        return;
+      }
+
+      if (isNegative) {
+        await stampConv({ state: "completed", action_taken: "declined" });
+        await supabaseAdmin.from("scraped_listings")
+          .update({ outreach_status: "declined" }).eq("id", scraped.id);
+        await sendSMS(
+          phone,
+          "Hadirot: No problem — we won't post it. If you change your mind, just reply YES anytime. Thanks!",
+          "outreach_response", scraped.id, conv.id,
+        );
+        return;
+      }
+
+      // A question or free text: keep the offer open, ack once, alert the admin.
+      const metadata = (conv.metadata ?? {}) as Record<string, unknown>;
+      const patch: Record<string, unknown> = {};
+      if (!metadata.ack_sent) {
+        patch.metadata = { ...metadata, ack_sent: true };
+        await sendSMS(
+          phone,
+          "Hadirot: Got it — a member of our team will text you right back.",
+          "outreach_response", scraped.id, conv.id,
+        );
+      }
+      await stampConv(patch);
+      if (scraped.outreach_status !== "replied") {
+        await supabaseAdmin.from("scraped_listings")
+          .update({ outreach_status: "replied" }).eq("id", scraped.id);
+      }
+      await notifyAdmin(
+        "Landlord replied to your posting offer",
+        `Phone: ${phone}\nLead: ${scraped.title ?? "Untitled"}\nMessage: "${replyBody}"\n\nAnswer them from Admin > Messages. A later YES will still auto-publish.`,
+        "unrecognized",
+      );
     }
 
     // ============================================
@@ -1083,7 +1235,7 @@ Deno.serve(async (req) => {
       .eq("phone_number", normalizedPhone)
       .in("state", ["awaiting_availability", "awaiting_hadirot_question",
         "awaiting_listing_selection", "awaiting_report_response", "callback_sent",
-        "awaiting_disambiguation"])
+        "awaiting_disambiguation", "awaiting_outreach_response"])
       .order("updated_at", { ascending: false });
 
     if (convError) {
@@ -1100,6 +1252,18 @@ Deno.serve(async (req) => {
     const disambigConv = (activeConversations as RenewalConversation[] | null)?.find(c => c.state === 'awaiting_disambiguation');
     if (disambigConv) {
       await handleDisambiguationReply(disambigConv, body, normalizedPhone, (activeConversations || []) as RenewalConversation[]);
+      return new Response(emptyTwiML, { headers: { "Content-Type": "text/xml" } });
+    }
+
+    // Outreach offers route before everything else: their listing_id points at
+    // scraped_listings, so the generic renewal/disambiguation machinery must
+    // never touch them. A phone with an open offer is (by construction —
+    // pamphlet leads aren't live listings) not mid-renewal.
+    const outreachConv = (activeConversations as RenewalConversation[] | null)?.find(
+      c => c.state === 'awaiting_outreach_response',
+    );
+    if (outreachConv) {
+      await handleOutreachReply(outreachConv, body, normalizedPhone);
       return new Response(emptyTwiML, { headers: { "Content-Type": "text/xml" } });
     }
 
@@ -1130,6 +1294,25 @@ Deno.serve(async (req) => {
 
     if (!conversation && (!activeConversations || activeConversations.length === 0)) {
       console.log(`No active conversation found for ${normalizedPhone}`);
+
+      // Late outreach confirmation: the offer conversation may have timed out
+      // or been declined ("reply YES anytime"), but a clear YES from a phone
+      // we made an offer to still counts — the vetted lead is still there.
+      const lateNorm = body.toLowerCase().trim();
+      if (lateNorm === 'y' || lateNorm.startsWith('yes')) {
+        const { data: lateOutreach } = await supabaseAdmin
+          .from("listing_renewal_conversations")
+          .select("*")
+          .eq("phone_number", normalizedPhone)
+          .eq("conversation_type", "outreach")
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (lateOutreach) {
+          await handleOutreachReply(lateOutreach as RenewalConversation, body, normalizedPhone);
+          return new Response(emptyTwiML, { headers: { "Content-Type": "text/xml" } });
+        }
+      }
 
       const intent = parseMessageIntent(body, null);
 
