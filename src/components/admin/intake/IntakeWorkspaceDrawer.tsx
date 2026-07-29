@@ -15,6 +15,7 @@ import {
   Save,
   Check,
   ExternalLink,
+  MessageSquare,
   Sparkles,
   Trash2,
 } from 'lucide-react';
@@ -27,9 +28,10 @@ import type {
   LeaseLength,
   Profile,
   CallStatus,
+  OutreachStatus,
 } from '@/config/supabase';
 import { INTAKE_SOURCE_LABELS } from '@/config/supabase';
-import { aiIntakeService, CALL_STATUS_LABELS } from '@/services/aiIntake';
+import { aiIntakeService, CALL_STATUS_LABELS, OUTREACH_STATUS_LABELS } from '@/services/aiIntake';
 import { describeMatch, type MatchCandidate } from '@/utils/intakeMatch';
 import { geocodeCrossStreets } from '@/services/geocoding';
 import { UserSearchSelect } from '@/components/admin/UserSearchSelect';
@@ -45,6 +47,8 @@ interface IntakeWorkspaceDrawerProps {
   onClose: () => void;
   onSaved: () => void;
   onPublish: (listing: ScrapedListing) => void;
+  /** Opens the SMS posting-offer confirmation for this lead. */
+  onSendOffer: (listing: ScrapedListing) => void;
   /** Fired after a successful permanent delete — parent closes + reloads. */
   onDeleted: () => void;
 }
@@ -103,6 +107,14 @@ const STATUS_PILL: Record<CallStatus, string> = {
   approved: 'bg-green-100 text-green-700',
   published: 'bg-emerald-600 text-white',
   suppressed: 'bg-gray-100 text-gray-400',
+};
+
+const OUTREACH_PILL: Record<OutreachStatus, string> = {
+  sent: 'bg-indigo-100 text-indigo-700',
+  replied: 'bg-violet-100 text-violet-700',
+  confirmed: 'bg-emerald-100 text-emerald-700',
+  declined: 'bg-gray-100 text-gray-500',
+  error: 'bg-red-100 text-red-700',
 };
 
 /** The states an admin can set directly from the drawer (published is reached via publishing). */
@@ -296,6 +308,7 @@ export function IntakeWorkspaceDrawer({
   onClose,
   onSaved,
   onPublish,
+  onSendOffer,
   onDeleted,
 }: IntakeWorkspaceDrawerProps) {
   const { user } = useAuth();
@@ -670,6 +683,74 @@ export function IntakeWorkspaceDrawer({
                       })}
                     </div>
                   </>
+                )}
+              </SectionCard>
+            )}
+
+            {/* SMS posting offer — the outreach path to getting this lead live
+                without a phone call. Rentals only (the free trial is a rental
+                concept), and never for something already published. */}
+            {listing.listing_kind === 'rental' && status !== 'published' && (
+              <SectionCard icon={<MessageSquare className="w-4 h-4" />} title="SMS posting offer">
+                {listing.outreach_status ? (
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span
+                        className={`inline-block px-2.5 py-1 text-xs font-medium rounded ${OUTREACH_PILL[listing.outreach_status]}`}
+                      >
+                        {OUTREACH_STATUS_LABELS[listing.outreach_status]}
+                      </span>
+                      {listing.outreach_sent_at && (
+                        <span className="text-xs text-gray-400">
+                          sent {formatDate(listing.outreach_sent_at)}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-gray-500">
+                      {listing.outreach_status === 'sent' &&
+                        'Waiting on their reply. A YES publishes this automatically with the 2-week free posting.'}
+                      {listing.outreach_status === 'replied' &&
+                        'They wrote back with something other than yes or no — read and answer it in Messages.'}
+                      {listing.outreach_status === 'declined' &&
+                        'They declined. If they change their mind, a later YES still publishes it.'}
+                      {listing.outreach_status === 'error' &&
+                        'The text or the auto-publish failed. Check Messages, then publish manually if needed.'}
+                      {listing.outreach_status === 'confirmed' &&
+                        'They said yes and this went live automatically.'}
+                    </p>
+                    <a
+                      href="/admin/messages"
+                      className="inline-flex items-center gap-1 text-xs font-medium text-blue-600 hover:text-blue-800"
+                    >
+                      Open Messages <ExternalLink className="w-3 h-3" />
+                    </a>
+                    {listing.outreach_status === 'error' && (
+                      <button
+                        onClick={() => onSendOffer(listing)}
+                        className="block px-3 py-1.5 text-xs font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700 transition-colors"
+                      >
+                        Try sending again
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <p className="text-xs text-gray-500">
+                      Text this landlord the free-2-weeks offer. If they reply YES we publish it
+                      automatically to the house account and text them the live link.
+                    </p>
+                    <button
+                      onClick={() => onSendOffer(listing)}
+                      disabled={!(listing.contact_phone || listing.contact_phone_display)}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700 disabled:opacity-40 transition-colors"
+                    >
+                      <MessageSquare className="w-3.5 h-3.5" />
+                      Send SMS offer
+                    </button>
+                    {!(listing.contact_phone || listing.contact_phone_display) && (
+                      <p className="text-xs text-gray-400">No phone number on this lead.</p>
+                    )}
+                  </div>
                 )}
               </SectionCard>
             )}
