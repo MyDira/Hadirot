@@ -10,6 +10,7 @@ const PendingSection = lazy(() => import('./sections/PendingSection').then((m) =
 const SalesManagement = lazy(() => import('@/components/admin/SalesManagement').then((m) => ({ default: m.SalesManagement })));
 const ConciergeManagement = lazy(() => import('@/components/admin/ConciergeManagement').then((m) => ({ default: m.ConciergeManagement })));
 const IntakeSection = lazy(() => import('./sections/IntakeSection').then((m) => ({ default: m.IntakeSection })));
+const MessagesSection = lazy(() => import('./sections/MessagesSection').then((m) => ({ default: m.MessagesSection })));
 const AdminSubscriptions = lazy(() => import('@/pages/AdminSubscriptions').then((m) => ({ default: m.AdminSubscriptions })));
 const ContentManagement = lazy(() => import('@/pages/ContentManagement').then((m) => ({ default: m.ContentManagement })));
 const DigestManager = lazy(() => import('@/pages/DigestManager').then((m) => ({ default: m.DigestManager })));
@@ -39,6 +40,7 @@ export function AdminArea() {
         <Route path="sales" element={<SalesManagement />} />
         <Route path="concierge" element={<ConciergeManagement />} />
         <Route path="intake" element={<IntakeSection />} />
+        <Route path="messages" element={<MessagesSection />} />
         {/* Pipeline + AI Intake are absorbed into the unified Intake hub. */}
         <Route path="pipeline" element={<Navigate to="/admin/intake" replace />} />
         <Route path="ai-intake" element={<Navigate to="/admin/intake" replace />} />

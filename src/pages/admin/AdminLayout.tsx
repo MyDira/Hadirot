@@ -3,6 +3,7 @@ import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { Shield } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { adminPanelService } from '@/services/adminPanel';
+import { smsInboxService } from '@/services/smsInbox';
 import { AdminToastProvider } from './adminToast';
 import { AdminSidebar } from './AdminSidebar';
 
@@ -19,6 +20,7 @@ export function AdminLayout() {
   const navigate = useNavigate();
   const location = useLocation();
   const [pendingCount, setPendingCount] = useState(0);
+  const [unreadSmsCount, setUnreadSmsCount] = useState(0);
 
   useEffect(() => {
     if (authLoading || profile === undefined) return;
@@ -32,6 +34,7 @@ export function AdminLayout() {
   useEffect(() => {
     if (!profile?.is_admin) return;
     adminPanelService.getPendingCount().then(setPendingCount).catch(() => {});
+    smsInboxService.countUnread().then(setUnreadSmsCount).catch(() => {});
   }, [profile?.is_admin, location.pathname]);
 
   if (authLoading || profile === undefined) return null;
@@ -49,7 +52,7 @@ export function AdminLayout() {
         </div>
 
         <div className="lg:flex lg:items-start lg:gap-6">
-          <AdminSidebar pendingCount={pendingCount} />
+          <AdminSidebar pendingCount={pendingCount} unreadSmsCount={unreadSmsCount} />
           <main className="flex-1 min-w-0">
             <React.Suspense fallback={<SectionFallback />}>
               <Outlet />

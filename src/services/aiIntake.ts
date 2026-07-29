@@ -4,6 +4,7 @@ import {
   ScrapeRun,
   IntakeImage,
   CallStatus,
+  OutreachStatus,
   Profile,
 } from '@/config/supabase';
 import { getAdminActiveDays, getExpirationDate } from './listings';
@@ -48,6 +49,64 @@ const CALL_TRANSITIONS: Record<CallStatus, CallStatus[]> = {
 
 export function getCallTransitions(current: CallStatus): CallStatus[] {
   return CALL_TRANSITIONS[current] ?? [];
+}
+
+// ---------------------------------------------------------------------------
+// Landlord SMS outreach — "can we post it for you, first 2 weeks free" offers
+// ---------------------------------------------------------------------------
+
+export const OUTREACH_STATUS_LABELS: Record<OutreachStatus, string> = {
+  sent: 'Offer sent',
+  replied: 'Replied — see Messages',
+  confirmed: 'Confirmed — published',
+  declined: 'Declined offer',
+  error: 'SMS failed',
+};
+
+export interface OutreachSendResult {
+  id: string;
+  title: string | null;
+  phone: string | null;
+  status: 'sent' | 'skipped' | 'error';
+  reason?: string;
+}
+
+export interface OutreachSendSummary {
+  results: OutreachSendResult[];
+  sent: number;
+  skipped: number;
+  errors: number;
+}
+
+/** A lead can be offered the SMS posting deal when all of these hold. */
+export function isOutreachEligible(listing: ScrapedListing): { ok: boolean; reason?: string } {
+  if (listing.listing_kind !== 'rental') return { ok: false, reason: 'Sales leads have no free trial' };
+  if (listing.call_status === 'published' || listing.published_listing_id) {
+    return { ok: false, reason: 'Already published' };
+  }
+  if (listing.outreach_status && ['sent', 'replied', 'confirmed'].includes(listing.outreach_status)) {
+    return { ok: false, reason: `Offer already ${listing.outreach_status}` };
+  }
+  if (!toE164(listing.contact_phone || listing.contact_phone_display)) {
+    return { ok: false, reason: 'No valid US phone number' };
+  }
+  return { ok: true };
+}
+
+/** The exact copy the edge function sends — kept in sync for the preview modal. */
+export function buildOutreachPreview(listing: ScrapedListing): string {
+  const beds =
+    listing.bedrooms === 0 ? 'studio' : listing.bedrooms != null ? `${listing.bedrooms} BR` : 'apartment';
+  const streets = [listing.cross_street_1, listing.cross_street_2].filter(Boolean).join(' & ');
+  const descriptor = streets
+    ? `${beds} at ${streets}`
+    : listing.neighborhood
+      ? `${beds} in ${listing.neighborhood}`
+      : beds;
+  return (
+    `Hadirot: We saw your ${descriptor} listed for rent. Hadirot.com has thousands of local tenants searching — can we post it for you? ` +
+    `First 2 weeks FREE, no obligation. Reply YES and we'll put it live. Questions? Just reply here. Reply STOP to opt out.`
+  );
 }
 
 export interface PamphletFileRef {
@@ -603,6 +662,20 @@ export const aiIntakeService = {
       .in('id', unique);
     if (error) throw error;
     return new Map((data ?? []).map((p: Profile) => [p.id, p]));
+  },
+
+  /**
+   * Texts the posting offer to the selected leads via the outreach edge
+   * function (admin-authed). Server-side re-validates eligibility, enforces
+   * one open offer per phone, and stamps outreach_status on each row.
+   */
+  async sendOutreachSms(scrapedListingIds: string[]): Promise<OutreachSendSummary> {
+    const { data, error } = await supabase.functions.invoke('send-intake-outreach-sms', {
+      body: { scrapedListingIds },
+    });
+    if (error) throw new Error(error.message || 'Failed to send SMS offers');
+    if (data?.error) throw new Error(data.error);
+    return data as OutreachSendSummary;
   },
 
   async getMonetizationEnabled(): Promise<boolean> {

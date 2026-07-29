@@ -10,6 +10,7 @@ import {
   Home,
   Mail,
   Menu,
+  MessageSquare,
   Settings,
   Sparkles,
   TrendingUp,
@@ -41,6 +42,7 @@ const NAV_GROUPS: NavGroup[] = [
       { to: '/admin/listings', label: 'Listings', icon: Home },
       { to: '/admin/pending', label: 'Pending', icon: Eye },
       { to: '/admin/intake', label: 'Listing Intake', icon: Sparkles },
+      { to: '/admin/messages', label: 'Messages', icon: MessageSquare },
     ],
   },
   {
@@ -65,7 +67,15 @@ const NAV_GROUPS: NavGroup[] = [
   },
 ];
 
-function NavList({ pendingCount, onNavigate }: { pendingCount: number; onNavigate?: () => void }) {
+function NavList({
+  pendingCount,
+  unreadSmsCount,
+  onNavigate,
+}: {
+  pendingCount: number;
+  unreadSmsCount: number;
+  onNavigate?: () => void;
+}) {
   return (
     <nav className="space-y-5">
       {NAV_GROUPS.map((group) => (
@@ -95,6 +105,11 @@ function NavList({ pendingCount, onNavigate }: { pendingCount: number; onNavigat
                       {pendingCount}
                     </span>
                   )}
+                  {to === '/admin/messages' && unreadSmsCount > 0 && (
+                    <span className="ml-auto px-1.5 py-0.5 text-xs font-semibold rounded-full bg-blue-100 text-blue-700">
+                      {unreadSmsCount}
+                    </span>
+                  )}
                 </NavLink>
               </li>
             ))}
@@ -105,7 +120,13 @@ function NavList({ pendingCount, onNavigate }: { pendingCount: number; onNavigat
   );
 }
 
-export function AdminSidebar({ pendingCount }: { pendingCount: number }) {
+export function AdminSidebar({
+  pendingCount,
+  unreadSmsCount,
+}: {
+  pendingCount: number;
+  unreadSmsCount: number;
+}) {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const location = useLocation();
 
@@ -124,7 +145,7 @@ export function AdminSidebar({ pendingCount }: { pendingCount: number }) {
       {/* Desktop rail */}
       <aside className="hidden lg:block w-60 shrink-0">
         <div className="sticky top-24 bg-white border border-gray-200 rounded-xl shadow-sm p-3 max-h-[calc(100vh-7rem)] overflow-y-auto">
-          <NavList pendingCount={pendingCount} />
+          <NavList pendingCount={pendingCount} unreadSmsCount={unreadSmsCount} />
         </div>
       </aside>
 
@@ -158,7 +179,11 @@ export function AdminSidebar({ pendingCount }: { pendingCount: number }) {
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <NavList pendingCount={pendingCount} onNavigate={() => setDrawerOpen(false)} />
+            <NavList
+              pendingCount={pendingCount}
+              unreadSmsCount={unreadSmsCount}
+              onNavigate={() => setDrawerOpen(false)}
+            />
           </div>
         </div>
       )}
