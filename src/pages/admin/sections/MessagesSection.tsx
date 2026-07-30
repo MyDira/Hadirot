@@ -121,7 +121,7 @@ export function MessagesSection() {
   const [reply, setReply] = useState('');
   const [sending, setSending] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
-  const bottomRef = useRef<HTMLDivElement | null>(null);
+  const messagesRef = useRef<HTMLDivElement | null>(null);
 
   const loadThreads = useCallback(async (q?: string) => {
     try {
@@ -168,9 +168,20 @@ export function MessagesSection() {
     [],
   );
 
+  // Jump to the newest message. Runs after the message list paints, and keyed
+  // on the thread too so reopening a thread you've already read still lands at
+  // the bottom rather than wherever the previous render left the scrollbox.
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'auto' });
-  }, [messages]);
+    if (messagesLoading || messages.length === 0) return;
+    const el = messagesRef.current;
+    if (!el) return;
+    // rAF: the bubbles are laid out in this same commit, so scrollHeight isn't
+    // final until the browser has painted them.
+    const raf = requestAnimationFrame(() => {
+      el.scrollTop = el.scrollHeight;
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [messages, messagesLoading, activePhone]);
 
   const activeThread = useMemo(
     () => threads.find((t) => t.phone_number === activePhone) ?? null,
@@ -263,7 +274,7 @@ export function MessagesSection() {
       )}
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3 min-h-0">
+      <div ref={messagesRef} className="flex-1 overflow-y-auto px-4 py-4 space-y-3 min-h-0">
         {messagesLoading ? (
           <div className="flex justify-center py-10">
             <Loader2 className="w-5 h-5 text-gray-400 animate-spin" />
@@ -271,7 +282,6 @@ export function MessagesSection() {
         ) : (
           messages.map((m) => <MessageBubble key={m.id} message={m} />)
         )}
-        <div ref={bottomRef} />
       </div>
 
       {/* Reply box */}

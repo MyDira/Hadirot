@@ -62,6 +62,17 @@ const PRIMARY_STATUS_TABS: { value: ReviewFilters['callStatus']; label: string }
   { value: 'published', label: 'Published' },
 ];
 
+const OUTREACH_FILTER_OPTIONS: { value: ReviewFilters['outreach']; label: string }[] = [
+  { value: 'all', label: 'SMS: any' },
+  { value: 'none', label: 'SMS: not sent' },
+  { value: 'any', label: 'SMS: sent (all)' },
+  { value: 'sent', label: 'SMS: awaiting reply' },
+  { value: 'replied', label: 'SMS: replied' },
+  { value: 'confirmed', label: 'SMS: confirmed' },
+  { value: 'declined', label: 'SMS: declined' },
+  { value: 'error', label: 'SMS: failed' },
+];
+
 const OVERFLOW_STATUS_OPTIONS: { value: ReviewFilters['callStatus']; label: string }[] = [
   { value: 'called_no_answer', label: 'No answer' },
   { value: 'called_declined', label: 'Declined' },
@@ -164,6 +175,7 @@ export function IntakeReviewView({ initialSource, refreshKey }: IntakeReviewView
     callStatus: 'active',
     neighborhood: 'all',
     newOnly: false,
+    outreach: 'all',
   });
   const [search, setSearch] = useState('');
   const [neighborhoods, setNeighborhoods] = useState<string[]>([]);
@@ -433,6 +445,19 @@ export function IntakeReviewView({ initialSource, refreshKey }: IntakeReviewView
             {neighborhoods.map((n) => (
               <option key={n} value={n}>
                 {n}
+              </option>
+            ))}
+          </select>
+
+          <select
+            value={filters.outreach}
+            onChange={(e) => setFilter('outreach', e.target.value as ReviewFilters['outreach'])}
+            className={selectClass}
+            aria-label="SMS offer status"
+          >
+            {OUTREACH_FILTER_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
               </option>
             ))}
           </select>

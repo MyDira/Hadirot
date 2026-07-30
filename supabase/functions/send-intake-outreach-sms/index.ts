@@ -43,10 +43,36 @@ function describeLead(row: {
 }
 
 function buildOfferMessage(descriptor: string): string {
+  // Deliberately plain: shouty promo phrasing ("FREE", "!!!") is a well-known
+  // carrier spam-filter trigger, and cold outreach is already the most filtered
+  // category of traffic. Keep it conversational.
   return (
     `Hadirot: We saw your ${descriptor} listed for rent. Hadirot.com has thousands of local tenants searching — can we post it for you? ` +
-    `First 2 weeks FREE, no obligation. Reply YES and we'll put it live. Questions? Just reply here. Reply STOP to opt out.`
+    `The first 2 weeks are free, with no obligation. Reply YES and we'll put it live. Questions? Just reply here. Reply STOP to opt out.`
   );
+}
+
+/**
+ * Publishing requirements, mirrored from _shared/publish-intake.ts. The offer
+ * promises "reply YES and we'll put it live", so a lead that cannot publish
+ * must never receive one — otherwise the landlord says yes and we fail them.
+ */
+function publishBlockers(row: {
+  title: string | null;
+  bedrooms: number | null;
+  bathrooms: number | null;
+  contact_name: string | null;
+  agency_name: string | null;
+  contact_phone: string | null;
+  contact_phone_display: string | null;
+}): string[] {
+  const missing: string[] = [];
+  if (!row.title || !row.title.trim()) missing.push('title');
+  if (row.bedrooms == null) missing.push('bedrooms');
+  if (!row.bathrooms || row.bathrooms <= 0) missing.push('bathrooms');
+  if (!(row.contact_name || row.agency_name)) missing.push('contact name');
+  if (!(row.contact_phone_display || row.contact_phone)) missing.push('phone');
+  return missing;
 }
 
 Deno.serve(async (req) => {
@@ -108,7 +134,7 @@ Deno.serve(async (req) => {
     const { data: rows, error: rowsError } = await supabaseAdmin
       .from("scraped_listings")
       .select(
-        "id, title, listing_kind, bedrooms, cross_street_1, cross_street_2, neighborhood, contact_phone, contact_phone_display, call_status, published_listing_id, outreach_status",
+        "id, title, listing_kind, bedrooms, bathrooms, cross_street_1, cross_street_2, neighborhood, contact_name, agency_name, contact_phone, contact_phone_display, call_status, published_listing_id, outreach_status",
       )
       .in("id", ids);
     if (rowsError) return json({ error: rowsError.message }, 500);
@@ -147,6 +173,11 @@ Deno.serve(async (req) => {
       const phone = toE164(row.contact_phone || row.contact_phone_display);
       if (!phone) {
         skip("No valid US phone number");
+        continue;
+      }
+      const missing = publishBlockers(row);
+      if (missing.length > 0) {
+        skip(`Can't publish yet — add ${missing.join(", ")} first`);
         continue;
       }
       if (phonesInBatch.has(phone)) {

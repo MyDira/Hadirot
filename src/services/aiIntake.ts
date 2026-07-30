@@ -27,6 +27,9 @@ export interface ReviewFilters {
   callStatus: 'active' | 'all' | CallStatus; // 'active' = everything not published/discarded
   neighborhood: string; // 'all' or a neighborhood name
   newOnly: boolean; // admin_reviewed_at IS NULL
+  /** SMS offer state: 'all' | 'none' (never texted) | 'any' (texted, any outcome)
+   *  | a specific OutreachStatus. */
+  outreach: 'all' | 'none' | 'any' | OutreachStatus;
 }
 
 /** Optimized call workflow — labels + allowed transitions for each status. */
@@ -79,6 +82,25 @@ export interface OutreachSendSummary {
   errors: number;
 }
 
+/**
+ * Fields publishing requires, in the landlord's own words. Mirrors the checks
+ * in publishIntakeListing / _shared/publish-intake.ts.
+ *
+ * This exists because the offer text promises "reply YES and we'll put it
+ * live" — so a lead that cannot publish must never be texted. Without this a
+ * landlord says yes and gets "our team will confirm shortly" instead of a live
+ * listing, which is exactly the promise we just broke.
+ */
+export function publishBlockers(listing: ScrapedListing): string[] {
+  const missing: string[] = [];
+  if (!listing.title?.trim()) missing.push('title');
+  if (listing.bedrooms == null) missing.push('bedrooms');
+  if (!listing.bathrooms || listing.bathrooms <= 0) missing.push('bathrooms');
+  if (!(listing.contact_name || listing.agency_name)) missing.push('contact name');
+  if (!(listing.contact_phone_display || listing.contact_phone)) missing.push('phone');
+  return missing;
+}
+
 /** A lead can be offered the SMS posting deal when all of these hold. */
 export function isOutreachEligible(listing: ScrapedListing): { ok: boolean; reason?: string } {
   if (listing.listing_kind !== 'rental') return { ok: false, reason: 'Sales leads have no free trial' };
@@ -90,6 +112,10 @@ export function isOutreachEligible(listing: ScrapedListing): { ok: boolean; reas
   }
   if (!toE164(listing.contact_phone || listing.contact_phone_display)) {
     return { ok: false, reason: 'No valid US phone number' };
+  }
+  const missing = publishBlockers(listing);
+  if (missing.length > 0) {
+    return { ok: false, reason: `Can't publish yet — add ${missing.join(', ')} first` };
   }
   return { ok: true };
 }
@@ -106,7 +132,7 @@ export function buildOutreachPreview(listing: ScrapedListing): string {
       : beds;
   return (
     `Hadirot: We saw your ${descriptor} listed for rent. Hadirot.com has thousands of local tenants searching — can we post it for you? ` +
-    `First 2 weeks FREE, no obligation. Reply YES and we'll put it live. Questions? Just reply here. Reply STOP to opt out.`
+    `The first 2 weeks are free, with no obligation. Reply YES and we'll put it live. Questions? Just reply here. Reply STOP to opt out.`
   );
 }
 
@@ -465,6 +491,10 @@ export const aiIntakeService = {
     if (filters.kind !== 'all') query = query.eq('listing_kind', filters.kind);
     if (filters.neighborhood !== 'all') query = query.eq('neighborhood', filters.neighborhood);
     if (filters.newOnly) query = query.is('admin_reviewed_at', null);
+
+    if (filters.outreach === 'none') query = query.is('outreach_status', null);
+    else if (filters.outreach === 'any') query = query.not('outreach_status', 'is', null);
+    else if (filters.outreach !== 'all') query = query.eq('outreach_status', filters.outreach);
 
     if (filters.callStatus === 'active') {
       query = query.not('call_status', 'in', '(published,suppressed)');

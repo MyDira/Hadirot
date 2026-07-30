@@ -31,13 +31,20 @@ import type {
   OutreachStatus,
 } from '@/config/supabase';
 import { INTAKE_SOURCE_LABELS } from '@/config/supabase';
-import { aiIntakeService, CALL_STATUS_LABELS, OUTREACH_STATUS_LABELS } from '@/services/aiIntake';
+import {
+  aiIntakeService,
+  CALL_STATUS_LABELS,
+  OUTREACH_STATUS_LABELS,
+  publishBlockers,
+  toE164,
+} from '@/services/aiIntake';
 import { describeMatch, type MatchCandidate } from '@/utils/intakeMatch';
 import { geocodeCrossStreets } from '@/services/geocoding';
 import { UserSearchSelect } from '@/components/admin/UserSearchSelect';
 import { useAuth } from '@/hooks/useAuth';
 import { IntakeMediaField } from './IntakeMediaField';
 import { IntakeLocationMap } from './IntakeLocationMap';
+import { IntakeSmsThread } from './IntakeSmsThread';
 
 interface IntakeWorkspaceDrawerProps {
   listing: ScrapedListing | null;
@@ -371,6 +378,12 @@ export function IntakeWorkspaceDrawer({
     : 'Unknown source';
   const confidencePct =
     listing.parse_confidence != null ? Math.round(listing.parse_confidence * 100) : null;
+  const outreachPhone = toE164(listing.contact_phone || listing.contact_phone_display);
+  // What still has to be filled in before this lead could publish — the SMS
+  // offer must not go out until this is empty, since it promises a YES goes live.
+  const outreachMissing = publishBlockers(listing);
+  // Reloads the thread when the offer state moves (sent, replied, published).
+  const smsRefreshKey = `${listing.outreach_status ?? 'none'}:${listing.outreach_sent_at ?? ''}`;
   const confidenceColor =
     listing.parse_confidence == null
       ? 'text-gray-400'
@@ -718,20 +731,15 @@ export function IntakeWorkspaceDrawer({
                       {listing.outreach_status === 'confirmed' &&
                         'They said yes and this went live automatically.'}
                     </p>
-                    <a
-                      href="/admin/messages"
-                      className="inline-flex items-center gap-1 text-xs font-medium text-blue-600 hover:text-blue-800"
-                    >
-                      Open Messages <ExternalLink className="w-3 h-3" />
-                    </a>
                     {listing.outreach_status === 'error' && (
                       <button
                         onClick={() => onSendOffer(listing)}
-                        className="block px-3 py-1.5 text-xs font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700 transition-colors"
+                        className="px-3 py-1.5 text-xs font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700 transition-colors"
                       >
                         Try sending again
                       </button>
                     )}
+                    <IntakeSmsThread phone={outreachPhone} refreshKey={smsRefreshKey} />
                   </div>
                 ) : (
                   <div className="space-y-2">
@@ -741,7 +749,10 @@ export function IntakeWorkspaceDrawer({
                     </p>
                     <button
                       onClick={() => onSendOffer(listing)}
-                      disabled={!(listing.contact_phone || listing.contact_phone_display)}
+                      disabled={
+                        !(listing.contact_phone || listing.contact_phone_display) ||
+                        outreachMissing.length > 0
+                      }
                       className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700 disabled:opacity-40 transition-colors"
                     >
                       <MessageSquare className="w-3.5 h-3.5" />
@@ -750,6 +761,13 @@ export function IntakeWorkspaceDrawer({
                     {!(listing.contact_phone || listing.contact_phone_display) && (
                       <p className="text-xs text-gray-400">No phone number on this lead.</p>
                     )}
+                    {outreachMissing.length > 0 && (
+                      <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md p-2">
+                        Add {outreachMissing.join(', ')} before texting — the offer promises we'll
+                        publish on a YES, and this lead can't publish yet.
+                      </p>
+                    )}
+                    <IntakeSmsThread phone={outreachPhone} refreshKey={smsRefreshKey} />
                   </div>
                 )}
               </SectionCard>
