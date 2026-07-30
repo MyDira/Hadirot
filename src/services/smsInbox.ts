@@ -1,4 +1,5 @@
 import { supabase } from '@/config/supabase';
+import { edgeFunctionErrorMessage } from '@/utils/edgeFunctionError';
 
 // Admin Messages inbox — reads sms_messages directly (admin RLS added in
 // 20260729000000), sends manual replies through the send-admin-sms edge
@@ -117,7 +118,7 @@ export const smsInboxService = {
     const { data, error } = await supabase.functions.invoke('send-admin-sms', {
       body: { phoneNumber, message },
     });
-    if (error) throw new Error(error.message || 'Failed to send SMS');
+    if (error) throw new Error(await edgeFunctionErrorMessage(error, 'Failed to send SMS'));
     if (data?.error) throw new Error(data.error);
   },
 };

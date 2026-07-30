@@ -12,25 +12,10 @@ import type {
   ListingSubscriptionPlan,
 } from '../types/monetization';
 import { paymentsService, type MonetizationListingFields } from './payments';
+import { readFunctionErrorBody } from '../utils/edgeFunctionError';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const sb = supabase as unknown as SupabaseClient<any, 'public', any>;
-
-/** Pull the JSON body off a supabase-js FunctionsHttpError (non-2xx responses).
- *  Returns null if the error isn't an HTTP error or the body isn't JSON. */
-async function readFunctionErrorBody(
-  error: unknown,
-): Promise<{ error?: string; message?: string } | null> {
-  const ctx = (error as { context?: unknown })?.context;
-  if (ctx && typeof (ctx as Response).json === 'function') {
-    try {
-      return await (ctx as Response).clone().json();
-    } catch {
-      return null;
-    }
-  }
-  return null;
-}
 
 export const subscriptionsService = {
   // -----------------------------------------------------------

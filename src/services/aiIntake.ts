@@ -14,6 +14,7 @@ import { emailService, renderBrandEmail } from './email';
 import { paymentsService } from './payments';
 import { scoreMatch, type LiveListingCandidate, type MatchCandidate } from '../utils/intakeMatch';
 import { splitBlocksIntoUnits, type IntakeUnitInput } from '../utils/intakeSplit';
+import { edgeFunctionErrorMessage } from '../utils/edgeFunctionError';
 
 export type IntakeReviewStatus = 'pending' | 'published' | 'discarded' | 'all';
 
@@ -249,7 +250,10 @@ export const aiIntakeService = {
   ): Promise<ParseBlocksResult> {
     const invoke = async <T>(body: Record<string, unknown>): Promise<T> => {
       const { data, error } = await supabase.functions.invoke('parse-bulk-listings', { body });
-      if (error) throw new Error(error.message || 'Failed to parse listings');
+      // Read the server's real message off the response — without it every
+      // failure reads "non-2xx status code" and the transient retry below can
+      // never recognise an overload/rate-limit and back off.
+      if (error) throw new Error(await edgeFunctionErrorMessage(error, 'Failed to parse listings'));
       if (data?.error) throw new Error(data.error);
       return data as T;
     };
@@ -673,7 +677,7 @@ export const aiIntakeService = {
     const { data, error } = await supabase.functions.invoke('send-intake-outreach-sms', {
       body: { scrapedListingIds },
     });
-    if (error) throw new Error(error.message || 'Failed to send SMS offers');
+    if (error) throw new Error(await edgeFunctionErrorMessage(error, 'Failed to send SMS offers'));
     if (data?.error) throw new Error(data.error);
     return data as OutreachSendSummary;
   },
