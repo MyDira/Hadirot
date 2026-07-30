@@ -33,6 +33,57 @@ type NormalizedEvent = {
 
 const MAX_BATCH_SIZE = 50;
 
+// Crawler exclusion.
+//
+// GA4 drops known crawlers automatically; this endpoint did not, and the gap
+// was large. Crawlers render the SPA (firing session_start + page_view) but
+// never persist localStorage, so getAnonId() mints a brand-new anon_id on
+// every single fetch. One crawled URL therefore became one "unique user" and
+// one "session". Googlebot crawling /listing/:id alone accounted for ~84% of
+// suspect traffic and inflated unique-user counts 2-5x from Apr 2026 onward,
+// while page-view totals stayed accurate.
+//
+// Matching is by explicit crawler name rather than a bare `bot` substring, so
+// device names that merely contain those letters (the "CUBOT" phone brand) are
+// not swept up. The `bot/`, `bot;`, `bot)` shapes catch the long tail of
+// self-identifying crawlers without that risk.
+//
+// Deliberately NOT matched: `whatsapp`. WhatsApp's in-app browser is a normal,
+// common way this audience opens listings; only its link-preview fetcher would
+// be a bot, and the two are not reliably distinguishable here.
+const BOT_UA_PATTERNS = [
+  // Search / SEO crawlers
+  'googlebot', 'bingbot', 'bingpreview', 'yandexbot', 'duckduckbot',
+  'baiduspider', 'applebot', 'petalbot', 'sogou', 'exabot', 'facebot',
+  'adsbot', 'mediapartners-google', 'google-inspectiontool',
+  'semrushbot', 'ahrefsbot', 'mj12bot', 'dotbot', 'dataforseo',
+  'bytespider', 'amazonbot', 'ia_archiver',
+  // AI / LLM crawlers
+  'gptbot', 'oai-searchbot', 'chatgpt-user', 'claudebot', 'anthropic-ai',
+  'perplexitybot', 'ccbot', 'google-extended', 'meta-externalagent',
+  // Link-preview fetchers
+  'facebookexternalhit', 'twitterbot', 'linkedinbot', 'slackbot',
+  'telegrambot', 'discordbot', 'embedly', 'skypeuripreview',
+  // Headless browsers / automation
+  'headlesschrome', 'phantomjs', 'puppeteer', 'selenium', 'playwright',
+  // Uptime monitoring
+  'pingdom', 'uptimerobot', 'statuscake', 'newrelicpinger',
+  // Non-browser HTTP clients
+  'curl/', 'wget', 'python-requests', 'python-urllib', 'scrapy',
+  'go-http-client', 'okhttp', 'node-fetch', 'axios/', 'java/', 'libwww-perl',
+  // Generic shapes that are safe as substrings
+  'crawler', 'spider', 'slurp', 'bot/', 'bot;', 'bot\\)',
+];
+
+const BOT_UA_RE = new RegExp(BOT_UA_PATTERNS.join('|'), 'i');
+
+// An absent UA is left alone rather than dropped: it is rare, and blackholing
+// it would penalize privacy-preserving clients that strip headers — the same
+// reasoning the IP rate-limit below already uses.
+function isBotUserAgent(ua: string | null): boolean {
+  return !!ua && BOT_UA_RE.test(ua);
+}
+
 // In-memory sliding-window rate limit. Deno Deploy instances stay warm across
 // many requests, so this catches the common single-origin-spam case. It won't
 // stop a distributed attacker (each instance has its own Map), but pairs well
@@ -191,6 +242,14 @@ Deno.serve(async (req) => {
     });
 
     const userAgent = req.headers.get('user-agent');
+
+    // Drop crawler traffic before any further work. Returns 200 so the client
+    // treats the batch as delivered — a non-2xx would make flushEvents() in
+    // src/lib/analytics.ts requeue and retry this batch indefinitely.
+    if (isBotUserAgent(userAgent)) {
+      return jsonResponse(200, { success: true, inserted: 0, skipped: 'bot' });
+    }
+
     const clientIp = getClientIP(req);
     // Pseudonymize IP address using SHA-256 hashing for privacy compliance
     // Original IP addresses are never stored in the database
