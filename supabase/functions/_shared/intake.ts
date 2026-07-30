@@ -25,7 +25,35 @@ export const DEFAULT_MODEL = 'claude-sonnet-5';
 
 // ---------------------------------------------------------------------------
 // Structured output schema — mirrors the listing form's field set
+//
+// The Anthropic structured-output API caps a schema at 16 parameters carrying
+// union types, and a nullable field is a union. This schema had 16 nullable
+// fields and started being rejected with:
+//   "Schemas contains too many parameters with union types (18 parameters ...)"
+//
+// So the TEXT fields that used to be nullable are plain strings on the wire and
+// the model writes "" for "not present"; normalizeParsed() turns "" back into
+// null immediately after validation, which keeps ParsedListing — and therefore
+// every consumer of it — exactly as it was. Numbers stay nullable on purpose:
+// there is no safe empty value for them (bedrooms: 0 is a studio, not unknown).
 // ---------------------------------------------------------------------------
+
+/** Text fields where the model writes "" instead of null. Order is irrelevant;
+ *  membership is what drives both the wire schema and the normalizer. */
+const EMPTY_AS_NULL = [
+  'price_note',
+  'cross_street_1',
+  'cross_street_2',
+  'cross_streets_raw',
+  'contact_name',
+  'contact_phone',
+  'contact_phone_display',
+  'agency_name',
+  'additional_notes',
+] as const;
+
+type EmptyAsNullKey = (typeof EMPTY_AS_NULL)[number];
+
 export const ParsedListingSchema = z.object({
   listing_kind: z.enum(['rental', 'sale']),
   title: z.string(),
@@ -35,7 +63,7 @@ export const ParsedListingSchema = z.object({
   price: z.number().int().nullable(),
   asking_price: z.number().int().nullable(),
   call_for_price: z.boolean(),
-  price_note: z.string().nullable(),
+  price_note: z.string(),
   floor: z.number().int().nullable(),
   square_footage: z.number().int().nullable(),
   property_type: z.enum([
@@ -66,16 +94,16 @@ export const ParsedListingSchema = z.object({
   utilities_included: z.boolean(),
   has_porch: z.boolean(),
   separate_entrance: z.boolean(),
-  cross_street_1: z.string().nullable(),
-  cross_street_2: z.string().nullable(),
-  cross_streets_raw: z.string().nullable(),
+  cross_street_1: z.string(),
+  cross_street_2: z.string(),
+  cross_streets_raw: z.string(),
   neighborhood: z.string(),
-  contact_name: z.string().nullable(),
-  contact_phone: z.string().nullable(),
-  contact_phone_display: z.string().nullable(),
+  contact_name: z.string(),
+  contact_phone: z.string(),
+  contact_phone_display: z.string(),
   contact_type: z.enum(['agent', 'individual', 'unknown']),
-  agency_name: z.string().nullable(),
-  additional_notes: z.string().nullable(),
+  agency_name: z.string(),
+  additional_notes: z.string(),
   confidence: z.number(),
   raw_text: z.string(),
 });
@@ -84,7 +112,23 @@ export const ParseResultSchema = z.object({
   listings: z.array(ParsedListingSchema),
 });
 
-export type ParsedListing = z.infer<typeof ParsedListingSchema>;
+/** What the model returns over the wire ("" for absent text). */
+type ParsedListingWire = z.infer<typeof ParsedListingSchema>;
+
+/** What the rest of the pipeline consumes — absent text is null, as before. */
+export type ParsedListing = Omit<ParsedListingWire, EmptyAsNullKey> & {
+  [K in EmptyAsNullKey]: string | null;
+};
+
+/** "" (or whitespace) => null, so downstream sees the same shape it always has. */
+export function normalizeParsed(row: ParsedListingWire): ParsedListing {
+  const out = { ...row } as Record<string, unknown>;
+  for (const key of EMPTY_AS_NULL) {
+    const value = row[key];
+    out[key] = typeof value === 'string' && value.trim() !== '' ? value : null;
+  }
+  return out as ParsedListing;
+}
 
 // ---------------------------------------------------------------------------
 // System prompt — the proven Luach pipeline rules, extended to the full
@@ -107,7 +151,7 @@ CRITICAL RULES:
 7. Neighborhoods: if the text mentions "Kensington", "Flatbush", "Bensonhurst", "Midwood", "Ditmas Park", "Gravesend", "Williamsburg", "Crown Heights", "Marine Park", "Sea Gate", or another NYC neighborhood, set neighborhood accordingly. Default is "Boro Park".
 8. Abbreviations: BR/bdr/bdrm=bedroom, bth/bath=bathroom, bsmt=basement, flr=floor, sf/sqft/sqf=square feet, ent=entrance, sep=separate, furn=furnished, kit=kitchen, DR=dining room, LR=living room, W/D=washer/dryer, sec 8=Section 8, MIC=move-in condition, neg=negotiable, incl/inc=included, apt/aprt/apart=apartment, k=thousand ("$4k"=4000), "Chusen Kalah"/"chosson kallah"=newlywed couple apartment (note it in additional_notes).
 9. listing_kind detection: "for sale", asking prices in the hundreds of thousands or millions, lot sizes, "house/condo for sale", cap rate, "investment property" => "sale". Monthly-sounding prices ($1,000-$10,000), lease terms, "for rent" => "rental". If a kind hint is supplied, follow it unless the text overwhelmingly contradicts it.
-10. For RENTALS put the monthly rent in "price" and set asking_price to null. For SALES put the asking price in "asking_price" and set price to null. If no price is given, set both to null, call_for_price=true, and price_note="call for price".
+10. For RENTALS put the monthly rent in "price" and set asking_price to null. For SALES put the asking price in "asking_price" and set price to null. If no price is given, set both to null, call_for_price=true, and price_note="call for price". When a price IS given, price_note is "".
 11. property_type: default "apartment_building" for rentals. Use "basement" for bsmt/garden-level units, "full_house" for whole-house rentals, "duplex" for two-floor units, "apartment_house" for an apartment inside a private house. For sales prefer "single_family", "two_family", "three_family", "four_family", "detached_house", "semi_attached_house", "fully_attached_townhouse", "condo", or "co_op" when stated; otherwise best inference.
 12. parking: "included" if parking comes with the listing at no extra charge, "optional" if available for extra cost, "yes" if parking exists but details unclear, "carport" if a carport is mentioned, otherwise "no".
 13. heat: "included" only if heat/utilities are stated as included; otherwise "tenant_pays".
@@ -120,7 +164,7 @@ CRITICAL RULES:
 20. confidence: 0-1 — how confident you are the extraction is complete and correct. Lower it when the source is a blurry scan or the text is ambiguous.
 21. raw_text: the exact original text fragment for this listing.
 22. Skip pure advertisements/promotions that are not property listings. Skip job posts, services, gemachs, vouchers, and non-real-estate classifieds. Skip Hebrew-only ad boilerplate and publication headers/footers.
-23. NEVER invent data. Missing value => null (or false for booleans). Accuracy matters far more than completeness — it is better to leave a field null than to guess.`;
+23. NEVER invent data. Accuracy matters far more than completeness — it is better to leave a field empty than to guess. How to say "not present" depends on the field's type: TEXT fields (price_note, cross_street_1, cross_street_2, cross_streets_raw, contact_name, contact_phone, contact_phone_display, agency_name, additional_notes) use an empty string ""; NUMBER fields (bedrooms, bathrooms, price, asking_price, floor, square_footage) and lease_length use null; booleans use false. Never write the word "null" inside a text field.`;
 
 export function buildUserPrompt(typeHint: string, extraContext?: string): string {
   const hintLine =
@@ -181,7 +225,7 @@ export async function parseContent(
     .map((b) => b.text)
     .join('');
   const parsed = ParseResultSchema.parse(JSON.parse(text));
-  return parsed.listings;
+  return parsed.listings.map(normalizeParsed);
 }
 
 // ---------------------------------------------------------------------------
