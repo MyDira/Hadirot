@@ -52,6 +52,7 @@ interface RenewalConversation {
   conversation_type: string | null;
   is_commercial: boolean | null;
   metadata: ConversationMetadata | DisambiguationMetadata | null;
+  updated_at?: string | null;
 }
 
 interface Listing {
@@ -446,6 +447,65 @@ Deno.serve(async (req) => {
     // ============================================
     // OUTREACH (intake posting offer) HANDLING
     // ============================================
+
+    // Decline phrases are checked FIRST and beat everything — "yes but it's
+    // already rented" must never publish. Bare "no"-words are exact-match only
+    // so "know anyone looking?" doesn't read as a decline.
+    const OUTREACH_NO_EXACT = ["no", "n", "nope", "nah", "rented", "taken"];
+    const OUTREACH_NO_PHRASES = [
+      "no thanks", "no thank", "not interested", "dont post", "don't post",
+      "do not post", "not now", "no need", "not necessary", "dont want",
+      "don't want", "already rented", "already taken", "its rented",
+      "it's rented", "was rented", "got rented", "rented it", "not available",
+      "no longer available", "take me off", "stop texting", "leave me alone",
+      "wrong number",
+    ];
+    // A "pure yes" must contain at least one CORE consent word, and every word
+    // must come from the yes vocabulary — that's how "ok sure", "yes please",
+    // and "sounds good" all read as consent while "ok, what does it cost?"
+    // does not (cost/what aren't in the vocabulary).
+    const OUTREACH_YES_CORE = new Set([
+      "yes", "y", "yeah", "yup", "yep", "sure", "ok", "okay",
+      "definitely", "absolutely", "post", "go", "do",
+    ]);
+    const OUTREACH_YES_VOCAB = new Set([
+      ...OUTREACH_YES_CORE,
+      "please", "pls", "sounds", "good", "great", "fine", "ahead", "it",
+      "for", "that", "works", "lets", "let's", "thanks", "thank", "you",
+    ]);
+    // Consent idioms with no core word in them — matched as a whole message
+    // only, so "sounds good but wait" still goes to a human.
+    const OUTREACH_YES_PHRASES = ["sounds good", "sounds great", "of course", "why not"];
+
+    function parseOutreachReply(raw: string): { intent: "yes" | "no" | "other"; pure: boolean } {
+      // Punctuation must not change meaning: "No thanks!" is still a decline.
+      const cleaned = raw
+        .toLowerCase()
+        .replace(/[^a-z0-9\s']/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+      if (!cleaned) return { intent: "other", pure: false };
+
+      if (
+        OUTREACH_NO_EXACT.includes(cleaned) ||
+        OUTREACH_NO_PHRASES.some((p) => cleaned.includes(p))
+      ) {
+        return { intent: "no", pure: true };
+      }
+
+      if (OUTREACH_YES_PHRASES.includes(cleaned)) return { intent: "yes", pure: true };
+
+      const tokens = cleaned.split(" ");
+      const hasCore = tokens.some((t) => OUTREACH_YES_CORE.has(t));
+      if (hasCore && tokens.length <= 5 && tokens.every((t) => OUTREACH_YES_VOCAB.has(t))) {
+        return { intent: "yes", pure: true };
+      }
+      // "yes but ..." / "yes, when would it go up?" — consent plus more. The
+      // publish happens AND the extra content gets surfaced to the admin.
+      if (cleaned.startsWith("yes")) return { intent: "yes", pure: false };
+
+      return { intent: "other", pure: false };
+    }
     // conversation_type = 'outreach': listing_id holds a scraped_listings id,
     // NOT a live listing — never route these through fetchListingForConv &co.
     // YES auto-publishes the vetted lead to the house account; NO declines;
@@ -457,8 +517,6 @@ Deno.serve(async (req) => {
       replyBody: string,
       phone: string,
     ): Promise<void> {
-      const normalized = replyBody.toLowerCase().trim();
-
       const stampConv = (patch: Record<string, unknown>) =>
         supabaseAdmin
           .from("listing_renewal_conversations")
@@ -485,17 +543,9 @@ Deno.serve(async (req) => {
         return;
       }
 
-      const affirmativeExact = ["yes", "y", "yeah", "yup", "yep", "sure", "ok", "okay",
-        "yes please", "sounds good", "go ahead", "post it", "post", "go for it"];
-      const negativeExact = ["no", "n", "nope", "nah", "no thanks", "no thank you"];
-      const isAffirmative = affirmativeExact.includes(normalized) || normalized.startsWith("yes");
-      const isNegative =
-        negativeExact.includes(normalized) ||
-        normalized.includes("not interested") ||
-        normalized.includes("don't post") ||
-        normalized.includes("dont post");
+      const reply = parseOutreachReply(replyBody);
 
-      if (isAffirmative) {
+      if (reply.intent === "yes") {
         // Already live (double YES, or the admin published it manually).
         if (scraped.call_status === "published" && scraped.published_listing_id) {
           await stampConv({ state: "completed", action_taken: "published" });
@@ -538,8 +588,11 @@ Deno.serve(async (req) => {
           // can be muted without muting real errors.
           await notifyAdmin(
             "Outreach YES — listing auto-published",
-            `Phone: ${phone}\nLead: ${scraped.title ?? "Untitled"}\nLive at: hadirot.com/listing/${listingId} (house account).`,
-            "unrecognized",
+            `Phone: ${phone}\nLead: ${scraped.title ?? "Untitled"}\nLive at: hadirot.com/listing/${listingId} (house account).` +
+              (reply.pure
+                ? ""
+                : `\n\nThey also wrote more than a plain yes — answer the rest from Admin > Messages:\n"${replyBody}"`),
+            reply.pure ? "unrecognized" : "error",
           );
         } catch (err) {
           console.error("Outreach publish failed:", err);
@@ -559,7 +612,7 @@ Deno.serve(async (req) => {
         return;
       }
 
-      if (isNegative) {
+      if (reply.intent === "no") {
         await stampConv({ state: "completed", action_taken: "declined" });
         await supabaseAdmin.from("scraped_listings")
           .update({ outreach_status: "declined" }).eq("id", scraped.id);
@@ -1255,25 +1308,35 @@ Deno.serve(async (req) => {
       return new Response(emptyTwiML, { headers: { "Content-Type": "text/xml" } });
     }
 
-    // Outreach offers route before everything else: their listing_id points at
+    // Outreach offers have their own handler: their listing_id points at
     // scraped_listings, so the generic renewal/disambiguation machinery must
-    // never touch them. A phone with an open offer is (by construction —
-    // pamphlet leads aren't live listings) not mid-renewal.
-    const outreachConv = (activeConversations as RenewalConversation[] | null)?.find(
-      c => c.state === 'awaiting_outreach_response',
-    );
-    if (outreachConv) {
-      await handleOutreachReply(outreachConv, body, normalizedPhone);
-      return new Response(emptyTwiML, { headers: { "Content-Type": "text/xml" } });
+    // never touch them. When a phone ALSO has an active renewal/report
+    // conversation, the reply goes to whichever conversation messaged the
+    // landlord most recently — a "yes" answers the question they were asked
+    // last, not whichever flow happens to check first. When outreach loses,
+    // its conversations are removed from the pool so the normal machinery
+    // never dereferences a scraped id as a live listing.
+    let routable = (activeConversations ?? []) as RenewalConversation[];
+    const outreachConvs = routable.filter(c => c.state === 'awaiting_outreach_response');
+    if (outreachConvs.length > 0) {
+      const others = routable.filter(c => c.state !== 'awaiting_outreach_response');
+      // The query orders by updated_at desc, so [0] is each group's newest.
+      const outreachNewest = Date.parse(outreachConvs[0].updated_at ?? '') || 0;
+      const otherNewest = others.length > 0 ? Date.parse(others[0].updated_at ?? '') || 0 : -1;
+      if (outreachNewest >= otherNewest) {
+        await handleOutreachReply(outreachConvs[0], body, normalizedPhone);
+        return new Response(emptyTwiML, { headers: { "Content-Type": "text/xml" } });
+      }
+      routable = others;
     }
 
-    if (activeConversations?.length === 1) {
-      conversation = activeConversations[0] as RenewalConversation;
+    if (routable.length === 1) {
+      conversation = routable[0];
 
-    } else if (activeConversations && activeConversations.length > 1) {
-      console.log(`Multiple active conversations (${activeConversations.length}) for ${normalizedPhone}`);
+    } else if (routable.length > 1) {
+      console.log(`Multiple active conversations (${routable.length}) for ${normalizedPhone}`);
 
-      const resolved = await tryAutoResolve(body, activeConversations as RenewalConversation[]);
+      const resolved = await tryAutoResolve(body, routable);
 
       if (resolved) {
         conversation = resolved;
@@ -1282,7 +1345,7 @@ Deno.serve(async (req) => {
         const isAck = ACK_KEYWORDS.some(kw => body.toLowerCase().trim().includes(kw));
 
         if (!isAck) {
-          await sendDisambiguationPrompt(body, normalizedPhone, activeConversations as RenewalConversation[]);
+          await sendDisambiguationPrompt(body, normalizedPhone, routable);
         }
         return new Response(emptyTwiML, { headers: { "Content-Type": "text/xml" } });
       }
@@ -1292,14 +1355,17 @@ Deno.serve(async (req) => {
     // UNSOLICITED FLOW — no active conversations
     // ============================================
 
-    if (!conversation && (!activeConversations || activeConversations.length === 0)) {
+    if (!conversation && routable.length === 0) {
       console.log(`No active conversation found for ${normalizedPhone}`);
 
       // Late outreach confirmation: the offer conversation may have timed out
       // or been declined ("reply YES anytime"), but a clear YES from a phone
       // we made an offer to still counts — the vetted lead is still there.
-      const lateNorm = body.toLowerCase().trim();
-      if (lateNorm === 'y' || lateNorm.startsWith('yes')) {
+      // Deliberately stricter than the live-conversation matcher: with no open
+      // conversation, a bare "ok"/"sure" is probably acking something else,
+      // and a wrong publish is worse than a missed one.
+      const lateNorm = body.toLowerCase().replace(/[^a-z0-9\s']/g, ' ').replace(/\s+/g, ' ').trim();
+      if (lateNorm === 'y' || lateNorm === 'yes' || lateNorm.startsWith('yes ')) {
         const { data: lateOutreach } = await supabaseAdmin
           .from("listing_renewal_conversations")
           .select("*")
@@ -1369,6 +1435,35 @@ Deno.serve(async (req) => {
 
         if (allActiveListings.length === 0) {
           console.log(`No active listings found for ${normalizedPhone}`);
+
+          // "It's rented" from an outreach lead with nothing live means "the
+          // apartment is gone, don't post it" — close their lead as declined
+          // instead of pointing them at a dashboard they don't have.
+          const { data: rentedOutreach } = await supabaseAdmin
+            .from("listing_renewal_conversations")
+            .select("id, listing_id")
+            .eq("phone_number", normalizedPhone)
+            .eq("conversation_type", "outreach")
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+          if (rentedOutreach?.listing_id) {
+            await supabaseAdmin
+              .from("scraped_listings")
+              .update({ outreach_status: "declined" })
+              .eq("id", rentedOutreach.listing_id)
+              .is("published_listing_id", null);
+            await sendSMS(
+              normalizedPhone,
+              "Hadirot: Got it — glad it's taken care of, we won't post it. If you have another apartment down the line, just text us here.",
+              'outreach_response',
+              rentedOutreach.listing_id,
+              rentedOutreach.id,
+            );
+            return new Response(emptyTwiML, { headers: { "Content-Type": "text/xml" } });
+          }
+
           await sendSMS(normalizedPhone, "Hadirot Alert: We couldn't find an active listing for this number. Please log into hadirot.com/dashboard to manage your listings.", 'system_response');
           return new Response(emptyTwiML, { headers: { "Content-Type": "text/xml" } });
         }
@@ -1484,6 +1579,42 @@ Deno.serve(async (req) => {
 
         console.log(`Found ${allActiveListings.length} listings, directing to dashboard...`);
         await sendSMS(normalizedPhone, `Hadirot Alert: You have ${allActiveListings.length} active listings. Please log into hadirot.com/dashboard to deactivate the unavailable one.`, 'system_response');
+        return new Response(emptyTwiML, { headers: { "Content-Type": "text/xml" } });
+      }
+
+      // A phone we cold-texted an offer to must never get the generic "this
+      // number isn't linked to any Hadirot listings" boilerplate — we opened
+      // the relationship by saying we SAW their listing. After their offer
+      // conversation closes (declined / timed out / published / errored), a
+      // non-yes text gets a human ack + an admin alert; pure acknowledgments
+      // ("thanks", "ok") stay silent to avoid ack ping-pong.
+      const { data: pastOutreach } = await supabaseAdmin
+        .from("listing_renewal_conversations")
+        .select("id, listing_id")
+        .eq("phone_number", normalizedPhone)
+        .eq("conversation_type", "outreach")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (pastOutreach) {
+        const isAckOnly =
+          ACK_KEYWORDS.some(kw => body.toLowerCase().trim().includes(kw)) ||
+          body.trim().length <= 3;
+        if (!isAckOnly) {
+          await sendSMS(
+            normalizedPhone,
+            "Hadirot: Got it — a member of our team will get back to you shortly.",
+            'outreach_response',
+            pastOutreach.listing_id,
+            pastOutreach.id,
+          );
+          await notifyAdmin(
+            "Outreach lead texted back (conversation closed)",
+            `Phone: ${normalizedPhone}\nMessage: "${body}"\n\nTheir offer conversation is closed — answer them from Admin > Messages. A clear YES from them still auto-publishes if the lead is unpublished.`,
+            'unrecognized',
+          );
+        }
         return new Response(emptyTwiML, { headers: { "Content-Type": "text/xml" } });
       }
 
