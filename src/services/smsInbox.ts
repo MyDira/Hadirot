@@ -29,17 +29,32 @@ export interface SmsMessage {
   read_by_admin_at: string | null;
 }
 
-/** Context chips shown at the top of a thread. */
+export interface ThreadLead {
+  id: string;
+  title: string | null;
+  outreach_status: string | null;
+  published_listing_id: string | null;
+}
+
+export interface ThreadListing {
+  id: string;
+  title: string;
+  is_active: boolean;
+  /** When this listing was last mentioned in the thread — drives ordering. */
+  lastMentionedAt: string;
+}
+
+/** Everything this phone's messages refer to. Threads reach ~90 distinct
+ *  listings in practice, most of them long inactive, so the UI shows the
+ *  currently-discussed one and keeps the rest behind a panel. */
 export interface ThreadContext {
   /** Intake leads this thread's messages reference (outreach flow). */
-  leads: Array<{
-    id: string;
-    title: string | null;
-    outreach_status: string | null;
-    published_listing_id: string | null;
-  }>;
-  /** Live listings this thread's messages reference (renewal/report flows). */
-  listings: Array<{ id: string; title: string }>;
+  leads: ThreadLead[];
+  /** Live listings, most-recently-mentioned first. */
+  listings: ThreadListing[];
+  /** The listing the newest message referenced — what the thread is "about". */
+  current: ThreadListing | null;
+  activeCount: number;
 }
 
 export function formatPhoneDisplay(e164: string): string {
@@ -77,19 +92,39 @@ export const smsInboxService = {
    * probe both tables with the whole id set and keep what resolves.
    */
   async getThreadContext(messages: SmsMessage[]): Promise<ThreadContext> {
-    const ids = [...new Set(messages.map((m) => m.listing_id).filter((v): v is string => !!v))];
-    if (ids.length === 0) return { leads: [], listings: [] };
+    // Last time each listing id came up, so the panel can lead with whatever
+    // the conversation is actually about rather than an arbitrary order.
+    const lastMention = new Map<string, string>();
+    for (const m of messages) {
+      if (m.listing_id) lastMention.set(m.listing_id, m.created_at);
+    }
+    const ids = [...lastMention.keys()];
+    if (ids.length === 0) {
+      return { leads: [], listings: [], current: null, activeCount: 0 };
+    }
 
     const [leadsRes, listingsRes] = await Promise.all([
       supabase
         .from('scraped_listings')
         .select('id, title, outreach_status, published_listing_id')
         .in('id', ids),
-      supabase.from('listings').select('id, title').in('id', ids),
+      supabase.from('listings').select('id, title, is_active').in('id', ids),
     ]);
+
+    const listings: ThreadListing[] = (listingsRes.data ?? [])
+      .map((l) => ({
+        id: l.id,
+        title: l.title,
+        is_active: l.is_active === true,
+        lastMentionedAt: lastMention.get(l.id) ?? '',
+      }))
+      .sort((a, b) => b.lastMentionedAt.localeCompare(a.lastMentionedAt));
+
     return {
       leads: leadsRes.data ?? [],
-      listings: listingsRes.data ?? [],
+      listings,
+      current: listings[0] ?? null,
+      activeCount: listings.filter((l) => l.is_active).length,
     };
   },
 

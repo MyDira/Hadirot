@@ -1,6 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowLeft,
+  Building2,
+  ChevronDown,
   ExternalLink,
   Loader2,
   MessageSquare,
@@ -8,6 +10,7 @@ import {
   Search,
   Send,
   Sparkles,
+  X,
 } from 'lucide-react';
 import {
   smsInboxService,
@@ -116,7 +119,14 @@ export function MessagesSection() {
   const [search, setSearch] = useState('');
   const [activePhone, setActivePhone] = useState<string | null>(null);
   const [messages, setMessages] = useState<SmsMessage[]>([]);
-  const [context, setContext] = useState<ThreadContext>({ leads: [], listings: [] });
+  const [context, setContext] = useState<ThreadContext>({
+    leads: [],
+    listings: [],
+    current: null,
+    activeCount: 0,
+  });
+  const [panelOpen, setPanelOpen] = useState(false);
+  const [panelSearch, setPanelSearch] = useState('');
   const [messagesLoading, setMessagesLoading] = useState(false);
   const [reply, setReply] = useState('');
   const [sending, setSending] = useState(false);
@@ -150,6 +160,9 @@ export function MessagesSection() {
     async (phone: string) => {
       setActivePhone(phone);
       setMessagesLoading(true);
+      // A panel left open from the previous thread would cover the new one.
+      setPanelOpen(false);
+      setPanelSearch('');
       try {
         const msgs = await smsInboxService.getThread(phone);
         setMessages(msgs);
@@ -235,52 +248,196 @@ export function MessagesSection() {
         </button>
       </div>
 
-      {/* Context chips */}
+      {/* Context bar — pinned to ONE line however many listings exist. A busy
+          agent's thread touches ~90 listings, nearly all long inactive, so a
+          flat chip list buried the messages. The line names what this thread is
+          currently about; everything else lives in the panel below, which
+          overlays the messages instead of shrinking them. */}
       {(context.leads.length > 0 || context.listings.length > 0) && (
-        <div className="px-4 py-2 border-b border-gray-100 bg-gray-50/60 flex flex-wrap gap-1.5">
-          {context.leads.map((lead) => (
-            <span
-              key={lead.id}
-              className="inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-medium rounded-full bg-amber-50 text-amber-800 border border-amber-200"
+        <div className="px-4 py-2 border-b border-gray-100 bg-gray-50/60 flex items-center gap-2">
+          <div className="min-w-0 flex-1 flex items-center gap-1.5 overflow-hidden">
+            {context.leads.length > 0 ? (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-medium rounded-full bg-amber-50 text-amber-800 border border-amber-200 max-w-full">
+                <Sparkles className="w-3 h-3 flex-shrink-0" />
+                <span className="truncate">
+                  Intake lead: {context.leads[0].title || 'Untitled'}
+                </span>
+              </span>
+            ) : context.current ? (
+              <a
+                href={`/listing/${context.current.id}`}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-medium rounded-full bg-blue-50 text-blue-800 border border-blue-200 hover:bg-blue-100 max-w-full"
+                title={context.current.title}
+              >
+                <span
+                  className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
+                    context.current.is_active ? 'bg-green-500' : 'bg-gray-300'
+                  }`}
+                />
+                <span className="truncate">{context.current.title}</span>
+                <ExternalLink className="w-3 h-3 flex-shrink-0" />
+              </a>
+            ) : null}
+          </div>
+
+          {(context.listings.length > 0 || context.leads.length > 1) && (
+            <button
+              onClick={() => setPanelOpen((v) => !v)}
+              className="flex-shrink-0 inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-medium rounded-full border border-gray-300 bg-white text-gray-600 hover:bg-gray-50 transition-colors"
+              aria-expanded={panelOpen}
             >
-              <Sparkles className="w-3 h-3" />
-              Intake lead: {lead.title || 'Untitled'}
-              {lead.published_listing_id && (
-                <a
-                  href={`/listing/${lead.published_listing_id}`}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-blue-600 hover:text-blue-800"
-                  title="View live listing"
-                >
-                  <ExternalLink className="w-3 h-3" />
-                </a>
+              <Building2 className="w-3 h-3" />
+              {context.listings.length} listing{context.listings.length === 1 ? '' : 's'}
+              {context.activeCount > 0 && (
+                <span className="text-green-700">· {context.activeCount} active</span>
               )}
-            </span>
-          ))}
-          {context.listings.map((listing) => (
-            <a
-              key={listing.id}
-              href={`/listing/${listing.id}`}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-medium rounded-full bg-blue-50 text-blue-800 border border-blue-200 hover:bg-blue-100"
-            >
-              Listing: {listing.title}
-              <ExternalLink className="w-3 h-3" />
-            </a>
-          ))}
+              <ChevronDown
+                className={`w-3 h-3 transition-transform ${panelOpen ? 'rotate-180' : ''}`}
+              />
+            </button>
+          )}
         </div>
       )}
 
       {/* Messages */}
-      <div ref={messagesRef} className="flex-1 overflow-y-auto px-4 py-4 space-y-3 min-h-0">
-        {messagesLoading ? (
-          <div className="flex justify-center py-10">
-            <Loader2 className="w-5 h-5 text-gray-400 animate-spin" />
-          </div>
-        ) : (
-          messages.map((m) => <MessageBubble key={m.id} message={m} />)
+      {/* Messages + the listings panel share this box; the panel is absolutely
+          positioned so opening it never resizes or re-scrolls the thread. */}
+      <div className="relative flex-1 min-h-0">
+        <div ref={messagesRef} className="absolute inset-0 overflow-y-auto px-4 py-4 space-y-3">
+          {messagesLoading ? (
+            <div className="flex justify-center py-10">
+              <Loader2 className="w-5 h-5 text-gray-400 animate-spin" />
+            </div>
+          ) : (
+            messages.map((m) => <MessageBubble key={m.id} message={m} />)
+          )}
+        </div>
+
+        {panelOpen && (
+          <>
+            <div
+              className="absolute inset-0 bg-black/10"
+              onClick={() => setPanelOpen(false)}
+              aria-hidden="true"
+            />
+            <div className="absolute inset-x-0 top-0 max-h-full flex flex-col bg-white border-b border-gray-200 shadow-lg">
+              <div className="flex items-center gap-2 px-3 py-2 border-b border-gray-100">
+                <div className="relative flex-1">
+                  <Search className="w-3.5 h-3.5 text-gray-400 absolute left-2 top-1/2 -translate-y-1/2" />
+                  <input
+                    value={panelSearch}
+                    onChange={(e) => setPanelSearch(e.target.value)}
+                    placeholder="Filter listings…"
+                    autoFocus
+                    className="w-full pl-7 pr-2 py-1 text-xs border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+                <button
+                  onClick={() => setPanelOpen(false)}
+                  className="p-1 text-gray-400 hover:text-gray-700"
+                  aria-label="Close listings"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* min-h-0: without it this child's auto min-height keeps the
+                  panel from honouring max-h-full and it overflows the pane. */}
+              <div className="overflow-y-auto min-h-0">
+                {context.leads.length > 0 && (
+                  <div>
+                    <p className="px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wide text-gray-400">
+                      Intake leads
+                    </p>
+                    {context.leads.map((lead) => (
+                      <div
+                        key={lead.id}
+                        className="px-3 py-1.5 flex items-center gap-2 text-xs hover:bg-gray-50"
+                      >
+                        <Sparkles className="w-3 h-3 text-amber-500 flex-shrink-0" />
+                        <span className="truncate flex-1 text-gray-800">
+                          {lead.title || 'Untitled'}
+                        </span>
+                        {lead.published_listing_id && (
+                          <a
+                            href={`/listing/${lead.published_listing_id}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-blue-600 hover:text-blue-800 flex-shrink-0"
+                          >
+                            <ExternalLink className="w-3 h-3" />
+                          </a>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {(() => {
+                  const q = panelSearch.trim().toLowerCase();
+                  const shown = q
+                    ? context.listings.filter((l) => l.title.toLowerCase().includes(q))
+                    : context.listings;
+                  const active = shown.filter((l) => l.is_active);
+                  const inactive = shown.filter((l) => !l.is_active);
+
+                  if (shown.length === 0) {
+                    return (
+                      <p className="px-3 py-4 text-xs text-gray-400 text-center">
+                        No listings match “{panelSearch}”.
+                      </p>
+                    );
+                  }
+
+                  const row = (l: (typeof shown)[number]) => (
+                    <a
+                      key={l.id}
+                      href={`/listing/${l.id}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="px-3 py-1.5 flex items-center gap-2 text-xs hover:bg-blue-50/60 group"
+                    >
+                      <span
+                        className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
+                          l.is_active ? 'bg-green-500' : 'bg-gray-300'
+                        }`}
+                      />
+                      <span
+                        className={`truncate flex-1 ${l.is_active ? 'text-gray-900' : 'text-gray-500'}`}
+                      >
+                        {l.title}
+                      </span>
+                      <ExternalLink className="w-3 h-3 text-gray-300 group-hover:text-blue-600 flex-shrink-0" />
+                    </a>
+                  );
+
+                  return (
+                    <>
+                      {active.length > 0 && (
+                        <div>
+                          <p className="px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wide text-gray-400">
+                            Active ({active.length})
+                          </p>
+                          {active.map(row)}
+                        </div>
+                      )}
+                      {inactive.length > 0 && (
+                        <div>
+                          <p className="px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wide text-gray-400">
+                            Inactive ({inactive.length}) · newest first
+                          </p>
+                          {inactive.map(row)}
+                        </div>
+                      )}
+                      <div className="h-2" />
+                    </>
+                  );
+                })()}
+              </div>
+            </div>
+          </>
         )}
       </div>
 
