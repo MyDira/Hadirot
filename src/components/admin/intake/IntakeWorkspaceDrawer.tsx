@@ -823,9 +823,12 @@ export function IntakeWorkspaceDrawer({
                           matched={dup.matched.bedrooms}
                         />
                         <MatchRow
-                          label="Streets"
+                          label={dup.matchedVia === 'address' ? 'Address' : 'Streets'}
                           value={
+                            // Address-based listings carry no cross streets —
+                            // show the address that matched instead of a dash.
                             [dup.cross_street_a, dup.cross_street_b].filter(Boolean).join(' & ') ||
+                            dup.full_address ||
                             null
                           }
                           matched={dup.matched.streets}

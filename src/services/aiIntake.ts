@@ -152,9 +152,33 @@ export interface PamphletParseResult {
   errors: Array<{ unit: number; error: string }>;
 }
 
+export type ScrapeMode = 'since_last' | 'range' | 'all';
+
+export interface ScrapeArgs {
+  mode: ScrapeMode;
+  /** yyyy-mm-dd, range mode only. */
+  since?: string | null;
+  /** yyyy-mm-dd, range mode only. */
+  until?: string | null;
+  pages: number;
+  limit: number;
+  /** Include luach.com's promoted block, which is not in date order. */
+  includePromoted?: boolean;
+}
+
 export interface ScrapeResult {
   run_id: string;
+  mode: ScrapeMode;
+  /** Oldest posting date accepted, or null when unbounded. */
+  cutoff: string | null;
+  /** Index cards examined before filtering. */
+  cards_seen: number;
+  /** Detail pages actually fetched (i.e. those that passed the date filter). */
   pages_fetched: number;
+  skipped_by_date: number;
+  skipped_promoted: number;
+  /** Claude requests spent — 1 for any normal run. */
+  ai_calls: number;
   parsed: number;
   inserted: number;
   updated: number;
@@ -463,7 +487,7 @@ export const aiIntakeService = {
   // Website scrape (luach.com)
   // -------------------------------------------------------------------------
 
-  async scrapeLuachCom(args: { pages: number; limit: number }): Promise<ScrapeResult> {
+  async scrapeLuachCom(args: ScrapeArgs): Promise<ScrapeResult> {
     const { data, error } = await supabase.functions.invoke('scrape-luach-com', { body: args });
     if (error) throw new Error(error.message || 'Failed to scrape luach.com');
     if (data?.error) throw new Error(data.error);
@@ -648,7 +672,7 @@ export const aiIntakeService = {
       .from('listings')
       .select(
         `id, listing_type, bedrooms, contact_name, contact_phone, cross_street_a, cross_street_b,
-         property_type, price, asking_price, call_for_price, admin_custom_agency_name,
+         full_address, property_type, price, asking_price, call_for_price, admin_custom_agency_name,
          owner:profiles!listings_user_id_fkey(full_name)`,
       )
       .eq('is_active', true)
