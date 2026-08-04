@@ -39,11 +39,10 @@ import {
   toE164,
 } from '@/services/aiIntake';
 import { describeMatch, type MatchCandidate } from '@/utils/intakeMatch';
-import { geocodeCrossStreets } from '@/services/geocoding';
 import { UserSearchSelect } from '@/components/admin/UserSearchSelect';
 import { useAuth } from '@/hooks/useAuth';
 import { IntakeMediaField } from './IntakeMediaField';
-import { IntakeLocationMap } from './IntakeLocationMap';
+import { IntakeLocationEditor } from './IntakeLocationEditor';
 import { IntakeSmsThread } from './IntakeSmsThread';
 
 interface IntakeWorkspaceDrawerProps {
@@ -173,6 +172,8 @@ interface IntakeForm {
   neighborhood: string;
   cross_street_1: string;
   cross_street_2: string;
+  full_address: string;
+  unit_number: string;
   contact_name: string;
   contact_phone: string;
   latitude: number | null;
@@ -186,12 +187,20 @@ interface IntakeForm {
 
 function buildForm(listing: ScrapedListing): IntakeForm {
   const extra = listing.intake_extra || {};
+  const kind = listing.listing_kind || 'rental';
   return {
-    listing_kind: listing.listing_kind || 'rental',
+    listing_kind: kind,
     title: listing.title || '',
     description: listing.description || '',
     bedrooms: listing.bedrooms,
-    bathrooms: listing.bathrooms,
+    // Same assumption the parser now makes: every rental has at least one
+    // bathroom, blurbs just don't say so. Applied here too, so rows parsed
+    // before that rule existed don't block publishing. Sales are never
+    // assumed — a buyer compares on the real number.
+    bathrooms:
+      kind === 'rental' && (listing.bathrooms == null || listing.bathrooms <= 0)
+        ? 1
+        : listing.bathrooms,
     price: listing.price,
     asking_price: extra.asking_price ?? null,
     call_for_price: !!extra.call_for_price,
@@ -206,6 +215,8 @@ function buildForm(listing: ScrapedListing): IntakeForm {
     neighborhood: listing.neighborhood || '',
     cross_street_1: listing.cross_street_1 || '',
     cross_street_2: listing.cross_street_2 || '',
+    full_address: extra.full_address || '',
+    unit_number: extra.unit_number || '',
     contact_name: listing.contact_name || listing.agency_name || '',
     contact_phone: listing.contact_phone_display || listing.contact_phone || '',
     latitude: listing.latitude,
@@ -255,6 +266,8 @@ function formToPatch(form: IntakeForm): Partial<ScrapedListing> {
       asking_price:
         form.listing_kind === 'sale' && !form.call_for_price ? form.asking_price : null,
       broker_fee: form.broker_fee,
+      full_address: form.full_address.trim() || null,
+      unit_number: form.unit_number.trim() || null,
     },
   };
 }
@@ -324,7 +337,6 @@ export function IntakeWorkspaceDrawer({
   const [status, setStatus] = useState<CallStatus>('pending_call');
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [geocoding, setGeocoding] = useState(false);
   const [statusBusy, setStatusBusy] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -372,7 +384,17 @@ export function IntakeWorkspaceDrawer({
   // Pasted-text leads were typed in by an admin directly — there's no owner
   // to call, so the calling/permission workflow doesn't apply to them.
   const isPastedText = listing.source === 'admin_intake';
-  const crossStreets = [form.cross_street_1, form.cross_street_2].filter(Boolean).join(' & ');
+  // The "as parsed" reference reads from the ROW, not the form — it's there to
+  // compare the admin's edits against what came out of the blurb.
+  const parsedCrossStreets = [listing.cross_street_1, listing.cross_street_2]
+    .filter(Boolean)
+    .join(' & ');
+  const parsedAddress = [
+    listing.intake_extra?.full_address,
+    listing.intake_extra?.unit_number ? `Unit ${listing.intake_extra.unit_number}` : '',
+  ]
+    .filter(Boolean)
+    .join(', ');
   const sourceLabel = listing.source
     ? INTAKE_SOURCE_LABELS[listing.source] ?? listing.source
     : 'Unknown source';
@@ -501,37 +523,6 @@ export function IntakeWorkspaceDrawer({
       setError('Failed to save notes.');
     } finally {
       setSavingNotes(false);
-    }
-  };
-
-  const handleRegeocode = async () => {
-    if (!crossStreets) {
-      setError('Enter cross streets before geocoding.');
-      return;
-    }
-    setGeocoding(true);
-    setError(null);
-    try {
-      const result = await geocodeCrossStreets({
-        crossStreets,
-        neighborhood: form.neighborhood || undefined,
-      });
-      if (result.success && result.coordinates) {
-        setForm((prev) =>
-          prev
-            ? {
-                ...prev,
-                latitude: result.coordinates!.latitude,
-                longitude: result.coordinates!.longitude,
-                geocode_status: 'success',
-              }
-            : prev,
-        );
-      } else {
-        setError(result.error || 'Could not find that location.');
-      }
-    } finally {
-      setGeocoding(false);
     }
   };
 
@@ -865,31 +856,38 @@ export function IntakeWorkspaceDrawer({
               )}
             </SectionCard>
 
-            {/* Location on map */}
-            <SectionCard
-              icon={<MapPin className="w-4 h-4" />}
-              title="Location"
-              action={
-                <span
-                  className={`text-[11px] font-medium ${
-                    form.geocode_status === 'success' ? 'text-green-600' : 'text-amber-600'
-                  }`}
-                >
-                  {form.geocode_status === 'success' ? 'Geocoded' : 'Not geocoded'}
-                </span>
-              }
-            >
-              <IntakeLocationMap
-                latitude={form.latitude}
-                longitude={form.longitude}
-                geocodeStatus={form.geocode_status}
-                label={crossStreets || listing.neighborhood}
-                fallbackText={listing.cross_streets_raw}
-              />
-              <p className="mt-2 text-xs text-gray-500">
-                {crossStreets || <span className="text-gray-400">No cross streets yet</span>}
-                {form.neighborhood ? ` · ${form.neighborhood}` : ''}
-              </p>
+            {/* What the source said about the location — the live map and the
+                editable fields both live in the edit column, so this stays a
+                plain reference (and one Mapbox instance, not two). */}
+            <SectionCard icon={<MapPin className="w-4 h-4" />} title="Location as parsed">
+              <dl className="space-y-1.5 text-xs">
+                <div className="flex items-start justify-between gap-3">
+                  <dt className="text-gray-400 flex-shrink-0">Address</dt>
+                  <dd className="text-right text-gray-700">
+                    {parsedAddress || <span className="text-gray-400">Not given</span>}
+                  </dd>
+                </div>
+                <div className="flex items-start justify-between gap-3">
+                  <dt className="text-gray-400 flex-shrink-0">Cross streets</dt>
+                  <dd className="text-right text-gray-700">
+                    {parsedCrossStreets || <span className="text-gray-400">Not given</span>}
+                  </dd>
+                </div>
+                <div className="flex items-start justify-between gap-3">
+                  <dt className="text-gray-400 flex-shrink-0">Neighborhood</dt>
+                  <dd className="text-right text-gray-700">
+                    {listing.neighborhood || <span className="text-gray-400">—</span>}
+                  </dd>
+                </div>
+                {listing.cross_streets_raw && (
+                  <div className="flex items-start justify-between gap-3">
+                    <dt className="text-gray-400 flex-shrink-0">Raw</dt>
+                    <dd className="text-right text-gray-500 font-mono">
+                      {listing.cross_streets_raw}
+                    </dd>
+                  </div>
+                )}
+              </dl>
             </SectionCard>
 
             {/* Sighting history */}
@@ -1024,59 +1022,34 @@ export function IntakeWorkspaceDrawer({
               icon={<MapPin className="w-4 h-4" />}
               title="Address & map placement"
               action={
-                <button
-                  type="button"
-                  onClick={handleRegeocode}
-                  disabled={geocoding}
-                  className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 transition-colors"
+                <span
+                  className={`text-[11px] font-medium ${
+                    form.geocode_status === 'success' && form.latitude != null
+                      ? 'text-green-600'
+                      : 'text-amber-600'
+                  }`}
                 >
-                  {geocoding ? (
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  ) : (
-                    <MapPin className="w-3.5 h-3.5" />
-                  )}
-                  Re-geocode
-                </button>
+                  {form.geocode_status === 'success' && form.latitude != null
+                    ? `${form.latitude.toFixed(5)}, ${form.longitude?.toFixed(5)}`
+                    : 'No map pin'}
+                </span>
               }
             >
-              <div className="grid grid-cols-2 gap-3">
-                <Field label="Neighborhood" className="col-span-2">
-                  <input
-                    type="text"
-                    value={form.neighborhood}
-                    onChange={(e) => update('neighborhood', e.target.value)}
-                    className={inputClass}
-                  />
-                </Field>
-                <Field label="Cross street A">
-                  <input
-                    type="text"
-                    value={form.cross_street_1}
-                    onChange={(e) => update('cross_street_1', e.target.value)}
-                    className={inputClass}
-                  />
-                </Field>
-                <Field label="Cross street B">
-                  <input
-                    type="text"
-                    value={form.cross_street_2}
-                    onChange={(e) => update('cross_street_2', e.target.value)}
-                    className={inputClass}
-                  />
-                </Field>
-              </div>
-              <p className="mt-2 text-xs">
-                {form.geocode_status === 'success' && form.latitude != null ? (
-                  <span className="text-green-700">
-                    Placed at {form.latitude.toFixed(5)}, {form.longitude?.toFixed(5)} — see the map on
-                    the left.
-                  </span>
-                ) : (
-                  <span className="text-amber-700">
-                    Not geocoded — will publish without a map pin until you re-geocode.
-                  </span>
-                )}
-              </p>
+              <IntakeLocationEditor
+                key={listing.id}
+                value={{
+                  cross_street_1: form.cross_street_1,
+                  cross_street_2: form.cross_street_2,
+                  full_address: form.full_address,
+                  unit_number: form.unit_number,
+                  neighborhood: form.neighborhood,
+                  latitude: form.latitude,
+                  longitude: form.longitude,
+                  geocode_status: form.geocode_status,
+                }}
+                onChange={(patch) => setForm((prev) => (prev ? { ...prev, ...patch } : prev))}
+                rawCrossStreets={listing.cross_streets_raw}
+              />
             </SectionCard>
 
             {/* Features */}

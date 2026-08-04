@@ -45,6 +45,8 @@ const EMPTY_AS_NULL = [
   'cross_street_1',
   'cross_street_2',
   'cross_streets_raw',
+  'street_address',
+  'unit_number',
   'contact_name',
   'contact_phone',
   'contact_phone_display',
@@ -97,6 +99,8 @@ export const ParsedListingSchema = z.object({
   cross_street_1: z.string(),
   cross_street_2: z.string(),
   cross_streets_raw: z.string(),
+  street_address: z.string(),
+  unit_number: z.string(),
   neighborhood: z.string(),
   contact_name: z.string(),
   contact_phone: z.string(),
@@ -120,12 +124,26 @@ export type ParsedListing = Omit<ParsedListingWire, EmptyAsNullKey> & {
   [K in EmptyAsNullKey]: string | null;
 };
 
-/** "" (or whitespace) => null, so downstream sees the same shape it always has. */
+/**
+ * "" (or whitespace) => null, so downstream sees the same shape it always has,
+ * plus the one default the model must NOT guess at itself:
+ *
+ * every rental has at least one bathroom — classified blurbs simply don't
+ * bother saying so, and a null there blocks publishing and shows as a blank on
+ * the card. Sales are left alone: bathroom count is a real selling point a
+ * buyer compares on, so an assumed "1" on a house would be misinformation.
+ *
+ * Both parseContent() and parseBatch() run everything through here, so every
+ * feed gets identical treatment.
+ */
 export function normalizeParsed(row: ParsedListingWire): ParsedListing {
   const out = { ...row } as Record<string, unknown>;
   for (const key of EMPTY_AS_NULL) {
     const value = row[key];
     out[key] = typeof value === 'string' && value.trim() !== '' ? value : null;
+  }
+  if (row.listing_kind === 'rental' && (row.bathrooms == null || row.bathrooms <= 0)) {
+    out.bathrooms = 1;
   }
   return out as ParsedListing;
 }
@@ -148,23 +166,28 @@ CRITICAL RULES:
 4. Vague street references — EXACT mappings: "low 30s/40s/50s/60s" = X1 (31st/41st/51st/61st); "mid" = X5; "high"/"hi" = X8.
 5. cross_street_1 is ALWAYS the street (e.g. "53rd Street"); cross_street_2 is ALWAYS the avenue/road (e.g. "14th Avenue").
 6. Named roads: "Dahill" = Dahill Road, "New Utrecht" = New Utrecht Avenue, "Fort Ham"/"Ft Ham" = Fort Hamilton Parkway, "McDonald" = McDonald Avenue, "Ditmas" = Ditmas Avenue, "Cortelyou" = Cortelyou Road, "E2/E3/E4/E8" = East 2nd/3rd/4th/8th Street, "Foster" = Foster Avenue.
-7. Neighborhoods: if the text mentions "Kensington", "Flatbush", "Bensonhurst", "Midwood", "Ditmas Park", "Gravesend", "Williamsburg", "Crown Heights", "Marine Park", "Sea Gate", or another NYC neighborhood, set neighborhood accordingly. Default is "Boro Park".
-8. Abbreviations: BR/bdr/bdrm=bedroom, bth/bath=bathroom, bsmt=basement, flr=floor, sf/sqft/sqf=square feet, ent=entrance, sep=separate, furn=furnished, kit=kitchen, DR=dining room, LR=living room, W/D=washer/dryer, sec 8=Section 8, MIC=move-in condition, neg=negotiable, incl/inc=included, apt/aprt/apart=apartment, k=thousand ("$4k"=4000), "Chusen Kalah"/"chosson kallah"=newlywed couple apartment (note it in additional_notes).
-9. listing_kind detection: "for sale", asking prices in the hundreds of thousands or millions, lot sizes, "house/condo for sale", cap rate, "investment property" => "sale". Monthly-sounding prices ($1,000-$10,000), lease terms, "for rent" => "rental". If a kind hint is supplied, follow it unless the text overwhelmingly contradicts it.
-10. For RENTALS put the monthly rent in "price" and set asking_price to null. For SALES put the asking price in "asking_price" and set price to null. If no price is given, set both to null, call_for_price=true, and price_note="call for price". When a price IS given, price_note is "".
-11. property_type: default "apartment_building" for rentals. Use "basement" for bsmt/garden-level units, "full_house" for whole-house rentals, "duplex" for two-floor units, "apartment_house" for an apartment inside a private house. For sales prefer "single_family", "two_family", "three_family", "four_family", "detached_house", "semi_attached_house", "fully_attached_townhouse", "condo", or "co_op" when stated; otherwise best inference.
-12. parking: "included" if parking comes with the listing at no extra charge, "optional" if available for extra cost, "yes" if parking exists but details unclear, "carport" if a carport is mentioned, otherwise "no".
-13. heat: "included" only if heat/utilities are stated as included; otherwise "tenant_pays".
-14. lease_length: "short_term" for short-term/temporary, "summer_rental"/"winter_rental" when seasonal, "long_term_annual" when a year lease is implied, null when unknown. Sales: null.
-15. Identify if the contact is an agent/broker (look for: "Realty", company names, multiple stacked listings, "broker", "Call Broker") vs an individual owner.
-16. contact_phone = digits only; contact_phone_display = formatted as written.
-17. title: short marketing title like "Spacious 3BR on 53rd & 14th" or "2 Family House for Sale — Flatbush". Never include the phone number in the title.
-18. description: 1-3 sentence clean marketing description summarizing the unit's selling points from the text. Do NOT invent details that are not in the text. Do NOT include contact info in the description.
-19. additional_notes: anything parsed that does not fit other fields.
-20. confidence: 0-1 — how confident you are the extraction is complete and correct. Lower it when the source is a blurry scan or the text is ambiguous.
-21. raw_text: the exact original text fragment for this listing.
-22. Skip pure advertisements/promotions that are not property listings. Skip job posts, services, gemachs, vouchers, and non-real-estate classifieds. Skip Hebrew-only ad boilerplate and publication headers/footers.
-23. NEVER invent data. Accuracy matters far more than completeness — it is better to leave a field empty than to guess. How to say "not present" depends on the field's type: TEXT fields (price_note, cross_street_1, cross_street_2, cross_streets_raw, contact_name, contact_phone, contact_phone_display, agency_name, additional_notes) use an empty string ""; NUMBER fields (bedrooms, bathrooms, price, asking_price, floor, square_footage) and lease_length use null; booleans use false. Never write the word "null" inside a text field.`;
+7. EXACT ADDRESSES — when the listing gives a specific street address (a house number followed by a street name: "1438 53rd Street", "5012 14th Ave", "1279 E 8 St Apt 2"), put it in street_address as "<number> <full street name>" (expand the street name the same way as rule 6, e.g. "5012 14th Avenue"). Put any apartment/unit designation ("Apt 2", "#3R", "Unit B") in unit_number WITHOUT the "Apt"/"Unit"/"#" prefix. Rules:
+   - A house number ALWAYS means an exact address. Never put a house number into cross_street_1 / cross_street_2.
+   - If the text ALSO names an intersection, fill the cross_street fields too — both can be present.
+   - If the text gives ONLY an intersection, street_address MUST be "". NEVER build an address out of cross streets, and never invent a house number.
+8. Neighborhoods: if the text mentions "Kensington", "Flatbush", "Bensonhurst", "Midwood", "Ditmas Park", "Gravesend", "Williamsburg", "Crown Heights", "Marine Park", "Sea Gate", or another NYC neighborhood, set neighborhood accordingly. Default is "Boro Park". The pipeline re-derives the neighborhood from the geocoded coordinates afterwards, so a best guess here is fine.
+9. Abbreviations: BR/bdr/bdrm=bedroom, bth/bath=bathroom, bsmt=basement, flr=floor, sf/sqft/sqf=square feet, ent=entrance, sep=separate, furn=furnished, kit=kitchen, DR=dining room, LR=living room, W/D=washer/dryer, sec 8=Section 8, MIC=move-in condition, neg=negotiable, incl/inc=included, apt/aprt/apart=apartment, k=thousand ("$4k"=4000), "Chusen Kalah"/"chosson kallah"=newlywed couple apartment (note it in additional_notes).
+10. listing_kind detection: "for sale", asking prices in the hundreds of thousands or millions, lot sizes, "house/condo for sale", cap rate, "investment property" => "sale". Monthly-sounding prices ($1,000-$10,000), lease terms, "for rent" => "rental". If a kind hint is supplied, follow it unless the text overwhelmingly contradicts it.
+11. For RENTALS put the monthly rent in "price" and set asking_price to null. For SALES put the asking price in "asking_price" and set price to null. If no price is given, set both to null, call_for_price=true, and price_note="call for price". When a price IS given, price_note is "".
+12. bathrooms: extract the stated count ("1.5 bth" => 1.5). If the listing says nothing about bathrooms, leave it null — do NOT guess a number. The pipeline fills in the standard assumption for rentals afterwards.
+13. property_type: default "apartment_building" for rentals. Use "basement" for bsmt/garden-level units, "full_house" for whole-house rentals, "duplex" for two-floor units, "apartment_house" for an apartment inside a private house. For sales prefer "single_family", "two_family", "three_family", "four_family", "detached_house", "semi_attached_house", "fully_attached_townhouse", "condo", or "co_op" when stated; otherwise best inference.
+14. parking: "included" if parking comes with the listing at no extra charge, "optional" if available for extra cost, "yes" if parking exists but details unclear, "carport" if a carport is mentioned, otherwise "no".
+15. heat: "included" only if heat/utilities are stated as included; otherwise "tenant_pays".
+16. lease_length: "short_term" for short-term/temporary, "summer_rental"/"winter_rental" when seasonal, "long_term_annual" when a year lease is implied, null when unknown. Sales: null.
+17. Identify if the contact is an agent/broker (look for: "Realty", company names, multiple stacked listings, "broker", "Call Broker") vs an individual owner.
+18. contact_phone = digits only; contact_phone_display = formatted as written.
+19. title: short marketing title like "Spacious 3BR on 53rd & 14th" or "2 Family House for Sale — Flatbush". Never include the phone number in the title.
+20. description: 1-3 sentence clean marketing description summarizing the unit's selling points from the text. Do NOT invent details that are not in the text. Do NOT include contact info in the description.
+21. additional_notes: anything parsed that does not fit other fields.
+22. confidence: 0-1 — how confident you are the extraction is complete and correct. Lower it when the source is a blurry scan or the text is ambiguous.
+23. raw_text: the exact original text fragment for this listing.
+24. Skip pure advertisements/promotions that are not property listings. Skip job posts, services, gemachs, vouchers, and non-real-estate classifieds. Skip Hebrew-only ad boilerplate and publication headers/footers.
+25. NEVER invent data. Accuracy matters far more than completeness — it is better to leave a field empty than to guess. How to say "not present" depends on the field's type: TEXT fields (price_note, cross_street_1, cross_street_2, cross_streets_raw, street_address, unit_number, contact_name, contact_phone, contact_phone_display, agency_name, additional_notes) use an empty string ""; NUMBER fields (bedrooms, bathrooms, price, asking_price, floor, square_footage) and lease_length use null; booleans use false. Never write the word "null" inside a text field.`;
 
 export function buildUserPrompt(typeHint: string, extraContext?: string): string {
   const hintLine =
@@ -366,51 +389,102 @@ export function generateDedupKey(listing: {
   contact_phone?: string | null;
   cross_street_1?: string | null;
   cross_street_2?: string | null;
+  street_address?: string | null;
+  unit_number?: string | null;
   bedrooms?: number | null;
 }): string | null {
   const phone = normalizePhoneDigits(listing.contact_phone);
   const s1 = normalizeStreet(listing.cross_street_1);
   const s2 = normalizeStreet(listing.cross_street_2);
-  if (!phone && !s1 && !s2) return null;
+  const address = normalizeAddress(listing.street_address, listing.unit_number);
+  if (!phone && !s1 && !s2 && !address) return null;
   const streets = [s1, s2].sort().join('|');
   const beds = listing.bedrooms != null ? String(listing.bedrooms) : 'x';
+  // An exact address identifies the unit far more tightly than the
+  // intersection does — two different buildings on one agent's block would
+  // otherwise collapse onto a single row. Rows without an address keep the
+  // historical 3-part key untouched.
+  if (address) return md5(`${phone}|${streets}|${beds}|${address}`);
   return md5(`${phone}|${streets}|${beds}`);
+}
+
+/** House number + street + unit, punctuation-free, for the dedup key. */
+function normalizeAddress(
+  address: string | null | undefined,
+  unit: string | null | undefined,
+): string {
+  const clean = (s: string | null | undefined) =>
+    (s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  const base = clean(address);
+  if (!base) return '';
+  const u = clean(unit);
+  return u ? `${base}#${u}` : base;
 }
 
 // ---------------------------------------------------------------------------
 // Geocoding — delegate to the existing geocode-cross-streets edge function
 // (caching, NYC bounds, fuzzy street matching).
 // ---------------------------------------------------------------------------
+export interface GeoResult {
+  latitude: number | null;
+  longitude: number | null;
+  status: string;
+  /**
+   * Neighborhood reverse-geocoded FROM the resolved pin — the same rule the
+   * listing form follows. Null when nothing was placed, in which case the
+   * caller falls back to whatever the model read out of the text.
+   */
+  neighborhood: string | null;
+}
+
 export async function geocodeListing(
   supabaseUrl: string,
   anonKey: string,
   listing: ParsedListing,
-): Promise<{ latitude: number | null; longitude: number | null; status: string }> {
+): Promise<GeoResult> {
   const crossStreets = [listing.cross_street_1, listing.cross_street_2].filter(Boolean).join(' & ');
-  if (!crossStreets) return { latitude: null, longitude: null, status: 'failed' };
-  try {
-    const resp = await fetch(`${supabaseUrl}/functions/v1/geocode-cross-streets`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        apikey: anonKey,
-        Authorization: `Bearer ${anonKey}`,
-      },
-      body: JSON.stringify({ crossStreets, neighborhood: listing.neighborhood || undefined }),
-    });
-    if (!resp.ok) return { latitude: null, longitude: null, status: 'failed' };
-    const result = await resp.json();
-    if (result?.success && result?.coordinates) {
-      return {
-        latitude: result.coordinates.latitude,
-        longitude: result.coordinates.longitude,
-        status: 'success',
-      };
-    }
-  } catch (err) {
-    console.error('[intake] geocode error:', err);
+  const address = listing.street_address?.trim() || '';
+  // An exact address beats an intersection: it pins the actual building.
+  // Cross streets remain the fallback when the address can't be resolved.
+  const attempts: Array<Record<string, string>> = [];
+  if (address) attempts.push({ address });
+  if (crossStreets) attempts.push({ crossStreets });
+  if (attempts.length === 0) {
+    return { latitude: null, longitude: null, status: 'failed', neighborhood: null };
   }
-  return { latitude: null, longitude: null, status: 'failed' };
+
+  for (const attempt of attempts) {
+    try {
+      const resp = await fetch(`${supabaseUrl}/functions/v1/geocode-cross-streets`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          apikey: anonKey,
+          Authorization: `Bearer ${anonKey}`,
+        },
+        body: JSON.stringify({
+          ...attempt,
+          neighborhood: listing.neighborhood || undefined,
+          // Always re-derive the neighborhood from the pin instead of trusting
+          // the model's read of the text (or its "Boro Park" default).
+          detectNeighborhood: true,
+        }),
+      });
+      if (!resp.ok) continue;
+      const result = await resp.json();
+      if (result?.success && result?.coordinates) {
+        return {
+          latitude: result.coordinates.latitude,
+          longitude: result.coordinates.longitude,
+          status: 'success',
+          neighborhood: result.neighborhood || null,
+        };
+      }
+    } catch (err) {
+      console.error('[intake] geocode error:', err);
+    }
+  }
+  return { latitude: null, longitude: null, status: 'failed', neighborhood: null };
 }
 
 // ---------------------------------------------------------------------------
@@ -438,7 +512,7 @@ export interface UpsertContext {
 export async function upsertScrapedListing(
   supabase: SupabaseClient,
   listing: ParsedListing,
-  geo: { latitude: number | null; longitude: number | null; status: string },
+  geo: GeoResult,
   ctx: UpsertContext,
 ): Promise<'inserted' | 'updated'> {
   const phoneDigits = normalizePhoneDigits(listing.contact_phone);
@@ -458,7 +532,7 @@ export async function upsertScrapedListing(
   const { data: existing } = await supabase
     .from('scraped_listings')
     .select(
-      'id, times_seen, source_history, price, call_status, image_paths, assigned_user_id, admin_custom_agency_name, admin_listing_type_display',
+      'id, times_seen, source_history, price, call_status, image_paths, assigned_user_id, admin_custom_agency_name, admin_listing_type_display, intake_extra',
     )
     .eq('dedup_key', dedupKey)
     .maybeSingle();
@@ -478,6 +552,17 @@ export async function upsertScrapedListing(
     // Only fill a price we didn't already have — never overwrite an admin edit.
     if ((existing.price == null || existing.price === 0) && price != null) {
       patch.price = price;
+    }
+    // Same rule for an exact address: a later sighting that spells the address
+    // out fills a gap, but never overwrites one that's already there.
+    const existingExtra = (existing.intake_extra ?? {}) as Record<string, unknown>;
+    const newAddress = listing.street_address?.trim();
+    if (!existingExtra.full_address && newAddress) {
+      patch.intake_extra = {
+        ...existingExtra,
+        full_address: newAddress,
+        unit_number: listing.unit_number?.trim() || existingExtra.unit_number || null,
+      };
     }
     // Carry this block's media + account assignment onto the existing draft,
     // but only when it doesn't already have them — never clobber an earlier
@@ -533,7 +618,9 @@ export async function upsertScrapedListing(
     cross_street_1: listing.cross_street_1,
     cross_street_2: listing.cross_street_2,
     cross_streets_raw: listing.cross_streets_raw,
-    neighborhood: listing.neighborhood || 'Boro Park',
+    // Geocode-derived neighborhood wins — the model only ever sees the words
+    // in the blurb, and most of them name no neighborhood at all.
+    neighborhood: geo.neighborhood || listing.neighborhood || 'Boro Park',
     latitude: geo.latitude,
     longitude: geo.longitude,
     geocode_status: geo.status,
@@ -575,6 +662,10 @@ export async function upsertScrapedListing(
       call_for_price: listing.call_for_price,
       asking_price: listing.listing_kind === 'sale' ? listing.asking_price : null,
       broker_fee: listing.broker_fee,
+      // Exact address (when the blurb gave one). Cross streets stay in their
+      // own columns; these live alongside the other publish-time extras.
+      full_address: listing.street_address?.trim() || null,
+      unit_number: listing.unit_number?.trim() || null,
     },
   };
 

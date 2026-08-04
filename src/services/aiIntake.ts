@@ -794,7 +794,14 @@ export const aiIntakeService = {
     const crossStreets = [scraped.cross_street_1, scraped.cross_street_2]
       .filter(Boolean)
       .join(' & ');
-    const location = crossStreets || scraped.neighborhood || 'Unknown';
+    // Exact address wins as the public location line when the intake captured
+    // one — same precedence the posting wizard uses in full-address mode.
+    const fullAddress = extra.full_address?.trim()
+      ? [extra.full_address.trim(), extra.unit_number?.trim() ? `Unit ${extra.unit_number.trim()}` : '']
+          .filter(Boolean)
+          .join(', ')
+      : null;
+    const location = fullAddress || crossStreets || scraped.neighborhood || 'Unknown';
 
     const callForPrice =
       !!extra.call_for_price ||
@@ -814,6 +821,7 @@ export const aiIntakeService = {
       title,
       description: scraped.description || null,
       location,
+      full_address: fullAddress,
       neighborhood: scraped.neighborhood || 'Boro Park',
       cross_street_a: scraped.cross_street_1 || null,
       cross_street_b: scraped.cross_street_2 || null,

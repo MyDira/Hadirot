@@ -17,13 +17,23 @@ export interface GeocodeResult {
 export interface GeocodeRequest {
   crossStreets: string;
   neighborhood?: string;
+  /**
+   * Treat `crossStreets` as an exact street address ("1438 53rd Street")
+   * instead of an intersection — no intersection validation is applied.
+   */
+  asAddress?: boolean;
+  /**
+   * Re-derive the neighborhood from the resolved pin even when one is passed
+   * in. Use when the supplied neighborhood is only a guess.
+   */
+  detectNeighborhood?: boolean;
 }
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 export async function geocodeCrossStreets(request: GeocodeRequest): Promise<GeocodeResult> {
-  const { crossStreets, neighborhood } = request;
+  const { crossStreets, neighborhood, asAddress, detectNeighborhood } = request;
 
   if (!crossStreets || crossStreets.trim().length < 2) {
     return {
@@ -52,8 +62,11 @@ export async function geocodeCrossStreets(request: GeocodeRequest): Promise<Geoc
         method: 'POST',
         headers,
         body: JSON.stringify({
-          crossStreets: crossStreets.trim(),
+          ...(asAddress
+            ? { address: crossStreets.trim() }
+            : { crossStreets: crossStreets.trim() }),
           neighborhood: neighborhood?.trim(),
+          detectNeighborhood: detectNeighborhood || undefined,
         }),
       }
     );

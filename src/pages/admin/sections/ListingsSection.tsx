@@ -6,6 +6,7 @@ import {
   ArrowUpDown,
   Bath,
   BedDouble,
+  CalendarDays,
   ChevronDown,
   Clock,
   CreditCard as Edit,
@@ -50,6 +51,22 @@ const isListingCurrentlyFeatured = (listing: Listing) =>
       listing.featured_expires_at &&
       new Date(listing.featured_expires_at) > new Date(),
   );
+
+/**
+ * When the listing was posted. `created_at` is what the dashboard's own
+ * "Newest / Oldest first" sort orders on, so the date shown always matches the
+ * order the rows come back in. Returns null rather than "Invalid Date" for
+ * rows missing the field.
+ */
+function postedDate(listing: AdminListingRow): { short: string; full: string } | null {
+  if (!listing.created_at) return null;
+  const d = new Date(listing.created_at);
+  if (Number.isNaN(d.getTime())) return null;
+  return {
+    short: d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }),
+    full: d.toLocaleString(),
+  };
+}
 
 function priceDisplay(listing: AdminListingRow): string {
   if (listing.call_for_price) return 'Call for Price';
@@ -488,6 +505,7 @@ export function ListingsSection() {
               ];
               const beds = listing.bedrooms;
               const baths = listing.bathrooms;
+              const posted = postedDate(listing);
 
               return (
                 <div
@@ -568,6 +586,15 @@ export function ListingsSection() {
                             <span className="text-gray-500">· {listing.contact_name.trim()}</span>
                           )}
                         </span>
+                        {posted && (
+                          <span
+                            className="inline-flex items-center gap-1"
+                            title={`Posted ${posted.full}`}
+                          >
+                            <CalendarDays className="w-4 h-4 text-gray-400" />
+                            Posted {posted.short}
+                          </span>
+                        )}
                         {/* Status pills ride the end of the meta row rather than
                             taking a line of their own. */}
                         <span className="inline-flex items-center gap-2">

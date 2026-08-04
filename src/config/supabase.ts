@@ -564,6 +564,13 @@ export interface IntakeExtra {
   call_for_price?: boolean;
   asking_price?: number | null;
   broker_fee?: boolean;
+  /**
+   * Exact street address, when the listing gave one ("1438 53rd Street").
+   * Cross streets live in their own columns; a row can carry both. Maps onto
+   * listings.full_address at publish time.
+   */
+  full_address?: string | null;
+  unit_number?: string | null;
 }
 
 export interface ScrapeRun {

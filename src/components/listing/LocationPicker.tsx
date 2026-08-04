@@ -30,6 +30,13 @@ interface LocationPickerProps {
   hideFindOnMap?: boolean;
   /** Pre-seed the confirmed state when returning to this step with an already-confirmed location */
   initialConfirmed?: boolean;
+  /**
+   * Always re-derive the neighborhood from the resolved pin, even when
+   * `neighborhood` already has a value. Off by default so a neighborhood the
+   * user picked themselves is never overwritten; the admin intake drawer turns
+   * it on because the neighborhood it starts with is only the AI's guess.
+   */
+  detectNeighborhoodFromPin?: boolean;
 }
 
 export function LocationPicker({
@@ -51,6 +58,7 @@ export function LocationPicker({
   preResolvedLongitude,
   hideFindOnMap = false,
   initialConfirmed = false,
+  detectNeighborhoodFromPin = false,
 }: LocationPickerProps) {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
@@ -146,7 +154,11 @@ export function LocationPicker({
     if (onConfirmationStatusChange) onConfirmationStatusChange(false);
     if (onGeocodeStatusChange) onGeocodeStatusChange(null, null);
 
-    geocodeCrossStreets({ crossStreets: crossStreets.trim(), neighborhood: neighborhood?.trim() })
+    geocodeCrossStreets({
+      crossStreets: crossStreets.trim(),
+      neighborhood: neighborhood?.trim(),
+      detectNeighborhood: detectNeighborhoodFromPin,
+    })
       .then(result => {
         if (result.success && result.coordinates) {
           const { latitude: lat, longitude: lng } = result.coordinates;
