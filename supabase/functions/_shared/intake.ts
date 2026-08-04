@@ -487,6 +487,37 @@ export async function geocodeListing(
   return { latitude: null, longitude: null, status: 'failed', neighborhood: null };
 }
 
+/**
+ * Geocode a whole batch with bounded concurrency, preserving input order.
+ *
+ * Every geocode is an HTTP round-trip to geocode-cross-streets, so a caller
+ * that loops sequentially over a chunk of 20-30 listings spends the better part
+ * of a minute idle — enough, stacked on top of Claude's generation, to run an
+ * edge function past its 400s wall clock (the 504s on real Luach booklets,
+ * Aug 4 2026). These are pure reads with no shared state, so they parallelize
+ * safely; the UPSERTS that follow must still run sequentially, because two
+ * listings sharing a dedup_key would otherwise race between SELECT and INSERT.
+ */
+export async function geocodeListings(
+  supabaseUrl: string,
+  anonKey: string,
+  listings: ParsedListing[],
+  concurrency = 6,
+): Promise<GeoResult[]> {
+  const results = new Array<GeoResult>(listings.length);
+  let cursor = 0;
+  const worker = async () => {
+    while (cursor < listings.length) {
+      const index = cursor++;
+      results[index] = await geocodeListing(supabaseUrl, anonKey, listings[index]);
+    }
+  };
+  await Promise.all(
+    Array.from({ length: Math.max(1, Math.min(concurrency, listings.length)) }, () => worker()),
+  );
+  return results;
+}
+
 // ---------------------------------------------------------------------------
 // Collapse-on-conflict upsert.
 //   - New dedup_key           => INSERT a fresh row (admin_reviewed_at NULL => "New").

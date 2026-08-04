@@ -31,6 +31,13 @@
 //                       scraped_listings. Returns per-chunk counts.
 //   action "finalize" — stamp the run completed/failed with the totals.
 //
+// "start" writes the extracted page text to storage as a sidecar JSON and each
+// text chunk reads only that — pdf.js runs ONCE per booklet, not once per
+// chunk. This is not an optimization, it is what keeps the function alive: an
+// edge isolate gets ~2s of real CPU per request and shuts down after burning
+// half its budget, so re-parsing a 50-page booklet on all 15 chunk calls
+// returned 546 (WORKER_LIMIT) on every one of them.
+//
 // Chunks overlap by one page so a listing that spans a page boundary is never
 // lost; the shared upsert's same-run guard keeps the overlap from double
 // counting sightings.
@@ -47,7 +54,7 @@ import { corsHeaders } from '../_shared/cors.ts';
 import {
   DEFAULT_MODEL,
   parseContent,
-  geocodeListing,
+  geocodeListings,
   upsertScrapedListing,
 } from '../_shared/intake.ts';
 
@@ -64,9 +71,20 @@ const PAGES_PER_CHUNK = 5; // pages of new content per Claude call
 const CHUNK_OVERLAP = 1; // shared page between consecutive chunks
 const IMAGES_PER_CHUNK = 4;
 const MIN_TEXT_CHARS = 50; // below this a page is treated as image-only
-// ≈ listings per chunk; keeps output inside the 64k budget. A 49-listing
-// chunk measured 51.5k output tokens, so 30 leaves real headroom.
-const MAX_WEIGHT_PER_CHUNK = 30;
+// ≈ listings per chunk. Two ceilings apply and the tighter one wins:
+//   - output tokens: a 49-listing chunk measured 51.5k against a 64k budget;
+//   - WALL CLOCK: an edge function is killed at 400s, and the chunk pays for
+//     Claude's generation plus a geocode + upsert for every listing it found.
+// 30 fit the token budget but left no room under the wall clock (504s on real
+// Luach booklets, Aug 4 2026), so the cap is time-driven now. Note this knob
+// barely moves Luach itself — its pages carry 19-32 listings each, so a page
+// stands alone at any cap below ~38; it is the multi-page Heimish chunks
+// (8-12 per page) that shrink here.
+const MAX_WEIGHT_PER_CHUNK = 20;
+/** Concurrent geocode requests per chunk. Sequential geocoding cost ~1-3s per
+ *  listing and was the bulk of the chunk's wall clock; these are pure reads
+ *  against geocode-cross-streets, so they parallelize safely. */
+const GEOCODE_CONCURRENCY = 6;
 
 interface UploadedFile {
   path: string;
@@ -83,6 +101,10 @@ interface ChunkPlan {
   page_to?: number; // 1-based inclusive (pdf kinds only)
   /** pdf kinds: exact pages to include (triage may skip pages mid-range). */
   pages?: number[];
+  /** pdf_text: storage path of the page-text sidecar written by "start", so
+   *  the chunk never has to re-open the PDF. Absent on runs planned before
+   *  the sidecar existed — those fall back to extracting. */
+  text_path?: string;
   /** For image chunks: all files in the group (page photos). */
   files?: UploadedFile[];
 }
@@ -198,6 +220,34 @@ export function planTextChunks(
   return chunks;
 }
 
+/** Where "start" parks the extracted page text for a given source PDF. */
+function pageTextPath(filePath: string): string {
+  return `${filePath}.pages.json`;
+}
+
+/**
+ * Page text for a text chunk, WITHOUT re-opening the PDF: "start" already did
+ * that work and left the result in storage. Falling back to a live extraction
+ * keeps runs planned before this existed (and any run whose sidecar upload
+ * failed) working — at the old CPU cost, which is why it is only a fallback.
+ */
+async function loadPageTexts(supabase: SupabaseClient, chunk: ChunkPlan): Promise<string[]> {
+  if (chunk.text_path) {
+    try {
+      const { data: blob, error } = await supabase.storage
+        .from(STORAGE_BUCKET)
+        .download(chunk.text_path);
+      if (!error && blob) {
+        const parsed = JSON.parse(await blob.text());
+        if (Array.isArray(parsed)) return parsed as string[];
+      }
+    } catch (err) {
+      console.warn('[parse-pamphlet] page-text sidecar unreadable, re-extracting:', err);
+    }
+  }
+  return extractPdfPages(await downloadFile(supabase, chunk.file.path));
+}
+
 async function extractPdfPages(bytes: Uint8Array): Promise<string[]> {
   const pdf = await getDocumentProxy(bytes);
   const { text } = await extractText(pdf, { mergePages: false });
@@ -290,8 +340,37 @@ Deno.serve(async (req: Request) => {
           }
           keptPages += textPages.length;
 
+          // Park the extracted text so the chunk calls read it instead of
+          // re-running pdf.js (see the header note on 546 / WORKER_LIMIT). A
+          // failed upload is not fatal — chunks fall back to extracting.
+          let textPath: string | undefined;
+          if (textPages.length > 0) {
+            const path = pageTextPath(file.path);
+            const { error: cacheError } = await supabase.storage
+              .from(STORAGE_BUCKET)
+              .upload(path, new Blob([JSON.stringify(pageTexts)], { type: 'application/json' }), {
+                contentType: 'application/json',
+                upsert: true,
+              });
+            if (cacheError) {
+              console.warn(
+                `[parse-pamphlet:${requestId}] page-text cache upload failed for ${file.path}:`,
+                cacheError.message,
+              );
+            } else {
+              textPath = path;
+            }
+          }
+
           for (const c of planTextChunks(textPages, weights)) {
-            chunks.push({ file, kind: 'pdf_text', page_from: c.from, page_to: c.to, pages: c.pages });
+            chunks.push({
+              file,
+              kind: 'pdf_text',
+              page_from: c.from,
+              page_to: c.to,
+              pages: c.pages,
+              text_path: textPath,
+            });
           }
           // Image-only pages: if the booklet clearly HAS a text layer (≥30% of
           // pages), its few zero-text pages are cover art / image ads — drop
@@ -360,9 +439,8 @@ Deno.serve(async (req: Request) => {
       let textNote = '';
 
       if (chunk.kind === 'pdf_text') {
-        // --- Cheap path: extracted text only, no vision tokens ---------------
-        const bytes = await downloadFile(supabase, chunk.file.path);
-        const pageTexts = await extractPdfPages(bytes);
+        // --- Cheap path: extracted text only, no vision tokens, no pdf.js ----
+        const pageTexts = await loadPageTexts(supabase, chunk);
         const from = Math.max(1, Number(chunk.page_from) || 1);
         const to = Math.max(from, Number(chunk.page_to) || from);
         const wanted = (Array.isArray(chunk.pages) && chunk.pages.length > 0
@@ -431,8 +509,14 @@ Deno.serve(async (req: Request) => {
       let geocoded = 0;
       const errors: Array<{ error: string }> = [];
 
-      for (const listing of listings) {
-        const geo = await geocodeListing(supabaseUrl, anonKey, listing);
+      // Geocode the whole chunk in parallel, then upsert in order — the
+      // upserts stay sequential so two listings with the same dedup_key can't
+      // race each other between SELECT and INSERT.
+      const geos = await geocodeListings(supabaseUrl, anonKey, listings, GEOCODE_CONCURRENCY);
+
+      for (let i = 0; i < listings.length; i++) {
+        const listing = listings[i];
+        const geo = geos[i];
         if (geo.status === 'success') geocoded++;
         try {
           const outcome = await upsertScrapedListing(supabase, listing, geo, {
