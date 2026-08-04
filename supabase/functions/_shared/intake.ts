@@ -229,6 +229,101 @@ export async function parseContent(
 }
 
 // ---------------------------------------------------------------------------
+// Batch parse — MANY separate source documents in ONE Claude call.
+//
+// parseContent() above handles "one blob of content => listings". When a feed
+// has N independent sources (N scraped web pages, say) calling it N times costs
+// N round-trips and re-sends the cached prompt N times. parseBatch() sends all
+// N in a single request, delimited by "===== SOURCE n =====" markers, and asks
+// the model to stamp every listing with the source_index it came from — which
+// is what lets the caller attach each listing back to its own URL and date.
+//
+// source_index is a plain int, NOT nullable: nullable fields are unions and the
+// structured-output API caps a schema at 16 union-typed parameters (see the
+// EMPTY_AS_NULL note above). A non-nullable number adds nothing to that count,
+// so this extension is safe.
+//
+// The system prompt is deliberately left byte-identical to parseContent()'s so
+// the cached prefix is still shared with every other feed; the batch-specific
+// rules ride in the user turn.
+// ---------------------------------------------------------------------------
+
+export const BatchParsedListingSchema = ParsedListingSchema.extend({
+  source_index: z.number().int(),
+});
+
+export const BatchParseResultSchema = z.object({
+  listings: z.array(BatchParsedListingSchema),
+});
+
+export interface BatchParsedListing {
+  sourceIndex: number;
+  listing: ParsedListing;
+}
+
+export async function parseBatch(
+  anthropic: Anthropic,
+  model: string,
+  sources: Array<{ text: string }>,
+  typeHint: string,
+  extraContext?: string,
+  overflowHint = 'narrow the date range (or lower the max-listings cap) and retry.',
+): Promise<BatchParsedListing[]> {
+  if (sources.length === 0) return [];
+
+  const batchRules = [
+    `This message contains ${sources.length} SEPARATE listing sources, each introduced by a "===== SOURCE n =====" marker.`,
+    'Treat every source independently. NEVER merge details across sources, and never let one source\'s phone number, address, or price leak into a listing that came from a different source.',
+    'A single source may still hold more than one listing (an agent stacking units) — emit one object per listing, exactly as usual.',
+    'A source may hold NO real listing at all (an advertisement, or a page that failed to load) — emit nothing for it. Do not invent a listing to fill a gap.',
+    'EVERY listing you return MUST carry source_index = the integer n from the marker it was found under. This is the only link back to the listing\'s own URL and posting date; a wrong source_index files the listing under someone else\'s address.',
+  ].join('\n');
+
+  const numbered = sources
+    .map((s, i) => `===== SOURCE ${i} =====\n${s.text}`)
+    .join('\n\n');
+
+  const userContent = `${buildUserPrompt(typeHint, extraContext)}\n\n${batchRules}\n\n${numbered}`;
+
+  const stream = anthropic.messages.stream({
+    model,
+    max_tokens: 64000,
+    thinking: { type: 'adaptive' },
+    system: [{ type: 'text', text: SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } }],
+    messages: [{ role: 'user', content: userContent }],
+    output_config: { format: zodOutputFormat(BatchParseResultSchema) },
+  });
+  const message = await stream.finalMessage();
+
+  if (message.stop_reason === 'max_tokens') {
+    throw new Error(`Output hit the token limit before finishing — ${overflowHint}`);
+  }
+
+  const text = message.content
+    .filter((b): b is Anthropic.TextBlock => b.type === 'text')
+    .map((b) => b.text)
+    .join('');
+  const parsed = BatchParseResultSchema.parse(JSON.parse(text));
+
+  let clamped = 0;
+  const out = parsed.listings.map((row) => {
+    const { source_index, ...rest } = row;
+    let idx = source_index;
+    if (!Number.isInteger(idx) || idx < 0 || idx >= sources.length) {
+      clamped++;
+      idx = Math.min(Math.max(0, Number.isFinite(idx) ? idx : 0), sources.length - 1);
+    }
+    return { sourceIndex: idx, listing: normalizeParsed(rest as ParsedListingWire) };
+  });
+  if (clamped > 0) {
+    // Not fatal — the listing is still real — but it is now attached to a
+    // best-guess source, so surface it rather than swallowing it.
+    console.warn(`[intake] parseBatch: ${clamped} listing(s) had an out-of-range source_index`);
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------------------
 // Deterministic dedup key — identical logic to the original Python pipeline so
 // keys line up with the ~1.3k historical Luach rows. Same real-world apartment
 // (phone + cross streets + bedrooms) => same key => collapse.
