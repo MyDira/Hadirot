@@ -4,6 +4,7 @@ import {
   ScrapeRun,
   IntakeImage,
   CallStatus,
+  OutreachStatus,
   Profile,
 } from '@/config/supabase';
 import { getAdminActiveDays, getExpirationDate } from './listings';
@@ -13,6 +14,7 @@ import { emailService, renderBrandEmail } from './email';
 import { paymentsService } from './payments';
 import { scoreMatch, type LiveListingCandidate, type MatchCandidate } from '../utils/intakeMatch';
 import { splitBlocksIntoUnits, type IntakeUnitInput } from '../utils/intakeSplit';
+import { edgeFunctionErrorMessage } from '../utils/edgeFunctionError';
 
 export type IntakeReviewStatus = 'pending' | 'published' | 'discarded' | 'all';
 
@@ -25,6 +27,9 @@ export interface ReviewFilters {
   callStatus: 'active' | 'all' | CallStatus; // 'active' = everything not published/discarded
   neighborhood: string; // 'all' or a neighborhood name
   newOnly: boolean; // admin_reviewed_at IS NULL
+  /** SMS offer state: 'all' | 'none' (never texted) | 'any' (texted, any outcome)
+   *  | a specific OutreachStatus. */
+  outreach: 'all' | 'none' | 'any' | OutreachStatus;
 }
 
 /** Optimized call workflow — labels + allowed transitions for each status. */
@@ -50,6 +55,87 @@ export function getCallTransitions(current: CallStatus): CallStatus[] {
   return CALL_TRANSITIONS[current] ?? [];
 }
 
+// ---------------------------------------------------------------------------
+// Landlord SMS outreach — "can we post it for you, first 2 weeks free" offers
+// ---------------------------------------------------------------------------
+
+export const OUTREACH_STATUS_LABELS: Record<OutreachStatus, string> = {
+  sent: 'Offer sent',
+  replied: 'Replied — see Messages',
+  confirmed: 'Confirmed — published',
+  declined: 'Declined offer',
+  error: 'SMS failed',
+};
+
+export interface OutreachSendResult {
+  id: string;
+  title: string | null;
+  phone: string | null;
+  status: 'sent' | 'skipped' | 'error';
+  reason?: string;
+}
+
+export interface OutreachSendSummary {
+  results: OutreachSendResult[];
+  sent: number;
+  skipped: number;
+  errors: number;
+}
+
+/**
+ * Fields publishing requires, in the landlord's own words. Mirrors the checks
+ * in publishIntakeListing / _shared/publish-intake.ts.
+ *
+ * This exists because the offer text promises "reply YES and we'll put it
+ * live" — so a lead that cannot publish must never be texted. Without this a
+ * landlord says yes and gets "our team will confirm shortly" instead of a live
+ * listing, which is exactly the promise we just broke.
+ */
+export function publishBlockers(listing: ScrapedListing): string[] {
+  const missing: string[] = [];
+  if (!listing.title?.trim()) missing.push('title');
+  if (listing.bedrooms == null) missing.push('bedrooms');
+  if (!listing.bathrooms || listing.bathrooms <= 0) missing.push('bathrooms');
+  if (!(listing.contact_name || listing.agency_name)) missing.push('contact name');
+  if (!(listing.contact_phone_display || listing.contact_phone)) missing.push('phone');
+  return missing;
+}
+
+/** A lead can be offered the SMS posting deal when all of these hold. */
+export function isOutreachEligible(listing: ScrapedListing): { ok: boolean; reason?: string } {
+  if (listing.listing_kind !== 'rental') return { ok: false, reason: 'Sales leads have no free trial' };
+  if (listing.call_status === 'published' || listing.published_listing_id) {
+    return { ok: false, reason: 'Already published' };
+  }
+  if (listing.outreach_status && ['sent', 'replied', 'confirmed'].includes(listing.outreach_status)) {
+    return { ok: false, reason: `Offer already ${listing.outreach_status}` };
+  }
+  if (!toE164(listing.contact_phone || listing.contact_phone_display)) {
+    return { ok: false, reason: 'No valid US phone number' };
+  }
+  const missing = publishBlockers(listing);
+  if (missing.length > 0) {
+    return { ok: false, reason: `Can't publish yet — add ${missing.join(', ')} first` };
+  }
+  return { ok: true };
+}
+
+/** The exact copy the edge function sends — kept in sync for the preview modal. */
+export function buildOutreachPreview(listing: ScrapedListing): string {
+  const beds =
+    listing.bedrooms === 0 ? 'studio' : listing.bedrooms != null ? `${listing.bedrooms} BR` : 'apartment';
+  const streets = [listing.cross_street_1, listing.cross_street_2].filter(Boolean).join(' & ');
+  const descriptor = streets
+    ? `${beds} at ${streets}`
+    : listing.neighborhood
+      ? `${beds} in ${listing.neighborhood}`
+      : beds;
+  return (
+    `Hadirot: We saw your ${descriptor} listed for rent. Hadirot.com has thousands of local tenants searching — can we post it for you? ` +
+    `The first 2 weeks are free, with no obligation. Reply YES and we'll put it live. Questions? Just reply here. Reply STOP to opt out.`
+  );
+}
+
 export interface PamphletFileRef {
   path: string;
   mime: string;
@@ -66,9 +152,33 @@ export interface PamphletParseResult {
   errors: Array<{ unit: number; error: string }>;
 }
 
+export type ScrapeMode = 'since_last' | 'range' | 'all';
+
+export interface ScrapeArgs {
+  mode: ScrapeMode;
+  /** yyyy-mm-dd, range mode only. */
+  since?: string | null;
+  /** yyyy-mm-dd, range mode only. */
+  until?: string | null;
+  pages: number;
+  limit: number;
+  /** Include luach.com's promoted block, which is not in date order. */
+  includePromoted?: boolean;
+}
+
 export interface ScrapeResult {
   run_id: string;
+  mode: ScrapeMode;
+  /** Oldest posting date accepted, or null when unbounded. */
+  cutoff: string | null;
+  /** Index cards examined before filtering. */
+  cards_seen: number;
+  /** Detail pages actually fetched (i.e. those that passed the date filter). */
   pages_fetched: number;
+  skipped_by_date: number;
+  skipped_promoted: number;
+  /** Claude requests spent — 1 for any normal run. */
+  ai_calls: number;
   parsed: number;
   inserted: number;
   updated: number;
@@ -190,7 +300,10 @@ export const aiIntakeService = {
   ): Promise<ParseBlocksResult> {
     const invoke = async <T>(body: Record<string, unknown>): Promise<T> => {
       const { data, error } = await supabase.functions.invoke('parse-bulk-listings', { body });
-      if (error) throw new Error(error.message || 'Failed to parse listings');
+      // Read the server's real message off the response — without it every
+      // failure reads "non-2xx status code" and the transient retry below can
+      // never recognise an overload/rate-limit and back off.
+      if (error) throw new Error(await edgeFunctionErrorMessage(error, 'Failed to parse listings'));
       if (data?.error) throw new Error(data.error);
       return data as T;
     };
@@ -374,7 +487,7 @@ export const aiIntakeService = {
   // Website scrape (luach.com)
   // -------------------------------------------------------------------------
 
-  async scrapeLuachCom(args: { pages: number; limit: number }): Promise<ScrapeResult> {
+  async scrapeLuachCom(args: ScrapeArgs): Promise<ScrapeResult> {
     const { data, error } = await supabase.functions.invoke('scrape-luach-com', { body: args });
     if (error) throw new Error(error.message || 'Failed to scrape luach.com');
     if (data?.error) throw new Error(data.error);
@@ -402,6 +515,10 @@ export const aiIntakeService = {
     if (filters.kind !== 'all') query = query.eq('listing_kind', filters.kind);
     if (filters.neighborhood !== 'all') query = query.eq('neighborhood', filters.neighborhood);
     if (filters.newOnly) query = query.is('admin_reviewed_at', null);
+
+    if (filters.outreach === 'none') query = query.is('outreach_status', null);
+    else if (filters.outreach === 'any') query = query.not('outreach_status', 'is', null);
+    else if (filters.outreach !== 'all') query = query.eq('outreach_status', filters.outreach);
 
     if (filters.callStatus === 'active') {
       query = query.not('call_status', 'in', '(published,suppressed)');
@@ -555,7 +672,7 @@ export const aiIntakeService = {
       .from('listings')
       .select(
         `id, listing_type, bedrooms, contact_name, contact_phone, cross_street_a, cross_street_b,
-         property_type, price, asking_price, call_for_price, admin_custom_agency_name,
+         full_address, property_type, price, asking_price, call_for_price, admin_custom_agency_name,
          owner:profiles!listings_user_id_fkey(full_name)`,
       )
       .eq('is_active', true)
@@ -603,6 +720,20 @@ export const aiIntakeService = {
       .in('id', unique);
     if (error) throw error;
     return new Map((data ?? []).map((p: Profile) => [p.id, p]));
+  },
+
+  /**
+   * Texts the posting offer to the selected leads via the outreach edge
+   * function (admin-authed). Server-side re-validates eligibility, enforces
+   * one open offer per phone, and stamps outreach_status on each row.
+   */
+  async sendOutreachSms(scrapedListingIds: string[]): Promise<OutreachSendSummary> {
+    const { data, error } = await supabase.functions.invoke('send-intake-outreach-sms', {
+      body: { scrapedListingIds },
+    });
+    if (error) throw new Error(await edgeFunctionErrorMessage(error, 'Failed to send SMS offers'));
+    if (data?.error) throw new Error(data.error);
+    return data as OutreachSendSummary;
   },
 
   async getMonetizationEnabled(): Promise<boolean> {

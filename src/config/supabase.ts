@@ -442,6 +442,8 @@ export interface CommercialListing {
 }
 
 export type CallStatus = 'pending_call' | 'called_no_answer' | 'called_declined' | 'approved' | 'published' | 'suppressed';
+/** Landlord SMS offer workflow: null = never texted. */
+export type OutreachStatus = 'sent' | 'replied' | 'confirmed' | 'declined' | 'error';
 export type GeocodeStatus = 'success' | 'failed';
 export type MatchStatus = 'no_match' | 'matched' | 'partial_match';
 export type ScrapedContactType = 'agent' | 'individual' | 'unknown';
@@ -508,6 +510,10 @@ export interface ScrapedListing {
   // Intake hub: cross-source dedup / new-vs-old tracking
   source_history: SourceSighting[];
   admin_reviewed_at: string | null;
+  // Landlord SMS outreach (offer sent → YES auto-publishes to the house account)
+  outreach_status: OutreachStatus | null;
+  outreach_sent_at: string | null;
+  outreach_conversation_id: string | null;
 }
 
 /** One sighting of a real-world listing in any feed (append-only trail). */

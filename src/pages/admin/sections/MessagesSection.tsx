@@ -1,0 +1,546 @@
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  ArrowLeft,
+  Building2,
+  ChevronDown,
+  ExternalLink,
+  Loader2,
+  MessageSquare,
+  RotateCcw,
+  Search,
+  Send,
+  Sparkles,
+  X,
+} from 'lucide-react';
+import {
+  smsInboxService,
+  formatPhoneDisplay,
+  type SmsThread,
+  type SmsMessage,
+  type ThreadContext,
+} from '@/services/smsInbox';
+import { Toast } from '@/components/shared/Toast';
+
+/** Human labels for where an automated outbound text came from. */
+const SOURCE_LABELS: Record<string, string> = {
+  intake_outreach: 'Posting offer',
+  outreach_response: 'Auto-reply',
+  system_response: 'Auto-reply',
+  renewal_reminder: 'Renewal reminder',
+  report_rented: 'Rented report',
+  admin_manual: 'You',
+};
+
+function timeLabel(iso: string): string {
+  const d = new Date(iso);
+  const now = new Date();
+  const sameDay = d.toDateString() === now.toDateString();
+  if (sameDay) return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+  const sameYear = d.getFullYear() === now.getFullYear();
+  return d.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    ...(sameYear ? {} : { year: 'numeric' }),
+  });
+}
+
+function ThreadListItem({
+  thread,
+  active,
+  onClick,
+}: {
+  thread: SmsThread;
+  active: boolean;
+  onClick: () => void;
+}) {
+  const unread = thread.unread_count > 0;
+  return (
+    <button
+      onClick={onClick}
+      className={`w-full text-left px-4 py-3 border-b border-gray-100 transition-colors ${
+        active ? 'bg-[#4E4B43]/5' : 'hover:bg-gray-50'
+      }`}
+    >
+      <div className="flex items-center justify-between gap-2">
+        <p className={`text-sm truncate ${unread ? 'font-semibold text-gray-900' : 'font-medium text-gray-800'}`}>
+          {thread.contact_name || formatPhoneDisplay(thread.phone_number)}
+        </p>
+        <span className="text-[11px] text-gray-400 flex-shrink-0">
+          {timeLabel(thread.last_message_at)}
+        </span>
+      </div>
+      <div className="flex items-center justify-between gap-2 mt-0.5">
+        <p className={`text-xs truncate ${unread ? 'text-gray-700' : 'text-gray-500'}`}>
+          {thread.last_direction === 'outbound' && <span className="text-gray-400">You: </span>}
+          {thread.last_message_body}
+        </p>
+        {unread && (
+          <span className="flex-shrink-0 min-w-[18px] h-[18px] px-1 rounded-full bg-blue-600 text-white text-[11px] font-semibold flex items-center justify-center">
+            {thread.unread_count}
+          </span>
+        )}
+      </div>
+      {thread.contact_name && (
+        <p className="text-[11px] text-gray-400 mt-0.5">{formatPhoneDisplay(thread.phone_number)}</p>
+      )}
+    </button>
+  );
+}
+
+function MessageBubble({ message }: { message: SmsMessage }) {
+  const outbound = message.direction === 'outbound';
+  const sourceLabel = outbound ? SOURCE_LABELS[message.message_source ?? ''] ?? 'Hadirot' : null;
+  const failed = message.status === 'failed' || message.status === 'undelivered';
+  return (
+    <div className={`flex ${outbound ? 'justify-end' : 'justify-start'}`}>
+      <div className={`max-w-[80%] ${outbound ? 'items-end' : 'items-start'} flex flex-col`}>
+        <div
+          className={`px-3.5 py-2 rounded-2xl text-sm whitespace-pre-wrap break-words ${
+            outbound
+              ? 'bg-[#4E4B43] text-white rounded-br-sm'
+              : 'bg-gray-100 text-gray-900 rounded-bl-sm'
+          }`}
+        >
+          {message.message_body}
+        </div>
+        <p className="text-[10px] text-gray-400 mt-1 px-1">
+          {sourceLabel && <span>{sourceLabel} · </span>}
+          {timeLabel(message.created_at)}
+          {failed && <span className="text-red-500 font-medium"> · not delivered</span>}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+export function MessagesSection() {
+  const [threads, setThreads] = useState<SmsThread[]>([]);
+  const [threadsLoading, setThreadsLoading] = useState(true);
+  const [search, setSearch] = useState('');
+  const [activePhone, setActivePhone] = useState<string | null>(null);
+  const [messages, setMessages] = useState<SmsMessage[]>([]);
+  const [context, setContext] = useState<ThreadContext>({
+    leads: [],
+    listings: [],
+    current: null,
+    activeCount: 0,
+  });
+  const [panelOpen, setPanelOpen] = useState(false);
+  const [panelSearch, setPanelSearch] = useState('');
+  const [messagesLoading, setMessagesLoading] = useState(false);
+  const [reply, setReply] = useState('');
+  const [sending, setSending] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
+  const messagesRef = useRef<HTMLDivElement | null>(null);
+
+  const loadThreads = useCallback(async (q?: string) => {
+    try {
+      setThreads(await smsInboxService.listThreads(q));
+    } catch {
+      setToast('Failed to load conversations');
+    } finally {
+      setThreadsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadThreads();
+    // Keep the list fresh while the admin sits on this screen.
+    const interval = setInterval(() => loadThreads(search), 30000);
+    return () => clearInterval(interval);
+  }, [loadThreads, search]);
+
+  // Debounced search.
+  useEffect(() => {
+    const t = setTimeout(() => loadThreads(search), 300);
+    return () => clearTimeout(t);
+  }, [search, loadThreads]);
+
+  const openThread = useCallback(
+    async (phone: string) => {
+      setActivePhone(phone);
+      setMessagesLoading(true);
+      // A panel left open from the previous thread would cover the new one.
+      setPanelOpen(false);
+      setPanelSearch('');
+      try {
+        const msgs = await smsInboxService.getThread(phone);
+        setMessages(msgs);
+        setContext(await smsInboxService.getThreadContext(msgs));
+        await smsInboxService.markThreadRead(phone);
+        // Reflect the read receipt in the list without a refetch round-trip.
+        setThreads((prev) =>
+          prev.map((t) => (t.phone_number === phone ? { ...t, unread_count: 0 } : t)),
+        );
+      } catch {
+        setToast('Failed to load this conversation');
+      } finally {
+        setMessagesLoading(false);
+      }
+    },
+    [],
+  );
+
+  // Jump to the newest message. Runs after the message list paints, and keyed
+  // on the thread too so reopening a thread you've already read still lands at
+  // the bottom rather than wherever the previous render left the scrollbox.
+  useEffect(() => {
+    if (messagesLoading || messages.length === 0) return;
+    const el = messagesRef.current;
+    if (!el) return;
+    // rAF: the bubbles are laid out in this same commit, so scrollHeight isn't
+    // final until the browser has painted them.
+    const raf = requestAnimationFrame(() => {
+      el.scrollTop = el.scrollHeight;
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [messages, messagesLoading, activePhone]);
+
+  const activeThread = useMemo(
+    () => threads.find((t) => t.phone_number === activePhone) ?? null,
+    [threads, activePhone],
+  );
+
+  const handleSend = async () => {
+    const text = reply.trim();
+    if (!text || !activePhone || sending) return;
+    setSending(true);
+    try {
+      await smsInboxService.sendMessage(activePhone, text);
+      setReply('');
+      const msgs = await smsInboxService.getThread(activePhone);
+      setMessages(msgs);
+      loadThreads(search);
+    } catch (err) {
+      setToast(err instanceof Error ? err.message : 'Failed to send');
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const threadPane = (
+    <div className="flex flex-col h-full min-h-0">
+      {/* Thread header */}
+      <div className="px-4 py-3 border-b border-gray-200 flex items-center gap-3">
+        <button
+          onClick={() => setActivePhone(null)}
+          className="md:hidden p-1 -ml-1 text-gray-500 hover:text-gray-800"
+          aria-label="Back to conversations"
+        >
+          <ArrowLeft className="w-5 h-5" />
+        </button>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-semibold text-gray-900 truncate">
+            {activeThread?.contact_name || (activePhone ? formatPhoneDisplay(activePhone) : '')}
+          </p>
+          {activeThread?.contact_name && activePhone && (
+            <a href={`tel:${activePhone}`} className="text-xs text-blue-600 hover:underline">
+              {formatPhoneDisplay(activePhone)}
+            </a>
+          )}
+        </div>
+        <button
+          onClick={() => activePhone && openThread(activePhone)}
+          className="p-1.5 text-gray-400 hover:text-gray-700"
+          title="Refresh conversation"
+        >
+          <RotateCcw className="w-4 h-4" />
+        </button>
+      </div>
+
+      {/* Context bar — pinned to ONE line however many listings exist. A busy
+          agent's thread touches ~90 listings, nearly all long inactive, so a
+          flat chip list buried the messages. The line names what this thread is
+          currently about; everything else lives in the panel below, which
+          overlays the messages instead of shrinking them. */}
+      {(context.leads.length > 0 || context.listings.length > 0) && (
+        <div className="px-4 py-2 border-b border-gray-100 bg-gray-50/60 flex items-center gap-2">
+          <div className="min-w-0 flex-1 flex items-center gap-1.5 overflow-hidden">
+            {context.leads.length > 0 ? (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-medium rounded-full bg-amber-50 text-amber-800 border border-amber-200 max-w-full">
+                <Sparkles className="w-3 h-3 flex-shrink-0" />
+                <span className="truncate">
+                  Intake lead: {context.leads[0].title || 'Untitled'}
+                </span>
+              </span>
+            ) : context.current ? (
+              <a
+                href={`/listing/${context.current.id}`}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-medium rounded-full bg-blue-50 text-blue-800 border border-blue-200 hover:bg-blue-100 max-w-full"
+                title={context.current.title}
+              >
+                <span
+                  className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
+                    context.current.is_active ? 'bg-green-500' : 'bg-gray-300'
+                  }`}
+                />
+                <span className="truncate">{context.current.title}</span>
+                <ExternalLink className="w-3 h-3 flex-shrink-0" />
+              </a>
+            ) : null}
+          </div>
+
+          {(context.listings.length > 0 || context.leads.length > 1) && (
+            <button
+              onClick={() => setPanelOpen((v) => !v)}
+              className="flex-shrink-0 inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-medium rounded-full border border-gray-300 bg-white text-gray-600 hover:bg-gray-50 transition-colors"
+              aria-expanded={panelOpen}
+            >
+              <Building2 className="w-3 h-3" />
+              {context.listings.length} listing{context.listings.length === 1 ? '' : 's'}
+              {context.activeCount > 0 && (
+                <span className="text-green-700">· {context.activeCount} active</span>
+              )}
+              <ChevronDown
+                className={`w-3 h-3 transition-transform ${panelOpen ? 'rotate-180' : ''}`}
+              />
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Messages */}
+      {/* Messages + the listings panel share this box; the panel is absolutely
+          positioned so opening it never resizes or re-scrolls the thread. */}
+      <div className="relative flex-1 min-h-0">
+        <div ref={messagesRef} className="absolute inset-0 overflow-y-auto px-4 py-4 space-y-3">
+          {messagesLoading ? (
+            <div className="flex justify-center py-10">
+              <Loader2 className="w-5 h-5 text-gray-400 animate-spin" />
+            </div>
+          ) : (
+            messages.map((m) => <MessageBubble key={m.id} message={m} />)
+          )}
+        </div>
+
+        {panelOpen && (
+          <>
+            <div
+              className="absolute inset-0 bg-black/10"
+              onClick={() => setPanelOpen(false)}
+              aria-hidden="true"
+            />
+            <div className="absolute inset-x-0 top-0 max-h-full flex flex-col bg-white border-b border-gray-200 shadow-lg">
+              <div className="flex items-center gap-2 px-3 py-2 border-b border-gray-100">
+                <div className="relative flex-1">
+                  <Search className="w-3.5 h-3.5 text-gray-400 absolute left-2 top-1/2 -translate-y-1/2" />
+                  <input
+                    value={panelSearch}
+                    onChange={(e) => setPanelSearch(e.target.value)}
+                    placeholder="Filter listings…"
+                    autoFocus
+                    className="w-full pl-7 pr-2 py-1 text-xs border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+                <button
+                  onClick={() => setPanelOpen(false)}
+                  className="p-1 text-gray-400 hover:text-gray-700"
+                  aria-label="Close listings"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* min-h-0: without it this child's auto min-height keeps the
+                  panel from honouring max-h-full and it overflows the pane. */}
+              <div className="overflow-y-auto min-h-0">
+                {context.leads.length > 0 && (
+                  <div>
+                    <p className="px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wide text-gray-400">
+                      Intake leads
+                    </p>
+                    {context.leads.map((lead) => (
+                      <div
+                        key={lead.id}
+                        className="px-3 py-1.5 flex items-center gap-2 text-xs hover:bg-gray-50"
+                      >
+                        <Sparkles className="w-3 h-3 text-amber-500 flex-shrink-0" />
+                        <span className="truncate flex-1 text-gray-800">
+                          {lead.title || 'Untitled'}
+                        </span>
+                        {lead.published_listing_id && (
+                          <a
+                            href={`/listing/${lead.published_listing_id}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-blue-600 hover:text-blue-800 flex-shrink-0"
+                          >
+                            <ExternalLink className="w-3 h-3" />
+                          </a>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {(() => {
+                  const q = panelSearch.trim().toLowerCase();
+                  const shown = q
+                    ? context.listings.filter((l) => l.title.toLowerCase().includes(q))
+                    : context.listings;
+                  const active = shown.filter((l) => l.is_active);
+                  const inactive = shown.filter((l) => !l.is_active);
+
+                  if (shown.length === 0) {
+                    return (
+                      <p className="px-3 py-4 text-xs text-gray-400 text-center">
+                        No listings match “{panelSearch}”.
+                      </p>
+                    );
+                  }
+
+                  const row = (l: (typeof shown)[number]) => (
+                    <a
+                      key={l.id}
+                      href={`/listing/${l.id}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="px-3 py-1.5 flex items-center gap-2 text-xs hover:bg-blue-50/60 group"
+                    >
+                      <span
+                        className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
+                          l.is_active ? 'bg-green-500' : 'bg-gray-300'
+                        }`}
+                      />
+                      <span
+                        className={`truncate flex-1 ${l.is_active ? 'text-gray-900' : 'text-gray-500'}`}
+                      >
+                        {l.title}
+                      </span>
+                      <ExternalLink className="w-3 h-3 text-gray-300 group-hover:text-blue-600 flex-shrink-0" />
+                    </a>
+                  );
+
+                  return (
+                    <>
+                      {active.length > 0 && (
+                        <div>
+                          <p className="px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wide text-gray-400">
+                            Active ({active.length})
+                          </p>
+                          {active.map(row)}
+                        </div>
+                      )}
+                      {inactive.length > 0 && (
+                        <div>
+                          <p className="px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wide text-gray-400">
+                            Inactive ({inactive.length}) · newest first
+                          </p>
+                          {inactive.map(row)}
+                        </div>
+                      )}
+                      <div className="h-2" />
+                    </>
+                  );
+                })()}
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* Reply box */}
+      <div className="border-t border-gray-200 p-3">
+        <div className="flex items-end gap-2">
+          <textarea
+            value={reply}
+            onChange={(e) => setReply(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                handleSend();
+              }
+            }}
+            placeholder="Text this landlord… (Enter to send)"
+            rows={2}
+            className="flex-1 resize-none px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          />
+          <button
+            onClick={handleSend}
+            disabled={!reply.trim() || sending}
+            className="p-2.5 bg-[#4E4B43] text-white rounded-lg hover:bg-[#3a3833] disabled:opacity-40 transition-colors"
+            aria-label="Send message"
+          >
+            {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+          </button>
+        </div>
+        <p className="text-[11px] text-gray-400 mt-1.5">
+          Sends a real SMS from the Hadirot number. Replies land back in this inbox.
+        </p>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <h1 className="text-xl font-semibold text-gray-900">Messages</h1>
+        <p className="text-sm text-gray-500 mt-0.5">
+          Every SMS conversation with landlords — posting offers, renewals, and your replies.
+        </p>
+      </div>
+
+      <div className="bg-white rounded-lg border border-gray-200 overflow-hidden flex h-[calc(100vh-16rem)] min-h-[480px]">
+        {/* Thread list — hidden on mobile once a thread is open */}
+        <div
+          className={`w-full md:w-80 lg:w-96 md:border-r border-gray-200 flex-col min-h-0 ${
+            activePhone ? 'hidden md:flex' : 'flex'
+          }`}
+        >
+          <div className="p-3 border-b border-gray-200">
+            <div className="relative">
+              <Search className="w-4 h-4 text-gray-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search name or phone…"
+                className="w-full pl-8 pr-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              />
+            </div>
+          </div>
+          <div className="flex-1 overflow-y-auto min-h-0">
+            {threadsLoading ? (
+              <div className="flex justify-center py-10">
+                <Loader2 className="w-5 h-5 text-gray-400 animate-spin" />
+              </div>
+            ) : threads.length === 0 ? (
+              <div className="text-center py-12 px-6">
+                <MessageSquare className="w-8 h-8 text-gray-300 mx-auto mb-2" />
+                <p className="text-sm text-gray-500">
+                  No conversations yet. Send a posting offer from Listing Intake to start one.
+                </p>
+              </div>
+            ) : (
+              threads.map((t) => (
+                <ThreadListItem
+                  key={t.phone_number}
+                  thread={t}
+                  active={t.phone_number === activePhone}
+                  onClick={() => openThread(t.phone_number)}
+                />
+              ))
+            )}
+          </div>
+        </div>
+
+        {/* Thread pane */}
+        <div className={`flex-1 min-w-0 ${activePhone ? 'flex flex-col' : 'hidden md:flex'}`}>
+          {activePhone ? (
+            threadPane
+          ) : (
+            <div className="flex-1 flex items-center justify-center">
+              <div className="text-center px-6">
+                <MessageSquare className="w-10 h-10 text-gray-200 mx-auto mb-3" />
+                <p className="text-sm text-gray-400">Select a conversation to read and reply</p>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {toast && <Toast message={toast} onClose={() => setToast(null)} />}
+    </div>
+  );
+}

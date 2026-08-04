@@ -15,6 +15,7 @@ import {
   Save,
   Check,
   ExternalLink,
+  MessageSquare,
   Sparkles,
   Trash2,
 } from 'lucide-react';
@@ -27,15 +28,23 @@ import type {
   LeaseLength,
   Profile,
   CallStatus,
+  OutreachStatus,
 } from '@/config/supabase';
 import { INTAKE_SOURCE_LABELS } from '@/config/supabase';
-import { aiIntakeService, CALL_STATUS_LABELS } from '@/services/aiIntake';
+import {
+  aiIntakeService,
+  CALL_STATUS_LABELS,
+  OUTREACH_STATUS_LABELS,
+  publishBlockers,
+  toE164,
+} from '@/services/aiIntake';
 import { describeMatch, type MatchCandidate } from '@/utils/intakeMatch';
 import { geocodeCrossStreets } from '@/services/geocoding';
 import { UserSearchSelect } from '@/components/admin/UserSearchSelect';
 import { useAuth } from '@/hooks/useAuth';
 import { IntakeMediaField } from './IntakeMediaField';
 import { IntakeLocationMap } from './IntakeLocationMap';
+import { IntakeSmsThread } from './IntakeSmsThread';
 
 interface IntakeWorkspaceDrawerProps {
   listing: ScrapedListing | null;
@@ -45,6 +54,8 @@ interface IntakeWorkspaceDrawerProps {
   onClose: () => void;
   onSaved: () => void;
   onPublish: (listing: ScrapedListing) => void;
+  /** Opens the SMS posting-offer confirmation for this lead. */
+  onSendOffer: (listing: ScrapedListing) => void;
   /** Fired after a successful permanent delete — parent closes + reloads. */
   onDeleted: () => void;
 }
@@ -103,6 +114,14 @@ const STATUS_PILL: Record<CallStatus, string> = {
   approved: 'bg-green-100 text-green-700',
   published: 'bg-emerald-600 text-white',
   suppressed: 'bg-gray-100 text-gray-400',
+};
+
+const OUTREACH_PILL: Record<OutreachStatus, string> = {
+  sent: 'bg-indigo-100 text-indigo-700',
+  replied: 'bg-violet-100 text-violet-700',
+  confirmed: 'bg-emerald-100 text-emerald-700',
+  declined: 'bg-gray-100 text-gray-500',
+  error: 'bg-red-100 text-red-700',
 };
 
 /** The states an admin can set directly from the drawer (published is reached via publishing). */
@@ -296,6 +315,7 @@ export function IntakeWorkspaceDrawer({
   onClose,
   onSaved,
   onPublish,
+  onSendOffer,
   onDeleted,
 }: IntakeWorkspaceDrawerProps) {
   const { user } = useAuth();
@@ -358,6 +378,12 @@ export function IntakeWorkspaceDrawer({
     : 'Unknown source';
   const confidencePct =
     listing.parse_confidence != null ? Math.round(listing.parse_confidence * 100) : null;
+  const outreachPhone = toE164(listing.contact_phone || listing.contact_phone_display);
+  // What still has to be filled in before this lead could publish — the SMS
+  // offer must not go out until this is empty, since it promises a YES goes live.
+  const outreachMissing = publishBlockers(listing);
+  // Reloads the thread when the offer state moves (sent, replied, published).
+  const smsRefreshKey = `${listing.outreach_status ?? 'none'}:${listing.outreach_sent_at ?? ''}`;
   const confidenceColor =
     listing.parse_confidence == null
       ? 'text-gray-400'
@@ -674,6 +700,79 @@ export function IntakeWorkspaceDrawer({
               </SectionCard>
             )}
 
+            {/* SMS posting offer — the outreach path to getting this lead live
+                without a phone call. Rentals only (the free trial is a rental
+                concept), and never for something already published. */}
+            {listing.listing_kind === 'rental' && status !== 'published' && (
+              <SectionCard icon={<MessageSquare className="w-4 h-4" />} title="SMS posting offer">
+                {listing.outreach_status ? (
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span
+                        className={`inline-block px-2.5 py-1 text-xs font-medium rounded ${OUTREACH_PILL[listing.outreach_status]}`}
+                      >
+                        {OUTREACH_STATUS_LABELS[listing.outreach_status]}
+                      </span>
+                      {listing.outreach_sent_at && (
+                        <span className="text-xs text-gray-400">
+                          sent {formatDate(listing.outreach_sent_at)}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-gray-500">
+                      {listing.outreach_status === 'sent' &&
+                        'Waiting on their reply. A YES publishes this automatically with the 2-week free posting.'}
+                      {listing.outreach_status === 'replied' &&
+                        'They wrote back with something other than yes or no — read and answer it in Messages.'}
+                      {listing.outreach_status === 'declined' &&
+                        'They declined. If they change their mind, a later YES still publishes it.'}
+                      {listing.outreach_status === 'error' &&
+                        'The text or the auto-publish failed. Check Messages, then publish manually if needed.'}
+                      {listing.outreach_status === 'confirmed' &&
+                        'They said yes and this went live automatically.'}
+                    </p>
+                    {listing.outreach_status === 'error' && (
+                      <button
+                        onClick={() => onSendOffer(listing)}
+                        className="px-3 py-1.5 text-xs font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700 transition-colors"
+                      >
+                        Try sending again
+                      </button>
+                    )}
+                    <IntakeSmsThread phone={outreachPhone} refreshKey={smsRefreshKey} />
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <p className="text-xs text-gray-500">
+                      Text this landlord the free-2-weeks offer. If they reply YES we publish it
+                      automatically to the house account and text them the live link.
+                    </p>
+                    <button
+                      onClick={() => onSendOffer(listing)}
+                      disabled={
+                        !(listing.contact_phone || listing.contact_phone_display) ||
+                        outreachMissing.length > 0
+                      }
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700 disabled:opacity-40 transition-colors"
+                    >
+                      <MessageSquare className="w-3.5 h-3.5" />
+                      Send SMS offer
+                    </button>
+                    {!(listing.contact_phone || listing.contact_phone_display) && (
+                      <p className="text-xs text-gray-400">No phone number on this lead.</p>
+                    )}
+                    {outreachMissing.length > 0 && (
+                      <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md p-2">
+                        Add {outreachMissing.join(', ')} before texting — the offer promises we'll
+                        publish on a YES, and this lead can't publish yet.
+                      </p>
+                    )}
+                    <IntakeSmsThread phone={outreachPhone} refreshKey={smsRefreshKey} />
+                  </div>
+                )}
+              </SectionCard>
+            )}
+
             {/* Possible live duplicates */}
             {duplicates.length > 0 && (
               <SectionCard
@@ -724,9 +823,12 @@ export function IntakeWorkspaceDrawer({
                           matched={dup.matched.bedrooms}
                         />
                         <MatchRow
-                          label="Streets"
+                          label={dup.matchedVia === 'address' ? 'Address' : 'Streets'}
                           value={
+                            // Address-based listings carry no cross streets —
+                            // show the address that matched instead of a dash.
                             [dup.cross_street_a, dup.cross_street_b].filter(Boolean).join(' & ') ||
+                            dup.full_address ||
                             null
                           }
                           matched={dup.matched.streets}

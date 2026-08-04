@@ -7,6 +7,9 @@ import {
   ExternalLink,
   ImageOff,
   AlertTriangle,
+  Copy,
+  MapPinOff,
+  MessageSquare,
   UserPlus,
   X,
   Check,
@@ -17,16 +20,19 @@ import {
   type ScrapedListing,
   type Profile,
   type CallStatus,
+  type OutreachStatus,
   INTAKE_SOURCE_LABELS,
 } from '@/config/supabase';
 import {
   aiIntakeService,
   toE164,
   CALL_STATUS_LABELS,
+  OUTREACH_STATUS_LABELS,
   type ReviewFilters,
 } from '@/services/aiIntake';
 import { describeMatch, type LiveListingCandidate, type MatchCandidate } from '@/utils/intakeMatch';
 import { IntakeWorkspaceDrawer } from './IntakeWorkspaceDrawer';
+import { IntakeOutreachModal } from './IntakeOutreachModal';
 import { UserSearchSelect } from '@/components/admin/UserSearchSelect';
 import { Toast } from '@/components/shared/Toast';
 import { useAuth } from '@/hooks/useAuth';
@@ -48,13 +54,28 @@ const SOURCE_FILTER_OPTIONS = [
   { value: 'admin_intake', label: 'Pasted Text' },
 ];
 
-const STATUS_FILTER_OPTIONS: { value: ReviewFilters['callStatus']; label: string }[] = [
-  { value: 'active', label: 'Active pipeline' },
-  { value: 'pending_call', label: 'New — to call' },
-  { value: 'called_no_answer', label: 'No answer' },
-  { value: 'approved', label: 'Ready to publish' },
-  { value: 'called_declined', label: 'Declined' },
+/** The statuses worth a one-click tab — everything else lives in "More…". */
+const PRIMARY_STATUS_TABS: { value: ReviewFilters['callStatus']; label: string }[] = [
+  { value: 'active', label: 'Active' },
+  { value: 'pending_call', label: 'To call' },
+  { value: 'approved', label: 'Ready' },
   { value: 'published', label: 'Published' },
+];
+
+const OUTREACH_FILTER_OPTIONS: { value: ReviewFilters['outreach']; label: string }[] = [
+  { value: 'all', label: 'SMS: any' },
+  { value: 'none', label: 'SMS: not sent' },
+  { value: 'any', label: 'SMS: sent (all)' },
+  { value: 'sent', label: 'SMS: awaiting reply' },
+  { value: 'replied', label: 'SMS: replied' },
+  { value: 'confirmed', label: 'SMS: confirmed' },
+  { value: 'declined', label: 'SMS: declined' },
+  { value: 'error', label: 'SMS: failed' },
+];
+
+const OVERFLOW_STATUS_OPTIONS: { value: ReviewFilters['callStatus']; label: string }[] = [
+  { value: 'called_no_answer', label: 'No answer' },
+  { value: 'called_declined', label: 'Declined' },
   { value: 'suppressed', label: 'Discarded' },
   { value: 'all', label: 'All statuses' },
 ];
@@ -67,6 +88,54 @@ const STATUS_PILL: Record<CallStatus, string> = {
   published: 'bg-emerald-600 text-white',
   suppressed: 'bg-gray-100 text-gray-400',
 };
+
+const OUTREACH_PILL: Record<OutreachStatus, string> = {
+  sent: 'bg-indigo-100 text-indigo-700',
+  replied: 'bg-violet-100 text-violet-700',
+  confirmed: 'bg-emerald-100 text-emerald-700',
+  declined: 'bg-gray-100 text-gray-500',
+  error: 'bg-red-100 text-red-700',
+};
+
+/**
+ * Row warnings, collapsed into one compact icon strip. They used to render as
+ * full text badges, which crowded the title line badly once a row had two or
+ * three of them at once.
+ */
+function RowWarnings({
+  noGeo,
+  trialUsed,
+  duplicates,
+}: {
+  noGeo: boolean;
+  trialUsed: boolean;
+  duplicates: MatchCandidate[];
+}) {
+  const strongDuplicate = duplicates.some((m) => m.strength === 'strong');
+  if (!noGeo && !trialUsed && duplicates.length === 0) return null;
+  return (
+    <span className="inline-flex items-center gap-1">
+      {noGeo && (
+        <MapPinOff
+          className="w-3.5 h-3.5 text-amber-500"
+          title="No map coordinates — open the lead to re-geocode"
+        />
+      )}
+      {trialUsed && (
+        <AlertTriangle
+          className="w-3.5 h-3.5 text-orange-500"
+          title="This phone already used its 14-day free trial. Publishing still grants a fresh trial (admin override)."
+        />
+      )}
+      {duplicates.length > 0 && (
+        <Copy
+          className={`w-3.5 h-3.5 ${strongDuplicate ? 'text-red-500' : 'text-amber-500'}`}
+          title={`Matches ${duplicates.length} live listing${duplicates.length === 1 ? '' : 's'} — ${describeMatch(duplicates[0])}. Open to compare.`}
+        />
+      )}
+    </span>
+  );
+}
 
 function ConfidenceDot({ confidence }: { confidence: number | null }) {
   if (confidence == null)
@@ -106,6 +175,7 @@ export function IntakeReviewView({ initialSource, refreshKey }: IntakeReviewView
     callStatus: 'active',
     neighborhood: 'all',
     newOnly: false,
+    outreach: 'all',
   });
   const [search, setSearch] = useState('');
   const [neighborhoods, setNeighborhoods] = useState<string[]>([]);
@@ -122,6 +192,7 @@ export function IntakeReviewView({ initialSource, refreshKey }: IntakeReviewView
   const [publishErrors, setPublishErrors] = useState<Array<{ title: string; error: string }>>([]);
   const [assignOpen, setAssignOpen] = useState(false);
   const [assignUser, setAssignUser] = useState<Profile | null>(null);
+  const [outreachTargets, setOutreachTargets] = useState<ScrapedListing[] | null>(null);
   const [toast, setToast] = useState<string | null>(null);
 
   // Preselect the source of a just-completed ingest and jump to its new leads.
@@ -286,27 +357,69 @@ export function IntakeReviewView({ initialSource, refreshKey }: IntakeReviewView
 
   return (
     <div className="space-y-4">
-      {/* Filters */}
+      {/* Filters — the four statuses an admin actually switches between sit on
+          a segmented control; everything rarer stays in the overflow select. */}
       <div className="bg-white rounded-lg border border-gray-200 p-4 space-y-3">
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="inline-flex p-0.5 bg-gray-100 rounded-lg">
+            {PRIMARY_STATUS_TABS.map((tab) => {
+              const active = filters.callStatus === tab.value;
+              return (
+                <button
+                  key={tab.value}
+                  onClick={() => setFilter('callStatus', tab.value)}
+                  className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                    active ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-800'
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              );
+            })}
+          </div>
+
           <select
-            value={filters.source}
-            onChange={(e) => setFilter('source', e.target.value)}
+            value={
+              PRIMARY_STATUS_TABS.some((t) => t.value === filters.callStatus)
+                ? ''
+                : filters.callStatus
+            }
+            onChange={(e) =>
+              e.target.value && setFilter('callStatus', e.target.value as ReviewFilters['callStatus'])
+            }
             className={selectClass}
+            aria-label="More statuses"
           >
-            {SOURCE_FILTER_OPTIONS.map((o) => (
+            <option value="">More…</option>
+            {OVERFLOW_STATUS_OPTIONS.map((o) => (
               <option key={o.value} value={o.value}>
                 {o.label}
               </option>
             ))}
           </select>
 
+          <span className="text-sm text-gray-500 ml-auto">
+            {visible.length} listing{visible.length !== 1 ? 's' : ''}
+          </span>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="relative flex-1 min-w-[200px] max-w-sm">
+            <Search className="w-4 h-4 text-gray-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search title, contact, phone, streets…"
+              className="w-full pl-8 pr-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            />
+          </div>
+
           <select
-            value={filters.callStatus}
-            onChange={(e) => setFilter('callStatus', e.target.value as ReviewFilters['callStatus'])}
+            value={filters.source}
+            onChange={(e) => setFilter('source', e.target.value)}
             className={selectClass}
           >
-            {STATUS_FILTER_OPTIONS.map((o) => (
+            {SOURCE_FILTER_OPTIONS.map((o) => (
               <option key={o.value} value={o.value}>
                 {o.label}
               </option>
@@ -336,6 +449,19 @@ export function IntakeReviewView({ initialSource, refreshKey }: IntakeReviewView
             ))}
           </select>
 
+          <select
+            value={filters.outreach}
+            onChange={(e) => setFilter('outreach', e.target.value as ReviewFilters['outreach'])}
+            className={selectClass}
+            aria-label="SMS offer status"
+          >
+            {OUTREACH_FILTER_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+
           <label className="flex items-center gap-1.5 text-sm text-gray-700 cursor-pointer select-none">
             <input
               type="checkbox"
@@ -348,25 +474,11 @@ export function IntakeReviewView({ initialSource, refreshKey }: IntakeReviewView
 
           <button
             onClick={fetchData}
-            className="px-3 py-1.5 text-sm text-gray-600 hover:text-gray-900 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors flex items-center gap-1"
+            className="px-2.5 py-1.5 text-gray-500 hover:text-gray-900 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
+            title="Refresh"
           >
-            <RotateCcw className="w-3.5 h-3.5" /> Refresh
+            <RotateCcw className="w-3.5 h-3.5" />
           </button>
-        </div>
-
-        <div className="flex items-center gap-3">
-          <div className="relative flex-1 max-w-sm">
-            <Search className="w-4 h-4 text-gray-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search title, contact, phone, streets…"
-              className="w-full pl-8 pr-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            />
-          </div>
-          <span className="text-sm text-gray-500 ml-auto">
-            {visible.length} listing{visible.length !== 1 ? 's' : ''}
-          </span>
         </div>
       </div>
 
@@ -402,6 +514,14 @@ export function IntakeReviewView({ initialSource, refreshKey }: IntakeReviewView
             {publishing && publishProgress
               ? `Publishing ${publishProgress.done}/${publishProgress.total}...`
               : 'Publish'}
+          </button>
+          <button
+            onClick={() => setOutreachTargets(selectedRows)}
+            disabled={publishing}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium bg-indigo-600 rounded-md hover:bg-indigo-500 disabled:opacity-50 transition-colors"
+            title="Text these landlords the free-2-weeks posting offer"
+          >
+            <MessageSquare className="w-3.5 h-3.5" /> Send SMS offer
           </button>
           <button
             onClick={() => setAssignOpen(true)}
@@ -562,38 +682,14 @@ export function IntakeReviewView({ initialSource, refreshKey }: IntakeReviewView
                           <ExternalLink className="w-3.5 h-3.5" />
                         </a>
                       )}
-                      {listing.geocode_status !== 'success' && (
-                        <span
-                          className="inline-flex items-center gap-0.5 px-1.5 py-0.5 text-xs font-medium rounded bg-amber-100 text-amber-700"
-                          title="No map coordinates — open to re-geocode"
-                        >
-                          <AlertTriangle className="w-3 h-3" /> No geo
-                        </span>
-                      )}
-                      {trialUsed(listing) && (
-                        <span
-                          className="inline-flex items-center gap-0.5 px-1.5 py-0.5 text-xs font-medium rounded bg-orange-100 text-orange-700"
-                          title="This phone already used its 14-day free trial. Publishing still grants a fresh trial (admin override)."
-                        >
-                          <AlertTriangle className="w-3 h-3" /> Trial used
-                        </span>
-                      )}
-                      {(() => {
-                        const matches = duplicateMatches.get(listing.id);
-                        if (!matches || matches.length === 0) return null;
-                        const strong = matches.some((m) => m.strength === 'strong');
-                        return (
-                          <span
-                            className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 text-xs font-medium rounded ${
-                              strong ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'
-                            }`}
-                            title={`Matches ${matches.length} live listing${matches.length === 1 ? '' : 's'} — ${describeMatch(matches[0])}. Open to compare.`}
-                          >
-                            <AlertTriangle className="w-3 h-3" /> Possible duplicate
-                          </span>
-                        );
-                      })()}
+                      <RowWarnings
+                        noGeo={listing.geocode_status !== 'success'}
+                        trialUsed={trialUsed(listing)}
+                        duplicates={duplicateMatches.get(listing.id) ?? []}
+                      />
                     </div>
+                    {/* One secondary line: specs, then provenance — the seen
+                        count used to own a third line of its own. */}
                     <p className="text-xs text-gray-500 truncate">
                       {[
                         listing.bedrooms != null ? `${listing.bedrooms}BR` : null,
@@ -603,9 +699,10 @@ export function IntakeReviewView({ initialSource, refreshKey }: IntakeReviewView
                       ]
                         .filter(Boolean)
                         .join(' · ')}
-                    </p>
-                    <p className="text-[11px] text-gray-400 mt-0.5">
-                      Seen {listing.times_seen}× · last {listing.date_last_seen}
+                      <span className="text-gray-400">
+                        {' · '}
+                        {listing.times_seen}× seen, last {listing.date_last_seen}
+                      </span>
                     </p>
                   </div>
 
@@ -629,12 +726,24 @@ export function IntakeReviewView({ initialSource, refreshKey }: IntakeReviewView
                   </div>
 
                   {/* Status */}
-                  <div className="w-32 flex-shrink-0">
+                  <div className="w-32 flex-shrink-0 space-y-1">
                     <span
                       className={`inline-block px-2 py-0.5 text-[11px] font-medium rounded ${STATUS_PILL[status]}`}
                     >
                       {CALL_STATUS_LABELS[status]}
                     </span>
+                    {listing.outreach_status && (
+                      <span
+                        className={`block w-fit px-2 py-0.5 text-[11px] font-medium rounded ${OUTREACH_PILL[listing.outreach_status]}`}
+                        title={
+                          listing.outreach_sent_at
+                            ? `SMS offer sent ${new Date(listing.outreach_sent_at).toLocaleDateString()}`
+                            : undefined
+                        }
+                      >
+                        {OUTREACH_STATUS_LABELS[listing.outreach_status]}
+                      </span>
+                    )}
                     {status === 'published' && listing.published_listing_id && (
                       <a
                         href={`/listing/${listing.published_listing_id}`}
@@ -672,8 +781,18 @@ export function IntakeReviewView({ initialSource, refreshKey }: IntakeReviewView
         )}
       </div>
 
+      {outreachTargets && (
+        <IntakeOutreachModal
+          listings={outreachTargets}
+          onClose={() => setOutreachTargets(null)}
+          onConfirm={(ids) => aiIntakeService.sendOutreachSms(ids)}
+          onSent={() => fetchData()}
+        />
+      )}
+
       <IntakeWorkspaceDrawer
         listing={editListing}
+        onSendOffer={(l) => setOutreachTargets([l])}
         assignedProfile={
           editListing?.assigned_user_id ? profiles.get(editListing.assigned_user_id) ?? null : null
         }
