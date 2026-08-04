@@ -34,6 +34,12 @@ export async function edgeFunctionErrorMessage(
   const body = await readFunctionErrorBody(error);
   const serverMessage = body?.error || body?.message;
   if (serverMessage) return serverMessage;
-  const generic = (error as { message?: string })?.message;
-  return generic || fallback;
+
+  // No JSON body means the function never got to answer for itself — the
+  // gateway or the runtime killed it (504 wall clock, 546 CPU/memory). The
+  // status is then the only diagnostic there is, so keep it in the message
+  // instead of leaving the caller with "non-2xx status code".
+  const status = (error as { context?: { status?: number } })?.context?.status;
+  const generic = (error as { message?: string })?.message || fallback;
+  return status ? `${generic} (HTTP ${status})` : generic;
 }

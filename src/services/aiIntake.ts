@@ -204,7 +204,11 @@ export interface ParseBlocksResult {
   errors: Array<{ block: number; error: string }>;
 }
 
-const TRANSIENT_ERROR = /429|rate.?limit|overloaded|529|503|504|timeout|timed out|Failed to send/i;
+// 546 is Supabase's "the isolate blew its CPU/memory budget" — like a 504 it
+// says nothing about the request being wrong, and the retry often lands on a
+// fresh isolate.
+const TRANSIENT_ERROR =
+  /429|rate.?limit|overloaded|529|503|504|546|timeout|timed out|non-2xx|Failed to send/i;
 
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -420,7 +424,10 @@ export const aiIntakeService = {
   ): Promise<PamphletParseResult> {
     const invoke = async <T>(body: Record<string, unknown>): Promise<T> => {
       const { data, error } = await supabase.functions.invoke('parse-pamphlet', { body });
-      if (error) throw new Error(error.message || 'Pamphlet parsing failed');
+      // Same reason as parseBlocks: without the server's real message every
+      // failure reads "non-2xx status code", and the retry below could never
+      // tell a transient runtime kill from a genuine bad request.
+      if (error) throw new Error(await edgeFunctionErrorMessage(error, 'Pamphlet parsing failed'));
       if (data?.error) throw new Error(data.error);
       return data as T;
     };
@@ -441,9 +448,11 @@ export const aiIntakeService = {
     let cursor = 0;
     const CONCURRENCY = 2;
 
-    const worker = async () => {
-      while (cursor < chunks.length) {
-        const index = cursor++;
+    const runChunk = async (index: number) => {
+      // One retry, transient errors only — a chunk killed by the runtime (546)
+      // or the wall clock (504) usually succeeds on a fresh isolate, and
+      // retrying one chunk re-spends only that chunk's tokens.
+      for (let attempt = 0; ; attempt++) {
         try {
           const res = await invoke<{
             parsed: number;
@@ -463,12 +472,22 @@ export const aiIntakeService = {
           totals.updated += res.updated;
           totals.geocoded += res.geocoded;
           for (const e of res.errors ?? []) errors.push({ unit: index, error: e.error });
+          return;
         } catch (err) {
-          errors.push({
-            unit: index,
-            error: err instanceof Error ? err.message : 'Chunk failed',
-          });
+          const message = err instanceof Error ? err.message : 'Chunk failed';
+          if (attempt === 0 && TRANSIENT_ERROR.test(message)) {
+            await delay(2000);
+            continue;
+          }
+          errors.push({ unit: index, error: message });
+          return;
         }
+      }
+    };
+
+    const worker = async () => {
+      while (cursor < chunks.length) {
+        await runChunk(cursor++);
         done++;
         onProgress?.(done, chunks.length);
       }
@@ -477,8 +496,14 @@ export const aiIntakeService = {
       Array.from({ length: Math.min(CONCURRENCY, chunks.length) }, () => worker()),
     );
 
-    // 3. Stamp the run.
-    await invoke({ action: 'finalize', run_id: start.run_id, totals, errors });
+    // 3. Stamp the run — never let this sink the result. The listings are
+    //    already in the review table by now; an unfinalized run is a cosmetic
+    //    "still running" badge, not a reason to throw away the summary.
+    try {
+      await invoke({ action: 'finalize', run_id: start.run_id, totals, errors });
+    } catch (err) {
+      console.error('Failed to finalize pamphlet run:', err);
+    }
 
     return { run_id: start.run_id, source: args.source, ...totals, errors };
   },
