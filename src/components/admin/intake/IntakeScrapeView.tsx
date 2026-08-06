@@ -235,7 +235,8 @@ export function IntakeScrapeView({ onScraped }: IntakeScrapeViewProps) {
             <div>
               Read {result.cards_seen} listing{result.cards_seen === 1 ? '' : 's'} on the index ·
               fetched {result.pages_fetched} · <strong>{result.inserted}</strong> new ·{' '}
-              {result.updated} updated · {result.geocoded} geocoded
+              {result.updated} updated · {result.geocoded} geocoded · {result.photos} photo
+              {result.photos === 1 ? '' : 's'}
               {result.errors.length > 0 && (
                 <span className="text-amber-700"> · {result.errors.length} error(s)</span>
               )}

@@ -44,6 +44,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { IntakeMediaField } from './IntakeMediaField';
 import { IntakeLocationEditor } from './IntakeLocationEditor';
 import { IntakeSmsThread } from './IntakeSmsThread';
+import { ContactHistoryChip } from './ContactHistoryChip';
 
 interface IntakeWorkspaceDrawerProps {
   listing: ScrapedListing | null;
@@ -1171,6 +1172,12 @@ export function IntakeWorkspaceDrawer({
                   />
                 </Field>
               </div>
+              {/* Whether this number has posted with us before — one line until
+                  clicked, and nothing at all for a first-time contact. */}
+              <ContactHistoryChip
+                phone={listing.contact_phone || listing.contact_phone_display}
+                excludeScrapedId={listing.id}
+              />
               <div className="mt-3 pt-3 border-t border-gray-100 space-y-3">
                 <Field
                   label="Publish under account"

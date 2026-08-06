@@ -50,7 +50,9 @@ import {
   DEFAULT_MODEL,
   parseBatch,
   geocodeListing,
+  generateDedupKey,
   upsertScrapedListing,
+  type GeoResult,
   type ParsedListing,
 } from '../_shared/intake.ts';
 
@@ -67,11 +69,17 @@ const FETCH_DELAY_MS = 600; // polite gap between fetches
 const SINCE_LAST_GRACE_DAYS = 1;
 
 // Listings per "chunk" call. Sized so one call comfortably fits the wall clock:
-// 8 detail fetches (~9s with the polite gap) + one Claude call over ~8 short
-// pages + 8 geocode/upsert round trips lands near a minute, leaving wide
-// headroom. It also bounds the blast radius — a batch that fails costs 8
-// listings, not the whole run.
-const CARDS_PER_CHUNK = 8;
+// 6 detail fetches (~7s with the polite gap) + one Claude call over ~6 short
+// pages + 6 geocode/upsert round trips + photo imports lands near a minute,
+// leaving wide headroom. It also bounds the blast radius — a batch that fails
+// costs 6 listings, not the whole run.
+const CARDS_PER_CHUNK = 6;
+
+// Photos per listing. luach.com galleries run 0-20; the first handful carry the
+// apartment, the tail is usually repeats of the same rooms. Capping keeps a
+// chunk's import time bounded and the storage bill sane.
+const MAX_IMAGES_PER_LISTING = 8;
+const IMAGE_CONCURRENCY = 4; // static assets — safe to pull several at once
 
 // Safety net only: a chunk's detail pages compose to well under 2k characters
 // each, so 8 of them never approach this. It exists so a freak oversized page
@@ -94,8 +102,25 @@ interface IndexCard {
 
 interface Detail {
   slug: string;
+  /** What Claude parses: the blurb plus the listing's panel text. */
   text: string;
+  /** The clean, human-facing original — stored as raw_text, shown in the drawer. */
+  blurb: string;
   postedDate: string | null;
+  /** Full-size gallery photos, absolute URLs. */
+  imageUrls: string[];
+  /** luach.com's own map pin, when it published real coordinates. */
+  coords: { lat: number; lng: number } | null;
+  /** luach.com's Google-normalized place string, when it published one instead. */
+  place: string | null;
+}
+
+/** A photo imported into our own storage, shaped for scraped_listings.image_paths. */
+interface StoredImage {
+  filePath: string;
+  publicUrl: string;
+  is_featured: boolean;
+  type: 'image';
 }
 
 /** One unit of work the client requests via action "chunk". */
@@ -155,23 +180,139 @@ function parsePostedDate(text: string): string | null {
   return m ? toIsoDate(m[1]) : null;
 }
 
+/**
+ * Tidy whitespace WITHOUT flattening the text.
+ *
+ * The original version collapsed every run of whitespace — newlines included —
+ * into single spaces, so a listing the poster had laid out over several lines
+ * arrived as one unreadable paragraph, and that flattened string is what got
+ * stored as raw_text and shown back in the drawer's "Original blurb". Runs of
+ * spaces and tabs still collapse; line structure survives.
+ */
+function tidyText(raw: string): string {
+  return raw
+    .replace(/\r\n?/g, '\n')
+    .replace(/[ \t\u00a0]+/g, ' ')
+    .split('\n')
+    // luach.com separates header fields with a trailing "|" ("$1,975 / Month |");
+    // once each field is on its own line the separator is just litter.
+    .map((line) => line.trim().replace(/\s*\|\s*$/, '').trim())
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+/**
+ * An element's text with its line structure intact. `textContent` alone drops
+ * `<br>` and block boundaries, which is where luach.com's posters put their
+ * line breaks, so those become newlines before the tags are stripped.
+ */
+function blockText(doc: ReturnType<DOMParser['parseFromString']>, sel: string): string {
+  const el = doc?.querySelector(sel) as Element | null;
+  if (!el) return '';
+  const withBreaks = (el.innerHTML || '')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/(p|div|li|h[1-6]|tr|section|blockquote)>/gi, '\n');
+  // Re-parse so HTML entities (&amp;, &#x27;) decode instead of leaking through.
+  // Read the text off the wrapper ELEMENT, never the Document: per the DOM spec
+  // Document.textContent is null, which would silently blank every field.
+  const stripped = new DOMParser().parseFromString(`<div id="w">${withBreaks}</div>`, 'text/html');
+  return tidyText((stripped?.querySelector('#w') as Element | null)?.textContent || '');
+}
+
+/**
+ * Drop inline scripts/styles before reading text. `textContent` happily returns
+ * the body of a <script>, so without this the Facebook and Twitter SDK snippets
+ * luach.com embeds end up in the listing text — tokens spent on nothing, and
+ * junk in the blurb the admin reads.
+ */
+function stripNoise(doc: ReturnType<DOMParser['parseFromString']>): void {
+  for (const node of Array.from(doc?.querySelectorAll('script, style, noscript') ?? [])) {
+    (node as unknown as { remove?: () => void }).remove?.();
+  }
+}
+
+/** Full-size gallery photos. Each thumbnail is wrapped in a link to the original. */
+function extractImageUrls(doc: ReturnType<DOMParser['parseFromString']>): string[] {
+  const urls: string[] = [];
+  const seen = new Set<string>();
+  for (const a of Array.from(doc?.querySelectorAll('#galleria a') ?? []) as Element[]) {
+    const href = a.getAttribute('href') || '';
+    if (!href.startsWith('/uploads/listing_image/')) continue;
+    if (seen.has(href)) continue;
+    seen.add(href);
+    urls.push(`${BASE}${href}`);
+    if (urls.length >= MAX_IMAGES_PER_LISTING) break;
+  }
+  return urls;
+}
+
+/**
+ * luach.com feeds its own map from `#map-canvas[data-place-attr]`, URL-encoded.
+ * It holds EITHER a "lat,lng" pair (the poster dropped a real pin) OR a
+ * Google-normalized place string like "E 18th St, Brooklyn, N.Y. 11229, USA".
+ * Both beat anything we can infer from the prose, so both are worth keeping.
+ */
+function extractPlace(
+  doc: ReturnType<DOMParser['parseFromString']>,
+): { coords: { lat: number; lng: number } | null; place: string | null } {
+  const rawAttr = (doc?.querySelector('#map-canvas') as Element | null)?.getAttribute(
+    'data-place-attr',
+  );
+  if (!rawAttr) return { coords: null, place: null };
+
+  let decoded = rawAttr;
+  try {
+    decoded = decodeURIComponent(rawAttr);
+  } catch {
+    /* keep the raw value — a malformed escape shouldn't lose the whole field */
+  }
+  decoded = decoded.trim();
+  if (!decoded) return { coords: null, place: null };
+
+  const pair = decoded.match(/^(-?\d{1,3}\.\d+)\s*,\s*(-?\d{1,3}\.\d+)$/);
+  if (pair) {
+    const lat = Number(pair[1]);
+    const lng = Number(pair[2]);
+    if (Number.isFinite(lat) && Number.isFinite(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180) {
+      return { coords: { lat, lng }, place: null };
+    }
+  }
+  return { coords: null, place: decoded.length >= 4 ? decoded : null };
+}
+
 /** Extract the human-readable listing text + metadata from a detail page. */
-function extractDetail(html: string): { text: string; postedDate: string | null } {
+function extractDetail(html: string): Omit<Detail, 'slug'> {
   const doc = new DOMParser().parseFromString(html, 'text/html');
-  const pick = (sel: string): string =>
-    (doc?.querySelector(sel) as Element | null)?.textContent?.replace(/\s+/g, ' ').trim() || '';
+  stripNoise(doc);
 
-  const title = pick('.listing-title-headline') || pick('h1');
-  const address = pick('.listing-address-headline');
-  const description = pick('.listing-description');
-  const body = doc?.querySelector('.panel-body, main, body')?.textContent || '';
-  const bodyText = body.replace(/\s+/g, ' ').trim();
+  // `.location-area` is the header block: headline, address, price, rent/sale.
+  // `.container.top10` is the listing's own panels (description, posted date,
+  // ad id). Deliberately NOT `body` — the previous selector list resolved to
+  // <body> (it matches first in document order), so every listing carried the
+  // site's nav and footer along with it.
+  const header = blockText(doc, '.location-area');
+  const description = blockText(doc, '.listing-description');
+  const panels = blockText(doc, '.container.top10');
 
-  // Prefer the structured fields; fall back to the whole panel text so Claude
-  // still sees the phone number and any details our selectors missed.
-  const composed = [title, address, description].filter(Boolean).join('\n');
-  const text = composed.length > 40 ? `${composed}\n${bodyText.slice(0, 4000)}` : bodyText.slice(0, 6000);
-  return { text, postedDate: parsePostedDate(bodyText) };
+  const title = blockText(doc, '.listing-title-headline') || blockText(doc, 'h1');
+  const blurb =
+    [header, description].filter(Boolean).join('\n\n') || panels.slice(0, 2000) || title;
+
+  // What Claude reads: the clean blurb plus the panel text, so a phone or
+  // detail sitting somewhere we didn't name still reaches the model. The
+  // description appears in both, which costs a little and guarantees a lot.
+  const text = panels ? `${blurb}\n\n${panels.slice(0, 3000)}` : blurb;
+
+  const { coords, place } = extractPlace(doc);
+  return {
+    text,
+    blurb: blurb || text,
+    postedDate: parsePostedDate(panels || text),
+    imageUrls: extractImageUrls(doc),
+    coords,
+    place,
+  };
 }
 
 function shiftDays(iso: string, days: number): string {
@@ -241,6 +382,154 @@ function sanitizeCards(raw: unknown): IndexCard[] {
     });
   }
   return out;
+}
+
+/**
+ * Copy a listing's photos into our own storage.
+ *
+ * Hotlinking luach.com would leave every lead's photos dependent on their
+ * server and break the moment a listing comes down, so the bytes are pulled
+ * once and re-uploaded to the same bucket the paste path uses. The shape
+ * returned is exactly what `scraped_listings.image_paths` holds, which is what
+ * publish already copies into the live listing's own folder.
+ *
+ * One bad photo never sinks a listing — failures are skipped silently and the
+ * rest still land.
+ */
+async function importImages(
+  supabase: SupabaseClient,
+  adminId: string,
+  slug: string,
+  urls: string[],
+): Promise<StoredImage[]> {
+  const stamp = Date.now();
+  const results: Array<StoredImage | null> = new Array(urls.length).fill(null);
+
+  let cursor = 0;
+  const worker = async () => {
+    while (cursor < urls.length) {
+      const i = cursor++;
+      try {
+        const res = await fetch(urls[i], { headers: { 'User-Agent': USER_AGENT } });
+        if (!res.ok) continue;
+        const bytes = new Uint8Array(await res.arrayBuffer());
+        // luach.com answers a missing photo with a tiny placeholder rather than
+        // a 404, so size is the only reliable "did we get a real image" check.
+        if (bytes.byteLength < 2048) continue;
+        const contentType = res.headers.get('content-type') || 'image/jpeg';
+        if (!contentType.startsWith('image/')) continue;
+        const ext = (urls[i].split('?')[0].split('.').pop() || 'jpg').toLowerCase();
+        const path = `user_${adminId}/intake-scrape/${slug}_${stamp}_${i}.${ext}`;
+        const { error } = await supabase.storage
+          .from('listing-images')
+          .upload(path, bytes, { contentType, upsert: false });
+        if (error) continue;
+        const {
+          data: { publicUrl },
+        } = supabase.storage.from('listing-images').getPublicUrl(path);
+        results[i] = { filePath: path, publicUrl, is_featured: false, type: 'image' };
+      } catch {
+        /* skip this photo */
+      }
+    }
+  };
+  await Promise.all(
+    Array.from({ length: Math.min(IMAGE_CONCURRENCY, urls.length) }, () => worker()),
+  );
+
+  // Keep the gallery's own order, then feature the first survivor — luach.com
+  // leads with the photo the poster chose as the cover.
+  const kept = results.filter((r): r is StoredImage => r !== null);
+  if (kept.length > 0) kept[0].is_featured = true;
+  return kept;
+}
+
+async function callGeocoder(
+  supabaseUrl: string,
+  anonKey: string,
+  payload: Record<string, unknown>,
+): Promise<Record<string, unknown> | null> {
+  try {
+    const resp = await fetch(`${supabaseUrl}/functions/v1/geocode-cross-streets`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        apikey: anonKey,
+        Authorization: `Bearer ${anonKey}`,
+      },
+      body: JSON.stringify(payload),
+    });
+    if (!resp.ok) return null;
+    const result = await resp.json();
+    return result?.success ? result : null;
+  } catch (err) {
+    console.error('[scrape-luach-com] geocoder call failed:', err);
+    return null;
+  }
+}
+
+/**
+ * Where this listing actually is, best source first.
+ *
+ *   1. luach.com's own map pin. The poster placed it, so it beats anything we
+ *      can infer from prose — and it costs no forward-geocode. Reverse-geocoding
+ *      it back gives the neighborhood and, when the listing didn't spell one
+ *      out, an exact street address.
+ *   2. luach.com's Google-normalized place string, geocoded verbatim.
+ *   3. Whatever the model parsed out of the text (the original behaviour).
+ *
+ * `derivedAddress` is returned separately rather than written onto the listing:
+ * street_address feeds generateDedupKey, so filling it here would change the
+ * key and split a listing off from the row it should have merged onto.
+ */
+async function resolveGeo(
+  supabaseUrl: string,
+  anonKey: string,
+  detail: Detail,
+  listing: ParsedListing,
+): Promise<{ geo: GeoResult; derivedAddress: string | null; via: string }> {
+  if (detail.coords) {
+    const rev = await callGeocoder(supabaseUrl, anonKey, {
+      latitude: detail.coords.lat,
+      longitude: detail.coords.lng,
+    });
+    return {
+      geo: {
+        latitude: detail.coords.lat,
+        longitude: detail.coords.lng,
+        status: 'success',
+        neighborhood: (rev?.neighborhood as string) ?? null,
+      },
+      derivedAddress: (rev?.streetAddress as string) ?? null,
+      via: 'luach_pin',
+    };
+  }
+
+  if (detail.place) {
+    const res = await callGeocoder(supabaseUrl, anonKey, {
+      place: detail.place,
+      detectNeighborhood: true,
+    });
+    const coords = res?.coordinates as { latitude: number; longitude: number } | undefined;
+    if (coords) {
+      return {
+        geo: {
+          latitude: coords.latitude,
+          longitude: coords.longitude,
+          status: 'success',
+          neighborhood: (res?.neighborhood as string) ?? null,
+        },
+        derivedAddress: null,
+        via: 'luach_place',
+      };
+    }
+  }
+
+  return {
+    geo: await geocodeListing(supabaseUrl, anonKey, listing),
+    derivedAddress: null,
+    via: 'parsed_text',
+  };
 }
 
 Deno.serve(async (req: Request) => {
@@ -434,11 +723,15 @@ Deno.serve(async (req: Request) => {
         const card = cards[i];
         try {
           const html = await fetchHtml(`${BASE}${INDEX_PATH}/${card.slug}`);
-          const { text, postedDate } = extractDetail(html);
-          if (text && text.length > 30) {
+          const parsed = extractDetail(html);
+          if (parsed.text && parsed.text.length > 30) {
             // The index date and the detail date agree in practice; prefer the
             // index one since it is what the date filter just matched on.
-            details.push({ slug: card.slug, text, postedDate: card.postedDate ?? postedDate });
+            details.push({
+              ...parsed,
+              slug: card.slug,
+              postedDate: card.postedDate ?? parsed.postedDate,
+            });
           }
         } catch (err) {
           errors.push({ slug: card.slug, error: err instanceof Error ? err.message : String(err) });
@@ -465,33 +758,104 @@ Deno.serve(async (req: Request) => {
         }
       }
 
-      // --- Geocode + upsert (collapse dupes) --------------------------------
+      // --- Geocode + photos + upsert (collapse dupes) -----------------------
       let inserted = 0;
       let updated = 0;
       let geocoded = 0;
+      let photos = 0;
+
+      // A detail page that produced exactly one listing IS that listing, so its
+      // own text is a more faithful "original blurb" than the model's echo —
+      // and it keeps the line breaks the poster typed. A page that produced
+      // several keeps the model's per-listing split.
+      const listingsPerSlug = new Map<string, number>();
+      for (const { detail } of attributed) {
+        listingsPerSlug.set(detail.slug, (listingsPerSlug.get(detail.slug) ?? 0) + 1);
+      }
 
       for (const { detail, listing } of attributed) {
-        const geo = await geocodeListing(supabaseUrl, anonKey, listing);
+        if (listingsPerSlug.get(detail.slug) === 1) listing.raw_text = detail.blurb;
+
+        const { geo, derivedAddress, via } = await resolveGeo(
+          supabaseUrl,
+          anonKey,
+          detail,
+          listing,
+        );
         if (geo.status === 'success') geocoded++;
+
+        // Photos are imported once per real-world listing. Re-scrapes and
+        // cross-source merges skip the download entirely — the upsert would
+        // refuse to overwrite existing media anyway.
+        const dedupKey = generateDedupKey(listing);
+        let existingId: string | null = null;
+        let existingExtra: Record<string, unknown> = {};
+        let hasMedia = false;
+        if (dedupKey) {
+          const { data: existing } = await supabase
+            .from('scraped_listings')
+            .select('id, image_paths, intake_extra')
+            .eq('dedup_key', dedupKey)
+            .maybeSingle();
+          if (existing) {
+            existingId = existing.id;
+            existingExtra = (existing.intake_extra ?? {}) as Record<string, unknown>;
+            hasMedia = Array.isArray(existing.image_paths) && existing.image_paths.length > 0;
+          }
+        }
+
+        let images: StoredImage[] = [];
+        if (!hasMedia && detail.imageUrls.length > 0) {
+          images = await importImages(supabase, user.id, detail.slug, detail.imageUrls);
+          photos += images.length;
+        }
+
         try {
           const outcome = await upsertScrapedListing(supabase, listing, geo, {
             source: 'luach_com',
             runId,
             sourceUrl: `${BASE}${INDEX_PATH}/${detail.slug}`,
             pdfDate: detail.postedDate || today,
+            images: images.length > 0 ? images : undefined,
           });
           if (outcome === 'inserted') inserted++;
           else updated++;
+
+          // The address we reverse-geocoded off luach.com's pin fills a gap;
+          // it never overwrites one the listing already stated. Written after
+          // the upsert on purpose — see resolveGeo on why it can't ride along.
+          if (derivedAddress && !existingExtra.full_address && !listing.street_address?.trim()) {
+            let rowId = existingId;
+            if (!rowId && dedupKey) {
+              const { data: fresh } = await supabase
+                .from('scraped_listings')
+                .select('id, intake_extra')
+                .eq('dedup_key', dedupKey)
+                .maybeSingle();
+              rowId = fresh?.id ?? null;
+              existingExtra = (fresh?.intake_extra ?? {}) as Record<string, unknown>;
+            }
+            if (rowId && !existingExtra.full_address) {
+              await supabase
+                .from('scraped_listings')
+                .update({ intake_extra: { ...existingExtra, full_address: derivedAddress } })
+                .eq('id', rowId);
+            }
+          }
         } catch (err) {
           errors.push({
             slug: detail.slug,
             error: err instanceof Error ? err.message : String(err),
           });
         }
+
+        if (via !== 'parsed_text') {
+          console.log(`[scrape-luach-com:${requestId}] ${detail.slug}: located via ${via}`);
+        }
       }
 
       console.log(
-        `[scrape-luach-com:${requestId}] chunk: ${cards.length} card(s), ${details.length} fetched, ${batches.length} AI call(s), ${attributed.length} parsed, ${inserted} new, ${updated} merged, ${errors.length} error(s)`,
+        `[scrape-luach-com:${requestId}] chunk: ${cards.length} card(s), ${details.length} fetched, ${batches.length} AI call(s), ${attributed.length} parsed, ${inserted} new, ${updated} merged, ${photos} photo(s), ${errors.length} error(s)`,
       );
 
       return json({
@@ -501,6 +865,7 @@ Deno.serve(async (req: Request) => {
         inserted,
         updated,
         geocoded,
+        photos,
         errors,
       });
     }
