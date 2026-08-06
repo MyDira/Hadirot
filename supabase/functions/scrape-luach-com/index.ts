@@ -3,10 +3,9 @@
 // Admin, button-triggered scrape of the luach.com real-estate section. Reads
 // the server-rendered /apartments index, filters candidates BY POSTING DATE
 // before spending anything on them, fetches only the surviving detail pages,
-// and sends all of them to Claude in ONE batched call. Results are upserted
-// into scraped_listings with source = 'luach_com' and the per-listing
-// source_url. Cross-source dedup collapses re-scrapes and listings that also
-// appear in a pamphlet onto one row.
+// and sends them to Claude. Results are upserted into scraped_listings with
+// source = 'luach_com' and the per-listing source_url. Cross-source dedup
+// collapses re-scrapes and listings that also appear in a pamphlet onto one row.
 //
 // Two things about luach.com's index drive the design here (verified live
 // July 30 2026):
@@ -22,6 +21,23 @@
 //      listing that fails the date filter costs zero detail fetches and zero
 //      tokens. Because the non-promoted feed is date-descending, the crawl also
 //      stops paginating as soon as it drops below the cutoff.
+//
+// CLIENT-DRIVEN (Aug 6 2026 rebuild): the original single-request design did
+// every detail fetch, one batched Claude call, and every geocode+upsert inside
+// one invocation. At the 60-listing default that is ~70s of polite fetching +
+// a multi-minute Claude call + ~60s of geocoding, which ran past the
+// edge-function wall clock — the gateway answered 504, the admin saw nothing,
+// and the run row was orphaned at 'running'. The work is now split into batches
+// the CLIENT drives, exactly like parse-pamphlet and parse-bulk-listings:
+//
+//   action "start"    — crawl the index, date-filter, plan the batches, create
+//                       the scrape_runs row. Returns { run_id, chunks, ... }.
+//   action "chunk"    — fetch one batch of detail pages, parse them in ONE
+//                       Claude call, geocode + upsert. Returns per-batch counts.
+//   action "finalize" — stamp the run completed/failed with the totals.
+//
+// Every action stays well inside the wall-clock limit, a failed batch costs
+// only its own listings, and the admin gets real progress.
 //
 // Admin-only: the caller's JWT must carry app_metadata.is_admin = true.
 // Required secrets: ANTHROPIC_API_KEY
@@ -50,11 +66,23 @@ const FETCH_DELAY_MS = 600; // polite gap between fetches
 // key collapses it); missing one is not.
 const SINCE_LAST_GRACE_DAYS = 1;
 
-// All detail pages go to Claude in a single call. This cap only exists so a
-// huge backfill cannot build a request too large to serve — a real luach.com
-// detail page composes to well under 2k characters, so a normal run (even at
-// the 120-listing ceiling) stays comfortably inside one call.
+// Listings per "chunk" call. Sized so one call comfortably fits the wall clock:
+// 8 detail fetches (~9s with the polite gap) + one Claude call over ~8 short
+// pages + 8 geocode/upsert round trips lands near a minute, leaving wide
+// headroom. It also bounds the blast radius — a batch that fails costs 8
+// listings, not the whole run.
+const CARDS_PER_CHUNK = 8;
+
+// Safety net only: a chunk's detail pages compose to well under 2k characters
+// each, so 8 of them never approach this. It exists so a freak oversized page
+// splits into a second call instead of building a request too large to serve.
 const MAX_BATCH_CHARS = 300_000;
+
+// A run left 'running' this long was killed mid-flight (the 504 this rebuild
+// fixes left several behind). Sweep them when a new run starts so the review
+// screen stops showing phantom in-progress batches. Generous enough that a
+// genuinely in-flight run is never touched.
+const STALE_RUN_MINUTES = 45;
 
 type ScrapeMode = 'since_last' | 'range' | 'all';
 
@@ -69,6 +97,16 @@ interface Detail {
   text: string;
   postedDate: string | null;
 }
+
+/** One unit of work the client requests via action "chunk". */
+interface ChunkPlan {
+  cards: IndexCard[];
+}
+
+const SLUG_RX = /^[a-z0-9-]{3,120}$/;
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+const cleanDate = (v: unknown): string | null =>
+  typeof v === 'string' && ISO_DATE.test(v) ? v : null;
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -183,9 +221,27 @@ function chunkByBudget(details: Detail[], maxChars: number): Detail[][] {
   return chunks;
 }
 
-const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
-const cleanDate = (v: unknown): string | null =>
-  typeof v === 'string' && ISO_DATE.test(v) ? v : null;
+/**
+ * The client hands chunk descriptors straight back to us, so re-validate every
+ * slug before it is pasted into a URL — an unchecked slug would let an admin
+ * client point the fetch at an arbitrary path.
+ */
+function sanitizeCards(raw: unknown): IndexCard[] {
+  if (!Array.isArray(raw)) return [];
+  const out: IndexCard[] = [];
+  const seen = new Set<string>();
+  for (const item of raw) {
+    const slug = typeof item?.slug === 'string' ? item.slug.toLowerCase() : '';
+    if (!SLUG_RX.test(slug) || seen.has(slug)) continue;
+    seen.add(slug);
+    out.push({
+      slug,
+      postedDate: cleanDate(item?.postedDate),
+      promoted: item?.promoted === true,
+    });
+  }
+  return out;
+}
 
 Deno.serve(async (req: Request) => {
   const requestId = crypto.randomUUID().substring(0, 8);
@@ -227,230 +283,260 @@ Deno.serve(async (req: Request) => {
     }
 
     const body = await req.json().catch(() => ({}));
-    const maxPages = Math.min(Math.max(1, parseInt(String(body?.pages ?? 3), 10) || 3), 10);
-    const limit = Math.min(Math.max(1, parseInt(String(body?.limit ?? 60), 10) || 60), 120);
-    const includePromoted = body?.includePromoted === true;
-    const rawMode = String(body?.mode ?? 'since_last');
-    const mode: ScrapeMode =
-      rawMode === 'range' || rawMode === 'all' ? (rawMode as ScrapeMode) : 'since_last';
-    const untilDate = mode === 'range' ? cleanDate(body?.until) : null;
+    const action: string = typeof body?.action === 'string' ? body.action : 'start';
 
-    const cutoff = await resolveCutoff(supabase, mode, mode === 'range' ? cleanDate(body?.since) : null);
+    // =========================================================================
+    // action: start — crawl + date-filter the index, plan batches, create run
+    // =========================================================================
+    if (action === 'start') {
+      const maxPages = Math.min(Math.max(1, parseInt(String(body?.pages ?? 3), 10) || 3), 10);
+      const limit = Math.min(Math.max(1, parseInt(String(body?.limit ?? 60), 10) || 60), 120);
+      const includePromoted = body?.includePromoted === true;
+      const rawMode = String(body?.mode ?? 'since_last');
+      const mode: ScrapeMode =
+        rawMode === 'range' || rawMode === 'all' ? (rawMode as ScrapeMode) : 'since_last';
+      const untilDate = mode === 'range' ? cleanDate(body?.until) : null;
 
-    console.log(
-      `[scrape-luach-com:${requestId}] Admin ${user.id}: mode=${mode}, cutoff=${cutoff ?? 'none'}, until=${untilDate ?? 'none'}, pages<=${maxPages}, limit=${limit}, promoted=${includePromoted}`,
-    );
-
-    // --- Walk the index, filtering by date before spending anything ---------
-    const selected: IndexCard[] = [];
-    const seenSlugs = new Set<string>();
-    let cardsSeen = 0;
-    let skippedPromoted = 0;
-    let skippedByDate = 0;
-    let pagesFetched = 0;
-
-    try {
-      for (let p = 1; p <= maxPages; p++) {
-        const url = p === 1 ? `${BASE}${INDEX_PATH}` : `${BASE}${INDEX_PATH}?page=${p}`;
-        const cards = parseIndexCards(await fetchHtml(url));
-        pagesFetched++;
-        if (cards.length === 0) break; // ran off the end of the listings
-
-        // The non-promoted feed is date-descending, so the first card older
-        // than the cutoff means every later card is older too.
-        let exhausted = false;
-        for (const card of cards) {
-          cardsSeen++;
-          if (card.promoted && !includePromoted) {
-            skippedPromoted++;
-            continue;
-          }
-          if (card.postedDate) {
-            if (cutoff && card.postedDate < cutoff) {
-              skippedByDate++;
-              if (!card.promoted) exhausted = true; // promoted cards are out of order
-              continue;
-            }
-            if (untilDate && card.postedDate > untilDate) {
-              skippedByDate++;
-              continue;
-            }
-          }
-          if (!seenSlugs.has(card.slug)) {
-            seenSlugs.add(card.slug);
-            selected.push(card);
-          }
-        }
-
-        if (selected.length >= limit || exhausted) break;
-        if (p < maxPages) await sleep(FETCH_DELAY_MS);
-      }
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      console.error(`[scrape-luach-com:${requestId}] index fetch failed:`, message);
-      return json(
-        {
-          error: `Could not reach luach.com (${message}). The site may be blocking cloud requests — you can run the local scraper (npm run scrape:luach, on the claude/luach-scraper-pipeline branch) as a fallback.`,
-        },
-        502,
+      const cutoff = await resolveCutoff(
+        supabase,
+        mode,
+        mode === 'range' ? cleanDate(body?.since) : null,
       );
-    }
 
-    if (cardsSeen === 0) {
-      return json({ error: 'No listings found on luach.com — the page layout may have changed.' }, 502);
-    }
+      console.log(
+        `[scrape-luach-com:${requestId}] start: admin ${user.id}, mode=${mode}, cutoff=${cutoff ?? 'none'}, until=${untilDate ?? 'none'}, pages<=${maxPages}, limit=${limit}, promoted=${includePromoted}`,
+      );
 
-    const chosen = selected.slice(0, limit);
-    const today = new Date().toISOString().slice(0, 10);
+      // --- Walk the index, filtering by date before spending anything -------
+      const selected: IndexCard[] = [];
+      const seenSlugs = new Set<string>();
+      let cardsSeen = 0;
+      let skippedPromoted = 0;
+      let skippedByDate = 0;
+      let pagesFetched = 0;
 
-    // --- Create run row -----------------------------------------------------
-    const { data: run, error: runError } = await supabase
-      .from('scrape_runs')
-      .insert({
-        source: 'luach_com',
-        pdf_date: today,
-        pdf_filename: `${BASE}${INDEX_PATH}`,
-        total_pages: pagesFetched,
-        status: 'running',
-        created_by: user.id,
-      })
-      .select('id')
-      .single();
-    if (runError || !run) return json({ error: 'Failed to create scrape run' }, 500);
+      try {
+        for (let p = 1; p <= maxPages; p++) {
+          const url = p === 1 ? `${BASE}${INDEX_PATH}` : `${BASE}${INDEX_PATH}?page=${p}`;
+          const cards = parseIndexCards(await fetchHtml(url));
+          pagesFetched++;
+          if (cards.length === 0) break; // ran off the end of the listings
 
-    const errors: Array<{ slug: string; error: string }> = [];
+          // The non-promoted feed is date-descending, so the first card older
+          // than the cutoff means every later card is older too.
+          let exhausted = false;
+          for (const card of cards) {
+            cardsSeen++;
+            if (card.promoted && !includePromoted) {
+              skippedPromoted++;
+              continue;
+            }
+            if (card.postedDate) {
+              if (cutoff && card.postedDate < cutoff) {
+                skippedByDate++;
+                if (!card.promoted) exhausted = true; // promoted cards are out of order
+                continue;
+              }
+              if (untilDate && card.postedDate > untilDate) {
+                skippedByDate++;
+                continue;
+              }
+            }
+            if (!seenSlugs.has(card.slug)) {
+              seenSlugs.add(card.slug);
+              selected.push(card);
+            }
+          }
 
-    // Nothing new is a normal, successful outcome — close the run cleanly
-    // rather than leaving it stuck in 'running'.
-    if (chosen.length === 0) {
+          if (selected.length >= limit || exhausted) break;
+          if (p < maxPages) await sleep(FETCH_DELAY_MS);
+        }
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        console.error(`[scrape-luach-com:${requestId}] index fetch failed:`, message);
+        return json(
+          {
+            error: `Could not reach luach.com (${message}). The site may be blocking cloud requests — you can run the local scraper (npm run scrape:luach, on the claude/luach-scraper-pipeline branch) as a fallback.`,
+          },
+          502,
+        );
+      }
+
+      if (cardsSeen === 0) {
+        return json(
+          { error: 'No listings found on luach.com — the page layout may have changed.' },
+          502,
+        );
+      }
+
+      const chosen = selected.slice(0, limit);
+      const chunks: ChunkPlan[] = [];
+      for (let i = 0; i < chosen.length; i += CARDS_PER_CHUNK) {
+        chunks.push({ cards: chosen.slice(i, i + CARDS_PER_CHUNK) });
+      }
+
+      // Clear debris from runs that were killed mid-flight, so the review
+      // screen doesn't show them as forever in-progress.
+      const staleBefore = new Date(Date.now() - STALE_RUN_MINUTES * 60_000).toISOString();
       await supabase
         .from('scrape_runs')
-        .update({
-          listings_parsed: 0,
-          listings_geocoded: 0,
-          listings_inserted: 0,
-          listings_updated: 0,
-          errors,
-          status: 'completed',
-          completed_at: new Date().toISOString(),
+        .update({ status: 'failed', completed_at: new Date().toISOString() })
+        .eq('source', 'luach_com')
+        .eq('status', 'running')
+        .lt('started_at', staleBefore);
+
+      const { data: run, error: runError } = await supabase
+        .from('scrape_runs')
+        .insert({
+          source: 'luach_com',
+          pdf_date: new Date().toISOString().slice(0, 10),
+          pdf_filename: `${BASE}${INDEX_PATH}`,
+          total_pages: pagesFetched,
+          status: 'running',
+          created_by: user.id,
         })
-        .eq('id', run.id);
+        .select('id')
+        .single();
+      if (runError || !run) return json({ error: 'Failed to create scrape run' }, 500);
+
       console.log(
-        `[scrape-luach-com:${requestId}] Done: nothing newer than ${cutoff ?? 'n/a'} (${skippedByDate} older, ${skippedPromoted} promoted)`,
+        `[scrape-luach-com:${requestId}] start: ${cardsSeen} cards over ${pagesFetched} page(s), ${skippedPromoted} promoted + ${skippedByDate} out-of-range skipped, ${chosen.length} selected in ${chunks.length} chunk(s)`,
       );
+
       return json({
         run_id: run.id,
         mode,
         cutoff,
+        chunks,
         cards_seen: cardsSeen,
-        pages_fetched: 0,
+        index_pages: pagesFetched,
+        selected: chosen.length,
         skipped_by_date: skippedByDate,
         skipped_promoted: skippedPromoted,
-        ai_calls: 0,
-        parsed: 0,
-        inserted: 0,
-        updated: 0,
-        geocoded: 0,
+      });
+    }
+
+    // =========================================================================
+    // action: chunk — fetch one batch of detail pages, parse, geocode, upsert
+    // =========================================================================
+    if (action === 'chunk') {
+      const runId: string | null = typeof body?.run_id === 'string' ? body.run_id : null;
+      if (!runId) return json({ error: 'run_id is required' }, 400);
+      const cards = sanitizeCards(body?.chunk?.cards);
+      if (cards.length === 0) return json({ error: 'chunk descriptor is required' }, 400);
+
+      const today = new Date().toISOString().slice(0, 10);
+      const errors: Array<{ slug: string; error: string }> = [];
+
+      // --- Fetch each detail page (sequential + polite) ---------------------
+      const details: Detail[] = [];
+      for (let i = 0; i < cards.length; i++) {
+        const card = cards[i];
+        try {
+          const html = await fetchHtml(`${BASE}${INDEX_PATH}/${card.slug}`);
+          const { text, postedDate } = extractDetail(html);
+          if (text && text.length > 30) {
+            // The index date and the detail date agree in practice; prefer the
+            // index one since it is what the date filter just matched on.
+            details.push({ slug: card.slug, text, postedDate: card.postedDate ?? postedDate });
+          }
+        } catch (err) {
+          errors.push({ slug: card.slug, error: err instanceof Error ? err.message : String(err) });
+        }
+        if (i < cards.length - 1) await sleep(FETCH_DELAY_MS);
+      }
+
+      // --- Parse the batch in one Claude call -------------------------------
+      const anthropic = new Anthropic({ apiKey: anthropicKey });
+      const batches = chunkByBudget(details, MAX_BATCH_CHARS);
+      const attributed: Array<{ detail: Detail; listing: ParsedListing }> = [];
+      for (const batch of batches) {
+        try {
+          const rows = await parseBatch(anthropic, model, batch.map((d) => ({ text: d.text })), 'auto');
+          for (const row of rows) {
+            const detail = batch[row.sourceIndex] ?? batch[0];
+            attributed.push({ detail, listing: row.listing });
+          }
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          // A failed batch loses every source in it — name them all so the admin
+          // can see exactly what was dropped instead of a silent shortfall.
+          for (const d of batch) errors.push({ slug: d.slug, error: message });
+        }
+      }
+
+      // --- Geocode + upsert (collapse dupes) --------------------------------
+      let inserted = 0;
+      let updated = 0;
+      let geocoded = 0;
+
+      for (const { detail, listing } of attributed) {
+        const geo = await geocodeListing(supabaseUrl, anonKey, listing);
+        if (geo.status === 'success') geocoded++;
+        try {
+          const outcome = await upsertScrapedListing(supabase, listing, geo, {
+            source: 'luach_com',
+            runId,
+            sourceUrl: `${BASE}${INDEX_PATH}/${detail.slug}`,
+            pdfDate: detail.postedDate || today,
+          });
+          if (outcome === 'inserted') inserted++;
+          else updated++;
+        } catch (err) {
+          errors.push({
+            slug: detail.slug,
+            error: err instanceof Error ? err.message : String(err),
+          });
+        }
+      }
+
+      console.log(
+        `[scrape-luach-com:${requestId}] chunk: ${cards.length} card(s), ${details.length} fetched, ${batches.length} AI call(s), ${attributed.length} parsed, ${inserted} new, ${updated} merged, ${errors.length} error(s)`,
+      );
+
+      return json({
+        fetched: details.length,
+        ai_calls: batches.length,
+        parsed: attributed.length,
+        inserted,
+        updated,
+        geocoded,
         errors,
       });
     }
 
-    // --- Fetch each surviving detail page (sequential + polite) -------------
-    const details: Detail[] = [];
-    for (const card of chosen) {
-      try {
-        const html = await fetchHtml(`${BASE}${INDEX_PATH}/${card.slug}`);
-        const { text, postedDate } = extractDetail(html);
-        if (text && text.length > 30) {
-          // The index date and the detail date agree in practice; prefer the
-          // index one since it is what the date filter just matched on.
-          details.push({ slug: card.slug, text, postedDate: card.postedDate ?? postedDate });
-        }
-      } catch (err) {
-        errors.push({ slug: card.slug, error: err instanceof Error ? err.message : String(err) });
-      }
-      await sleep(FETCH_DELAY_MS);
-    }
+    // =========================================================================
+    // action: finalize — stamp the run with totals
+    // =========================================================================
+    if (action === 'finalize') {
+      const runId: string | null = typeof body?.run_id === 'string' ? body.run_id : null;
+      if (!runId) return json({ error: 'run_id is required' }, 400);
+      const totals = body?.totals || {};
+      const errors = Array.isArray(body?.errors) ? body.errors : [];
+      const parsed = Number(totals.parsed) || 0;
+      const inserted = Number(totals.inserted) || 0;
+      const updated = Number(totals.updated) || 0;
 
-    // --- Parse EVERYTHING in one Claude call --------------------------------
-    const anthropic = new Anthropic({ apiKey: anthropicKey });
-    const batches = chunkByBudget(details, MAX_BATCH_CHARS);
-    if (batches.length > 1) {
+      await supabase
+        .from('scrape_runs')
+        .update({
+          listings_parsed: parsed,
+          listings_geocoded: Number(totals.geocoded) || 0,
+          listings_inserted: inserted,
+          listings_updated: updated,
+          errors,
+          status: errors.length > 0 && inserted === 0 && updated === 0 ? 'failed' : 'completed',
+          completed_at: new Date().toISOString(),
+        })
+        .eq('id', runId);
+
       console.log(
-        `[scrape-luach-com:${requestId}] payload too large for one call — split into ${batches.length}`,
+        `[scrape-luach-com:${requestId}] finalize ${runId}: ${parsed} parsed, ${inserted} new, ${updated} merged, ${errors.length} error(s)`,
       );
+      return json({ ok: true });
     }
 
-    const attributed: Array<{ detail: Detail; listing: ParsedListing }> = [];
-    for (const batch of batches) {
-      try {
-        const rows = await parseBatch(anthropic, model, batch.map((d) => ({ text: d.text })), 'auto');
-        for (const row of rows) {
-          const detail = batch[row.sourceIndex] ?? batch[0];
-          attributed.push({ detail, listing: row.listing });
-        }
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        // A failed batch loses every source in it — name them all so the admin
-        // can see exactly what was dropped instead of a silent shortfall.
-        for (const d of batch) errors.push({ slug: d.slug, error: message });
-      }
-    }
-
-    // --- Geocode + upsert (collapse dupes) ----------------------------------
-    let inserted = 0;
-    let updated = 0;
-    let geocoded = 0;
-
-    for (const { detail, listing } of attributed) {
-      const geo = await geocodeListing(supabaseUrl, anonKey, listing);
-      if (geo.status === 'success') geocoded++;
-      try {
-        const outcome = await upsertScrapedListing(supabase, listing, geo, {
-          source: 'luach_com',
-          runId: run.id,
-          sourceUrl: `${BASE}${INDEX_PATH}/${detail.slug}`,
-          pdfDate: detail.postedDate || today,
-        });
-        if (outcome === 'inserted') inserted++;
-        else updated++;
-      } catch (err) {
-        errors.push({ slug: detail.slug, error: err instanceof Error ? err.message : String(err) });
-      }
-    }
-
-    await supabase
-      .from('scrape_runs')
-      .update({
-        listings_parsed: attributed.length,
-        listings_geocoded: geocoded,
-        listings_inserted: inserted,
-        listings_updated: updated,
-        errors,
-        status: errors.length > 0 && inserted === 0 && updated === 0 ? 'failed' : 'completed',
-        completed_at: new Date().toISOString(),
-      })
-      .eq('id', run.id);
-
-    console.log(
-      `[scrape-luach-com:${requestId}] Done: ${cardsSeen} cards, ${skippedPromoted} promoted + ${skippedByDate} out-of-range skipped, ${details.length} fetched, ${batches.length} AI call(s), ${attributed.length} parsed, ${inserted} new, ${updated} merged, ${errors.length} error(s)`,
-    );
-
-    return json({
-      run_id: run.id,
-      mode,
-      cutoff,
-      cards_seen: cardsSeen,
-      pages_fetched: details.length,
-      skipped_by_date: skippedByDate,
-      skipped_promoted: skippedPromoted,
-      ai_calls: batches.length,
-      parsed: attributed.length,
-      inserted,
-      updated,
-      geocoded,
-      errors,
-    });
+    return json({ error: `Unknown action: ${action}` }, 400);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.error(`[scrape-luach-com:${requestId}] Fatal:`, message);

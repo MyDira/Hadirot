@@ -166,6 +166,18 @@ export interface ScrapeArgs {
   includePromoted?: boolean;
 }
 
+/** One index card the crawl selected — planned server-side, echoed back per batch. */
+export interface ScrapeCard {
+  slug: string;
+  postedDate: string | null;
+  promoted: boolean;
+}
+
+/** One batch of listings to fetch + parse in a single edge-function call. */
+export interface ScrapeChunk {
+  cards: ScrapeCard[];
+}
+
 export interface ScrapeResult {
   run_id: string;
   mode: ScrapeMode;
@@ -487,11 +499,126 @@ export const aiIntakeService = {
   // Website scrape (luach.com)
   // -------------------------------------------------------------------------
 
-  async scrapeLuachCom(args: ScrapeArgs): Promise<ScrapeResult> {
-    const { data, error } = await supabase.functions.invoke('scrape-luach-com', { body: args });
-    if (error) throw new Error(error.message || 'Failed to scrape luach.com');
-    if (data?.error) throw new Error(data.error);
-    return data as ScrapeResult;
+  /**
+   * Scrape luach.com, client-driven: the edge function crawls the index and
+   * plans batches of listings, the client fires the batch calls with bounded
+   * concurrency and reports progress, then finalizes the run.
+   *
+   * Doing the whole scrape in one edge-function call used to 504 — 60 listings
+   * is minutes of fetching, AI parsing and geocoding, far past the wall-clock
+   * limit. Now no single call runs longer than a batch, and a batch that fails
+   * costs only its own listings.
+   */
+  async scrapeLuachCom(
+    args: ScrapeArgs,
+    onProgress?: (done: number, total: number) => void,
+  ): Promise<ScrapeResult> {
+    const invoke = async <T>(body: Record<string, unknown>): Promise<T> => {
+      const { data, error } = await supabase.functions.invoke('scrape-luach-com', { body });
+      if (error) throw new Error(await edgeFunctionErrorMessage(error, 'Failed to scrape luach.com'));
+      if (data?.error) throw new Error(data.error);
+      return data as T;
+    };
+
+    // 1. Crawl + date-filter the index, plan the batches, create the run.
+    const start = await invoke<{
+      run_id: string;
+      mode: ScrapeMode;
+      cutoff: string | null;
+      chunks: ScrapeChunk[];
+      cards_seen: number;
+      skipped_by_date: number;
+      skipped_promoted: number;
+    }>({ ...args, action: 'start' });
+
+    const chunks = start.chunks ?? [];
+    onProgress?.(0, chunks.length);
+
+    const totals = { fetched: 0, ai_calls: 0, parsed: 0, inserted: 0, updated: 0, geocoded: 0 };
+    const errors: Array<{ slug: string; error: string }> = [];
+    let done = 0;
+
+    const runChunk = async (chunk: ScrapeChunk) => {
+      // One retry, transient errors only. A batch is 8 listings' worth of
+      // fetching and tokens — worth re-trying once rather than dropping.
+      for (let attempt = 0; ; attempt++) {
+        try {
+          const res = await invoke<{
+            fetched: number;
+            ai_calls: number;
+            parsed: number;
+            inserted: number;
+            updated: number;
+            geocoded: number;
+            errors: Array<{ slug: string; error: string }>;
+          }>({ action: 'chunk', run_id: start.run_id, chunk });
+          totals.fetched += res.fetched;
+          totals.ai_calls += res.ai_calls;
+          totals.parsed += res.parsed;
+          totals.inserted += res.inserted;
+          totals.updated += res.updated;
+          totals.geocoded += res.geocoded;
+          for (const e of res.errors ?? []) errors.push(e);
+          return;
+        } catch (err) {
+          const message = err instanceof Error ? err.message : 'Scrape batch failed';
+          if (attempt === 0 && TRANSIENT_ERROR.test(message)) {
+            await delay(2000);
+            continue;
+          }
+          for (const card of chunk.cards) errors.push({ slug: card.slug, error: message });
+          return;
+        }
+      }
+    };
+
+    const step = async (chunk: ScrapeChunk) => {
+      await runChunk(chunk);
+      done++;
+      onProgress?.(done, chunks.length);
+    };
+
+    // 2. Run the batches. The first goes alone on purpose: it writes the
+    // ~2.5k-token system prompt into the prompt cache, so every later call
+    // reads it at ~10% of the input price instead of racing to write it twice.
+    if (chunks.length > 0) {
+      await step(chunks[0]);
+
+      let cursor = 1;
+      const CONCURRENCY = 2;
+      const worker = async () => {
+        while (cursor < chunks.length) {
+          await step(chunks[cursor++]);
+        }
+      };
+      await Promise.all(
+        Array.from({ length: Math.min(CONCURRENCY, Math.max(0, chunks.length - 1)) }, () => worker()),
+      );
+    }
+
+    // 3. Always stamp the run — an unfinalized run shows as a phantom
+    // "running" batch on the review screen forever.
+    try {
+      await invoke({ action: 'finalize', run_id: start.run_id, totals, errors });
+    } catch (err) {
+      console.error('Failed to finalize scrape run:', err);
+    }
+
+    return {
+      run_id: start.run_id,
+      mode: start.mode,
+      cutoff: start.cutoff,
+      cards_seen: start.cards_seen,
+      pages_fetched: totals.fetched,
+      skipped_by_date: start.skipped_by_date,
+      skipped_promoted: start.skipped_promoted,
+      ai_calls: totals.ai_calls,
+      parsed: totals.parsed,
+      inserted: totals.inserted,
+      updated: totals.updated,
+      geocoded: totals.geocoded,
+      errors,
+    };
   },
 
   // -------------------------------------------------------------------------
