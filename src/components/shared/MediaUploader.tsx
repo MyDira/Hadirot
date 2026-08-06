@@ -111,7 +111,9 @@ export function MediaUploader({
           <input
             type="file"
             multiple
-            accept="image/*,video/mp4,video/webm,video/quicktime"
+            // .heic/.heif are listed explicitly: "image/*" does not reliably
+            // match them in the picker, since the OS often reports no MIME type.
+            accept="image/*,.heic,.heif,video/mp4,video/webm,video/quicktime"
             onChange={handleFileSelect}
             className="hidden"
             disabled={disabled || uploading || mediaFiles.length >= maxFiles}

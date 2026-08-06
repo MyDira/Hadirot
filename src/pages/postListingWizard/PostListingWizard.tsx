@@ -57,6 +57,7 @@ function clearStoredPaymentChoice(): void {
   }
 }
 import type { MediaFile } from '../../components/shared/MediaUploader';
+import { convertHeicBatch, heicFailureMessage, isImageFile } from '../../utils/heicConvert';
 import {
   trackPostStart,
   trackPostSubmit,
@@ -230,9 +231,12 @@ export function PostListingWizard() {
   const handleCommercialMediaAdd = async (files: File[]) => {
     setUploadingCommercialMedia(true);
     try {
-      const newFiles: MediaFile[] = files
+      const { files: picked, failed } = await convertHeicBatch(files);
+      if (failed.length > 0) alert(heicFailureMessage(failed));
+
+      const newFiles: MediaFile[] = picked
         .filter(file => {
-          const isImage = file.type.startsWith('image/');
+          const isImage = isImageFile(file);
           const isVideo =
             file.type === 'video/mp4' ||
             file.type === 'video/webm' ||
@@ -241,7 +245,7 @@ export function PostListingWizard() {
         })
         .map(file => ({
           id: `${Date.now()}-${Math.random()}`,
-          type: file.type.startsWith('image/') ? ('image' as const) : ('video' as const),
+          type: isImageFile(file) ? ('image' as const) : ('video' as const),
           file,
           url: URL.createObjectURL(file),
           is_featured: false,

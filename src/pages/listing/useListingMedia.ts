@@ -1,6 +1,7 @@
 import { useState, useCallback } from "react";
 import { listingsService } from "../../services/listings";
 import { compressImage } from "../../utils/imageUtils";
+import { convertHeicToJpeg, isHeicFile, isImageFile } from "../../utils/heicConvert";
 import type { MediaFile } from "../../components/shared/MediaUploader";
 
 interface UseListingMediaOptions {
@@ -77,7 +78,9 @@ export function useListingMedia(options: UseListingMediaOptions): UseListingMedi
       const newMedia: MediaFile[] = [];
 
       for (const file of files) {
-        const isImage = file.type.startsWith("image/");
+        // isImageFile, not file.type — browsers often report an empty type for
+        // HEIC, which would fail a plain startsWith("image/") check.
+        const isImage = isImageFile(file);
         const isVideo = file.type.startsWith("video/");
 
         if (!isImage && !isVideo) {
@@ -108,9 +111,26 @@ export function useListingMedia(options: UseListingMediaOptions): UseListingMedi
 
         // Image branch
         let fileToUpload: File = file;
-        if (file.size > 8 * 1024 * 1024) {
+
+        // Transcode HEIC up front so everything downstream — the size check,
+        // compressImage (which decodes via <img> and cannot read HEIC), the
+        // blob preview, and the upload — works on a JPEG the browser can
+        // actually display.
+        if (isHeicFile(fileToUpload)) {
           try {
-            const compressed = await compressImage(file, { quality: 0.8, maxWidth: 1920 });
+            fileToUpload = await convertHeicToJpeg(fileToUpload);
+          } catch (err) {
+            console.error("HEIC conversion failed:", err);
+            alert(
+              `Couldn't convert ${file.name} from HEIC. Please re-save it as a JPEG and try again.`,
+            );
+            continue;
+          }
+        }
+
+        if (fileToUpload.size > 8 * 1024 * 1024) {
+          try {
+            const compressed = await compressImage(fileToUpload, { quality: 0.8, maxWidth: 1920 });
             if (compressed.size > 8 * 1024 * 1024) {
               alert(`${file.name} is too large even after compression (8MB limit)`);
               continue;

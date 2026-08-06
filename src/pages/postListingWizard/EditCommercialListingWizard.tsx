@@ -14,6 +14,7 @@ import type { MediaFile } from '../../components/shared/MediaUploader';
 import type { CommercialListingFormData } from '../postCommercial/commercialTypes';
 import { INITIAL_COMMERCIAL_FORM_DATA } from '../postCommercial/commercialTypes';
 import { ArrowLeft } from 'lucide-react';
+import { convertHeicBatch, heicFailureMessage, isImageFile } from '../../utils/heicConvert';
 
 const COMMERCIAL_STEP_LABELS = [
   'Type & Pricing',
@@ -236,8 +237,11 @@ export function EditCommercialListingWizard() {
   const handleMediaAdd = async (files: File[]) => {
     setUploadingMedia(true);
     try {
-      const newFiles: MediaFile[] = files
-        .filter(f => f.type.startsWith('image/'))
+      const { files: picked, failed } = await convertHeicBatch(files);
+      if (failed.length > 0) alert(heicFailureMessage(failed));
+
+      const newFiles: MediaFile[] = picked
+        .filter(f => isImageFile(f))
         .map(f => ({
           id: `${Date.now()}-${Math.random()}`,
           type: 'image' as const,
