@@ -677,12 +677,23 @@ export const commercialListingsService = {
   ): Promise<void> {
     if (tempImages.length === 0) return;
 
-    const { error } = await supabase.functions.invoke('move-temp-commercial-images', {
+    const { data, error } = await supabase.functions.invoke('move-temp-commercial-images', {
       body: { listingId, userId, tempImages },
     });
 
     if (error) {
       throw new Error(error.message || 'Failed to finalize commercial images');
+    }
+
+    // 207 = "some images rejected". It is a 2xx, so invoke() reports no error
+    // and the photos would vanish silently. Same handling as the residential
+    // finalizeTempListingImages().
+    const rejected = (data as { errors?: string[] } | null)?.errors;
+    if (Array.isArray(rejected) && rejected.length > 0) {
+      console.error('move-temp-commercial-images rejected images:', rejected);
+      throw new Error(
+        `${rejected.length} photo${rejected.length === 1 ? '' : 's'} could not be saved: ${rejected.join('; ')}`,
+      );
     }
   },
 

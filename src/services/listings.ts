@@ -1127,12 +1127,24 @@ export const listingsService = {
   async finalizeTempListingImages(listingId: string, userId: string, tempImages: { filePath: string; publicUrl: string; is_featured: boolean; originalName: string }[]): Promise<void> {
     if (tempImages.length === 0) return;
 
-    const { error } = await supabase.functions.invoke('move-temp-images', {
+    const { data, error } = await supabase.functions.invoke('move-temp-images', {
       body: { listingId, userId, tempImages },
     });
 
     if (error) {
       throw new Error(error.message || 'Failed to finalize images');
+    }
+
+    // move-temp-images answers 207 when it rejects some images but not others
+    // (server-side validation, storage failures). 207 is a 2xx, so invoke()
+    // reports no error and the caller used to sail on to a success screen
+    // while the photos were quietly dropped. Surface it instead.
+    const rejected = (data as { errors?: string[] } | null)?.errors;
+    if (Array.isArray(rejected) && rejected.length > 0) {
+      console.error('move-temp-images rejected images:', rejected);
+      throw new Error(
+        `${rejected.length} photo${rejected.length === 1 ? '' : 's'} could not be saved: ${rejected.join('; ')}`,
+      );
     }
   },
 

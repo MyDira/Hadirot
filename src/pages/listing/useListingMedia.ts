@@ -159,7 +159,11 @@ export function useListingMedia(options: UseListingMediaOptions): UseListingMedi
             file: fileToUpload,
             url: previewUrl,
             is_featured,
-            originalName: file.name,
+            // fileToUpload.name, not file.name — see the note at the upload
+            // branch below. HEIC conversion and >8MB compression both rename
+            // to .jpg, and the server validates the extension against the
+            // actual bytes.
+            originalName: fileToUpload.name,
           });
           continue;
         }
@@ -176,7 +180,13 @@ export function useListingMedia(options: UseListingMediaOptions): UseListingMedi
             filePath,
             publicUrl,
             is_featured,
-            originalName: file.name,
+            // Must be the name of the file we actually uploaded, not the one
+            // the user picked. move-temp-images passes originalName to
+            // validateFile(), which rejects any extension outside its
+            // allowlist — and .heic is not on it. Sending "photo.heic" for
+            // bytes that are now JPEG got the image silently rejected and the
+            // temp file deleted, so it never reached the listing.
+            originalName: fileToUpload.name,
           });
         } catch (error) {
           console.error("Error uploading temp image:", error);
