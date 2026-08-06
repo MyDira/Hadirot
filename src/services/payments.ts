@@ -142,13 +142,6 @@ export const paymentsService = {
     return data === true;
   },
 
-  /** Returns true if a listing's bedrooms/location/phone are locked for non-admin owner. */
-  async isListingLocked(listingId: string): Promise<boolean> {
-    const { data, error } = await sb.rpc('is_listing_locked', { p_listing_id: listingId });
-    if (error) throw error;
-    return data === true;
-  },
-
   /** All payments on a listing, newest first. */
   async getListingPayments(listingId: string): Promise<PaidListingPayment[]> {
     const { data, error } = await sb
@@ -217,14 +210,6 @@ export const paymentsService = {
   ): ListingPaymentState {
     const now = new Date();
     const paymentKind = listing.payment_kind;
-    // Locked exactly 10 full days after creation — same boundary as the DB's
-    // is_listing_locked() and the edit wizard (a ceil() here used to flag the
-    // lock a day early).
-    const isLocked =
-      !opts.isAdmin &&
-      listing.listing_type === 'rental' &&
-      listing.created_at !== null &&
-      now.getTime() >= new Date(listing.created_at).getTime() + 10 * 86400000;
 
     // Default to "unknown" until we narrow.
     let label: PaymentStateLabel = 'unknown';
@@ -261,7 +246,6 @@ export const paymentsService = {
           paidDaysRemaining,
           freshnessDaysRemaining,
           hasSubscriptionCoverage: false,
-          isLocked,
           nextActionUrl,
           nextActionLabel,
         };
@@ -287,7 +271,6 @@ export const paymentsService = {
         paidDaysRemaining,
         freshnessDaysRemaining,
         hasSubscriptionCoverage: false,
-        isLocked,
         nextActionUrl,
         nextActionLabel,
       };
@@ -376,7 +359,6 @@ export const paymentsService = {
       paidDaysRemaining,
       freshnessDaysRemaining,
       hasSubscriptionCoverage: paymentKind === 'subscription' && opts.hasActiveSubscription,
-      isLocked,
       nextActionUrl,
       nextActionLabel,
     };

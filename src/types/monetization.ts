@@ -163,7 +163,6 @@ export interface ListingPaymentState {
   paidDaysRemaining: number | null;
   freshnessDaysRemaining: number | null;
   hasSubscriptionCoverage: boolean;
-  isLocked: boolean; // bedrooms/location/phone editable?
   nextActionUrl: string | null;
   nextActionLabel: string | null;
 }

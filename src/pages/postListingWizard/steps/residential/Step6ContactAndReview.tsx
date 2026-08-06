@@ -55,8 +55,10 @@ interface Step6Props {
   onSubmit: (paymentChoice?: WizardPaymentChoice | null) => void;
   profile: Profile | null;
   submitLabel?: string;
-  /** When true (residential rental, edit context, >10d old), contact_phone is locked. */
-  isLocked?: boolean;
+  /** True when editing an existing listing. Suppresses the whole monetization
+   *  gate — the listing is already paid for / live, so saving an edit must never
+   *  route through the paywall or the posting-options modal. */
+  isEditMode?: boolean;
   /** Whether a user is signed in. Logged-out posters see a "create a free account" CTA
    *  instead of the posting options. */
   isAuthenticated?: boolean;
@@ -78,7 +80,7 @@ export function Step6ContactAndReview({
   onSubmit,
   profile,
   submitLabel = 'Post Listing',
-  isLocked = false,
+  isEditMode = false,
   isAuthenticated = true,
   onRequestAccount,
   onSubscribeAndPost,
@@ -97,10 +99,12 @@ export function Step6ContactAndReview({
   }, [profile]);
 
   // Monetization branch based on phone + subscription state.
+  // Editing an existing listing never touches monetization — the gate is only
+  // for deciding how a NEW listing gets paid for.
   const gate = useMonetizationGate({
     contactPhone: formData.contact_phone,
     isAdmin: profile?.is_admin === true,
-    enabled: true,
+    enabled: !isEditMode,
   });
 
   // Locally-tracked payment choice. Auto-defaulted by branch (admin/subscription
@@ -132,6 +136,11 @@ export function Step6ContactAndReview({
   }, [paymentChoice]);
 
   useEffect(() => {
+    if (isEditMode) {
+      // No payment decision to make when saving an edit.
+      setPaymentChoice(null);
+      return;
+    }
     if (gate.mode === 'disabled') {
       // Master switch off — clear any stored choice so the listing posts the
       // legacy way (payment_kind NULL, normal admin-controlled expiration).
@@ -153,16 +162,18 @@ export function Step6ContactAndReview({
       setPaymentChoice(null);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [gate.mode]);
+  }, [gate.mode, isEditMode]);
 
   // Computed submit button label/disable state.
   const baseCanSubmit = !!formData.contact_name.trim() && !!formData.contact_phone.trim() && formData.terms_agreed;
-  const isBlocked = gate.mode === 'subscription_at_cap' || gate.mode === 'loading';
+  const isBlocked = !isEditMode && (gate.mode === 'subscription_at_cap' || gate.mode === 'loading');
   // When monetization is disabled (master switch off), submit is unblocked regardless of paymentChoice.
+  // In edit mode there is no payment decision at all — only the base fields gate the save.
   const canSubmit =
     baseCanSubmit &&
     !isBlocked &&
-    (paymentChoice !== null ||
+    (isEditMode ||
+      paymentChoice !== null ||
       gate.mode === 'admin' ||
       gate.mode === 'disabled' ||
       gate.mode === 'agent_free');
@@ -172,27 +183,31 @@ export function Step6ContactAndReview({
   const blockingReason = (() => {
     if (loading || uploadingMedia) return null; // button shows its own spinner
     if (canSubmit) return null;
-    if (gate.mode === 'loading') return 'Checking your posting options…';
-    if (gate.mode === 'subscription_at_cap')
-      return 'Your subscription has reached its listing limit. Renew or remove a listing to post another.';
     if (!formData.contact_name.trim()) return 'Enter your contact name above.';
     if (!formData.contact_phone.trim()) return 'Enter a contact phone number above.';
     if (!formData.terms_agreed) return 'Check the SMS-consent box below to continue.';
+    if (isEditMode) return 'Complete the required fields above to save.';
+    if (gate.mode === 'loading') return 'Checking your posting options…';
+    if (gate.mode === 'subscription_at_cap')
+      return 'Your subscription has reached its listing limit. Renew or remove a listing to post another.';
     if (paymentChoice === null) return 'Choose a posting option above.';
     return 'Complete the required fields above to post.';
   })();
 
   const dynamicSubmitLabel = (() => {
+    if (isEditMode) return submitLabel;
     if (paymentChoice === 'pay_at_posting') return 'Pay $25 & post';
     if (paymentChoice === 'must_pay') return 'Pay $25 & post';
     return submitLabel;
   })();
-  const isPayPath = paymentChoice === 'pay_at_posting' || paymentChoice === 'must_pay';
+  const isPayPath =
+    !isEditMode && (paymentChoice === 'pay_at_posting' || paymentChoice === 'must_pay');
 
   // Logged-in posters without an active subscription choose how to post in a
-  // modal (free trial / $25 / upgrade) rather than via inline cards.
+  // modal (free trial / $25 / upgrade) rather than via inline cards. Never in
+  // edit mode — saving changes is not a posting decision.
   const usesOptionsModal =
-    isAuthenticated && (gate.mode === 'trial_eligible' || gate.mode === 'must_pay');
+    !isEditMode && isAuthenticated && (gate.mode === 'trial_eligible' || gate.mode === 'must_pay');
   const trialEligible = gate.mode === 'trial_eligible';
 
   // "Continue" (opens the options modal) only needs the base fields, not a
@@ -292,21 +307,13 @@ export function Step6ContactAndReview({
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Phone Number <span className="text-red-500">*</span>
-                {isLocked && (
-                  <span className="ml-2 inline-flex items-center gap-1 text-xs font-normal text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded">
-                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-                    Locked
-                  </span>
-                )}
               </label>
               <input
                 type="tel"
                 value={formData.contact_phone}
                 onChange={e => updateFormData({ contact_phone: e.target.value })}
                 placeholder="e.g. 718-555-1234"
-                disabled={isLocked}
-                className={`w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-accent-500 focus:border-accent-500 ${isLocked ? 'bg-gray-50 cursor-not-allowed opacity-70' : ''}`}
-                title={isLocked ? 'Contact phone is locked 10 days after posting. Contact support if you need a change.' : undefined}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-accent-500 focus:border-accent-500"
               />
             </div>
           </div>
@@ -397,8 +404,9 @@ export function Step6ContactAndReview({
         {/* Payment Choice — only for authed posters NOT using the options modal
             (i.e. subscription / at-cap / loading / error). Logged-out posters
             see the account CTA below; trial_eligible / must_pay posters choose
-            inside PostingOptionsModal. */}
-        {isAuthenticated && !usesOptionsModal && (
+            inside PostingOptionsModal. Never shown when editing an existing
+            listing — there is no payment decision to make. */}
+        {isAuthenticated && !isEditMode && !usesOptionsModal && (
           <PaymentChoice
             mode={gate.mode}
             subscription={gate.subscription}
