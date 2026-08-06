@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { BadgeCheck, ExternalLink, History, Loader2, User } from 'lucide-react';
+import { BadgeCheck, Check, ExternalLink, History, Loader2, User, UserPlus } from 'lucide-react';
+import type { Profile } from '@/config/supabase';
 import { aiIntakeService, type ContactHistory } from '@/services/aiIntake';
 
 interface ContactHistoryChipProps {
@@ -7,6 +8,10 @@ interface ContactHistoryChipProps {
   phone: string | null | undefined;
   /** The lead being viewed, so it doesn't count itself as prior history. */
   excludeScrapedId?: string;
+  /** Account currently set to publish under, so an already-assigned one isn't re-offered. */
+  assignedUserId?: string | null;
+  /** Assign the matched account in one click, instead of retyping it into the search box. */
+  onAssign?: (profile: Profile) => void;
 }
 
 /** "3d ago" / "5mo ago" — a call-prep detail, so recency matters more than a date. */
@@ -28,7 +33,12 @@ function timeAgo(iso: string | null): string {
  * opened, and renders nothing at all for a number we've never seen — a
  * first-time landlord adds no visual weight.
  */
-export function ContactHistoryChip({ phone, excludeScrapedId }: ContactHistoryChipProps) {
+export function ContactHistoryChip({
+  phone,
+  excludeScrapedId,
+  assignedUserId,
+  onAssign,
+}: ContactHistoryChipProps) {
   const [history, setHistory] = useState<ContactHistory | null>(null);
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
@@ -103,33 +113,81 @@ export function ContactHistoryChip({ phone, excludeScrapedId }: ContactHistoryCh
     .filter(Boolean)
     .join(' · ');
 
+  const account = history.account;
+  const alreadyAssigned = !!account && account.id === assignedUserId;
+
   return (
     <div ref={wrapRef} className="relative mt-1.5">
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-md border text-[11px] font-medium transition-colors ${
-          history.isAgent
-            ? 'bg-violet-50 border-violet-200 text-violet-700 hover:bg-violet-100'
-            : 'bg-amber-50 border-amber-200 text-amber-800 hover:bg-amber-100'
-        }`}
-        aria-expanded={open}
-      >
-        {history.isAgent ? <BadgeCheck className="w-3 h-3" /> : <History className="w-3 h-3" />}
-        {summary}
-      </button>
+      <div className="flex flex-wrap items-center gap-1.5">
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-md border text-[11px] font-medium transition-colors ${
+            history.isAgent
+              ? 'bg-violet-50 border-violet-200 text-violet-700 hover:bg-violet-100'
+              : 'bg-amber-50 border-amber-200 text-amber-800 hover:bg-amber-100'
+          }`}
+          aria-expanded={open}
+        >
+          {history.isAgent ? <BadgeCheck className="w-3 h-3" /> : <History className="w-3 h-3" />}
+          {summary}
+        </button>
+
+        {/* One click to publish under the account this number already belongs
+            to — the whole point of surfacing it. Hidden once it's assigned, so
+            the row collapses back to a single chip. */}
+        {account && onAssign && !alreadyAssigned && (
+          <button
+            type="button"
+            onClick={() => {
+              onAssign(account);
+              setOpen(false);
+            }}
+            title={`Publish under ${account.full_name || 'this account'}`}
+            className="inline-flex items-center gap-1 px-2 py-1 rounded-md border border-blue-200 bg-blue-50 text-[11px] font-medium text-blue-700 hover:bg-blue-100 transition-colors"
+          >
+            <UserPlus className="w-3 h-3" />
+            Use {account.full_name?.split(' ')[0] || 'this account'}
+          </button>
+        )}
+        {alreadyAssigned && (
+          <span className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-medium text-green-700">
+            <Check className="w-3 h-3" />
+            Publishing under this account
+          </span>
+        )}
+      </div>
 
       {open && (
         <div className="absolute z-30 mt-1.5 w-80 max-w-[calc(100vw-3rem)] bg-white border border-gray-200 rounded-lg shadow-lg p-3">
-          {history.account && (
+          {account && (
             <div className="flex items-start gap-2 pb-2.5 mb-2.5 border-b border-gray-100">
               <User className="w-3.5 h-3.5 text-gray-400 mt-0.5 flex-shrink-0" />
-              <div className="min-w-0">
-                <p className="text-xs font-medium text-gray-900 truncate">{history.account.name}</p>
-                <p className="text-[11px] text-gray-500 capitalize">
-                  {history.account.role}
-                  {history.account.agency ? ` · ${history.account.agency}` : ''}
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-medium text-gray-900 truncate">
+                  {account.full_name || 'Unnamed account'}
                 </p>
+                <p className="text-[11px] text-gray-500 capitalize">
+                  {account.role}
+                  {account.agency ? ` · ${account.agency}` : ''}
+                </p>
+                {onAssign &&
+                  (alreadyAssigned ? (
+                    <p className="mt-1 inline-flex items-center gap-1 text-[11px] font-medium text-green-700">
+                      <Check className="w-3 h-3" /> Publishing under this account
+                    </p>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onAssign(account);
+                        setOpen(false);
+                      }}
+                      className="mt-1 inline-flex items-center gap-1 text-[11px] font-medium text-blue-600 hover:text-blue-800"
+                    >
+                      <UserPlus className="w-3 h-3" /> Publish under this account
+                    </button>
+                  ))}
               </div>
             </div>
           )}

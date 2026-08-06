@@ -1173,10 +1173,17 @@ export function IntakeWorkspaceDrawer({
                 </Field>
               </div>
               {/* Whether this number has posted with us before — one line until
-                  clicked, and nothing at all for a first-time contact. */}
+                  clicked, and nothing at all for a first-time contact. When it
+                  resolves to a registered account, assigning it is one click
+                  rather than retyping the name into the search box below. */}
               <ContactHistoryChip
                 phone={listing.contact_phone || listing.contact_phone_display}
                 excludeScrapedId={listing.id}
+                assignedUserId={form.assigned_user_id}
+                onAssign={(profile) => {
+                  setAssignedUser(profile);
+                  update('assigned_user_id', profile.id);
+                }}
               />
               <div className="mt-3 pt-3 border-t border-gray-100 space-y-3">
                 <Field

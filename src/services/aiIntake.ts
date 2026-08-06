@@ -234,8 +234,8 @@ export interface ContactHistory {
   leadCount: number;
   /** Live/past listings on the site carrying this phone. */
   listingCount: number;
-  /** Registered account this phone belongs to, if any. */
-  account: { id: string; name: string; role: string; agency: string | null } | null;
+  /** Registered account this phone belongs to, if any — ready to assign as-is. */
+  account: Profile | null;
   /** True when the account is an agent, or any matched listing was posted by one. */
   isAgent: boolean;
   /** Most recent activity across everything matched. */
@@ -260,6 +260,10 @@ export interface ParseBlocksResult {
   geocoded: number;
   errors: Array<{ block: number; error: string }>;
 }
+
+/** Enough of a profile to hand straight to UserSearchSelect / assign in one click. */
+const PROFILE_COLUMNS =
+  'id, full_name, role, agency, phone, email, is_admin, created_at, updated_at';
 
 /** Per-session memo for getContactHistory — see its doc comment. */
 const contactHistoryCache = new Map<string, ContactHistory>();
@@ -897,7 +901,7 @@ export const aiIntakeService = {
         .limit(50),
       supabase
         .from('profiles')
-        .select('id, full_name, role, agency, phone')
+        .select(PROFILE_COLUMNS)
         .ilike('phone', loose)
         .limit(10),
     ]);
@@ -941,30 +945,16 @@ export const aiIntakeService = {
 
     // An account may be reachable through its listings even when its profile
     // phone is blank or differs from the one on the ad.
-    let account = profile
-      ? {
-          id: profile.id,
-          name: profile.full_name || 'Unnamed account',
-          role: profile.role as string,
-          agency: (profile.agency as string) || null,
-        }
-      : null;
+    let account = (profile as Profile | null) ?? null;
     if (!account && listings.length > 0) {
       const ownerId = listings.find((l) => l.user_id)?.user_id;
       if (ownerId) {
         const { data: owner } = await supabase
           .from('profiles')
-          .select('id, full_name, role, agency')
+          .select(PROFILE_COLUMNS)
           .eq('id', ownerId)
           .maybeSingle();
-        if (owner) {
-          account = {
-            id: owner.id,
-            name: owner.full_name || 'Unnamed account',
-            role: owner.role as string,
-            agency: (owner.agency as string) || null,
-          };
-        }
+        if (owner) account = owner as Profile;
       }
     }
 
