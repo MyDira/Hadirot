@@ -18,6 +18,7 @@ import {
   MessageSquare,
   Sparkles,
   Trash2,
+  ShieldCheck,
 } from 'lucide-react';
 import type {
   ScrapedListing,
@@ -51,6 +52,13 @@ interface IntakeWorkspaceDrawerProps {
   assignedProfile: Profile | null;
   /** Possible live-listing duplicates for this row (advisory, strongest first). */
   duplicates: MatchCandidate[];
+  /**
+   * How many live listings the duplicate check ran against. Zero means it
+   * couldn't run at all (index still empty or the fetch failed) — which is a
+   * different thing from "checked and found nothing", and must not be reported
+   * as an all-clear.
+   */
+  liveIndexSize: number;
   onClose: () => void;
   onSaved: () => void;
   onPublish: (listing: ScrapedListing) => void;
@@ -326,6 +334,7 @@ export function IntakeWorkspaceDrawer({
   listing,
   assignedProfile,
   duplicates,
+  liveIndexSize,
   onClose,
   onSaved,
   onPublish,
@@ -765,7 +774,34 @@ export function IntakeWorkspaceDrawer({
               </SectionCard>
             )}
 
-            {/* Possible live duplicates */}
+            {/* Possible live duplicates. An empty result gets its own line on
+                purpose: rendering nothing left the admin unable to tell a
+                clean check apart from a check that never ran. */}
+            {duplicates.length === 0 &&
+              (liveIndexSize > 0 ? (
+                <div className="flex items-start gap-2 px-3 py-2 rounded-lg border border-green-200 bg-green-50">
+                  <ShieldCheck className="w-4 h-4 text-green-600 flex-shrink-0 mt-px" />
+                  <p className="text-xs text-green-800">
+                    No duplicates found
+                    <span className="block text-[11px] text-green-700/80">
+                      Checked against {liveIndexSize} live listing
+                      {liveIndexSize === 1 ? '' : 's'} — nothing matches this phone, bedroom count
+                      and location.
+                    </span>
+                  </p>
+                </div>
+              ) : (
+                <div className="flex items-start gap-2 px-3 py-2 rounded-lg border border-gray-200 bg-gray-50">
+                  <AlertCircle className="w-4 h-4 text-gray-400 flex-shrink-0 mt-px" />
+                  <p className="text-xs text-gray-600">
+                    Duplicate check unavailable
+                    <span className="block text-[11px] text-gray-500">
+                      No live listings were loaded, so this lead hasn&apos;t been compared against
+                      anything. Reload the review screen to try again.
+                    </span>
+                  </p>
+                </div>
+              ))}
             {duplicates.length > 0 && (
               <SectionCard
                 icon={<AlertTriangle className="w-4 h-4 text-amber-600" />}

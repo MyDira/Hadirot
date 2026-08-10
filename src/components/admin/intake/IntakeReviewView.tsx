@@ -800,6 +800,7 @@ export function IntakeReviewView({ initialSource, refreshKey }: IntakeReviewView
           editListing?.assigned_user_id ? profiles.get(editListing.assigned_user_id) ?? null : null
         }
         duplicates={editListing ? duplicateMatches.get(editListing.id) ?? [] : []}
+        liveIndexSize={liveMatchIndex.length}
         onClose={() => setEditListing(null)}
         onSaved={fetchData}
         onPublish={(saved) => handlePublish([saved])}
