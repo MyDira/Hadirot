@@ -10,6 +10,7 @@ import {
   Lock,
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
+import { accountEmailService } from "@/services/accountEmail";
 import { agenciesService } from "@/services/agencies";
 import { agencyNameToSlug } from "@/utils/agency";
 import { supabase } from "@/config/supabase";
@@ -31,6 +32,12 @@ interface PasswordFormData {
   currentPassword: string;
   newPassword: string;
   confirmPassword: string;
+}
+
+interface EmailFormData {
+  newEmail: string;
+  confirmEmail: string;
+  currentPassword: string;
 }
 
 export default function SettingsTab() {
@@ -60,14 +67,27 @@ export default function SettingsTab() {
     confirm: false,
   });
 
+  const [emailData, setEmailData] = useState<EmailFormData>({
+    newEmail: "",
+    confirmEmail: "",
+    currentPassword: "",
+  });
+
+  const [showEmailPassword, setShowEmailPassword] = useState(false);
+
   const [loading, setLoading] = useState(false);
   const [passwordLoading, setPasswordLoading] = useState(false);
+  const [emailLoading, setEmailLoading] = useState(false);
   const [message, setMessage] = useState<{
     type: "success" | "error";
     text: string;
   } | null>(null);
   const [passwordMessage, setPasswordMessage] = useState<{
     type: "success" | "error";
+    text: string;
+  } | null>(null);
+  const [emailMessage, setEmailMessage] = useState<{
+    type: "success" | "error" | "info";
     text: string;
   } | null>(null);
 
@@ -295,6 +315,65 @@ export default function SettingsTab() {
     }
   };
 
+  const handleEmailInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setEmailData((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleEmailSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user?.email) return;
+
+    if (
+      emailData.newEmail.trim().toLowerCase() !==
+      emailData.confirmEmail.trim().toLowerCase()
+    ) {
+      setEmailMessage({ type: "error", text: "Email addresses do not match" });
+      return;
+    }
+
+    setEmailLoading(true);
+    setEmailMessage(null);
+
+    try {
+      const result = await accountEmailService.changeEmail(
+        emailData.newEmail,
+        emailData.currentPassword,
+        user.email,
+      );
+
+      setEmailData({ newEmail: "", confirmEmail: "", currentPassword: "" });
+
+      if (result.status === "applied") {
+        setEmailMessage({
+          type: "success",
+          text: `Email updated to ${result.email}. Use it the next time you sign in.`,
+        });
+
+        // profiles.email is mirrored by a DB trigger and refreshProfile will
+        // pick it up; set it locally so the form above updates without a wait.
+        setProfile((previousProfile) => {
+          const baseProfile = previousProfile ?? profile ?? null;
+          if (!baseProfile) return previousProfile;
+          return { ...baseProfile, email: result.email };
+        });
+      } else {
+        setEmailMessage({
+          type: "info",
+          text: `Almost done — we sent a confirmation link to ${result.email}. Your email changes once you click it.`,
+        });
+      }
+    } catch (error: any) {
+      console.error("Error updating email:", error);
+      setEmailMessage({
+        type: "error",
+        text: error.message || "Failed to update email",
+      });
+    } finally {
+      setEmailLoading(false);
+    }
+  };
+
   const handlePasswordSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
@@ -411,7 +490,7 @@ export default function SettingsTab() {
                 className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-500 cursor-not-allowed"
               />
               <p className="text-xs text-gray-500 mt-1">
-                Email cannot be changed
+                Use the Change Email Address section below to update this
               </p>
             </div>
 
@@ -511,6 +590,126 @@ export default function SettingsTab() {
             >
               <Save className="w-5 h-5 mr-2" />
               {loading ? "Saving..." : "Save Changes"}
+            </button>
+          </div>
+        </form>
+      </div>
+
+      {/* Change Email Address */}
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+        <h2 className="text-xl font-semibold text-[#273140] mb-2">
+          Change Email Address
+        </h2>
+        <p className="text-sm text-gray-600 mb-6">
+          This is the address you sign in with, and where we send listing
+          notifications and receipts. Your current address is{" "}
+          <span className="font-medium text-gray-900">{user?.email}</span>.
+        </p>
+
+        {emailMessage && (
+          <div
+            className={`mb-6 p-4 rounded-md ${
+              emailMessage.type === "success"
+                ? "bg-green-50 border border-green-200 text-green-800"
+                : emailMessage.type === "info"
+                  ? "bg-blue-50 border border-blue-200 text-blue-800"
+                  : "bg-red-50 border border-red-200 text-red-800"
+            }`}
+          >
+            {emailMessage.text}
+          </div>
+        )}
+
+        <form onSubmit={handleEmailSubmit} className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <label
+                htmlFor="newEmail"
+                className="block text-sm font-medium text-gray-700 mb-2"
+              >
+                <Mail className="w-4 h-4 inline mr-2" />
+                New Email Address *
+              </label>
+              <input
+                type="email"
+                id="newEmail"
+                name="newEmail"
+                value={emailData.newEmail}
+                onChange={handleEmailInputChange}
+                required
+                autoComplete="email"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
+                placeholder="you@example.com"
+              />
+            </div>
+
+            <div>
+              <label
+                htmlFor="confirmEmail"
+                className="block text-sm font-medium text-gray-700 mb-2"
+              >
+                <Mail className="w-4 h-4 inline mr-2" />
+                Confirm New Email Address *
+              </label>
+              <input
+                type="email"
+                id="confirmEmail"
+                name="confirmEmail"
+                value={emailData.confirmEmail}
+                onChange={handleEmailInputChange}
+                required
+                autoComplete="off"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
+                placeholder="you@example.com"
+              />
+            </div>
+
+            <div className="md:col-span-2">
+              <label
+                htmlFor="emailCurrentPassword"
+                className="block text-sm font-medium text-gray-700 mb-2"
+              >
+                <Lock className="w-4 h-4 inline mr-2" />
+                Current Password *
+              </label>
+              <div className="relative">
+                <input
+                  type={showEmailPassword ? "text" : "password"}
+                  id="emailCurrentPassword"
+                  name="currentPassword"
+                  value={emailData.currentPassword}
+                  onChange={handleEmailInputChange}
+                  required
+                  autoComplete="current-password"
+                  className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-md focus:ring-[#273140] focus:border-[#273140]"
+                />
+                <button
+                  type="button"
+                  className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                  onClick={() => setShowEmailPassword((prev) => !prev)}
+                >
+                  {showEmailPassword ? (
+                    <EyeOff className="h-5 w-5 text-gray-400" />
+                  ) : (
+                    <Eye className="h-5 w-5 text-gray-400" />
+                  )}
+                </button>
+              </div>
+              <p className="text-xs text-gray-500 mt-1">
+                Confirming your password keeps someone else from moving your
+                account to their own email.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex justify-end">
+            <button
+              type="submit"
+              disabled={emailLoading}
+              className="bg-[#667B9A] text-white px-6 py-3 rounded-md font-semibold hover:bg-[#5a6b85] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#667B9A] disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center"
+            >
+              <Mail className="w-5 h-5 mr-2" />
+              {emailLoading ? "Updating..." : "Update Email"}
             </button>
           </div>
         </form>
