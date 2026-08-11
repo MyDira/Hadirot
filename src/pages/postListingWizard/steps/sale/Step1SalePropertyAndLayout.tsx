@@ -9,15 +9,6 @@ import {
   TbBuildingArch,
 } from 'react-icons/tb';
 import type { ListingFormData } from '../../../postListing/types';
-import { StepTips } from '../../StepTips';
-
-const TIPS = {
-  heading: 'Basic Info',
-  bullets: [
-    'Double-check your bed/bath count — buyers filter by this first.',
-    'If you\'re unsure of the building type, "Fully Attached" means shared walls on both sides (like a rowhouse).',
-  ],
-};
 
 // ── Icons — Tabler icon set (react-icons/tb) ──────────────────────────────────
 
@@ -83,7 +74,7 @@ export function Step1SalePropertyAndLayout({ formData, updateFormData, onNext, o
   };
 
   return (
-    <div className="flex gap-8 items-start">
+    <div className="flex flex-col lg:flex-row gap-8 items-start">
       <div className="flex-1 min-w-0 space-y-5">
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
           <h2 className="text-xl font-semibold text-gray-900 mb-5">Basic Info</h2>
@@ -235,7 +226,6 @@ export function Step1SalePropertyAndLayout({ formData, updateFormData, onNext, o
           </button>
         </div>
       </div>
-      <StepTips {...TIPS} />
     </div>
   );
 }

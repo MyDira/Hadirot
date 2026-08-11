@@ -3,16 +3,6 @@ import { ArrowLeft, ArrowRight } from 'lucide-react';
 import type { ListingFormData } from '../../../postListing/types';
 import { MediaUploader } from '../../../../components/shared/MediaUploader';
 import type { MediaFile } from '../../../../components/shared/MediaUploader';
-import { StepTips } from '../../StepTips';
-
-const TIPS = {
-  heading: 'Photos & Description',
-  bullets: [
-    'Photos are the #1 reason buyers click — or don\'t. At least 3–5 photos from different rooms make a real difference. Max 20.',
-    'If this is an off-market listing, upload a flyer or a clean exterior photo instead.',
-    'Your description is your pitch — mention recent renovations, standout features, and anything that makes this property worth a look.',
-  ],
-};
 
 interface Props {
   formData: ListingFormData;
@@ -43,7 +33,7 @@ export function Step3SaleShowItOff({
   const canContinue = photoCount >= 1 && !uploadingMedia;
 
   return (
-    <div className="flex gap-8 items-start">
+    <div className="flex flex-col lg:flex-row gap-8 items-start">
       <div className="flex-1 min-w-0 space-y-5">
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
           <h2 className="text-xl font-semibold text-gray-900 mb-1">Photos <span className="text-red-500">*</span></h2>
@@ -114,7 +104,6 @@ export function Step3SaleShowItOff({
           </button>
         </div>
       </div>
-      <StepTips {...TIPS} />
     </div>
   );
 }

@@ -1,15 +1,6 @@
 import React, { useState } from 'react';
 import { ArrowLeft, ArrowRight, AlertTriangle, X } from 'lucide-react';
 import type { ListingFormData } from '../../../postListing/types';
-import { StepTips } from '../../StepTips';
-
-const TIPS = {
-  heading: 'Price & Terms',
-  bullets: [
-    'A real price filters out unqualified leads.',
-    'NYC law restricts advertising fees on rentals — fee listings are reviewed by our team.',
-  ],
-};
 
 const LEASE_LENGTH_OPTIONS = [
   { value: 'short_term', label: 'Short Term' },
@@ -49,7 +40,7 @@ export function Step2PriceAndTerms({ formData, updateFormData, onNext, onBack }:
   };
 
   return (
-    <div className="flex gap-8 items-start">
+    <div className="flex flex-col lg:flex-row gap-8 items-start">
       <div className="flex-1 min-w-0 space-y-6">
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
           <h2 className="text-xl font-semibold text-gray-900 mb-5">Price & Terms</h2>
@@ -158,8 +149,6 @@ export function Step2PriceAndTerms({ formData, updateFormData, onNext, onBack }:
           </button>
         </div>
       </div>
-
-      <StepTips {...TIPS} />
 
       {/* Broker Fee Warning Modal */}
       {showBrokerModal && (

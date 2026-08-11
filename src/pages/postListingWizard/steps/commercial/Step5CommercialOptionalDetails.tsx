@@ -1,15 +1,6 @@
 import React, { useState } from 'react';
 import { ChevronDown, ChevronUp } from 'lucide-react';
-import { StepShell, type CommercialStepProps, type StepTipsData } from './_StepShell';
-
-const TIPS: StepTipsData = {
-  heading: 'Optional Details',
-  bullets: [
-    'These fields are optional, but the more you add the stronger your listing looks to tenants.',
-    'Add parking, HVAC, power, and type-specific features (loading docks, exam rooms, kitchen exhaust…).',
-    'For sales / investments, CAP rate, NOI, and taxes help buyers evaluate quickly.',
-  ],
-};
+import { StepShell, type CommercialStepProps } from './_StepShell';
 import { WizardTriStateToggle } from './_TriStateToggle';
 import type { CommercialListingFormData } from '../../../postCommercial/commercialTypes';
 import type { TenancyType } from '../../../../config/supabase';
@@ -559,7 +550,7 @@ function SaleFinancialsFields({
 
 export function Step5CommercialOptionalDetails({ formData, updateFormData, isSale, onNext, onBack }: CommercialStepProps) {
   return (
-    <StepShell title="Optional Details" onBack={onBack} onNext={onNext} tips={TIPS}>
+    <StepShell title="Optional Details" onBack={onBack} onNext={onNext}>
       <p className="text-sm text-gray-500 mb-4">
         Everything below is optional. Fill in what you have — you can always edit later.
       </p>

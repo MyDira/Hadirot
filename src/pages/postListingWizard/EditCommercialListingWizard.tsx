@@ -8,6 +8,7 @@ import { commercialListingsService } from '../../services/commercialListings';
 import { useWizardState } from './useWizardState';
 import { WizardUIContext } from './WizardContext';
 import { WizardBreadcrumb } from './WizardBreadcrumb';
+import { StepTips, type StepTipsData } from './StepTips';
 import { CommercialStepsRouter } from './CommercialStepsRouter';
 import type { CommercialListing } from '../../config/supabase';
 import type { MediaFile } from '../../components/shared/MediaUploader';
@@ -23,6 +24,61 @@ const COMMERCIAL_STEP_LABELS = [
   'Space Details',
   'Optional Details',
   'Contact & Review',
+];
+
+// Per-step TIP dropdown content — index-aligned with COMMERCIAL_STEP_LABELS
+// above. Lives here (not in the step files) because the dropdown itself now
+// renders in this shell's header row, not inline with each step.
+const COMMERCIAL_STEP_TIPS: StepTipsData[] = [
+  {
+    heading: 'Type & Pricing',
+    bullets: [
+      'Pick the space type that best matches the unit — it drives the spec fields shown later.',
+      'Rentals are usually quoted per SF/year; enter the monthly asking rent if that is how you list.',
+      'For sales, enter the asking price. Not ready to show a number? Toggle “Call for price”.',
+    ],
+  },
+  {
+    heading: 'Photos & Description',
+    bullets: [
+      'Lead with your best exterior / storefront shot — it drives the most clicks.',
+      'Include wide interior shots, the layout, frontage, and any build-out or fixtures.',
+      'Aim for 5–10 well-lit photos; listings with more photos get more inquiries.',
+      'In the description, call out condition, ceiling height, frontage, and ideal uses.',
+    ],
+  },
+  {
+    heading: 'Location',
+    bullets: [
+      'A precise address helps tenants find the space and powers the map pin.',
+      'No exact address yet? Enter the two nearest cross streets instead.',
+      'Choose the neighborhood tenants search by — it feeds the neighborhood filter.',
+    ],
+  },
+  {
+    heading: 'Space Details',
+    bullets: [
+      'Available SF and lease type are the fields tenants filter on most — fill them in.',
+      'Build-out condition (Turnkey, Second Generation, Shell…) sets tenant expectations up front.',
+      'Add floor level, ceiling height, and frontage where they apply to your space type.',
+    ],
+  },
+  {
+    heading: 'Optional Details',
+    bullets: [
+      'These fields are optional, but the more you add the stronger your listing looks to tenants.',
+      'Add parking, HVAC, power, and type-specific features (loading docks, exam rooms, kitchen exhaust…).',
+      'For sales / investments, CAP rate, NOI, and taxes help buyers evaluate quickly.',
+    ],
+  },
+  {
+    heading: 'Review & Submit',
+    bullets: [
+      'Double-check the contact name and phone — callback requests are sent there by SMS.',
+      'Review each section; use Back to fix anything before submitting.',
+      'After you submit, your listing goes to an admin for approval before it appears publicly.',
+    ],
+  },
 ];
 
 const STANDARD_NEIGHBORHOODS = ['Midwood', 'Homecrest', 'Marine Park', 'Flatbush', 'Gravesend', 'Boro Park'];
@@ -456,11 +512,13 @@ export function EditCommercialListingWizard() {
   if (!originalListing) return null;
 
   const totalSteps = COMMERCIAL_STEP_LABELS.length;
+  const activeTips = COMMERCIAL_STEP_TIPS[wizard.currentStep] ?? COMMERCIAL_STEP_TIPS[0];
 
   return (
     <WizardUIContext.Provider value={{ currentStep: wizard.currentStep, totalSteps, lastSavedAt: wizard.lastSavedAt }}>
       <>
         <WizardBreadcrumb
+          title="Edit Listing"
           currentStep={wizard.currentStep}
           highWaterStep={wizard.highWaterStep}
           onGoToStep={handleGoToStep}
@@ -468,8 +526,8 @@ export function EditCommercialListingWizard() {
         />
 
         <div className="max-w-5xl mx-auto px-4 pt-4 pb-2">
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center gap-3">
               <button
                 type="button"
                 onClick={() => navigate('/account?tab=listings')}
@@ -477,11 +535,11 @@ export function EditCommercialListingWizard() {
               >
                 <ArrowLeft className="w-4 h-4" /> Cancel
               </button>
-              <h1 className="text-lg font-bold text-gray-900">Edit Listing</h1>
               <span className="inline-flex items-center gap-1.5 text-xs font-medium bg-accent-50 text-accent-700 border border-accent-200 px-2.5 py-1 rounded-full">
                 <span className="w-1.5 h-1.5 rounded-full bg-accent-500 flex-shrink-0" />
                 {isSale ? 'Commercial · For sale' : 'Commercial · For rent'}
               </span>
+              <StepTips heading={activeTips.heading} bullets={activeTips.bullets} />
             </div>
           </div>
         </div>

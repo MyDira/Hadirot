@@ -3,16 +3,6 @@ import { ArrowLeft, ArrowRight } from 'lucide-react';
 import type { ListingFormData } from '../../../postListing/types';
 import { MediaUploader } from '../../../../components/shared/MediaUploader';
 import type { MediaFile } from '../../../../components/shared/MediaUploader';
-import { StepTips } from '../../StepTips';
-
-const TIPS = {
-  heading: 'Photos & Description',
-  bullets: [
-    'Photos make a significant difference in inquiries — the more the better, up to 10.',
-    'Include living room, bedroom, kitchen, and bathroom for best results.',
-    'Your first photo is the listing thumbnail — make it count.',
-  ],
-};
 
 interface Step3Props {
   formData: ListingFormData;
@@ -40,7 +30,7 @@ export function Step3ShowItOff({
   maxAllowedFiles,
 }: Step3Props) {
   return (
-    <div className="flex gap-8 items-start">
+    <div className="flex flex-col lg:flex-row gap-8 items-start">
       <div className="flex-1 min-w-0 space-y-5">
         {/* Photos first */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
@@ -118,8 +108,6 @@ export function Step3ShowItOff({
           </button>
         </div>
       </div>
-
-      <StepTips {...TIPS} />
     </div>
   );
 }

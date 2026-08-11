@@ -11,6 +11,7 @@ const DEFAULT_STEP_LABELS = [
 ];
 
 interface WizardBreadcrumbProps {
+  title: string;
   currentStep: number;
   /** Furthest step index the user has reached by pressing Continue. */
   highWaterStep: number;
@@ -18,17 +19,17 @@ interface WizardBreadcrumbProps {
   stepLabels?: string[];
 }
 
-export function WizardBreadcrumb({ currentStep, highWaterStep, onGoToStep, stepLabels }: WizardBreadcrumbProps) {
+export function WizardBreadcrumb({ title, currentStep, highWaterStep, onGoToStep, stepLabels }: WizardBreadcrumbProps) {
   const STEP_LABELS = stepLabels && stepLabels.length > 0 ? stepLabels : DEFAULT_STEP_LABELS;
   return (
     <div className="w-full bg-white border-b border-gray-200">
       <div className="max-w-5xl mx-auto px-4 py-3">
-        {/* Mobile: compact step counter */}
-        <div className="flex sm:hidden items-center justify-between">
-          <span className="text-sm font-medium text-gray-900">
-            Step {currentStep + 1} of {STEP_LABELS.length}
+        {/* Page heading + step counter, together in one row on every breakpoint */}
+        <div className="flex items-center justify-between gap-3">
+          <h1 className="text-lg font-bold text-gray-900 flex-shrink-0">{title}</h1>
+          <span className="text-sm text-gray-500 text-right truncate">
+            Step {currentStep + 1} of {STEP_LABELS.length} · {STEP_LABELS[currentStep]}
           </span>
-          <span className="text-sm text-gray-500">{STEP_LABELS[currentStep]}</span>
         </div>
         <div className="mt-2 sm:hidden h-1 bg-gray-100 rounded-full overflow-hidden">
           <div
@@ -37,8 +38,8 @@ export function WizardBreadcrumb({ currentStep, highWaterStep, onGoToStep, stepL
           />
         </div>
 
-        {/* Desktop: step trail */}
-        <ol className="hidden sm:flex items-center gap-0.5 overflow-x-auto">
+        {/* Step trail — same click/visited/active rules on every breakpoint, scrolls horizontally when it doesn't fit */}
+        <ol className="flex items-center gap-0.5 overflow-x-auto mt-2 sm:mt-0">
           {STEP_LABELS.map((label, idx) => {
             const active = idx === currentStep;
             const visited = idx <= highWaterStep;

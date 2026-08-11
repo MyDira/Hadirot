@@ -1,15 +1,6 @@
 import React from 'react';
 import { ArrowLeft, ArrowRight, Building2, Home, Layers, ArrowDownToLine } from 'lucide-react';
 import type { ListingFormData } from '../../../postListing/types';
-import { StepTips } from '../../StepTips';
-
-const TIPS = {
-  heading: 'Property & Layout',
-  bullets: [
-    'Basement bedrooms belong here — tenants don\'t count a separated floor as a real bedroom.',
-    'Full House, Duplex, and Basement listings get a special tag on the listing card.',
-  ],
-};
 
 const PROPERTY_TYPES = [
   { value: 'apartment_building', label: 'Apartment\nin Building', icon: <Building2 className="w-6 h-6" /> },
@@ -59,7 +50,7 @@ export function Step1PropertyTypeAndLayout({ formData, updateFormData, onNext, o
   const canContinue = !!formData.property_type && formData.bedrooms !== undefined;
 
   return (
-    <div className="flex gap-8 items-start">
+    <div className="flex flex-col lg:flex-row gap-8 items-start">
       <div className="flex-1 min-w-0 space-y-5">
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
           <h2 className="text-xl font-semibold text-gray-900 mb-5">Property & Layout</h2>
@@ -206,8 +197,6 @@ export function Step1PropertyTypeAndLayout({ formData, updateFormData, onNext, o
           </button>
         </div>
       </div>
-
-      <StepTips {...TIPS} />
     </div>
   );
 }

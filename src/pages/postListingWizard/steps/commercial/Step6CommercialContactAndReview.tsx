@@ -1,15 +1,6 @@
 import React, { useEffect } from 'react';
 import { ArrowLeft, Send, CheckCircle, Image, AlertCircle } from 'lucide-react';
-import { StepTips } from '../../StepTips';
 
-const TIPS = {
-  heading: 'Review & Submit',
-  bullets: [
-    'Double-check the contact name and phone — callback requests are sent there by SMS.',
-    'Review each section; use Back to fix anything before submitting.',
-    'After you submit, your listing goes to an admin for approval before it appears publicly.',
-  ],
-};
 import type { MediaFile } from '../../../../components/shared/MediaUploader';
 import type { Profile } from '../../../../config/supabase';
 import type { CommercialStepProps } from './_StepShell';
@@ -173,7 +164,7 @@ export function Step6CommercialContactAndReview({
   const photoCount = mediaFiles.filter(m => m.type === 'image').length;
 
   return (
-    <div className="flex gap-8 items-start">
+    <div className="flex flex-col lg:flex-row gap-8 items-start">
     <div className="flex-1 min-w-0 space-y-6">
       {/* Contact Info */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
@@ -314,7 +305,6 @@ export function Step6CommercialContactAndReview({
         </button>
       </div>
     </div>
-    <StepTips {...TIPS} />
     </div>
   );
 }

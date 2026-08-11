@@ -1,7 +1,6 @@
 import React from 'react';
 import { ArrowLeft, ArrowRight } from 'lucide-react';
 import type { CommercialListingFormData } from '../../../postCommercial/commercialTypes';
-import { StepTips } from '../../StepTips';
 
 export interface CommercialStepProps {
   formData: CommercialListingFormData;
@@ -9,11 +8,6 @@ export interface CommercialStepProps {
   isSale: boolean;
   onNext: () => void;
   onBack: () => void;
-}
-
-export interface StepTipsData {
-  heading: string;
-  bullets: string[];
 }
 
 interface StepShellProps {
@@ -25,7 +19,6 @@ interface StepShellProps {
   isSubmit?: boolean;
   submitLabel?: string;
   submitting?: boolean;
-  tips?: StepTipsData;
 }
 
 export function StepShell({
@@ -37,9 +30,8 @@ export function StepShell({
   isSubmit = false,
   submitLabel = 'Submit Listing',
   submitting = false,
-  tips,
 }: StepShellProps) {
-  const inner = (
+  return (
     <div className="flex-1 min-w-0 space-y-5">
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
         <h2 className="text-xl font-semibold text-gray-900 mb-5">{title}</h2>
@@ -68,15 +60,4 @@ export function StepShell({
       </div>
     </div>
   );
-
-  if (tips) {
-    return (
-      <div className="flex gap-8 items-start">
-        {inner}
-        <StepTips {...tips} />
-      </div>
-    );
-  }
-
-  return inner;
 }

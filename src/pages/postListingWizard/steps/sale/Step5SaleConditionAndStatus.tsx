@@ -1,15 +1,6 @@
 import React from 'react';
 import { ArrowLeft, ArrowRight } from 'lucide-react';
 import type { ListingFormData } from '../../../postListing/types';
-import { StepTips } from '../../StepTips';
-
-const TIPS = {
-  heading: 'Size & Condition',
-  bullets: [
-    'Be honest about condition — buyers will see the property. Overstating it wastes everyone\'s time.',
-    'Square footage and lot size help buyers compare properties — include it if you know it.',
-  ],
-};
 
 const PROPERTY_CONDITION = [
   { value: 'excellent', label: 'Excellent' },
@@ -77,7 +68,7 @@ export function Step5SaleConditionAndStatus({ formData, updateFormData, onNext, 
       : null;
 
   return (
-    <div className="flex gap-8 items-start">
+    <div className="flex flex-col lg:flex-row gap-8 items-start">
       <div className="flex-1 min-w-0 space-y-5">
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 space-y-6">
           <h2 className="text-xl font-semibold text-gray-900">Size & Condition</h2>
@@ -272,7 +263,6 @@ export function Step5SaleConditionAndStatus({ formData, updateFormData, onNext, 
           </button>
         </div>
       </div>
-      <StepTips {...TIPS} />
     </div>
   );
 }

@@ -2,16 +2,6 @@ import React from 'react';
 import { ArrowLeft, ArrowRight, Plus, Trash2 } from 'lucide-react';
 import type { ListingFormData } from '../../../postListing/types';
 import type { RentRollUnit } from '../../../../config/supabase';
-import { StepTips } from '../../StepTips';
-
-const TIPS = {
-  heading: 'Details & Features',
-  bullets: [
-    'Property taxes: check your latest NYC Finance bill or search your address on nycproperty.nyc.gov — buyers factor this into their offer.',
-    'For multi-family properties, a complete rent roll significantly increases buyer confidence.',
-    'Fill in what you can — the more complete your listing, the fewer back-and-forth calls.',
-  ],
-};
 
 const OCCUPANCY = [
   { value: 'owner_occupied', label: 'Owner Occupied' },
@@ -167,7 +157,7 @@ export function Step6SaleOptionalFeatures({ formData, updateFormData, onNext, on
     updateFormData({ rent_roll_data: (formData.rent_roll_data || []).filter((_, i) => i !== idx) });
 
   return (
-    <div className="flex gap-8 items-start">
+    <div className="flex flex-col lg:flex-row gap-8 items-start">
       <div className="flex-1 min-w-0 space-y-5">
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 space-y-6">
           <div>
@@ -430,7 +420,6 @@ export function Step6SaleOptionalFeatures({ formData, updateFormData, onNext, on
           </button>
         </div>
       </div>
-      <StepTips {...TIPS} />
     </div>
   );
 }
