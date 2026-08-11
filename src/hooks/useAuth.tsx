@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useState } from "react";
 import { User } from "@supabase/supabase-js";
 import { supabase, Profile } from "../config/supabase";
 import { emailService } from "../services/email";
+import { accountEmailService } from "../services/accountEmail";
 import { queryClient, queryKeys, shareProfileAcrossCaches } from "@/services/queryClient";
 
 export const AUTH_CONTEXT_ID = "auth/v1";
@@ -212,6 +213,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (!session?.user) {
           applyProfileUpdate(null);
         }
+      }
+
+      // Fires both when updateUser() changes the email outright and when a
+      // pending change is confirmed from the emailed link. profiles.email is
+      // handled by a DB trigger; Stripe is the one place that needs a nudge
+      // from the client. No-ops for users without a Stripe customer.
+      if (event === "USER_UPDATED") {
+        void accountEmailService.syncStripeCustomerEmail();
       }
     });
 
