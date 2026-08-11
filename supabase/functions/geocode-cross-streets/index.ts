@@ -81,6 +81,20 @@ interface GeocodeRequest {
    * crossStreets — geocoded as a plain address, with no intersection check.
    */
   address?: string;
+  /**
+   * A fully-qualified place string that a source already normalized for us
+   * ("E 18th St, Brooklyn, N.Y. 11229, USA" — luach.com's own map attribute).
+   * Geocoded VERBATIM: unlike `address` it gets no borough suffix appended,
+   * because it already carries its locality and adding another would drag the
+   * result off the real block.
+   */
+  place?: string;
+  /**
+   * Reverse mode: resolve a pin the source already gave us into a street
+   * address + neighborhood. Set both, and leave the query fields empty.
+   */
+  latitude?: number;
+  longitude?: number;
   neighborhood?: string;
   /**
    * Force the neighborhood to be reverse-geocoded from the resolved pin even
@@ -99,6 +113,8 @@ interface GeocodeResult {
   normalizedQuery?: string;
   originalQuery: string;
   neighborhood?: string;
+  /** Reverse mode only: the exact street address the pin sits on. */
+  streetAddress?: string;
   fallbackUsed?: string;
   error?: string;
   corrections?: string[];
@@ -198,6 +214,57 @@ async function reverseGeocode(
     console.error('Google reverse geocoding error:', error);
     return null;
   }
+}
+
+/**
+ * Reverse mode: a pin → the street address it sits on, plus its neighborhood.
+ *
+ * Deliberately does NOT ask for `result_type=intersection`. Google's reverse
+ * geocoder returns ZERO_RESULTS for intersections even when the point sits
+ * exactly on one (verified Aug 6 2026 on Avenue J & E 15th St), so cross
+ * streets cannot be recovered from a coordinate this way. A precise street
+ * address is what it does return reliably — and geocodeListing already treats
+ * an exact address as better than an intersection, because it pins the actual
+ * building.
+ */
+async function reverseGeocodeAddress(
+  lat: number,
+  lng: number,
+  apiKey: string,
+): Promise<{ streetAddress: string | null; neighborhood: string | null }> {
+  const params = new URLSearchParams({
+    latlng: `${lat},${lng}`,
+    key: apiKey,
+    result_type: 'street_address|premise|route',
+  });
+
+  let streetAddress: string | null = null;
+  try {
+    const response = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?${params}`);
+    if (response.ok) {
+      const data = await response.json();
+      if (data.status === 'OK' && data.results?.length > 0) {
+        const best = data.results[0];
+        const num = (best.address_components ?? []).find((c: { types: string[] }) =>
+          c.types.includes('street_number'),
+        );
+        const route = (best.address_components ?? []).find((c: { types: string[] }) =>
+          c.types.includes('route'),
+        );
+        // Just number + street: the caller stores this in a street_address
+        // field that already implies the borough, and Google's
+        // formatted_address drags along city/state/zip/country.
+        if (route) {
+          streetAddress = [num?.long_name, route.long_name].filter(Boolean).join(' ');
+        }
+      }
+    }
+  } catch (error) {
+    console.error('Google reverse address lookup error:', error);
+  }
+
+  const neighborhood = await reverseGeocode(lat, lng, apiKey);
+  return { streetAddress, neighborhood };
 }
 
 // ── Query fallback chain ──────────────────────────────────────────────────────
@@ -313,9 +380,44 @@ Deno.serve(async (req: Request) => {
 
     const body: GeocodeRequest = await req.json();
     const { neighborhood, detectNeighborhood } = body;
-    const isAddressMode = typeof body.address === 'string' && body.address.trim().length > 0;
-    // One query string drives both modes; only the resolution strategy differs.
-    const query = (isAddressMode ? body.address : body.crossStreets) ?? '';
+
+    // --- Reverse mode: the source already gave us a pin --------------------
+    const revLat = Number(body.latitude);
+    const revLng = Number(body.longitude);
+    if (
+      Number.isFinite(revLat) &&
+      Number.isFinite(revLng) &&
+      Math.abs(revLat) <= 90 &&
+      Math.abs(revLng) <= 180 &&
+      !body.crossStreets &&
+      !body.address &&
+      !body.place
+    ) {
+      const { streetAddress, neighborhood: hood } = await reverseGeocodeAddress(
+        revLat,
+        revLng,
+        googleApiKey,
+      );
+      console.log(
+        `Reverse geocode ${revLat},${revLng} -> address="${streetAddress ?? '—'}" neighborhood="${hood ?? '—'}"`,
+      );
+      return new Response(
+        JSON.stringify({
+          success: true,
+          coordinates: { latitude: revLat, longitude: revLng },
+          originalQuery: `${revLat},${revLng}`,
+          streetAddress: streetAddress ?? undefined,
+          neighborhood: hood ?? neighborhood ?? undefined,
+        } as GeocodeResult),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      );
+    }
+
+    const isPlaceMode = typeof body.place === 'string' && body.place.trim().length > 0;
+    const isAddressMode =
+      !isPlaceMode && typeof body.address === 'string' && body.address.trim().length > 0;
+    // One query string drives every forward mode; only the resolution strategy differs.
+    const query = (isPlaceMode ? body.place : isAddressMode ? body.address : body.crossStreets) ?? '';
 
     if (typeof query !== 'string' || query.trim().length < 2 || query.length > 200) {
       return new Response(
@@ -351,7 +453,7 @@ Deno.serve(async (req: Request) => {
       : null;
 
     const cacheKey = buildCacheKey(crossStreets, neighborhood, {
-      address: isAddressMode,
+      address: isAddressMode || isPlaceMode,
       detectNeighborhood: !!detectNeighborhood,
     });
     if (cacheClient) {
@@ -371,7 +473,11 @@ Deno.serve(async (req: Request) => {
     let fallback = 'none';
     let normalizedForError = crossStreets;
 
-    if (isAddressMode) {
+    if (isPlaceMode) {
+      // Already locality-qualified by the source — geocode it exactly as given.
+      coords = await geocodeWithGoogle(crossStreets, googleApiKey);
+      resolvedQuery = crossStreets;
+    } else if (isAddressMode) {
       // A house-numbered address is a plain forward geocode — no intersection
       // parsing, no street normalization, no intersection result_type. The
       // neighborhood hint is deliberately left out: number + street is already
@@ -406,7 +512,7 @@ Deno.serve(async (req: Request) => {
     if (!coords) {
       const notFoundResult: GeocodeResult = {
         success: false,
-        error: isAddressMode
+        error: isAddressMode || isPlaceMode
           ? 'Address not found. Check the house number and street, or switch to cross streets.'
           : 'Location not found. Try a different format (e.g., "Avenue J & East 15th Street")',
         originalQuery: crossStreets,

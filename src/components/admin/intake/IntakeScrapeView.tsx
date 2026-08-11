@@ -29,6 +29,7 @@ export function IntakeScrapeView({ onScraped }: IntakeScrapeViewProps) {
   const [limit, setLimit] = useState(60);
   const [includePromoted, setIncludePromoted] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const [lastRun, setLastRun] = useState<ScrapeRun | null>(null);
   const [result, setResult] = useState<ScrapeResult | null>(null);
   const [toast, setToast] = useState<string | null>(null);
@@ -52,15 +53,19 @@ export function IntakeScrapeView({ onScraped }: IntakeScrapeViewProps) {
     if (busy || rangeInvalid) return;
     setBusy(true);
     setResult(null);
+    setProgress(null);
     try {
-      const res = await aiIntakeService.scrapeLuachCom({
-        mode,
-        since: mode === 'range' ? since : null,
-        until: mode === 'range' ? until : null,
-        pages,
-        limit,
-        includePromoted,
-      });
+      const res = await aiIntakeService.scrapeLuachCom(
+        {
+          mode,
+          since: mode === 'range' ? since : null,
+          until: mode === 'range' ? until : null,
+          pages,
+          limit,
+          includePromoted,
+        },
+        (done, total) => setProgress({ done, total }),
+      );
       setResult(res);
       await loadLastRun();
       if (res.inserted > 0 || res.updated > 0) onScraped(res);
@@ -75,6 +80,7 @@ export function IntakeScrapeView({ onScraped }: IntakeScrapeViewProps) {
       setToast(err instanceof Error ? err.message : 'Scrape failed');
     } finally {
       setBusy(false);
+      setProgress(null);
     }
   };
 
@@ -201,10 +207,27 @@ export function IntakeScrapeView({ onScraped }: IntakeScrapeViewProps) {
         </label>
 
         {busy && (
-          <p className="text-sm text-gray-500 mt-4 flex items-center gap-2">
-            <Loader2 className="w-3.5 h-3.5 animate-spin" /> Fetching pages and reading listings with
-            AI — this can take a minute…
-          </p>
+          <div className="mt-4">
+            <p className="text-sm text-gray-500 flex items-center gap-2">
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              {!progress
+                ? 'Reading the luach.com index…'
+                : progress.total === 0
+                  ? 'Wrapping up…'
+                  : `Fetching pages and reading listings with AI — batch ${Math.min(
+                      progress.done + 1,
+                      progress.total,
+                    )} of ${progress.total}…`}
+            </p>
+            {progress && progress.total > 0 && (
+              <div className="mt-2 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-blue-600 transition-all duration-300"
+                  style={{ width: `${(progress.done / progress.total) * 100}%` }}
+                />
+              </div>
+            )}
+          </div>
         )}
 
         {result && (
@@ -212,7 +235,8 @@ export function IntakeScrapeView({ onScraped }: IntakeScrapeViewProps) {
             <div>
               Read {result.cards_seen} listing{result.cards_seen === 1 ? '' : 's'} on the index ·
               fetched {result.pages_fetched} · <strong>{result.inserted}</strong> new ·{' '}
-              {result.updated} updated · {result.geocoded} geocoded
+              {result.updated} updated · {result.geocoded} geocoded · {result.photos} photo
+              {result.photos === 1 ? '' : 's'}
               {result.errors.length > 0 && (
                 <span className="text-amber-700"> · {result.errors.length} error(s)</span>
               )}
