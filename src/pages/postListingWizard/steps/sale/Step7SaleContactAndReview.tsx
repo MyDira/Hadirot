@@ -3,15 +3,6 @@ import { ArrowLeft, Send, CheckCircle, Image, AlertCircle } from 'lucide-react';
 import type { ListingFormData } from '../../../postListing/types';
 import type { MediaFile } from '../../../../components/shared/MediaUploader';
 import type { Profile } from '../../../../config/supabase';
-import { StepTips } from '../../StepTips';
-
-const TIPS = {
-  heading: 'Contact & Review',
-  bullets: [
-    'Read through the full summary carefully before submitting.',
-    'Once live, buyers are already forming an impression — errors or missing info can cost you inquiries.',
-  ],
-};
 
 const PROPERTY_TYPE_LABELS: Record<string, string> = {
   single_family: 'Single-Family',
@@ -176,7 +167,7 @@ export function Step7SaleContactAndReview({
   const photoCount = mediaFiles.filter(m => m.type === 'image').length;
 
   return (
-    <div className="flex gap-8 items-start">
+    <div className="flex flex-col lg:flex-row gap-8 items-start">
       <div className="flex-1 min-w-0 space-y-6">
         {/* Contact Info */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
@@ -349,8 +340,6 @@ export function Step7SaleContactAndReview({
           </div>
         </div>
       </div>
-
-      <StepTips {...TIPS} />
     </div>
   );
 }

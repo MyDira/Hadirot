@@ -35,7 +35,7 @@ export function Step2SaleSizeAndPrice({ formData, updateFormData, onNext, onBack
   const canContinue = formData.call_for_price || (!!formData.asking_price && formData.asking_price > 0);
 
   return (
-    <div className="flex gap-8 items-start">
+    <div className="flex flex-col lg:flex-row gap-8 items-start">
       <div className="flex-1 min-w-0 space-y-5">
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
           <h2 className="text-xl font-semibold text-gray-900 mb-5">Size & Price</h2>

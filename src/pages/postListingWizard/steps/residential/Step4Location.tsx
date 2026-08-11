@@ -4,16 +4,6 @@ import type { ListingFormData } from '../../../postListing/types';
 import { GoogleStreetAutocomplete, GoogleStreetFeature } from '../../../../components/listing/GoogleStreetAutocomplete';
 import { GoogleAddressAutocomplete, GooglePlaceResult } from '../../../../components/listing/GoogleAddressAutocomplete';
 import { LocationPicker } from '../../../../components/listing/LocationPicker';
-import { StepTips } from '../../StepTips';
-
-const TIPS = {
-  heading: 'Location',
-  bullets: [
-    'Use cross streets if you want to keep your exact address private.',
-    'The pin is how tenants browse — an inaccurate pin means missed leads.',
-    'For cross streets, enter the intersection closest to the unit.',
-  ],
-};
 
 const NEIGHBORHOOD_OPTIONS = [
   'Midwood',
@@ -158,7 +148,7 @@ export function Step4Location({
       : 'Verify the pin dropped at your address — drag to adjust if needed.';
 
   return (
-    <div className="flex gap-8 items-start">
+    <div className="flex flex-col lg:flex-row gap-8 items-start">
       <div className="flex-1 min-w-0 space-y-5">
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
           <div className="flex items-center justify-between mb-5">
@@ -374,8 +364,6 @@ export function Step4Location({
           </div>
         </div>
       </div>
-
-      <StepTips {...TIPS} />
     </div>
   );
 }

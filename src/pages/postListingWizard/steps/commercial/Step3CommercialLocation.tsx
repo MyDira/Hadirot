@@ -1,19 +1,10 @@
 import React, { useState } from 'react';
 import { ArrowLeft, ArrowRight } from 'lucide-react';
-import { StepTips } from '../../StepTips';
 import {
   GoogleStreetAutocomplete,
   GoogleStreetFeature,
 } from '../../../../components/listing/GoogleStreetAutocomplete';
 
-const TIPS = {
-  heading: 'Location',
-  bullets: [
-    'A precise address helps tenants find the space and powers the map pin.',
-    'No exact address yet? Enter the two nearest cross streets instead.',
-    'Choose the neighborhood tenants search by — it feeds the neighborhood filter.',
-  ],
-};
 import {
   GoogleAddressAutocomplete,
   GooglePlaceResult,
@@ -150,7 +141,7 @@ export function Step3CommercialLocation({
       : 'Verify the pin dropped at your address — drag to adjust if needed.';
 
   return (
-    <div className="flex gap-8 items-start">
+    <div className="flex flex-col lg:flex-row gap-8 items-start">
     <div className="flex-1 min-w-0 space-y-5">
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
         <div className="flex items-center justify-between mb-5">
@@ -340,7 +331,6 @@ export function Step3CommercialLocation({
         </button>
       </div>
     </div>
-    <StepTips {...TIPS} />
     </div>
   );
 }

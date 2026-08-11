@@ -14,6 +14,7 @@ import { useWizardState, type WizardPath, isCommercialPath } from './useWizardSt
 import { WizardUIContext } from './WizardContext';
 import { PathPicker } from './PathPicker';
 import { WizardBreadcrumb } from './WizardBreadcrumb';
+import { StepTips, type StepTipsData } from './StepTips';
 import { ComingSoon } from './ComingSoon';
 import { Step1PropertyTypeAndLayout } from './steps/residential/Step1PropertyTypeAndLayout';
 import { Step2PriceAndTerms } from './steps/residential/Step2PriceAndTerms';
@@ -104,6 +105,158 @@ const COMMERCIAL_STEP_LABELS = [
   'Space Details',
   'Optional Details',
   'Contact & Review',
+];
+
+// Per-step TIP dropdown content — index-aligned with the *_STEP_LABELS arrays
+// above. Lives here (not in the step files) because the dropdown itself now
+// renders in this shell's header row, not inline with each step.
+const RENTAL_STEP_TIPS: StepTipsData[] = [
+  {
+    heading: 'Property & Layout',
+    bullets: [
+      'Basement bedrooms belong here — tenants don\'t count a separated floor as a real bedroom.',
+      'Full House, Duplex, and Basement listings get a special tag on the listing card.',
+    ],
+  },
+  {
+    heading: 'Price & Terms',
+    bullets: [
+      'A real price filters out unqualified leads.',
+      'NYC law restricts advertising fees on rentals — fee listings are reviewed by our team.',
+    ],
+  },
+  {
+    heading: 'Photos & Description',
+    bullets: [
+      'Photos make a significant difference in inquiries — the more the better, up to 10.',
+      'Include living room, bedroom, kitchen, and bathroom for best results.',
+      'Your first photo is the listing thumbnail — make it count.',
+    ],
+  },
+  {
+    heading: 'Location',
+    bullets: [
+      'Use cross streets if you want to keep your exact address private.',
+      'The pin is how tenants browse — an inaccurate pin means missed leads.',
+      'For cross streets, enter the intersection closest to the unit.',
+    ],
+  },
+  {
+    heading: 'Features & Condition',
+    bullets: [
+      'Parking is one of the most-filtered amenities — mark it accurately.',
+      'Every feature you add surfaces your listing to more renters.',
+      'Square footage is optional but helps serious searchers.',
+    ],
+  },
+  {
+    heading: 'Contact & Review',
+    bullets: [
+      'Double-check your phone number — that\'s how renters reach you.',
+      'We\'ll send you SMS updates on your listing status — standard rates apply.',
+      'Your listing will be reviewed before going live.',
+    ],
+  },
+];
+
+const SALE_STEP_TIPS: StepTipsData[] = [
+  {
+    heading: 'Basic Info',
+    bullets: [
+      'Double-check your bed/bath count — buyers filter by this first.',
+      'If you\'re unsure of the building type, "Fully Attached" means shared walls on both sides (like a rowhouse).',
+    ],
+  },
+  {
+    heading: 'Photos & Description',
+    bullets: [
+      'Photos are the #1 reason buyers click — or don\'t. At least 3–5 photos from different rooms make a real difference. Max 20.',
+      'If this is an off-market listing, upload a flyer or a clean exterior photo instead.',
+      'Your description is your pitch — mention recent renovations, standout features, and anything that makes this property worth a look.',
+    ],
+  },
+  {
+    heading: 'Location',
+    bullets: [
+      'Use Cross Streets to keep the exact address private — ideal for off-market listings where you want inquiries without full exposure.',
+      'Use Exact Address for maximum visibility.',
+      'Either way, confirm the map pin landed in the right spot before moving on.',
+    ],
+  },
+  {
+    heading: 'Size & Condition',
+    bullets: [
+      'Be honest about condition — buyers will see the property. Overstating it wastes everyone\'s time.',
+      'Square footage and lot size help buyers compare properties — include it if you know it.',
+    ],
+  },
+  {
+    heading: 'Details & Features',
+    bullets: [
+      'Property taxes: check your latest NYC Finance bill or search your address on nycproperty.nyc.gov — buyers factor this into their offer.',
+      'For multi-family properties, a complete rent roll significantly increases buyer confidence.',
+      'Fill in what you can — the more complete your listing, the fewer back-and-forth calls.',
+    ],
+  },
+  {
+    heading: 'Contact & Review',
+    bullets: [
+      'Read through the full summary carefully before submitting.',
+      'Once live, buyers are already forming an impression — errors or missing info can cost you inquiries.',
+    ],
+  },
+];
+
+const COMMERCIAL_STEP_TIPS: StepTipsData[] = [
+  {
+    heading: 'Type & Pricing',
+    bullets: [
+      'Pick the space type that best matches the unit — it drives the spec fields shown later.',
+      'Rentals are usually quoted per SF/year; enter the monthly asking rent if that is how you list.',
+      'For sales, enter the asking price. Not ready to show a number? Toggle “Call for price”.',
+    ],
+  },
+  {
+    heading: 'Photos & Description',
+    bullets: [
+      'Lead with your best exterior / storefront shot — it drives the most clicks.',
+      'Include wide interior shots, the layout, frontage, and any build-out or fixtures.',
+      'Aim for 5–10 well-lit photos; listings with more photos get more inquiries.',
+      'In the description, call out condition, ceiling height, frontage, and ideal uses.',
+    ],
+  },
+  {
+    heading: 'Location',
+    bullets: [
+      'A precise address helps tenants find the space and powers the map pin.',
+      'No exact address yet? Enter the two nearest cross streets instead.',
+      'Choose the neighborhood tenants search by — it feeds the neighborhood filter.',
+    ],
+  },
+  {
+    heading: 'Space Details',
+    bullets: [
+      'Available SF and lease type are the fields tenants filter on most — fill them in.',
+      'Build-out condition (Turnkey, Second Generation, Shell…) sets tenant expectations up front.',
+      'Add floor level, ceiling height, and frontage where they apply to your space type.',
+    ],
+  },
+  {
+    heading: 'Optional Details',
+    bullets: [
+      'These fields are optional, but the more you add the stronger your listing looks to tenants.',
+      'Add parking, HVAC, power, and type-specific features (loading docks, exam rooms, kitchen exhaust…).',
+      'For sales / investments, CAP rate, NOI, and taxes help buyers evaluate quickly.',
+    ],
+  },
+  {
+    heading: 'Review & Submit',
+    bullets: [
+      'Double-check the contact name and phone — callback requests are sent there by SMS.',
+      'Review each section; use Back to fix anything before submitting.',
+      'After you submit, your listing goes to an admin for approval before it appears publicly.',
+    ],
+  },
 ];
 
 // ── Change Listing Type dropdown ──────────────────────────────────────────────
@@ -324,6 +477,12 @@ export function PostListingWizard() {
     ? SALE_STEP_LABELS
     : RENTAL_STEP_LABELS;
   const totalStepsForFunnel = stepLabels.length;
+  const stepTips = isCommercial
+    ? COMMERCIAL_STEP_TIPS
+    : isSalePath
+    ? SALE_STEP_TIPS
+    : RENTAL_STEP_TIPS;
+  const activeTips = stepTips[wizard.currentStep] ?? stepTips[0];
   const funnelPath = wizardPathToFunnelLabel(wizard.selectedPath);
 
   // Emit wizard_step_viewed only when the user advances to a new step.
@@ -1164,6 +1323,7 @@ export function PostListingWizard() {
     <WizardUIContext.Provider value={{ currentStep: wizard.currentStep, totalSteps, lastSavedAt: wizard.lastSavedAt }}>
     <>
       <WizardBreadcrumb
+        title="Post a Listing"
         currentStep={wizard.currentStep}
         highWaterStep={wizard.highWaterStep}
         onGoToStep={handleGoToStep}
@@ -1171,15 +1331,15 @@ export function PostListingWizard() {
       />
 
       <div className="max-w-5xl mx-auto px-4 pt-4 pb-2">
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <h1 className="text-lg font-bold text-gray-900">Post a Listing</h1>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <span className="inline-flex items-center gap-1.5 text-xs font-medium bg-accent-50 text-accent-700 border border-accent-200 px-2.5 py-1 rounded-full">
               <span className="w-1.5 h-1.5 rounded-full bg-accent-500 flex-shrink-0" />
               {isCommercial
                 ? (isCommercialSale ? 'Commercial · For sale' : 'Commercial · For rent')
                 : (isSalePath ? 'Residential · For sale' : 'Residential · For rent')}
             </span>
+            <StepTips heading={activeTips.heading} bullets={activeTips.bullets} />
           </div>
 
           <ChangeListingTypeButton

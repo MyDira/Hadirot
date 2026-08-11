@@ -2,16 +2,7 @@ import React from 'react';
 import { TYPE_SPECIFIC_FIELDS, type TypeSpecificField } from '../../../postCommercial/typeFieldConfigs';
 import type { CommercialListingFormData } from '../../../postCommercial/commercialTypes';
 import type { CommercialSpaceType } from '../../../../config/supabase';
-import { StepShell, type CommercialStepProps, type StepTipsData } from './_StepShell';
-
-const TIPS: StepTipsData = {
-  heading: 'Space Details',
-  bullets: [
-    'Available SF and lease type are the fields tenants filter on most — fill them in.',
-    'Build-out condition (Turnkey, Second Generation, Shell…) sets tenant expectations up front.',
-    'Add floor level, ceiling height, and frontage where they apply to your space type.',
-  ],
-};
+import { StepShell, type CommercialStepProps } from './_StepShell';
 import { WizardTriStateToggle } from './_TriStateToggle';
 
 const FLOOR_LEVEL_OPTIONS = [
@@ -175,7 +166,7 @@ export function Step4CommercialSpaceDetails({ formData, updateFormData, isSale, 
   const canContinue = !!formData.available_sf && Number(formData.available_sf) > 0;
 
   return (
-    <StepShell title="Space Details" onBack={onBack} onNext={onNext} canContinue={canContinue} tips={TIPS}>
+    <StepShell title="Space Details" onBack={onBack} onNext={onNext} canContinue={canContinue}>
       {/* Type-specific fields */}
       {typeFields.length > 0 && (
         <div className="mb-6">

@@ -4,7 +4,6 @@ import { ArrowLeft, Send, CheckCircle, Image, AlertCircle, CreditCard, UserPlus,
 import type { ListingFormData } from '../../../postListing/types';
 import type { MediaFile } from '../../../../components/shared/MediaUploader';
 import type { Profile } from '../../../../config/supabase';
-import { StepTips } from '../../StepTips';
 import { useMonetizationGate } from '../../../../hooks/useMonetizationGate';
 import {
   PaymentChoice,
@@ -13,15 +12,6 @@ import {
   isValidWizardPaymentChoice,
 } from '../../components/PaymentChoice';
 import { PostingOptionsModal } from '../../components/PostingOptionsModal';
-
-const TIPS = {
-  heading: 'Contact & Review',
-  bullets: [
-    'Double-check your phone number — that\'s how renters reach you.',
-    'We\'ll send you SMS updates on your listing status — standard rates apply.',
-    'Your listing will be reviewed before going live.',
-  ],
-};
 
 const LEASE_LABELS: Record<string, string> = {
   short_term: 'Short Term',
@@ -286,7 +276,7 @@ export function Step6ContactAndReview({
   const photoCount = mediaFiles.filter(m => m.type === 'image').length;
 
   return (
-    <div className="flex gap-8 items-start">
+    <div className="flex flex-col lg:flex-row gap-8 items-start">
       <div className="flex-1 min-w-0 space-y-6">
         {/* Contact Info */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
@@ -541,8 +531,6 @@ export function Step6ContactAndReview({
           </div>
         </div>
       </div>
-
-      <StepTips {...TIPS} />
 
       {/* Posting options modal (logged-in posters without a subscription). */}
       <PostingOptionsModal

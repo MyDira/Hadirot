@@ -5,17 +5,6 @@ import type { MediaFile } from '../../../../components/shared/MediaUploader';
 import { DESCRIPTION_PLACEHOLDERS } from '../../../postCommercial/typeFieldConfigs';
 import type { CommercialSpaceType } from '../../../../config/supabase';
 import type { CommercialStepProps } from './_StepShell';
-import { StepTips } from '../../StepTips';
-
-const TIPS = {
-  heading: 'Photos & Description',
-  bullets: [
-    'Lead with your best exterior / storefront shot — it drives the most clicks.',
-    'Include wide interior shots, the layout, frontage, and any build-out or fixtures.',
-    'Aim for 5–10 well-lit photos; listings with more photos get more inquiries.',
-    'In the description, call out condition, ceiling height, frontage, and ideal uses.',
-  ],
-};
 
 interface Props extends CommercialStepProps {
   mediaFiles: MediaFile[];
@@ -46,7 +35,7 @@ export function Step2CommercialShowItOff({
     : 'Describe the space — layout, finishes, condition, standout features…';
 
   return (
-    <div className="flex gap-8 items-start">
+    <div className="flex flex-col lg:flex-row gap-8 items-start">
     <div className="flex-1 min-w-0 space-y-5">
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
         <h2 className="text-xl font-semibold text-gray-900 mb-1">
@@ -136,7 +125,6 @@ export function Step2CommercialShowItOff({
         </button>
       </div>
     </div>
-    <StepTips {...TIPS} />
     </div>
   );
 }

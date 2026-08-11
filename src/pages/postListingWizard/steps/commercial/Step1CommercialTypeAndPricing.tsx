@@ -12,16 +12,7 @@ import {
 import type { CommercialSpaceType, CommercialSubtype } from '../../../../config/supabase';
 import { SPACE_TYPE_SUBTYPES, TYPE_SPECIFIC_FIELD_KEYS } from '../../../postCommercial/typeFieldConfigs';
 import type { CommercialListingFormData } from '../../../postCommercial/commercialTypes';
-import { StepShell, type CommercialStepProps, type StepTipsData } from './_StepShell';
-
-const TIPS: StepTipsData = {
-  heading: 'Type & Pricing',
-  bullets: [
-    'Pick the space type that best matches the unit — it drives the spec fields shown later.',
-    'Rentals are usually quoted per SF/year; enter the monthly asking rent if that is how you list.',
-    'For sales, enter the asking price. Not ready to show a number? Toggle “Call for price”.',
-  ],
-};
+import { StepShell, type CommercialStepProps } from './_StepShell';
 
 const SPACE_TYPES: { value: CommercialSpaceType; label: string; icon: React.ReactNode }[] = [
   { value: 'storefront',          label: 'Retail / Storefront', icon: <Store className="w-8 h-8" /> },
@@ -148,7 +139,7 @@ export function Step1CommercialTypeAndPricing({
 
   return (
     <>
-      <StepShell title="Type & Pricing" onBack={onBack} onNext={onNext} canContinue={canContinue} tips={TIPS}>
+      <StepShell title="Type & Pricing" onBack={onBack} onNext={onNext} canContinue={canContinue}>
         {/* Space Type grid */}
         <div className="mb-6">
           <label className="block text-sm font-medium text-gray-700 mb-3">

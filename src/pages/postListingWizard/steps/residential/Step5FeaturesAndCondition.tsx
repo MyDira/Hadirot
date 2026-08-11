@@ -1,16 +1,6 @@
 import React from 'react';
 import { ArrowLeft, ArrowRight } from 'lucide-react';
 import type { ListingFormData } from '../../../postListing/types';
-import { StepTips } from '../../StepTips';
-
-const TIPS = {
-  heading: 'Features & Condition',
-  bullets: [
-    'Parking is one of the most-filtered amenities — mark it accurately.',
-    'Every feature you add surfaces your listing to more renters.',
-    'Square footage is optional but helps serious searchers.',
-  ],
-};
 
 const UTILITY_OPTIONS = [
   { value: 'heat', label: 'Heat' },
@@ -73,7 +63,7 @@ export function Step5FeaturesAndCondition({ formData, updateFormData, onNext, on
   };
 
   return (
-    <div className="flex gap-8 items-start">
+    <div className="flex flex-col lg:flex-row gap-8 items-start">
       <div className="flex-1 min-w-0 space-y-6">
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 space-y-6">
           <h2 className="text-xl font-semibold text-gray-900">Features & Condition</h2>
@@ -231,8 +221,6 @@ export function Step5FeaturesAndCondition({ formData, updateFormData, onNext, on
           </button>
         </div>
       </div>
-
-      <StepTips {...TIPS} />
     </div>
   );
 }
