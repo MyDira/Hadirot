@@ -12,6 +12,18 @@ if (!supabaseUrl || !supabaseAnonKey) {
 export const SUPABASE_URL = supabaseUrl;
 export const SUPABASE_ANON_KEY = supabaseAnonKey;
 
+// Snapshot the URL's hash/search *before* the client below is constructed.
+// Constructing it kicks off gotrue-js's async URL processing, which — for a
+// valid recovery/magic link — establishes the session and then clears
+// location.hash. That can finish before React's first render, so anything
+// that reads window.location.hash later (e.g. PasswordRecoveryGate) can lose
+// the race and see it already empty. Reading it here, at module-evaluation
+// time, is guaranteed to run first.
+export const initialUrlHash =
+  typeof window !== 'undefined' ? window.location.hash : '';
+export const initialUrlSearch =
+  typeof window !== 'undefined' ? window.location.search : '';
+
 export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
   functions: supabaseFunctionDomain && supabaseFunctionDomain.trim() ? {
     url: `https://${supabaseFunctionDomain}`
